@@ -1159,7 +1159,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                       } else if (row.subCustomerName) {
                         note = `[الزبون الفرعي: ${row.subCustomerName}]`;
                       } else if (row.description) {
-                        note = row.description.replace(/^فاتورة مبيعات\s*(\([^)]*\))?\s*(-\s*)?/, '');
+                        const cleaned = row.description
+                          .replace(/^فاتورة مبيعات\s*(\([^)]*\))?\s*(-\s*)?/, '')
+                          .replace(/-\s*إجمالي\s*[\d,.]+/gi, '')
+                          .replace(/إجمالي\s*[\d,.]+/gi, '')
+                          .replace(/-\s*total\s*[\d,.]+/gi, '')
+                          .trim();
+                        note = cleaned;
                       }
                     } else if (row.type === 'receipt') {
                       const rawNote = row.voucherNotes || row.description || '';
@@ -1324,8 +1330,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                     {/* تفاصيل بنود الفاتورة المفصلة بالكامل ممتدة تحت كافة الأعمدة */}
                     {row.type === 'invoice' && row.items && row.items.length > 0 && showStatementItemDetails && (
                       <tr className="bg-slate-50/60 print:bg-transparent print-allow-break">
-                        <td colSpan={6} className="p-1 px-1.5 sm:px-2 border-b border-slate-300 print-allow-break">
-                          <div className="border border-slate-300 rounded overflow-hidden bg-slate-50/80 print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
+                        <td colSpan={6} className="p-0 border-b border-slate-300 print-allow-break report-subtable-cell">
+                          <div className="w-full bg-slate-50/80 print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
                             <table className="w-full text-right report-sub-table border-collapse">
                               <thead className="bg-slate-200 text-slate-800 font-bold border-b border-slate-300">
                                 <tr>
@@ -1661,7 +1667,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                       if (row.invoiceNotes) {
                         note = row.invoiceNotes;
                       } else if (row.description) {
-                        note = row.description.replace(/^فاتورة مشتريات\s*(\([^)]*\))?\s*(-\s*)?/, '');
+                        const cleaned = row.description
+                          .replace(/^فاتورة مشتريات\s*(\([^)]*\))?\s*(-\s*)?/, '')
+                          .replace(/-\s*إجمالي\s*[\d,.]+/gi, '')
+                          .replace(/إجمالي\s*[\d,.]+/gi, '')
+                          .trim();
+                        note = cleaned;
                       }
                     } else if (row.type === 'payment') {
                       const rawNote = row.voucherNotes || row.description || '';
@@ -1826,8 +1837,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                     {/* تفاصيل بنود فاتورة المشتريات ممتدة تحت كافة الأعمدة */}
                     {row.type === 'purchase' && row.items && row.items.length > 0 && showStatementItemDetails && (
                       <tr className="bg-slate-50/60 print:bg-transparent print-allow-break">
-                        <td colSpan={6} className="p-1 px-1.5 sm:px-2 border-b border-slate-300 print-allow-break">
-                          <div className="border border-slate-300 rounded overflow-hidden bg-slate-50/80 print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
+                        <td colSpan={6} className="p-0 border-b border-slate-300 print-allow-break report-subtable-cell">
+                          <div className="w-full bg-slate-50/80 print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
                             <table className="w-full text-right report-sub-table border-collapse">
                               <thead className="bg-slate-200 text-slate-800 font-bold border-b border-slate-300">
                                 <tr>

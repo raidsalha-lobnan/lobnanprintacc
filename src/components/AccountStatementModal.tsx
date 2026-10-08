@@ -730,13 +730,24 @@ export const AccountStatementModal: React.FC = () => {
                           } else if (row.subCustomerName) {
                             note = `[الزبون الفرعي: ${row.subCustomerName}]`;
                           } else if (row.description) {
-                            note = row.description.replace(/^فاتورة مبيعات\s*(\([^)]*\))?\s*(-\s*)?/, '');
+                            const cleaned = row.description
+                              .replace(/^فاتورة مبيعات\s*(\([^)]*\))?\s*(-\s*)?/, '')
+                              .replace(/-\s*إجمالي\s*[\d,.]+/gi, '')
+                              .replace(/إجمالي\s*[\d,.]+/gi, '')
+                              .replace(/-\s*total\s*[\d,.]+/gi, '')
+                              .trim();
+                            note = cleaned;
                           }
                         } else if (row.type === 'purchase') {
                           if (row.invoiceNotes) {
                             note = row.invoiceNotes;
                           } else if (row.description) {
-                            note = row.description.replace(/^فاتورة مشتريات\s*(\([^)]*\))?\s*(-\s*)?/, '');
+                            const cleaned = row.description
+                              .replace(/^فاتورة مشتريات\s*(\([^)]*\))?\s*(-\s*)?/, '')
+                              .replace(/-\s*إجمالي\s*[\d,.]+/gi, '')
+                              .replace(/إجمالي\s*[\d,.]+/gi, '')
+                              .trim();
+                            note = cleaned;
                           }
                         } else if (row.type === 'receipt') {
                           const rawNote = row.voucherNotes || row.description || '';
@@ -893,8 +904,8 @@ export const AccountStatementModal: React.FC = () => {
                           {/* تفاصيل الفاتورة: جدول الأصناف ممتد بالكامل تحت أعمدة مدين ودائن ورصيد */}
                           {showItemDetails && row.items && row.items.length > 0 && (
                             <tr className="bg-slate-50/60 print:bg-transparent print-allow-break">
-                              <td colSpan={6} className="p-1 px-1.5 sm:px-2 border-b border-slate-300 print-allow-break">
-                                <div className="border border-slate-300 rounded overflow-hidden shadow-2xs bg-white w-full print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
+                              <td colSpan={6} className="p-0 border-b border-slate-300 print-allow-break report-subtable-cell">
+                                <div className="w-full bg-white print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
                                   <table className="w-full text-right report-sub-table border-collapse">
                                     <thead>
                                       <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
@@ -1325,8 +1336,8 @@ export const AccountStatementModal: React.FC = () => {
                             {/* تفاصيل الأصناف الممتدة بالكامل للموظف */}
                             {showItemDetails && row.items && row.items.length > 0 && (
                               <tr className="bg-slate-50/60 print:bg-transparent print-allow-break">
-                                <td colSpan={6} className="p-1 px-1.5 sm:px-2 border-b border-slate-300 print-allow-break">
-                                  <div className="border border-slate-300 rounded overflow-hidden shadow-2xs bg-white w-full print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
+                                <td colSpan={6} className="p-0 border-b border-slate-300 print-allow-break report-subtable-cell">
+                                  <div className="w-full bg-white print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
                                     <table className="w-full text-right report-sub-table border-collapse">
                                       <thead>
                                         <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">

@@ -142,6 +142,9 @@ caption {
   font-size: 9pt !important;
   line-height: 1.25 !important;
   border-collapse: collapse !important;
+  width: 100% !important;
+  margin: 0 !important;
+  border: none !important;
 }
 
 .report-sub-table th,
@@ -155,6 +158,41 @@ caption {
 .report-sub-table th div,
 .report-sub-table th span {
   font-size: 9pt !important;
+}
+
+/* Seamless integration of sub-tables inside report-table with zero spacing and identical outer border line */
+.report-table td.report-subtable-cell,
+.report-table td:has(.report-sub-table),
+.report-table td:has(table),
+td.report-subtable-cell,
+td:has(.report-sub-table),
+tr:has(.report-sub-table) > td {
+  padding: 0 !important;
+  margin: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+.report-table td.report-subtable-cell > div,
+td.report-subtable-cell > div,
+td:has(.report-sub-table) > div {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  width: 100% !important;
+}
+
+/* Ensure no secondary border lines on left/right outer edges of the inner table */
+.report-sub-table tr > th:first-child,
+.report-sub-table tr > td:first-child {
+  border-right: none !important;
+}
+
+.report-sub-table tr > th:last-child,
+.report-sub-table tr > td:last-child {
+  border-left: none !important;
 }
 
 /* Ensure report text sizes scale precisely */
@@ -579,26 +617,48 @@ textarea::selection {
     height: auto !important;
   }
 
-  /* Ensure the sub-table itself retains clean borders and styling in print */
+  /* Ensure the sub-table itself retains clean borders and styling in print without double side borders */
   tr.print-allow-break table,
   .report-sub-table {
     border-collapse: collapse !important;
     border-spacing: 0 !important;
-    border: 1px solid #cbd5e1 !important;
+    border: none !important;
+    border-top: 1px solid #cbd5e1 !important;
+    border-bottom: 1px solid #cbd5e1 !important;
     background-color: #ffffff !important;
     width: 100% !important;
+    margin: 0 !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
+  }
+
+  /* Prevent double side borders or padding on sub-table container cell in print */
+  tr.print-allow-break > td.report-subtable-cell,
+  tr.print-allow-break > td:has(.report-sub-table),
+  td.report-subtable-cell,
+  td:has(.report-sub-table) {
+    border-left: none !important;
+    border-right: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   /* Re-enforce cell rules inside sub-tables to keep individual item text clean */
   .report-sub-table td,
   .report-sub-table th,
   .sub-table td,
-  .sub-table th,
-  tr.print-allow-break td,
-  tr.print-allow-break th {
+  .sub-table th {
     border: 1px solid #cbd5e1 !important;
+  }
+
+  .report-sub-table tr > th:first-child,
+  .report-sub-table tr > td:first-child {
+    border-right: none !important;
+  }
+
+  .report-sub-table tr > th:last-child,
+  .report-sub-table tr > td:last-child {
+    border-left: none !important;
   }
 
   /* Keep headings attached to their succeeding content (never orphan headers) */

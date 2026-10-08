@@ -219,8 +219,8 @@ export function generateAccountStatement(params: {
         type: 'invoice',
         category: 'withdrawal',
         typeLabel: 'فاتورة مبيعات',
-        description: `فاتورة مبيعات (${inv.items.length} أصناف) - إجمالي ${inv.totalAmount.toFixed(2)}${subCustNote}`,
-        invoiceNotes: inv.notes,
+        description: inv.notes ? `${inv.notes}${subCustNote}` : (subCustNote ? subCustNote.trim() : ''),
+        invoiceNotes: inv.notes || '',
         subtotal: inv.subtotal,
         discountTotal: inv.discountTotal || 0,
         taxAmount: inv.taxAmount || 0,
@@ -348,8 +348,8 @@ export function generateAccountStatement(params: {
         type: 'purchase',
         category: 'withdrawal', // For supplier, supplies/purchases
         typeLabel: 'فاتورة مشتريات',
-        description: `فاتورة مشتريات${pur.supplierInvoiceNumber ? ` (فاتورة مورد #${pur.supplierInvoiceNumber})` : ''} - ${pur.items.map(i => i.itemName).slice(0, 2).join('، ')}`,
-        invoiceNotes: pur.notes,
+        description: pur.notes || (pur.supplierInvoiceNumber ? `فاتورة مورد #${pur.supplierInvoiceNumber}` : ''),
+        invoiceNotes: pur.notes || '',
         subtotal: pur.subtotal,
         discountTotal: 0,
         taxAmount: pur.taxAmount || 0,
@@ -978,8 +978,7 @@ export function generateEmployeeStatement(params: {
 
     if (isDirectEmployeeCust) {
       // Sale to employee (goods taken / withdrawal on employee account)
-      const itemsList = (inv.items || []).map(it => it.itemName).slice(0, 3).join('، ');
-      const desc = `فاتورة مبيعات رقم ${inv.invoiceNumber}${itemsList ? ` (${itemsList})` : ''} - إجمالي ${inv.totalAmount.toFixed(2)}${inv.notes ? ` [${inv.notes}]` : ''}`;
+      const desc = inv.notes || '';
 
       const mappedItems: StatementItemDetail[] = (inv.items || []).map(it => ({
         itemId: it.itemId,
@@ -1057,7 +1056,7 @@ export function generateEmployeeStatement(params: {
         refNum: inv.invoiceNumber,
         type: 'invoice',
         typeLabel: 'عملية مبيعات (مندوب/كاشير)',
-        description: `فاتورة مبيعات ${inv.invoiceNumber} للعميل ${inv.customerName || 'نقدي'} - الإجمالي: ${inv.totalAmount.toFixed(2)}${inv.representative ? ` (المندوب: ${inv.representative})` : ''}`,
+        description: inv.notes ? inv.notes : (inv.customerName ? `العميل: ${inv.customerName}${inv.representative ? ` (المندوب: ${inv.representative})` : ''}` : ''),
         entitlement: 0,
         advance: 0,
         deduction: 0,
@@ -1074,8 +1073,7 @@ export function generateEmployeeStatement(params: {
     const isLinked = isMatched(p.supplierId, p.supplierName, p.notes, p.employeeId);
     if (!isLinked) return;
 
-    const itemsList = (p.items || []).map(it => it.itemName).slice(0, 3).join('، ');
-    const desc = `فاتورة مشتريات رقم ${p.invoiceNumber}${itemsList ? ` (${itemsList})` : ''} - إجمالي ${p.totalAmount.toFixed(2)}${p.notes ? ` [${p.notes}]` : ''}`;
+    const desc = p.notes || '';
 
     const mappedItems: StatementItemDetail[] = (p.items || []).map((it: any) => ({
       itemId: it.itemId || it.id || '',
