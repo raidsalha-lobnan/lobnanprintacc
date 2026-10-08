@@ -13,6 +13,7 @@ import { PrintOrdersView } from './components/PrintOrdersView';
 import { NewPrintOrderView } from './components/NewPrintOrderView';
 import { InvoicesView } from './components/InvoicesView';
 import { ExcelOneDriveDraftsView } from './components/ExcelOneDriveDraftsView';
+import { DailyEntrySheetView } from './components/DailyEntrySheetView';
 import { SpecialInvoiceView } from './components/SpecialInvoiceView';
 import { InventoryView } from './components/InventoryView';
 import { PurchasesView } from './components/PurchasesView';
@@ -98,6 +99,7 @@ const MainLayout: React.FC = () => {
         case 'manual_invoices':
         case 'invoices':
         case 'excel_drafts':
+        case 'daily_entry_sheet':
         case 'special_invoice':
         case 'sales_returns':
           return hasPermission('view_invoices');
@@ -365,6 +367,8 @@ const MainLayout: React.FC = () => {
         return <InvoicesView />;
       case 'excel_drafts':
         return <ExcelOneDriveDraftsView />;
+      case 'daily_entry_sheet':
+        return <DailyEntrySheetView />;
       case 'special_invoice':
         return <SpecialInvoiceView />;
       case 'sales_returns':

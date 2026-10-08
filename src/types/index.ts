@@ -912,3 +912,30 @@ export interface ZeroingExecutionResult {
   executedAt: string;
   executedBy: string;
 }
+
+// ==========================================
+// Daily Entry Sheet Types (كشف إدخال يومي)
+// ==========================================
+
+export interface DailyEntryRow {
+  id: string;
+  serialNumber: number; // رقم مسلسل
+  customerId?: string;
+  customerName: string; // اسم الزبون الرئيسي
+  subCustomerId?: string;
+  subCustomerName?: string; // الزبون الفرعي
+  itemId?: string;
+  itemName: string; // الصنف
+  notes?: string; // ملاحظات
+  requiredAmount: number; // المبلغ المطلوب
+  paidAmount: number; // المدفوع
+  treasuryId?: string; // الصندوق
+  treasuryName?: string; // اسم الصندوق
+}
+
+export interface DailyEntrySheet {
+  date: string; // YYYY-MM-DD
+  rows: DailyEntryRow[];
+  notes?: string;
+  updatedAt?: string;
+}

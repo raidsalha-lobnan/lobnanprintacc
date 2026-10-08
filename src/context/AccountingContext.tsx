@@ -51,7 +51,9 @@ import {
   DebtClearingRecord,
   DatabaseZeroingOptions,
   ZeroingExecutionResult,
-  ExpenseItem
+  ExpenseItem,
+  DailyEntryRow,
+  DailyEntrySheet
 } from '../types';
 import {
   initialSettings,
@@ -469,6 +471,13 @@ interface AccountingContextType {
     salesReturnsCount: number;
     todaySales: number;
   };
+
+  // Daily Entry Sheets (كشف الإدخال اليومي)
+  dailyEntrySheets: Record<string, DailyEntrySheet>;
+  getDailyEntrySheet: (date: string) => DailyEntrySheet;
+  saveDailyEntrySheet: (date: string, rows: DailyEntryRow[], notes?: string) => void;
+  deleteDailyEntrySheet: (date: string) => void;
+  getAllDailyEntryDates: () => string[];
 }
 
 const AccountingContext = createContext<AccountingContextType | undefined>(undefined);
@@ -867,6 +876,69 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [warehouseOperations, setWarehouseOperations] = useState<WarehouseOperation[]>(() => {
     return safeLoadArray(`${STORAGE_KEY}_warehouse_operations`, DEFAULT_WAREHOUSE_OPERATIONS);
   });
+
+  // Daily Entry Sheets State (كشف الإدخال اليومي)
+  const [dailyEntrySheets, setDailyEntrySheets] = useState<Record<string, DailyEntrySheet>>(() => {
+    try {
+      const saved = localStorage.getItem('accounting_daily_entry_sheets_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to load daily entry sheets:', e);
+    }
+    return {};
+  });
+
+  const getDailyEntrySheet = (date: string): DailyEntrySheet => {
+    if (dailyEntrySheets[date]) {
+      return dailyEntrySheets[date];
+    }
+    return {
+      date,
+      rows: [],
+      notes: '',
+      updatedAt: new Date().toISOString()
+    };
+  };
+
+  const saveDailyEntrySheet = (date: string, rows: DailyEntryRow[], notes?: string) => {
+    setDailyEntrySheets(prev => {
+      const updated: Record<string, DailyEntrySheet> = {
+        ...prev,
+        [date]: {
+          date,
+          rows,
+          notes: notes !== undefined ? notes : (prev[date]?.notes || ''),
+          updatedAt: new Date().toISOString()
+        }
+      };
+      try {
+        localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Failed to save daily entry sheets to localStorage', err);
+      }
+      return updated;
+    });
+  };
+
+  const deleteDailyEntrySheet = (date: string) => {
+    setDailyEntrySheets(prev => {
+      const next = { ...prev };
+      delete next[date];
+      try {
+        localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(next));
+      } catch (err) {
+        console.warn('Failed to update daily entry sheets in localStorage', err);
+      }
+      return next;
+    });
+  };
+
+  const getAllDailyEntryDates = (): string[] => {
+    return Object.keys(dailyEntrySheets)
+      .filter(d => dailyEntrySheets[d]?.rows && dailyEntrySheets[d].rows.length > 0)
+      .sort()
+      .reverse();
+  };
 
   // Granular Roles & System Users State
   const [roles, setRoles] = useState<Role[]>(() => {
@@ -7923,6 +7995,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         getAllowedBranchesForUser,
         getItemPriceForCustomer,
         getCurrentUserPricePolicy,
+        dailyEntrySheets,
+        getDailyEntrySheet,
+        saveDailyEntrySheet,
+        deleteDailyEntrySheet,
+        getAllDailyEntryDates,
         stats
       }}
     >

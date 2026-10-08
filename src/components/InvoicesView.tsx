@@ -20,7 +20,8 @@ import {
   FileSpreadsheet,
   Trash2,
   ShieldAlert,
-  Edit3
+  Edit3,
+  CalendarCheck
 } from 'lucide-react';
 import { InvoiceStatusHistoryModal } from './pos/InvoiceStatusHistoryModal';
 import { DraftInvoicesQueueModal } from './pos/DraftInvoicesQueueModal';
@@ -111,6 +112,16 @@ export const InvoicesView: React.FC = () => {
           >
             <ShieldAlert className="w-4 h-4 text-rose-600" />
             <span>سجل الحذف (Audit Log)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('daily_entry_sheet')}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+            title="فتح شاشة كشف الإدخال اليومي لتسجيل ومتابعة الحركات اليومية"
+          >
+            <CalendarCheck className="w-4 h-4 text-blue-200" />
+            <span>كشف إدخال يومي</span>
           </button>
 
           <button

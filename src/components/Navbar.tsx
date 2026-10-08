@@ -38,6 +38,7 @@ import {
   Database,
   CheckCircle2,
   HardDrive,
+  CalendarCheck,
   Menu,
   ArrowRight,
   ArrowLeft,
@@ -265,8 +266,16 @@ export const Navbar: React.FC = () => {
           badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
         },
         {
+          id: 'daily_entry_sheet',
+          label: '6. كشف إدخال يومي',
+          sublabel: 'جدول حركات كل يوم عمل للزبائن والأصناف والتحصيل وترحيلها لمسودات الفواتير',
+          icon: CalendarCheck,
+          badge: 'جديد',
+          badgeColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+        },
+        {
           id: 'sales_returns',
-          label: '6. مرتجع فواتير المبيعات',
+          label: '7. مرتجع فواتير المبيعات',
           sublabel: 'إصدار إشعارات دائنة واسترداد المبالغ وإرجاع البضائع للمخزن',
           icon: RotateCcw,
           badge: (stats?.salesReturnsCount ?? 0) > 0 ? `${stats.salesReturnsCount}` : null,

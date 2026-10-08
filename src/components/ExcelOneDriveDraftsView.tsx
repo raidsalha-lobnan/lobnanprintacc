@@ -40,9 +40,11 @@ import {
   Printer,
   DollarSign,
   Lock,
-  Truck
+  Truck,
+  CalendarCheck
 } from 'lucide-react';
 import { useAccounting } from '../context/AccountingContext';
+import { convertDailyEntryRowsToDrafts, calculateDailyEntryTotals } from '../services/dailyEntryService';
 import {
   PaymentMethod,
   Party,
@@ -258,7 +260,9 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
     setActiveTab,
     setEditingPosInvoiceId,
     setSelectedInvoiceForPrint,
-    getItemPriceForCustomer
+    getItemPriceForCustomer,
+    getDailyEntrySheet,
+    getAllDailyEntryDates
   } = useAccounting();
 
   // Full Screen & View Modes
@@ -284,7 +288,10 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
   } | null>(null);
 
   // Source Selector
-  const [activeSourceTab, setActiveSourceTab] = useState<'url' | 'upload' | 'paste'>('url');
+  const [activeSourceTab, setActiveSourceTab] = useState<'url' | 'upload' | 'paste' | 'daily_entry'>('url');
+  const [dailyImportDate, setDailyImportDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
   const [sheetUrl, setSheetUrl] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEY_URL) || DEFAULT_ONEDRIVE_SHEET_URL;
   });
@@ -572,6 +579,63 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
     } catch (err: any) {
       setStatusMessage({ type: 'error', text: 'حدث خطأ أثناء معالجة النص المنسوخ.' });
     }
+  };
+
+  // 4. Handle Import from Daily Entry Sheet (كشف الإدخال اليومي)
+  const dailyEntryForDate = useMemo(() => {
+    return getDailyEntrySheet(dailyImportDate);
+  }, [dailyImportDate, getDailyEntrySheet]);
+
+  const dailyEntryTotals = useMemo(() => {
+    if (!dailyEntryForDate || !dailyEntryForDate.rows) return { totalRequired: 0, totalPaid: 0, validRowsCount: 0 };
+    return calculateDailyEntryTotals(dailyEntryForDate.rows);
+  }, [dailyEntryForDate]);
+
+  const allDailyDates = useMemo(() => {
+    return getAllDailyEntryDates();
+  }, [getAllDailyEntryDates, activeSourceTab]);
+
+  const handleImportFromDailyEntry = () => {
+    const sheet = getDailyEntrySheet(dailyImportDate);
+    if (!sheet || !sheet.rows || sheet.rows.length === 0) {
+      setStatusMessage({
+        type: 'error',
+        text: `لا توجد حركات مسجلة في كشف الإدخال اليومي لتاريخ ${dailyImportDate}.`
+      });
+      return;
+    }
+
+    const newMultiDrafts = convertDailyEntryRowsToDrafts(
+      dailyImportDate,
+      sheet.rows,
+      parties,
+      inventory,
+      treasuries
+    );
+
+    if (newMultiDrafts.length === 0) {
+      setStatusMessage({
+        type: 'error',
+        text: `لم يتم العثور على أسطر صالحة للترحيل في كشف يوم ${dailyImportDate}. يرجى التأكد من إدخال اسم الزبون أو الصنف والمبلغ المطلوب.`
+      });
+      return;
+    }
+
+    setDraftInvoices(prev => {
+      const combined = [...newMultiDrafts, ...prev.filter(d => !newMultiDrafts.some(n => n.id === d.id))];
+      try {
+        localStorage.setItem(STORAGE_KEY_MULTI_DRAFTS, JSON.stringify(combined));
+      } catch (err) {
+        console.error('Failed to save drafts:', err);
+      }
+      return combined;
+    });
+
+    posSound.cash();
+    setStatusMessage({
+      type: 'success',
+      text: `تم استيراد ${newMultiDrafts.length} مسودة فاتورة بنجاح من كشف الإدخال اليومي ليوم ${dailyImportDate}! يمكنك مراجعتها واعتمادها أدناه.`
+    });
   };
 
   // Add brand new empty draft invoice
@@ -2014,6 +2078,22 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
                 <ClipboardPaste className="w-4 h-4" />
                 <span>نسخ ولصق جدول الإكسل</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveSourceTab('daily_entry')}
+                className={`pb-2 flex items-center gap-1.5 transition border-b-2 cursor-pointer ${
+                  activeSourceTab === 'daily_entry'
+                    ? 'border-blue-600 text-blue-600 font-black'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <CalendarCheck className="w-4 h-4 text-emerald-600" />
+                <span>استيراد مسودات الإدخال اليومي</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full">
+                  جديد
+                </span>
+              </button>
             </div>
 
             {/* TAB 1: Live OneDrive URL */}
@@ -2086,6 +2166,146 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
                     <span>معالجة ومطابقة الأسطر</span>
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* TAB 4: Import from Daily Entry Sheet (كشف الإدخال اليومي) */}
+            {activeSourceTab === 'daily_entry' && (
+              <div className="space-y-3 pt-1">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <span>حدد اليوم المراد استيراده:</span>
+                    </span>
+                    <input
+                      type="date"
+                      value={dailyImportDate}
+                      onChange={e => setDailyImportDate(e.target.value)}
+                      className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDailyImportDate(new Date().toISOString().split('T')[0])}
+                      className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 transition cursor-pointer"
+                    >
+                      اليوم الحالي
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('daily_entry_sheet')}
+                      className="px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <span>فتح شاشة كشف الإدخال اليومي</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleImportFromDailyEntry}
+                      disabled={!dailyEntryForDate || !dailyEntryForDate.rows || dailyEntryForDate.rows.length === 0}
+                      className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-xs font-black flex items-center gap-1.5 shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>استيراد وترحيل مسودات يوم ({dailyImportDate}) 🚀</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Available dates pills */}
+                {allDailyDates.length > 0 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                    <span className="text-[11px] text-slate-500 font-bold shrink-0">
+                      أيام مسجلة متوفرة:
+                    </span>
+                    {allDailyDates.map(d => {
+                      const sheet = getDailyEntrySheet(d);
+                      const validCount = sheet?.rows?.filter(r => (r.customerName && r.customerName.trim()) || (r.itemName && r.itemName.trim()) || Number(r.requiredAmount) > 0).length || 0;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setDailyImportDate(d)}
+                          className={`px-2.5 py-0.5 rounded-lg text-[11px] font-mono font-bold transition shrink-0 cursor-pointer flex items-center gap-1 ${
+                            dailyImportDate === d
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                          }`}
+                        >
+                          <span>{d}</span>
+                          <span className={`text-[9.5px] px-1 rounded-full font-bold ${dailyImportDate === d ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                            {validCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Preview Table of Daily Entries */}
+                {dailyEntryForDate && dailyEntryForDate.rows && dailyEntryForDate.rows.length > 0 ? (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                    <div className="bg-slate-100 px-3 py-1.5 flex items-center justify-between text-xs font-bold text-slate-700 border-b border-slate-200">
+                      <span>معاينة حركات كشف اليوم المراد استيراده ({dailyImportDate}):</span>
+                      <div className="flex items-center gap-3">
+                        <span>العدد: <strong className="font-mono text-slate-900">{dailyEntryTotals.validRowsCount}</strong></span>
+                        <span>إجمالي المطلوب: <strong className="font-mono text-slate-900">{dailyEntryTotals.totalRequired.toFixed(2)} ₪</strong></span>
+                        <span>إجمالي المدفوع: <strong className="font-mono text-emerald-700">{dailyEntryTotals.totalPaid.toFixed(2)} ₪</strong></span>
+                      </div>
+                    </div>
+                    <div className="max-h-52 overflow-y-auto">
+                      <table className="w-full text-right text-xs">
+                        <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[10.5px]">
+                          <tr>
+                            <th className="p-1.5 text-center w-8 border-l border-slate-200">#</th>
+                            <th className="p-1.5 border-l border-slate-200">الزبون الرئيسي</th>
+                            <th className="p-1.5 border-l border-slate-200">الزبون الفرعي</th>
+                            <th className="p-1.5 border-l border-slate-200">الصنف</th>
+                            <th className="p-1.5 border-l border-slate-200">ملاحظات</th>
+                            <th className="p-1.5 text-center border-l border-slate-200">المطلوب</th>
+                            <th className="p-1.5 text-center border-l border-slate-200">المدفوع</th>
+                            <th className="p-1.5">الصندوق</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {dailyEntryForDate.rows.filter(r => (r.customerName && r.customerName.trim()) || (r.itemName && r.itemName.trim()) || Number(r.requiredAmount) > 0).map((r, i) => (
+                            <tr key={r.id || i} className="hover:bg-slate-50 text-[11px]">
+                              <td className="p-1.5 text-center font-mono text-slate-400 border-l border-slate-200">{i + 1}</td>
+                              <td className="p-1.5 font-bold text-slate-900 border-l border-slate-200">{r.customerName || '-'}</td>
+                              <td className="p-1.5 text-slate-600 border-l border-slate-200">{r.subCustomerName || '-'}</td>
+                              <td className="p-1.5 font-medium text-slate-800 border-l border-slate-200">{r.itemName || '-'}</td>
+                              <td className="p-1.5 text-slate-500 border-l border-slate-200">{r.notes || '-'}</td>
+                              <td className="p-1.5 text-center font-mono font-bold text-slate-900 border-l border-slate-200">{Number(r.requiredAmount || 0).toFixed(2)} ₪</td>
+                              <td className="p-1.5 text-center font-mono font-bold text-emerald-700 border-l border-slate-200">{Number(r.paidAmount || 0).toFixed(2)} ₪</td>
+                              <td className="p-1.5 text-slate-700">{r.treasuryName || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl">
+                    <CalendarCheck className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-slate-700">
+                      لا توجد حركات مسجلة في كشف الإدخال اليومي لتاريخ ({dailyImportDate})
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      يمكنك الانتقال إلى شاشة كشف الإدخال اليومي لتسجيل حركات هذا اليوم أو اختيار تاريخ آخر أعلاه.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('daily_entry_sheet')}
+                      className="mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>تسجيل حركات في كشف الإدخال اليومي الآن</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
