@@ -186,9 +186,9 @@ export const FavoriteItemsDrawer: React.FC<FavoriteItemsDrawerProps> = ({
               </p>
             </div>
           ) : (
-            filteredItems.map(item => (
+            filteredItems.map((item, idx) => (
               <div
-                key={item.id}
+                key={`fav-it-${item.id || idx}-${idx}`}
                 onClick={() => handlePickItem(item)}
                 className="bg-white border border-slate-200 hover:border-blue-500 hover:shadow-xs p-1.5 rounded-lg flex flex-col justify-between cursor-pointer transition-all group relative overflow-hidden active:scale-97"
                 title={`${item.name}\nالسعر: ${item.sellingPrice.toFixed(2)} ₪\n(انقر للإضافة)`}

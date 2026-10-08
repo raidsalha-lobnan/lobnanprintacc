@@ -1737,8 +1737,8 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ initialSubTab = 'e
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {selectedEmployeeForDetail.paymentHistory.map(record => (
-                          <tr key={record.id} className="hover:bg-slate-50">
+                        {selectedEmployeeForDetail.paymentHistory.map((record, idx) => (
+                          <tr key={`emp-rec-${record.id || idx}-${idx}`} className="hover:bg-slate-50">
                             <td className="p-2 font-mono text-slate-600">{record.date}</td>
                             <td className="p-2">
                               <span className="font-bold text-slate-800">{record.period}</span>

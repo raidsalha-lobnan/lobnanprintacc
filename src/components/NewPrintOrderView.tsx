@@ -1364,9 +1364,9 @@ export const NewPrintOrderView: React.FC<NewPrintOrderViewProps> = ({
                   {inventory
                     .filter(item => item.name.toLowerCase().includes(catalogSearch.toLowerCase()))
                     .slice(0, 16)
-                    .map(item => (
+                    .map((item, idx) => (
                       <button
-                        key={item.id}
+                        key={`npo-cat-${item.id || idx}-${idx}`}
                         type="button"
                         onClick={() => handleAddItemToTable(item)}
                         className="p-1.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-400 rounded-lg text-right transition-all shadow-2xs flex items-center justify-between gap-1 cursor-pointer active:scale-95 group overflow-hidden"
@@ -1387,7 +1387,7 @@ export const NewPrintOrderView: React.FC<NewPrintOrderViewProps> = ({
                     const isPinned = pinnedItemIds.includes(item.id);
 
                     return (
-                      <div key={item.id} className="relative group">
+                      <div key={`npo-top-${item.id || idx}-${idx}`} className="relative group">
                         <button
                           type="button"
                           onClick={() => handleAddItemToTable(item)}

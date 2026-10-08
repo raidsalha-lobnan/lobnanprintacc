@@ -193,12 +193,12 @@ export const CustomerSpecialPricesModal: React.FC<CustomerSpecialPricesModalProp
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredItems.map(item => {
+              {filteredItems.map((item, idx) => {
                 const special = tempPrices[item.id];
                 const hasSpecial = special !== undefined && special > 0;
                 return (
                   <tr
-                    key={item.id}
+                    key={`cust-sp-${item.id || idx}-${idx}`}
                     className={`hover:bg-slate-50 transition-colors ${
                       hasSpecial ? 'bg-amber-50/50' : ''
                     }`}

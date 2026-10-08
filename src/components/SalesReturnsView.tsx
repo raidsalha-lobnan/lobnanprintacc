@@ -616,8 +616,8 @@ export const SalesReturnsView: React.FC = () => {
                       className="w-full p-1.5 border border-slate-200 rounded text-xs"
                     >
                       <option value="">-- اختر صنفاً للإرجاع --</option>
-                      {inventory.map(item => (
-                        <option key={item.id} value={item.id}>
+                      {inventory.map((item, idx) => (
+                        <option key={`ret-item-opt-${item.id || idx}-${idx}`} value={item.id}>
                           {item.name} ({item.stockQuantity} بالمخزن) - سعر: {item.price} {settings.currency}
                         </option>
                       ))}

@@ -492,7 +492,7 @@ textarea::selection {
   table {
     page-break-inside: auto !important;
     break-inside: auto !important;
-    border-collapse: separate !important;
+    border-collapse: collapse !important;
     border-spacing: 0 !important;
     width: 100% !important;
   }
@@ -505,6 +505,12 @@ textarea::selection {
     display: table-footer-group !important;
   }
 
+  tbody {
+    display: table-row-group !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
   tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
@@ -512,44 +518,53 @@ textarea::selection {
     break-after: auto !important;
   }
 
-  /* Prevent split cells where text gets cut halfway */
-  td, th {
+  /* Prevent regular non-expandable cells from being vertically cut in half */
+  th,
+  td:not(.print-allow-break) {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  /* Expandable/Sub-table rows and details must break across pages if they exceed page height */
-  tr:has(table),
-  tr:has(.report-sub-table),
-  tr:has(.sub-table),
+  /* Expandable/Sub-table rows, details container, and their td/divs MUST be permitted to break across pages */
   tr.print-allow-break,
+  td.print-allow-break,
+  tr:has(table),
+  td:has(table),
+  tr:has(.report-sub-table),
+  td:has(.report-sub-table),
   .report-sub-table,
-  .report-sub-table tr,
+  .report-sub-table tbody,
   .sub-table,
-  .sub-table tr {
+  .sub-table tbody {
     page-break-inside: auto !important;
     break-inside: auto !important;
-  }
-
-  /* Force display: block on details rows in print so standard table-row behavior doesn't block breaking */
-  tr.print-allow-break {
-    display: block !important;
-    page-break-inside: auto !important;
-    break-inside: auto !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
     page-break-after: auto !important;
     break-after: auto !important;
   }
-  tr.print-allow-break > td {
-    display: block !important;
-    width: 100% !important;
-    page-break-inside: auto !important;
-    break-inside: auto !important;
+
+  /* Keep sub-table individual item rows intact so item rows don't get split horizontally */
+  .report-sub-table tbody tr,
+  .sub-table tbody tr,
+  tr.print-allow-break table tbody tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* Strip background-colors and outer borders on sub-table wrapper divs in print so they can split across pages smoothly */
+  /* Prevent any wrapper element from blocking pagination */
   tr.print-allow-break,
-  tr.print-allow-break > td,
-  tr.print-allow-break div {
+  tr.print-allow-break > td {
+    overflow: visible !important;
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  tr.print-allow-break div,
+  td.print-allow-break div,
+  .report-table-container,
+  [class*="overflow-x-auto"],
+  [class*="overflow-y-auto"] {
     background: transparent !important;
     background-color: transparent !important;
     border-color: transparent !important;
@@ -560,14 +575,20 @@ textarea::selection {
     page-break-inside: auto !important;
     break-inside: auto !important;
     overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
   }
 
-  /* But keep the inner table cells styled with borders so it remains readable */
-  tr.print-allow-break table {
-    border-collapse: separate !important;
+  /* Ensure the sub-table itself retains clean borders and styling in print */
+  tr.print-allow-break table,
+  .report-sub-table {
+    border-collapse: collapse !important;
     border-spacing: 0 !important;
     border: 1px solid #cbd5e1 !important;
     background-color: #ffffff !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
 
   /* Re-enforce cell rules inside sub-tables to keep individual item text clean */
@@ -578,8 +599,6 @@ textarea::selection {
   tr.print-allow-break td,
   tr.print-allow-break th {
     border: 1px solid #cbd5e1 !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 
   /* Keep headings attached to their succeeding content (never orphan headers) */
@@ -638,7 +657,7 @@ textarea::selection {
   tbody {
     display: table-row-group !important;
   }
-  tr:not(.print-allow-break) {
+  tr {
     display: table-row !important;
   }
 

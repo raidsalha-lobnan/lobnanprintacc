@@ -375,7 +375,7 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
 
                   return (
                     <div
-                      key={item.id}
+                      key={`auto-item-${item.id || idx}-${idx}`}
                       onClick={() => handleSelect(item)}
                       onMouseEnter={() => setHighlightedIndex(idx)}
                       className={`px-3 py-2 transition-colors cursor-pointer flex items-center gap-2.5 ${

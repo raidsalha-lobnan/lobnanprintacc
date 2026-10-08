@@ -1211,7 +1211,7 @@ export const TreasuriesView: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono">
-                      {selectedTreasuryForLedger.transactions.map(tx => {
+                      {selectedTreasuryForLedger.transactions.map((tx, idx) => {
                         const isIncome = tx.type === 'deposit' || tx.type === 'transfer_in';
                         const currCode = tx.actualCurrency || 'ILS';
                         const currObj = currencies.find(c => c.code === currCode);
@@ -1221,7 +1221,7 @@ export const TreasuriesView: React.FC = () => {
                         const baseAmt = tx.baseAmount ?? tx.amount;
 
                         return (
-                          <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                          <tr key={`tr-tx-${tx.id || idx}-${idx}`} className="hover:bg-slate-50 transition-colors">
                             <td className="p-2 text-slate-600 whitespace-nowrap">{tx.date}</td>
                             <td className="p-2 font-sans whitespace-nowrap">
                               {tx.type === 'deposit' && (

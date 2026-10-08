@@ -89,9 +89,9 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
 
           {/* List of items */}
           <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto divide-y divide-slate-100">
-            {(filteredItems || []).slice(0, 20).map(item => (
+            {(filteredItems || []).slice(0, 20).map((item, idx) => (
               <div
-                key={item.id}
+                key={`prc-edit-${item.id || idx}-${idx}`}
                 onClick={() => handleSelectItem(item.id, item.sellingPrice)}
                 className={`p-2.5 flex items-center justify-between cursor-pointer transition-colors ${
                   selectedItemId === item.id ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'

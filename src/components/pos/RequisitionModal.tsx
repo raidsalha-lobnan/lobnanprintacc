@@ -103,8 +103,8 @@ export const RequisitionModal: React.FC<RequisitionModalProps> = ({
               onChange={e => setSelectedItemId(e.target.value)}
               className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs bg-slate-50"
             >
-              {inventory.map(item => (
-                <option key={item.id} value={item.id}>
+              {inventory.map((item, idx) => (
+                <option key={`req-item-${item.id || idx}-${idx}`} value={item.id}>
                   {item.name} (المتوفر حالياً: {item.stockQuantity})
                 </option>
               ))}
@@ -118,8 +118,8 @@ export const RequisitionModal: React.FC<RequisitionModalProps> = ({
               onChange={e => setSelectedSupplierId(e.target.value)}
               className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs bg-slate-50"
             >
-              {suppliers.map(sup => (
-                <option key={sup.id} value={sup.id}>
+              {suppliers.map((sup, idx) => (
+                <option key={`req-sup-${sup.id || idx}-${idx}`} value={sup.id}>
                   {sup.name}
                 </option>
               ))}

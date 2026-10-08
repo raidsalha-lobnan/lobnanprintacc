@@ -828,12 +828,12 @@ export const WarehouseOperationsView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredOperations.map(op => {
+                    {filteredOperations.map((op, idx) => {
                       const info = OPERATION_TYPE_INFO[op.operationType];
                       const Icon = info.icon;
 
                       return (
-                        <tr key={op.id} className="hover:bg-slate-50/80 transition">
+                        <tr key={`wh-op-${op.id || idx}-${idx}`} className="hover:bg-slate-50/80 transition">
                           <td className="p-3 font-mono font-bold text-indigo-700">
                             {op.documentNumber}
                             {op.referenceNumber && (
@@ -1220,11 +1220,11 @@ export const WarehouseOperationsView: React.FC = () => {
                       (mv.userName && mv.userName.toLowerCase().includes(searchQuery.toLowerCase()));
                     return matchBranch && matchWh && matchSearch;
                   })
-                  .map(mv => {
+                  .map((mv, idx) => {
                     const isPositive = mv.type.includes('in') || mv.type === 'transfer_in';
 
                     return (
-                      <tr key={mv.id} className="hover:bg-slate-50/80 transition">
+                      <tr key={`wh-mv-${mv.id || idx}-${idx}`} className="hover:bg-slate-50/80 transition">
                         <td className="p-3">
                           <div className="font-mono text-slate-900 font-bold">{mv.date}</div>
                           <div className="text-[10px] text-slate-400 font-mono">{mv.time || '—'}</div>

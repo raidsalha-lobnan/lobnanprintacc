@@ -430,11 +430,11 @@ export const PosFavoritesSidebar: React.FC<PosFavoritesSidebarProps> = ({
           </div>
         ) : (
           <div className={densityMode === 'ultra' ? "grid grid-cols-3 sm:grid-cols-4 gap-1" : "grid grid-cols-3 gap-1.5"}>
-            {displayedItems.map(item => {
+            {displayedItems.map((item, idx) => {
               const isFav = item.isFavorite === true;
               return (
                 <div
-                  key={item.id}
+                  key={`pos-fav-${item.id || idx}-${idx}`}
                   onClick={() => handlePickItem(item)}
                   className={`bg-white border border-slate-200 hover:border-blue-500 hover:shadow-xs rounded-lg flex flex-col justify-between cursor-pointer transition-all group relative overflow-hidden active:scale-96 ${
                     densityMode === 'ultra' ? 'p-1' : 'p-1.5'

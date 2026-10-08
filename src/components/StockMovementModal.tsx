@@ -439,8 +439,8 @@ export const StockMovementModal: React.FC<StockMovementModalProps> = ({
                     onChange={e => handleSelectChange(e.target.value)}
                     className="w-full px-3.5 py-2.5 text-sm font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
                   >
-                    {inventory.map(item => (
-                      <option key={item.id} value={item.id}>
+                    {inventory.map((item, idx) => (
+                      <option key={`stk-mv-opt-${item.id || idx}-${idx}`} value={item.id}>
                         [{item.code}] - {item.name} (رصيد: {item.stockQuantity} {item.unit})
                       </option>
                     ))}
@@ -676,8 +676,8 @@ export const StockMovementModal: React.FC<StockMovementModalProps> = ({
                     onChange={e => handleSelectChange(e.target.value)}
                     className="w-full px-3.5 py-2.5 text-sm font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
                   >
-                    {inventory.map(item => (
-                      <option key={item.id} value={item.id}>
+                    {inventory.map((item, idx) => (
+                      <option key={`stk-adj-opt-${item.id || idx}-${idx}`} value={item.id}>
                         [{item.code}] - {item.name} (الرصيد الدفتري الحالي: {item.stockQuantity} {item.unit})
                       </option>
                     ))}
@@ -832,12 +832,12 @@ export const StockMovementModal: React.FC<StockMovementModalProps> = ({
                         </td>
                       </tr>
                     ) : (
-                      lowStockItems.map(item => {
+                      lowStockItems.map((item, idx) => {
                         const isZero = item.stockQuantity === 0;
                         const def = CATEGORY_DEFINITIONS[item.category];
 
                         return (
-                          <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <tr key={`stk-low-${item.id || idx}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                             <td className="p-3 font-mono font-bold text-slate-800 dark:text-slate-200">{item.code}</td>
                             <td className="p-3 font-bold text-slate-900 dark:text-white">{item.name}</td>
                             <td className="p-3 text-slate-600 dark:text-slate-400">{def?.name || item.category}</td>

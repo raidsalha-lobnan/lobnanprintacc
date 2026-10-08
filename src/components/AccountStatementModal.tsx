@@ -666,7 +666,7 @@ export const AccountStatementModal: React.FC = () => {
               </div>
 
               {/* Detailed Transactions Table - Optimized Font 12 & A4 Width */}
-              <div className="border border-slate-400 rounded-md overflow-x-auto shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white">
+              <div className="border border-slate-400 rounded-md overflow-x-auto shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white print:block print:overflow-visible print:border-none print:shadow-none">
                 <table className="w-full text-right report-table border-collapse h-full">
                   <thead>
                     <tr className="bg-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-200 print:text-slate-900">
@@ -894,7 +894,7 @@ export const AccountStatementModal: React.FC = () => {
                           {showItemDetails && row.items && row.items.length > 0 && (
                             <tr className="bg-slate-50/60 print:bg-transparent print-allow-break">
                               <td colSpan={6} className="p-1 px-1.5 sm:px-2 border-b border-slate-300 print-allow-break">
-                                <div className="border border-slate-300 rounded overflow-hidden shadow-2xs bg-white w-full">
+                                <div className="border border-slate-300 rounded overflow-hidden shadow-2xs bg-white w-full print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
                                   <table className="w-full text-right report-sub-table border-collapse">
                                     <thead>
                                       <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
@@ -1227,7 +1227,7 @@ export const AccountStatementModal: React.FC = () => {
               </div>
 
               {/* Transactions Table */}
-              <div className="border border-slate-400 rounded-md overflow-x-auto shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white">
+              <div className="border border-slate-400 rounded-md overflow-x-auto shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white print:block print:overflow-visible print:border-none print:shadow-none">
                 <table className="w-full text-right report-table border-collapse h-full">
                   <thead>
                     <tr className="bg-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-200 print:text-slate-900">
@@ -1326,7 +1326,7 @@ export const AccountStatementModal: React.FC = () => {
                             {showItemDetails && row.items && row.items.length > 0 && (
                               <tr className="bg-slate-50/60 print:bg-transparent print-allow-break">
                                 <td colSpan={6} className="p-1 px-1.5 sm:px-2 border-b border-slate-300 print-allow-break">
-                                  <div className="border border-slate-300 rounded overflow-hidden shadow-2xs bg-white w-full">
+                                  <div className="border border-slate-300 rounded overflow-hidden shadow-2xs bg-white w-full print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
                                     <table className="w-full text-right report-sub-table border-collapse">
                                       <thead>
                                         <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">

@@ -1121,7 +1121,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
 
 
           {/* 3. جدول الحركات المالي المفصل */}
-          <div className="overflow-x-auto border border-slate-400 rounded-md shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white">
+          <div className="overflow-x-auto border border-slate-400 rounded-md shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white print:block print:overflow-visible print:border-none print:shadow-none">
             <table className="w-full text-right report-table border-collapse h-full">
               <thead className="bg-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-200 print:text-slate-900">
                 <tr>
@@ -1325,7 +1325,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                     {row.type === 'invoice' && row.items && row.items.length > 0 && showStatementItemDetails && (
                       <tr className="bg-slate-50/60 print:bg-transparent print-allow-break">
                         <td colSpan={6} className="p-1 px-1.5 sm:px-2 border-b border-slate-300 print-allow-break">
-                          <div className="border border-slate-300 rounded overflow-hidden bg-slate-50/80">
+                          <div className="border border-slate-300 rounded overflow-hidden bg-slate-50/80 print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
                             <table className="w-full text-right report-sub-table border-collapse">
                               <thead className="bg-slate-200 text-slate-800 font-bold border-b border-slate-300">
                                 <tr>
@@ -1341,7 +1341,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                               </thead>
                               <tbody className="divide-y divide-slate-200/80 bg-white">
                                 {row.items.map((it, itemIdx) => (
-                                  <tr key={it.itemId || itemIdx} className="hover:bg-blue-50/30">
+                                  <tr key={`cust-subit-${it.itemId || itemIdx}-${itemIdx}`} className="hover:bg-blue-50/30">
                                     <td className="text-center font-mono font-bold text-slate-700 border-l border-slate-200 py-1 text-xs">{itemIdx + 1}</td>
                                     <td className="font-bold text-slate-900 border-l border-slate-200">
                                       <div>
@@ -1626,7 +1626,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
 
 
           {/* 3. جدول الحركات المالي المفصل للمورد */}
-          <div className="overflow-x-auto border border-slate-400 rounded-md shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white">
+          <div className="overflow-x-auto border border-slate-400 rounded-md shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white print:block print:overflow-visible print:border-none print:shadow-none">
             <table className="w-full text-right report-table border-collapse h-full">
               <thead className="bg-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-200 print:text-slate-900">
                 <tr>
@@ -1827,7 +1827,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                     {row.type === 'purchase' && row.items && row.items.length > 0 && showStatementItemDetails && (
                       <tr className="bg-slate-50/60 print:bg-transparent print-allow-break">
                         <td colSpan={6} className="p-1 px-1.5 sm:px-2 border-b border-slate-300 print-allow-break">
-                          <div className="border border-slate-300 rounded overflow-hidden bg-slate-50/80">
+                          <div className="border border-slate-300 rounded overflow-hidden bg-slate-50/80 print:border-none print:rounded-none print:overflow-visible print:shadow-none print:block">
                             <table className="w-full text-right report-sub-table border-collapse">
                               <thead className="bg-slate-200 text-slate-800 font-bold border-b border-slate-300">
                                 <tr>
@@ -1843,7 +1843,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                               </thead>
                               <tbody className="divide-y divide-slate-200/80 bg-white">
                                 {row.items.map((it, itemIdx) => (
-                                  <tr key={it.itemId || itemIdx} className="hover:bg-amber-50/30">
+                                  <tr key={`supp-subit-${it.itemId || itemIdx}-${itemIdx}`} className="hover:bg-amber-50/30">
                                     <td className="text-center font-mono font-bold text-slate-700 border-l border-slate-200 py-1 text-xs">{itemIdx + 1}</td>
                                     <td className="font-bold text-slate-900 border-l border-slate-200">
                                       <div>

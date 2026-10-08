@@ -720,9 +720,9 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
               )}
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {sampleItems.map(item => (
+              {sampleItems.map((item, idx) => (
                 <button
-                  key={item.id}
+                  key={`bc-sample-${item.id || idx}-${idx}`}
                   type="button"
                   onClick={() => processBarcode(item.barcode)}
                   className="bg-slate-100 hover:bg-blue-50 hover:border-blue-300 border border-slate-200 text-slate-800 rounded px-2 py-1 text-[10px] flex items-center gap-1 transition-colors cursor-pointer"

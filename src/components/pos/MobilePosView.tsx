@@ -1209,11 +1209,11 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
                     </span>
                     <span className="font-mono text-slate-400">{matchingParties.length} نتيجة</span>
                   </div>
-                  {matchingParties.map((item: any) => {
+                  {matchingParties.map((item: any, idx: number) => {
                     if (partyTypeMode === 'employee') {
                       return (
                         <button
-                          key={item.id}
+                          key={`mob-emp-sug-${item.id || idx}-${idx}`}
                           type="button"
                           onClick={() => {
                             setCustomerNameInput(item.name);
@@ -1240,7 +1240,7 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
                     // Customer or Supplier
                     return (
                       <button
-                        key={item.id}
+                        key={`mob-cust-sug-${item.id || idx}-${idx}`}
                         type="button"
                         onClick={() => {
                           setCustomerNameInput(item.name);
@@ -1424,9 +1424,9 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
           {/* Search suggestions dropdown when typing */}
           {searchBarcodeQuery.trim() && !matchedItem && filteredItems.length > 0 && (
             <div className="max-h-40 overflow-y-auto space-y-1 divide-y divide-slate-100 bg-slate-50 rounded-xl p-1 border border-blue-200 shadow-md">
-              {filteredItems.map(item => (
+              {filteredItems.map((item, idx) => (
                 <div
-                  key={item.id}
+                  key={`mob-bc-item-${item.id || idx}-${idx}`}
                   onClick={() => {
                     handleDirectAdd(item);
                   }}

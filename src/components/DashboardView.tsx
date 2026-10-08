@@ -228,8 +228,8 @@ export const DashboardView: React.FC = () => {
               {lowStockItems.length === 0 ? (
                 <p className="text-xs text-slate-400 py-3 text-center">المخزون متوفر بنسب ممتازة</p>
               ) : (
-                lowStockItems.map(item => (
-                  <div key={item.id} className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0">
+                lowStockItems.map((item, idx) => (
+                  <div key={`dash-low-${item.id || idx}-${idx}`} className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0">
                     <div>
                       <p className="text-xs font-bold text-slate-800">{item.name}</p>
                       <p className="text-[9px] text-slate-400 font-light">

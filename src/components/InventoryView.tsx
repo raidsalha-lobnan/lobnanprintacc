@@ -1844,10 +1844,10 @@ export const InventoryView: React.FC = () => {
                       className="w-full bg-slate-50 border border-slate-300 rounded-md p-1.5 text-xs text-slate-800 font-medium focus:bg-white focus:ring-1 focus:ring-amber-500"
                     >
                       <option value="">-- اختر العميل --</option>
-                      {customers.map(c => {
+                      {customers.map((c, idx) => {
                         const hasAlready = formCustomerSpecialPrices.some(p => p.customerId === c.id);
                         return (
-                          <option key={c.id} value={c.id}>
+                          <option key={`inv-cust-opt-${c.id || idx}-${idx}`} value={c.id}>
                             {c.name} {c.code ? `(${c.code})` : ''} {hasAlready ? '⭐ مسجل' : ''}
                           </option>
                         );
@@ -1913,10 +1913,10 @@ export const InventoryView: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-amber-100 font-sans">
-                        {formCustomerSpecialPrices.map(entry => {
+                        {formCustomerSpecialPrices.map((entry, idx) => {
                           const diff = entry.price - formSellingPrice;
                           return (
-                            <tr key={entry.customerId} className="hover:bg-amber-50/50">
+                            <tr key={`inv-sp-ent-${entry.customerId || idx}-${idx}`} className="hover:bg-amber-50/50">
                               <td className="p-2 font-bold text-slate-800">
                                 {entry.customerName}
                                 {entry.customerCode && (
@@ -2154,10 +2154,10 @@ export const InventoryView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {viewingSpecialPricesItem.customerSpecialPrices?.map(sp => {
+                  {viewingSpecialPricesItem.customerSpecialPrices?.map((sp, idx) => {
                     const diff = sp.price - viewingSpecialPricesItem.sellingPrice;
                     return (
-                      <tr key={sp.customerId} className="hover:bg-amber-50/40">
+                      <tr key={`inv-sp-row-${sp.customerId || idx}-${idx}`} className="hover:bg-amber-50/40">
                         <td className="p-2.5 font-bold text-slate-800">
                           {sp.customerName}
                           {sp.customerCode && (
