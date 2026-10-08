@@ -290,6 +290,7 @@ export const DailyEntrySheetView: React.FC = () => {
         notes: '',
         requiredAmount: 0,
         paidAmount: lastRow.paidAmount || 0, // آلية الدفع تنتقل وتعتمد لآخر بند
+        paymentNotes: lastRow.paymentNotes || '', // ملاحظة السداد تنتقل لآخر بند
         treasuryId: lastRow.treasuryId || parent.treasuryId,
         treasuryName: lastRow.treasuryName || parent.treasuryName,
         parentRowId: parent.parentRowId || parent.id,
@@ -297,12 +298,13 @@ export const DailyEntrySheetView: React.FC = () => {
         isApproved: false
       };
 
-      // تجمد آلية الدفع في الأسطر السابقة لنفس الزبون (قيمة المدفوع تصبح 0 وتجمد لتعمل فقط في آخر بند)
+      // تجمد آلية الدفع وملاحظة السداد في الأسطر السابقة لنفس الزبون لتعتمد فقط في آخر بند
       const updatedPrev = prev.map((r, i) => {
         if (r.serialNumber === targetSerial) {
           return {
             ...r,
-            paidAmount: 0
+            paidAmount: 0,
+            paymentNotes: ''
           };
         }
         return r;
@@ -1166,6 +1168,7 @@ export const DailyEntrySheetView: React.FC = () => {
                     <th className="py-2 px-2 border-l border-slate-200">ملاحظات / بيان</th>
                     <th className="py-2 px-2 text-center border-l border-slate-200 w-24">المطلوب</th>
                     <th className="py-2 px-2 text-center border-l border-slate-200 w-24">المدفوع</th>
+                    <th className="py-2 px-2 border-l border-slate-200 min-w-[130px]">ملاحظة السداد</th>
                     <th className="py-2 px-2 text-center border-l border-slate-200">الصندوق / الخزنة</th>
                     <th className="py-2 px-2 text-center border-l border-slate-200">حالة الاعتماد</th>
                     <th className="py-2 px-2 text-center w-24">إجراءات</th>
@@ -1174,7 +1177,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 <tbody className="divide-y divide-slate-200">
                   {filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="py-8 text-center text-slate-400 text-xs">
+                      <td colSpan={12} className="py-8 text-center text-slate-400 text-xs">
                         لا توجد حركات مطابقة للزبون أو الزبون الفرعي المحدد في نطاق التصفية.
                       </td>
                     </tr>
@@ -1259,12 +1262,23 @@ export const DailyEntrySheetView: React.FC = () => {
                             {Number(row.paidAmount || 0).toFixed(2)} ₪
                           </td>
 
-                          {/* 9. الصندوق */}
+                          {/* 9. ملاحظة السداد */}
+                          <td className="p-2 border-l border-slate-200 text-xs text-slate-700">
+                            {row.paymentNotes ? (
+                              <span className="font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                {row.paymentNotes}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic font-normal">--</span>
+                            )}
+                          </td>
+
+                          {/* 10. الصندوق */}
                           <td className="p-2 border-l border-slate-200 text-xs text-slate-700 text-center">
                             {row.treasuryName || <span className="text-slate-400">الصندوق النقدي</span>}
                           </td>
 
-                          {/* 10. حالة الاعتماد */}
+                          {/* 11. حالة الاعتماد */}
                           <td className="p-2 border-l border-slate-200 text-center">
                             {isApproved ? (
                               <div className="flex flex-col items-center gap-0.5">
@@ -1286,7 +1300,7 @@ export const DailyEntrySheetView: React.FC = () => {
                             )}
                           </td>
 
-                          {/* 11. إجراءات */}
+                          {/* 12. إجراءات */}
                           <td className="p-2 text-center">
                             <div className="flex items-center justify-center gap-1">
                               {isApproved && (
@@ -1331,7 +1345,7 @@ export const DailyEntrySheetView: React.FC = () => {
                     <td className="py-2.5 px-2 text-center font-mono text-sm text-emerald-800">
                       {filteredTotals.totalPaid.toFixed(2)} ₪
                     </td>
-                    <td colSpan={3} className="py-2.5 px-3 text-slate-600 text-[11px]">
+                    <td colSpan={4} className="py-2.5 px-3 text-slate-600 text-[11px]">
                       المتبقي/الآجل: <strong className="font-mono text-rose-700 font-bold">{filteredTotals.totalRemaining.toFixed(2)} ₪</strong>
                     </td>
                   </tr>
@@ -1386,6 +1400,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 <th className="py-2 px-3 min-w-[140px] border-l border-slate-200">ملاحظات</th>
                 <th className="py-2 px-2.5 text-center w-28 border-l border-slate-200">المبلغ المطلوب</th>
                 <th className="py-2 px-2.5 text-center w-28 border-l border-slate-200">المدفوع</th>
+                <th className="py-2 px-2.5 min-w-[130px] border-l border-slate-200">ملاحظة السداد</th>
                 <th className="py-2 px-2.5 w-44 border-l border-slate-200">
                   <div className="flex items-center justify-between">
                     <span>الصندوق</span>
@@ -1622,7 +1637,28 @@ export const DailyEntrySheetView: React.FC = () => {
                       )}
                     </td>
 
-                    {/* 8. الصندوق (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون) */}
+                    {/* 8. ملاحظة السداد (الملاحظة المرفقة مع السداد) */}
+                    <td className="p-1 border-l border-slate-200">
+                      {groupInfo.isMultiItem && !groupInfo.isLast ? (
+                        <div
+                          className="w-full text-center px-1 py-1 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
+                          title="ملاحظة السداد مجمدة: تعتمد وتحدد في آخر بند لنفس الزبون مع الدفع"
+                        >
+                          <Lock className="w-2.5 h-2.5 text-slate-400" />
+                          <span>بآخر بند</span>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={row.paymentNotes || ''}
+                          onChange={e => handleUpdateRow(row.id, { paymentNotes: e.target.value })}
+                          placeholder="ملاحظة السداد..."
+                          className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none placeholder:text-slate-400"
+                        />
+                      )}
+                    </td>
+
+                    {/* 9. الصندوق (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون) */}
                     <td className="p-1 border-l border-slate-200">
                       {groupInfo.isMultiItem && !groupInfo.isLast ? (
                         <div
@@ -1723,7 +1759,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 <td className="py-2.5 px-2 text-center font-mono text-sm text-emerald-800">
                   {totals.totalPaid.toFixed(2)} ₪
                 </td>
-                <td colSpan={2} className="py-2.5 px-3 text-slate-600 text-[11px]">
+                <td colSpan={3} className="py-2.5 px-3 text-slate-600 text-[11px]">
                   المتبقي/الآجل: <strong className="font-mono text-rose-700 font-bold">{totals.totalRemaining.toFixed(2)} ₪</strong>
                 </td>
               </tr>

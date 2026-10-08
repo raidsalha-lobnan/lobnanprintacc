@@ -929,6 +929,7 @@ export interface DailyEntryRow {
   notes?: string; // ملاحظات
   requiredAmount: number; // المبلغ المطلوب
   paidAmount: number; // المدفوع
+  paymentNotes?: string; // ملاحظة السداد (الملاحظة المرفقة مع السداد)
   treasuryId?: string; // الصندوق
   treasuryName?: string; // اسم الصندوق
   parentRowId?: string; // معرف السطر الأب إذا كان صنف إضافي لنفس الزبون

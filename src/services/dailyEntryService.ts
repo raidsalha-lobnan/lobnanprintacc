@@ -30,6 +30,7 @@ export function createEmptyDailyEntryRow(
     notes: '',
     requiredAmount: 0,
     paidAmount: 0,
+    paymentNotes: '',
     treasuryId: defaultTreasuryId || '',
     treasuryName: defaultTreasuryName || '',
     parentRowId,
@@ -120,7 +121,9 @@ export function convertDailyEntryRowsToDrafts(
     });
 
     const isAllApproved = groupRows.every(r => r.isApproved);
-    const notesCombined = groupRows.map(r => r.notes?.trim()).filter(Boolean).join(' | ');
+    const itemNotes = groupRows.map(r => r.notes?.trim()).filter(Boolean).join(' | ');
+    const payNotes = groupRows.map(r => r.paymentNotes?.trim()).filter(Boolean).join(' | ');
+    const notesCombined = [itemNotes, payNotes ? `(سداد: ${payNotes})` : ''].filter(Boolean).join(' - ');
 
     const draft: MultiItemDraftInvoice = {
       id: draftId,
