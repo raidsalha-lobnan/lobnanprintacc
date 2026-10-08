@@ -187,6 +187,7 @@ export const DailyEntrySheetView: React.FC = () => {
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const localDirtyRowIds = useRef<Set<string>>(new Set());
   const blurTimeoutRef = useRef<any>(null);
+  const prevSelectedDateRef = useRef<string>(selectedDate);
 
   const currentSheet = dailyEntrySheets[selectedDate];
   const activeLocks: Record<string, RowLockInfo> = currentSheet?.activeLocks || {};
@@ -241,7 +242,7 @@ export const DailyEntrySheetView: React.FC = () => {
   // Customer & Sub-Customer Live Filtering Across All Entry Days
   const [filterCustomer, setFilterCustomer] = useState<string>('');
   const [filterSubCustomer, setFilterSubCustomer] = useState<string>('');
-  const [filterScope, setFilterScope] = useState<'all_days' | 'selected_day'>('all_days');
+  const [filterScope, setFilterScope] = useState<'selected_day' | 'all_days'>('selected_day');
   const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'pending'>('all');
   const [showAllDaysDirectly, setShowAllDaysDirectly] = useState<boolean>(false);
 
@@ -249,12 +250,36 @@ export const DailyEntrySheetView: React.FC = () => {
     return filterCustomer.trim().length > 0 || filterSubCustomer.trim().length > 0 || showAllDaysDirectly || filterStatus !== 'all';
   }, [filterCustomer, filterSubCustomer, showAllDaysDirectly, filterStatus]);
 
-  // Load & Reconcile sheet for selected date without wiping local edits
+  // Load & Reconcile sheet for selected date without mixing days or wiping local edits
   useEffect(() => {
+    const isDateChanged = prevSelectedDateRef.current !== selectedDate;
+    prevSelectedDateRef.current = selectedDate;
+
     const sheet = getDailyEntrySheet(selectedDate);
+
+    // If switching dates, immediately and cleanly load the target date's rows!
+    if (isDateChanged) {
+      if (sheet && sheet.rows && sheet.rows.length > 0) {
+        setRows(sheet.rows);
+        setSheetNotes(sheet.notes || '');
+      } else {
+        const initialRows: DailyEntryRow[] = [
+          createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name),
+          createEmptyDailyEntryRow(2, defaultTreasury?.id, defaultTreasury?.name),
+          createEmptyDailyEntryRow(3, defaultTreasury?.id, defaultTreasury?.name),
+          createEmptyDailyEntryRow(4, defaultTreasury?.id, defaultTreasury?.name),
+          createEmptyDailyEntryRow(5, defaultTreasury?.id, defaultTreasury?.name)
+        ];
+        setRows(initialRows);
+        setSheetNotes('');
+      }
+      setIsSaved(true);
+      return;
+    }
+
+    // Remote sync reconcile on the SAME date while editing
     if (sheet && sheet.rows && sheet.rows.length > 0) {
       setRows(prevRows => {
-        // Initial mount or empty
         if (prevRows.length === 0) {
           return sheet.rows;
         }
@@ -293,7 +318,7 @@ export const DailyEntrySheetView: React.FC = () => {
           return remoteRow;
         });
 
-        // Add any new remote rows created by other users
+        // Add any new remote rows created by other users for THIS DAY
         const localIds = new Set(prevRows.map(r => r.id));
         const newRemoteRows = sheet.rows.filter(r => !localIds.has(r.id));
         return [...merged, ...newRemoteRows];
@@ -433,6 +458,7 @@ export const DailyEntrySheetView: React.FC = () => {
     if (!currentRow) {
       return {
         isMultiItem: false,
+        isFirst: true,
         isLast: true,
         itemIndexInGroup: 0,
         groupCount: 1,
@@ -450,13 +476,15 @@ export const DailyEntrySheetView: React.FC = () => {
     });
 
     const isMultiItem = groupIndices.length > 1;
-    const isLast = groupIndices[groupIndices.length - 1] === rowIndex;
+    const isFirst = groupIndices.length > 0 && groupIndices[0] === rowIndex;
+    const isLast = groupIndices.length > 0 && groupIndices[groupIndices.length - 1] === rowIndex;
     const itemIndexInGroup = groupIndices.indexOf(rowIndex);
     const totalGroupRequired = groupIndices.reduce((sum, i) => sum + Number(currentRows[i]?.requiredAmount || 0), 0);
     const lastItemOfGroup = currentRows[groupIndices[groupIndices.length - 1]];
 
     return {
       isMultiItem,
+      isFirst,
       isLast,
       itemIndexInGroup,
       groupCount: groupIndices.length,
@@ -636,13 +664,24 @@ export const DailyEntrySheetView: React.FC = () => {
   // Deletion Confirmation States
   const [rowToDelete, setRowToDelete] = useState<DailyEntryRow | null>(null);
   const [showDeleteDayConfirm, setShowDeleteDayConfirm] = useState<boolean>(false);
+  const [dayDateToDelete, setDayDateToDelete] = useState<string | null>(null);
 
-  // Prompt row deletion with confirmation
+  // Prompt row deletion with confirmation for filled rows, or immediate delete for empty rows
   const promptDeleteRow = (row: DailyEntryRow) => {
-    setRowToDelete(row);
+    const hasData = Boolean(
+      (row.customerName && row.customerName.trim().length > 0) ||
+      (row.itemName && row.itemName.trim().length > 0) ||
+      Number(row.requiredAmount) > 0 ||
+      Number(row.paidAmount) > 0
+    );
+    if (!hasData) {
+      executeDeleteRow(row.id);
+    } else {
+      setRowToDelete(row);
+    }
   };
 
-  // Execute row deletion after confirmation
+  // Execute row deletion permanently
   const executeDeleteRow = (rowId: string) => {
     setIsSaved(false);
     setRows(prev => {
@@ -655,30 +694,42 @@ export const DailyEntrySheetView: React.FC = () => {
     setRowToDelete(null);
     setStatusMessage({
       type: 'info',
-      text: 'تم حذف السطر بنجاح.'
+      text: 'تم الحذف النهائي للسطر بنجاح.'
     });
     setTimeout(() => setStatusMessage(null), 2500);
   };
 
-  // Delete entire day sheet with confirmation
-  const executeDeleteDaySheet = () => {
-    deleteDailyEntrySheet(selectedDate);
-    const initialRows: DailyEntryRow[] = [
-      createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name),
-      createEmptyDailyEntryRow(2, defaultTreasury?.id, defaultTreasury?.name),
-      createEmptyDailyEntryRow(3, defaultTreasury?.id, defaultTreasury?.name),
-      createEmptyDailyEntryRow(4, defaultTreasury?.id, defaultTreasury?.name),
-      createEmptyDailyEntryRow(5, defaultTreasury?.id, defaultTreasury?.name)
-    ];
-    setRows(initialRows);
-    setSheetNotes('');
-    setIsSaved(true);
+  // Delete entire day sheet permanently from Firestore & localStorage
+  const executePermanentDeleteDay = (dateToDelete: string) => {
+    deleteDailyEntrySheet(dateToDelete);
+    setDayDateToDelete(null);
     setShowDeleteDayConfirm(false);
+
+    if (dateToDelete === selectedDate) {
+      const remaining = recordedDates.filter(d => d !== dateToDelete);
+      const nextDate = remaining[0] || new Date().toISOString().split('T')[0];
+      setSelectedDate(nextDate);
+
+      const initialRows: DailyEntryRow[] = [
+        createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name),
+        createEmptyDailyEntryRow(2, defaultTreasury?.id, defaultTreasury?.name),
+        createEmptyDailyEntryRow(3, defaultTreasury?.id, defaultTreasury?.name),
+        createEmptyDailyEntryRow(4, defaultTreasury?.id, defaultTreasury?.name),
+        createEmptyDailyEntryRow(5, defaultTreasury?.id, defaultTreasury?.name)
+      ];
+      setRows(initialRows);
+      setSheetNotes('');
+    }
+
     setStatusMessage({
       type: 'success',
-      text: `تم حذف كشف الإدخال اليومي لتاريخ ${selectedDate} بالكامل.`
+      text: `تم الحذف النهائي لكشف يوم ${dateToDelete} بنجاح من السحابة والجهاز.`
     });
     setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  const executeDeleteDaySheet = () => {
+    executePermanentDeleteDay(selectedDate);
   };
 
   // Clear empty rows
@@ -894,23 +945,20 @@ export const DailyEntrySheetView: React.FC = () => {
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                جدول إدخال الحركات اليومية المباشرة للزبائن والأصناف والتحصيل وترحيلها لمسودات الفواتير
-              </p>
             </div>
           </div>
 
           {/* Date Selector & Fast Nav */}
-          <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 p-1.5 rounded-xl">
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 p-1 rounded-xl">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1 mr-1">
               <Calendar className="w-3.5 h-3.5 text-blue-600" />
-              <span>تاريخ يوم العمل:</span>
+              <span>تاريخ اليوم:</span>
             </span>
 
             <button
               type="button"
               onClick={() => changeDateByDays(-1)}
-              className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition cursor-pointer"
+              className="p-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition cursor-pointer"
               title="اليوم السابق"
             >
               <ChevronRight className="w-4 h-4" />
@@ -920,13 +968,13 @@ export const DailyEntrySheetView: React.FC = () => {
               type="date"
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
+              className="bg-white border border-slate-300 rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
             />
 
             <button
               type="button"
               onClick={() => changeDateByDays(1)}
-              className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition cursor-pointer"
+              className="p-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition cursor-pointer"
               title="اليوم التالي"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -935,7 +983,7 @@ export const DailyEntrySheetView: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-              className="px-2 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition cursor-pointer"
+              className="px-2 py-0.5 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition cursor-pointer"
             >
               اليوم الحالي
             </button>
@@ -946,7 +994,7 @@ export const DailyEntrySheetView: React.FC = () => {
             <button
               type="button"
               onClick={handleSaveExplicit}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
               title="حفظ بيانات الكشف الآن"
             >
               <Save className="w-3.5 h-3.5" />
@@ -956,7 +1004,7 @@ export const DailyEntrySheetView: React.FC = () => {
             <button
               type="button"
               onClick={handleTransferToDrafts}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition cursor-pointer"
+              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition cursor-pointer"
               title="ترحيل حركات كشف اليوم كمسودات فواتير والانتقال لشاشة مراجعة واعتماد الفواتير بالتتابع"
             >
               <Send className="w-3.5 h-3.5" />
@@ -973,17 +1021,17 @@ export const DailyEntrySheetView: React.FC = () => {
               type="button"
               onClick={() => setShowDeleteDayConfirm(true)}
               disabled={!recordedDates.includes(selectedDate) && rows.every(r => !r.customerName && !r.itemName && Number(r.requiredAmount) === 0)}
-              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="حذف كشف هذا اليوم بالكامل مع تأكيد الحذف"
+              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+              title="حذف نهائي لكشف هذا اليوم من السحابة وقاعدة البيانات"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-              <span>حذف كشف اليوم</span>
+              <span>حذف نهائي</span>
             </button>
 
             <button
               type="button"
               onClick={() => window.print()}
-              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition cursor-pointer"
+              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition cursor-pointer"
               title="طباعة كشف هذا اليوم"
             >
               <Printer className="w-4 h-4" />
@@ -1102,9 +1150,6 @@ export const DailyEntrySheetView: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <span className="text-[11px] text-slate-500 font-medium">
-                  استعلم عن زبون أو زبون فرعي عبر كامل سجل أيام الإدخال مع إظهار حالة الاعتماد والهايلايت
-                </span>
               </div>
             </div>
 
@@ -1364,22 +1409,22 @@ export const DailyEntrySheetView: React.FC = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-xl relative scrollbar-thin">
               <table className="w-full text-right border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 select-none">
-                    <th className="py-2 px-2 text-center border-l border-slate-200">تاريخ اليوم</th>
-                    <th className="py-2 px-1 text-center border-l border-slate-200 w-12">#</th>
-                    <th className="py-2 px-2 border-l border-slate-200">الزبون الرئيسي</th>
-                    <th className="py-2 px-2 border-l border-slate-200">الزبون الفرعي</th>
-                    <th className="py-2 px-2 border-l border-slate-200">الصنف / الخدمة</th>
-                    <th className="py-2 px-2 border-l border-slate-200">ملاحظات / بيان</th>
-                    <th className="py-2 px-2 text-center border-l border-slate-200 w-24">المطلوب</th>
-                    <th className="py-2 px-2 text-center border-l border-slate-200 w-24">المدفوع</th>
-                    <th className="py-2 px-2 border-l border-slate-200 min-w-[130px]">ملاحظة السداد</th>
-                    <th className="py-2 px-2 text-center border-l border-slate-200">الصندوق / الخزنة</th>
-                    <th className="py-2 px-2 text-center border-l border-slate-200">حالة الاعتماد</th>
-                    <th className="py-2 px-2 text-center w-24">إجراءات</th>
+                <thead className="sticky top-0 z-20 shadow-xs">
+                  <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 select-none text-[11px]">
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 text-center border-l border-slate-200">تاريخ اليوم</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-1 text-center border-l border-slate-200 w-12">#</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-l border-slate-200">الزبون الرئيسي</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-l border-slate-200">الزبون الفرعي</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-l border-slate-200">الصنف / الخدمة</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-l border-slate-200">ملاحظات / بيان</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 text-center border-l border-slate-200 w-24">المطلوب</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 text-center border-l border-slate-200 w-24">المدفوع</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 border-l border-slate-200 min-w-[130px]">ملاحظة السداد</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 text-center border-l border-slate-200">الصندوق / الخزنة</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 text-center border-l border-slate-200">حالة الاعتماد</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 py-1.5 px-2 text-center w-24">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -1426,11 +1471,6 @@ export const DailyEntrySheetView: React.FC = () => {
                           <td className="py-2 px-1 text-center font-mono font-bold text-slate-700 border-l border-slate-200">
                             <div className="flex flex-col items-center justify-center">
                               <span className="font-black text-xs text-slate-800">{row.serialNumber}</span>
-                              {row.isAdditionalItem && (
-                                <span className="text-[8.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 rounded-sm mt-0.5">
-                                  تابع
-                                </span>
-                              )}
                               {isApproved && (
                                 <span className="mt-0.5 px-1 py-0.2 rounded text-[8px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
                                   <Check className="w-2 h-2" />
@@ -1542,18 +1582,18 @@ export const DailyEntrySheetView: React.FC = () => {
                     })
                   )}
                 </tbody>
-                <tfoot>
+                <tfoot className="sticky bottom-0 z-20 shadow-xs">
                   <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs">
-                    <td colSpan={6} className="py-2.5 px-3 text-left">
+                    <td colSpan={6} className="sticky bottom-0 bg-slate-100 py-1.5 px-3 text-left">
                       إجمالي نتائج التصفية ({filteredRows.length} حركة):
                     </td>
-                    <td className="py-2.5 px-2 text-center font-mono text-sm text-slate-900">
+                    <td className="sticky bottom-0 bg-slate-100 py-1.5 px-2 text-center font-mono text-xs font-black text-slate-900">
                       {filteredTotals.totalRequired.toFixed(2)} ₪
                     </td>
-                    <td className="py-2.5 px-2 text-center font-mono text-sm text-emerald-800">
+                    <td className="sticky bottom-0 bg-slate-100 py-1.5 px-2 text-center font-mono text-xs font-black text-emerald-800">
                       {filteredTotals.totalPaid.toFixed(2)} ₪
                     </td>
-                    <td colSpan={4} className="py-2.5 px-3 text-slate-600 text-[11px]">
+                    <td colSpan={4} className="sticky bottom-0 bg-slate-100 py-1.5 px-3 text-slate-600 text-[10.5px]">
                       المتبقي/الآجل: <strong className="font-mono text-rose-700 font-bold">{filteredTotals.totalRemaining.toFixed(2)} ₪</strong>
                     </td>
                   </tr>
@@ -1714,8 +1754,8 @@ export const DailyEntrySheetView: React.FC = () => {
             </div>
           )}
 
-          {/* The Responsive Table Container */}
-          <div className="overflow-x-auto">
+          {/* The Responsive Table Container with Sticky Header */}
+          <div className="overflow-x-auto overflow-y-auto max-h-[70vh] min-h-[360px] border border-slate-200 rounded-xl relative scrollbar-thin shadow-2xs bg-white">
             <table className="w-full text-right border-collapse text-xs table-fixed">
               {/* Controlled Column Widths via Colgroup */}
               <colgroup>
@@ -1730,12 +1770,12 @@ export const DailyEntrySheetView: React.FC = () => {
                 <col style={{ width: `${columnWidths.treasury || DEFAULT_COLUMN_WIDTHS.treasury}px` }} />
                 <col style={{ width: `${columnWidths.actions || DEFAULT_COLUMN_WIDTHS.actions}px` }} />
               </colgroup>
-              <thead>
+              <thead className="sticky top-0 z-20 shadow-xs">
                 <tr className="bg-slate-100 text-slate-800 font-black border-b border-slate-300 text-[11px] select-none">
                   {/* 1. # */}
                   <th
                     style={{ width: `${columnWidths.serial || DEFAULT_COLUMN_WIDTHS.serial}px` }}
-                    className="relative py-2 px-1 text-center border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-1 text-center border-l border-slate-200 group"
                   >
                     <span>#</span>
                     <div
@@ -1750,7 +1790,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 2. اسم الزبون الرئيسي */}
                   <th
                     style={{ width: `${columnWidths.customerName || DEFAULT_COLUMN_WIDTHS.customerName}px` }}
-                    className="relative py-2 px-3 border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-2 border-l border-slate-200 group"
                   >
                     <span className="truncate block">اسم الزبون الرئيسي</span>
                     <div
@@ -1765,7 +1805,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 3. الزبون الفرعي */}
                   <th
                     style={{ width: `${columnWidths.subCustomerName || DEFAULT_COLUMN_WIDTHS.subCustomerName}px` }}
-                    className="relative py-2 px-3 border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-2 border-l border-slate-200 group"
                   >
                     <span className="truncate block">الزبون الفرعي</span>
                     <div
@@ -1780,7 +1820,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 4. الصنف */}
                   <th
                     style={{ width: `${columnWidths.itemName || DEFAULT_COLUMN_WIDTHS.itemName}px` }}
-                    className="relative py-2 px-3 border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-2 border-l border-slate-200 group"
                   >
                     <span className="truncate block">الصنف</span>
                     <div
@@ -1795,7 +1835,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 5. ملاحظات */}
                   <th
                     style={{ width: `${columnWidths.notes || DEFAULT_COLUMN_WIDTHS.notes}px` }}
-                    className="relative py-2 px-3 border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-2 border-l border-slate-200 group"
                   >
                     <span className="truncate block">ملاحظات</span>
                     <div
@@ -1810,7 +1850,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 6. المبلغ المطلوب */}
                   <th
                     style={{ width: `${columnWidths.requiredAmount || DEFAULT_COLUMN_WIDTHS.requiredAmount}px` }}
-                    className="relative py-2 px-2 text-center border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-1.5 text-center border-l border-slate-200 group"
                   >
                     <span className="truncate block">المبلغ المطلوب</span>
                     <div
@@ -1825,7 +1865,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 7. المدفوع */}
                   <th
                     style={{ width: `${columnWidths.paidAmount || DEFAULT_COLUMN_WIDTHS.paidAmount}px` }}
-                    className="relative py-2 px-2 text-center border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-1.5 text-center border-l border-slate-200 group"
                   >
                     <span className="truncate block">المدفوع</span>
                     <div
@@ -1840,7 +1880,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 8. ملاحظة السداد (الملاحظة المرفقة مع السداد قبل الصندوق) */}
                   <th
                     style={{ width: `${columnWidths.paymentNotes || DEFAULT_COLUMN_WIDTHS.paymentNotes}px` }}
-                    className="relative py-2 px-2.5 border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-2 border-l border-slate-200 group"
                   >
                     <span className="truncate block">ملاحظة السداد</span>
                     <div
@@ -1855,13 +1895,13 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 9. الصندوق */}
                   <th
                     style={{ width: `${columnWidths.treasury || DEFAULT_COLUMN_WIDTHS.treasury}px` }}
-                    className="relative py-2 px-2.5 border-l border-slate-200 group"
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-2 border-l border-slate-200 group"
                   >
                     <div className="flex items-center justify-between">
                       <span>الصندوق</span>
-                      <span className="text-[9px] font-normal text-blue-700 bg-blue-50 border border-blue-200 px-1 py-0.5 rounded flex items-center gap-0.5" title="يرتبط تلقائياً بالسطر السابق، والسطر الجديد يرث ما اختير في السطر الذي قبله">
+                      <span className="text-[8.5px] font-normal text-blue-700 bg-blue-50 border border-blue-200 px-1 py-0.2 rounded flex items-center gap-0.5" title="يرتبط تلقائياً بالسطر السابق، والسطر الجديد يرث ما اختير في السطر الذي قبله">
                         <Link2 className="w-2.5 h-2.5" />
-                        <span>يرث السابق</span>
+                        <span>يرث</span>
                       </span>
                     </div>
                     <div
@@ -1876,7 +1916,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 10. إجراء */}
                   <th
                     style={{ width: `${columnWidths.actions || DEFAULT_COLUMN_WIDTHS.actions}px` }}
-                    className="py-2 px-2 text-center print:hidden"
+                    className="sticky top-0 z-20 bg-slate-100 py-1 px-1.5 text-center print:hidden"
                   >
                     إجراء
                   </th>
@@ -1927,42 +1967,41 @@ export const DailyEntrySheetView: React.FC = () => {
                           : 'bg-slate-50/50'
                       }`}
                     >
-                      {/* 1. رقم مسلسل (مشترك لكافة أصناف نفس الزبون دون تجديد) */}
-                      <td className="py-1 px-1 text-center font-mono font-bold text-slate-700 border-l border-slate-200">
-                        <div className="flex flex-col items-center justify-center">
-                          <span className="font-black text-xs text-slate-800">{row.serialNumber}</span>
-                          {row.isAdditionalItem && (
-                            <span className="text-[8.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 rounded-sm mt-0.5" title="صنف إضافي لنفس الزبون">
-                              تابع
-                            </span>
-                          )}
-                          {isApproved && (
-                            <span className="mt-0.5 px-1 py-0.2 rounded text-[8px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
-                              <Check className="w-2 h-2" />
-                              <span>معتمد</span>
-                            </span>
-                          )}
-                          {/* Live Lock Indicator (Excel Online Style) */}
-                          {isLockedByOther && (
-                            <div className="flex flex-col items-center gap-0.5 mt-1 bg-amber-100 border border-amber-300 px-1 py-0.5 rounded text-[8px] font-bold text-amber-900 shadow-2xs animate-pulse" title={`هذا البند محجوز حالياً للتعديل بواسطة (${lock.userName})`}>
-                              <div className="flex items-center gap-0.5">
-                                <Lock className="w-2.5 h-2.5 text-amber-700 shrink-0" />
-                                <span className="truncate max-w-[45px]">{lock.userName}</span>
+                      {/* 1. رقم مسلسل (مشترك ومدمج لكافة أصناف نفس الزبون دون تكرار ودون تابع) */}
+                      {(!groupInfo.isMultiItem || groupInfo.isFirst) && (
+                        <td
+                          rowSpan={groupInfo.isMultiItem ? groupInfo.groupCount : 1}
+                          className="py-0.5 px-0.5 text-center font-mono font-bold text-slate-700 border-l border-slate-200 align-middle bg-slate-50/70"
+                        >
+                          <div className="flex flex-col items-center justify-center min-h-[28px]">
+                            <span className="font-black text-sm text-slate-900">{row.serialNumber}</span>
+                            {isApproved && (
+                              <span className="mt-0.5 px-1 rounded-xs text-[7.5px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
+                                <Check className="w-2 h-2" />
+                                <span>معتمد</span>
+                              </span>
+                            )}
+                            {/* Live Lock Indicator (Excel Online Style) */}
+                            {isLockedByOther && (
+                              <div className="flex flex-col items-center gap-0.2 mt-0.5 bg-amber-100 border border-amber-300 px-1 py-0.2 rounded text-[7.5px] font-bold text-amber-900 shadow-2xs animate-pulse" title={`هذا البند محجوز حالياً للتعديل بواسطة (${lock.userName})`}>
+                                <div className="flex items-center gap-0.5">
+                                  <Lock className="w-2 h-2 text-amber-700 shrink-0" />
+                                  <span className="truncate max-w-[42px]">{lock.userName}</span>
+                                </div>
                               </div>
-                              <span className="text-[7.5px] text-amber-700">يحرر الآن</span>
-                            </div>
-                          )}
-                          {isLockedByMe && (
-                            <div className="flex items-center gap-0.5 mt-1 bg-blue-100 text-blue-800 border border-blue-200 px-1 py-0.2 rounded text-[7.5px] font-bold">
-                              <Edit3 className="w-2 h-2 text-blue-600" />
-                              <span>قيد إدخالك</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
+                            )}
+                            {isLockedByMe && (
+                              <div className="flex items-center gap-0.5 mt-0.5 bg-blue-100 text-blue-800 border border-blue-200 px-1 py-0.2 rounded text-[7px] font-bold">
+                                <Edit3 className="w-1.5 h-1.5 text-blue-600" />
+                                <span>تعديل</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      )}
 
                       {/* 2. اسم الزبون الرئيسي */}
-                      <td className="p-1 border-l border-slate-200">
+                      <td className="p-0.5 border-l border-slate-200">
                         <div className="relative">
                           <CustomerCellInput
                             value={row.customerName}
@@ -1981,16 +2020,11 @@ export const DailyEntrySheetView: React.FC = () => {
                               }
                             }}
                           />
-                          {row.isAdditionalItem && (
-                            <div className="text-[8.5px] text-indigo-600 font-bold px-1 mt-0.5 flex items-center gap-0.5">
-                              <span>نفس الزبون (مسلسل #{row.serialNumber})</span>
-                            </div>
-                          )}
                         </div>
                       </td>
 
                       {/* 3. الزبون الفرعي */}
-                      <td className="p-1 border-l border-slate-200">
+                      <td className="p-0.5 border-l border-slate-200">
                         {subCustList.length > 0 ? (
                           <div className="relative">
                             <input
@@ -2007,8 +2041,8 @@ export const DailyEntrySheetView: React.FC = () => {
                                   handleUpdateRow(row.id, { subCustomerName: e.target.value });
                                 }
                               }}
-                              placeholder={isLockedByOther ? 'محجوز للتعديل...' : 'اختر أو اكتب الزبون الفرعي...'}
-                              className={`w-full px-2 py-1 border rounded text-xs outline-none ${
+                              placeholder={isLockedByOther ? 'محجوز...' : 'الزبون الفرعي...'}
+                              className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] outline-none ${
                                 isLockedByOther
                                   ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
                                   : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
@@ -2036,8 +2070,8 @@ export const DailyEntrySheetView: React.FC = () => {
                                 handleUpdateRow(row.id, { subCustomerName: e.target.value });
                               }
                             }}
-                            placeholder={isLockedByOther ? 'محجوز للتعديل...' : 'الزبون الفرعي إن وجد...'}
-                            className={`w-full px-2 py-1 border rounded text-xs outline-none ${
+                            placeholder={isLockedByOther ? 'محجوز...' : 'الفرعي إن وجد...'}
+                            className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] outline-none ${
                               isLockedByOther
                                 ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
                                 : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
@@ -2047,7 +2081,7 @@ export const DailyEntrySheetView: React.FC = () => {
                       </td>
 
                       {/* 4. الصنف + علامة (+) في زاوية مربع الصنف لإضافة صنف آخر لنفس الزبون */}
-                      <td className="p-1 border-l border-slate-200">
+                      <td className="p-0.5 border-l border-slate-200">
                         <ItemCellInput
                           value={row.itemName}
                           inventory={inventory}
@@ -2070,7 +2104,7 @@ export const DailyEntrySheetView: React.FC = () => {
                       </td>
 
                       {/* 5. ملاحظات */}
-                      <td className="p-1 border-l border-slate-200">
+                      <td className="p-0.5 border-l border-slate-200">
                         <input
                           type="text"
                           disabled={isLockedByOther}
@@ -2078,8 +2112,8 @@ export const DailyEntrySheetView: React.FC = () => {
                           onFocus={() => handleRowFocus(row.id, 'notes')}
                           onBlur={() => handleRowBlur(row.id)}
                           onChange={e => handleUpdateRow(row.id, { notes: e.target.value })}
-                          placeholder={isLockedByOther ? 'محجوز...' : 'بيان، مقاسات، تفاصيل...'}
-                          className={`w-full px-2 py-1 border rounded text-xs outline-none ${
+                          placeholder={isLockedByOther ? 'محجوز...' : 'بيان، مقاسات...'}
+                          className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] outline-none ${
                             isLockedByOther
                               ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
                               : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
@@ -2088,7 +2122,7 @@ export const DailyEntrySheetView: React.FC = () => {
                       </td>
 
                       {/* 6. المبلغ المطلوب (يجمع لكافة بنود نفس الزبون) */}
-                      <td className="p-1 border-l border-slate-200 text-center">
+                      <td className="p-0.5 border-l border-slate-200 text-center">
                         <div className="relative flex items-center">
                           <input
                             type="number"
@@ -2103,33 +2137,32 @@ export const DailyEntrySheetView: React.FC = () => {
                               handleUpdateRow(row.id, { requiredAmount: isNaN(val) ? 0 : val });
                             }}
                             placeholder="0.00"
-                            className={`w-full text-center px-1.5 py-1 border rounded font-mono font-bold outline-none ${
+                            className={`w-full text-center px-1 py-0.5 h-7 border rounded font-mono font-bold text-[11px] outline-none ${
                               isLockedByOther
                                 ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
                                 : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900'
                             }`}
                           />
-                          <span className="text-[10px] text-slate-400 font-mono pl-1 select-none pointer-events-none">₪</span>
                         </div>
                         {groupInfo.isMultiItem && groupInfo.isLast && (
-                          <div className="text-[9px] text-blue-700 font-bold mt-0.5 bg-blue-50 border border-blue-200/60 rounded px-1 py-0.2" title="إجمالي المطلوب لكافة بنود هذا الزبون في هذه الفاتورة">
+                          <div className="text-[8.5px] text-blue-700 font-bold mt-0.5 bg-blue-50 border border-blue-200/60 rounded px-1 py-0.2" title="إجمالي المطلوب لكافة بنود هذا الزبون في هذه الفاتورة">
                             مجموع: {groupInfo.totalGroupRequired.toFixed(2)} ₪
                           </div>
                         )}
                       </td>
 
                       {/* 7. المدفوع (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون فقط) */}
-                      <td className="p-1 border-l border-slate-200 text-center">
+                      <td className="p-0.5 border-l border-slate-200 text-center">
                         {groupInfo.isMultiItem && !groupInfo.isLast ? (
                           <div
-                            className="w-full text-center px-1 py-1 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10.5px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
+                            className="w-full text-center px-1 py-0.5 h-7 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
                             title="آلية الدفع مجمدة تلقائياً: تعتمد وتحدد في آخر بند لنفس الزبون لتغطية إجمالي الفاتورة"
                           >
                             <Lock className="w-2.5 h-2.5 text-slate-400" />
-                            <span>يعتمد بآخر بند</span>
+                            <span>بالأخير</span>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5">
                             <input
                               type="number"
                               step="any"
@@ -2149,7 +2182,7 @@ export const DailyEntrySheetView: React.FC = () => {
                                 }
                               }}
                               placeholder="0.00"
-                              className={`w-full text-center px-1 py-1 border rounded font-mono font-bold outline-none ${
+                              className={`w-full text-center px-1 py-0.5 h-7 border rounded font-mono font-bold text-[11px] outline-none ${
                                 isLockedByOther
                                   ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
                                   : isPaidFull
@@ -2166,7 +2199,7 @@ export const DailyEntrySheetView: React.FC = () => {
                                 handleUpdateRow(row.id, { paidAmount: groupInfo.totalGroupRequired });
                               }}
                               disabled={isLockedByOther || groupInfo.totalGroupRequired <= 0}
-                              className="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 rounded text-[10px] font-bold border border-slate-200 transition shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed print:hidden"
+                              className="px-1 h-7 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 rounded text-[9.5px] font-bold border border-slate-200 transition shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed print:hidden"
                               title="تسجيل سداد كامل المبلغ المطلوب للفاتورة"
                             >
                               كامل
@@ -2176,14 +2209,14 @@ export const DailyEntrySheetView: React.FC = () => {
                       </td>
 
                       {/* 8. ملاحظة السداد (الملاحظة المرفقة مع السداد) */}
-                      <td className="p-1 border-l border-slate-200">
+                      <td className="p-0.5 border-l border-slate-200">
                         {groupInfo.isMultiItem && !groupInfo.isLast ? (
                           <div
-                            className="w-full text-center px-1 py-1 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
+                            className="w-full text-center px-1 py-0.5 h-7 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[9.5px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
                             title="ملاحظة السداد مجمدة: تعتمد وتحدد في آخر بند لنفس الزبون مع الدفع"
                           >
                             <Lock className="w-2.5 h-2.5 text-slate-400" />
-                            <span>بآخر بند</span>
+                            <span>بالأخير</span>
                           </div>
                         ) : (
                           <input
@@ -2194,7 +2227,7 @@ export const DailyEntrySheetView: React.FC = () => {
                             onBlur={() => handleRowBlur(row.id)}
                             onChange={e => handleUpdateRow(row.id, { paymentNotes: e.target.value })}
                             placeholder={isLockedByOther ? 'محجوز...' : 'ملاحظة السداد...'}
-                            className={`w-full px-2 py-1 border rounded text-xs outline-none placeholder:text-slate-400 ${
+                            className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] outline-none placeholder:text-slate-400 ${
                               isLockedByOther
                                 ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
                                 : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
@@ -2204,17 +2237,17 @@ export const DailyEntrySheetView: React.FC = () => {
                       </td>
 
                       {/* 9. الصندوق (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون) */}
-                      <td className="p-1 border-l border-slate-200">
+                      <td className="p-0.5 border-l border-slate-200">
                         {groupInfo.isMultiItem && !groupInfo.isLast ? (
                           <div
-                            className="w-full px-1.5 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded text-xs truncate flex items-center justify-between cursor-not-allowed select-none"
+                            className="w-full px-1.5 py-0.5 h-7 bg-slate-100 text-slate-500 border border-slate-200 rounded text-xs truncate flex items-center justify-between cursor-not-allowed select-none"
                             title="الصندوق موحد لكافة بنود نفس الزبون ويعتمد من آخر بند"
                           >
-                            <span className="truncate text-[11px] font-medium">{groupInfo.lastItemOfGroup?.treasuryName || 'موحد مع الأخير'}</span>
+                            <span className="truncate text-[10.5px] font-medium">{groupInfo.lastItemOfGroup?.treasuryName || 'موحد'}</span>
                             <Lock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5">
                             <select
                               disabled={isLockedByOther}
                               value={row.treasuryId || defaultTreasury?.id || ''}
@@ -2239,16 +2272,16 @@ export const DailyEntrySheetView: React.FC = () => {
                                   handleAddRow();
                                 }
                               }}
-                              className={`w-full px-1.5 py-1 border rounded text-xs outline-none ${
+                              className={`w-full px-1 py-0.5 h-7 border rounded text-[11px] outline-none ${
                                 isLockedByOther
                                   ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
                                   : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800 cursor-pointer'
                               }`}
-                              title="اختيار الصندوق أو الخزنة (يرثه السطر التالي والجديد تلقائياً)"
+                              title="اختيار الصندوق أو الخزنة"
                             >
                               {treasuries.map(t => (
                                 <option key={t.id} value={t.id}>
-                                  {t.name} ({t.currency})
+                                  {t.name}
                                 </option>
                               ))}
                             </select>
@@ -2256,24 +2289,24 @@ export const DailyEntrySheetView: React.FC = () => {
                               type="button"
                               disabled={isLockedByOther}
                               onClick={() => handleApplyTreasuryToSubsequent(idx)}
-                              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition shrink-0 cursor-pointer print:hidden disabled:opacity-30 disabled:cursor-not-allowed"
-                              title="تعميم هذا الصندوق تلقائياً على هذا السطر وكافة الأسطر التالية"
+                              className="p-1 h-7 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition shrink-0 cursor-pointer print:hidden disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="تعميم هذا الصندوق تلقائياً على الأسطر التالية"
                             >
-                              <ArrowDownToLine className="w-3.5 h-3.5" />
+                              <ArrowDownToLine className="w-3 h-3" />
                             </button>
                           </div>
                         )}
                       </td>
 
                       {/* 10. إجراءات السطر */}
-                      <td className="p-1 text-center print:hidden">
-                        <div className="flex items-center justify-center gap-1">
+                      <td className="p-0.5 text-center print:hidden">
+                        <div className="flex items-center justify-center gap-0.5">
                           {isLockedByOther && (
                             <button
                               type="button"
                               onClick={() => forceReleaseDailyEntryRowLock(selectedDate, row.id)}
                               className="p-1 text-amber-700 hover:text-amber-950 hover:bg-amber-100 rounded transition cursor-pointer"
-                              title={`فك الحجز يدوياً عن هذا البند (المحجوز بواسطة ${lock.userName}) في حال ترك الخانة مفتوحة`}
+                              title={`فك الحجز يدوياً عن هذا البند (${lock.userName})`}
                             >
                               <Unlock className="w-3.5 h-3.5" />
                             </button>
@@ -2283,7 +2316,7 @@ export const DailyEntrySheetView: React.FC = () => {
                               type="button"
                               onClick={() => setActiveTab('invoices')}
                               className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded transition cursor-pointer"
-                              title={`عرض الفاتورة المعتمدة (${row.approvedInvoiceNumber || ''}) في قائمة الفواتير`}
+                              title={`عرض الفاتورة المعتمدة (${row.approvedInvoiceNumber || ''})`}
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                             </button>
@@ -2293,7 +2326,7 @@ export const DailyEntrySheetView: React.FC = () => {
                             disabled={isLockedByOther}
                             onClick={() => handleInsertRowBelow(idx)}
                             className="p-1 text-slate-400 hover:text-blue-600 rounded transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="إدراج سطر عادي جديد أسفل هذا السطر"
+                            title="إدراج سطر جديد أسفل هذا السطر"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
@@ -2302,7 +2335,7 @@ export const DailyEntrySheetView: React.FC = () => {
                             disabled={isLockedByOther}
                             onClick={() => promptDeleteRow(row)}
                             className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="حذف هذا السطر مع تأكيد الحذف"
+                            title="حذف نهائي للسطر"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -2312,19 +2345,19 @@ export const DailyEntrySheetView: React.FC = () => {
                   );
                 })}
               </tbody>
-            {/* Table Footer with Totals */}
-            <tfoot>
+            {/* Table Footer with Sticky Totals */}
+            <tfoot className="sticky bottom-0 z-20 shadow-xs">
               <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs">
-                <td colSpan={5} className="py-2.5 px-3 text-left">
+                <td colSpan={5} className="sticky bottom-0 bg-slate-100 py-1.5 px-2 text-left">
                   الإجمالي العام لكشف اليوم ({selectedDate}):
                 </td>
-                <td className="py-2.5 px-2 text-center font-mono text-sm text-slate-900">
+                <td className="sticky bottom-0 bg-slate-100 py-1.5 px-1 text-center font-mono text-xs font-black text-slate-900">
                   {totals.totalRequired.toFixed(2)} ₪
                 </td>
-                <td className="py-2.5 px-2 text-center font-mono text-sm text-emerald-800">
+                <td className="sticky bottom-0 bg-slate-100 py-1.5 px-1 text-center font-mono text-xs font-black text-emerald-800">
                   {totals.totalPaid.toFixed(2)} ₪
                 </td>
-                <td colSpan={3} className="py-2.5 px-3 text-slate-600 text-[11px]">
+                <td colSpan={3} className="sticky bottom-0 bg-slate-100 py-1.5 px-2 text-slate-600 text-[10.5px]">
                   المتبقي/الآجل: <strong className="font-mono text-rose-700 font-bold">{totals.totalRemaining.toFixed(2)} ₪</strong>
                 </td>
               </tr>
@@ -2333,102 +2366,94 @@ export const DailyEntrySheetView: React.FC = () => {
         </div>
 
         {/* Bottom Bar inside Table */}
-        <div className="bg-slate-50 p-2.5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs print:hidden">
+        <div className="bg-slate-50 p-1.5 px-2.5 border-t border-slate-200 flex items-center justify-between text-xs print:hidden">
           <button
             type="button"
             onClick={handleAddRow}
-            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-bold flex items-center gap-1.5 transition cursor-pointer"
+            className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>إضافة سطر جديد (يرث الصندوق تلقائياً)</span>
           </button>
-
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-[11px] text-slate-600">
-            <span className="flex items-center gap-1.5 font-medium">
-              <Plus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span>علامة <strong>(+)</strong> بزاوية مربع الصنف تضيف أصناف لنفس الزبون بنفس المسلسل، مع تجميع المبالغ وتجميد الدفع لآخر بند.</span>
-            </span>
-            <span className="flex items-center gap-1.5 font-medium">
-              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>الأسطر المعتمدة تظلل بلون أخضر مميز فور اعتماد الفاتورة.</span>
-            </span>
-          </div>
+          <span className="text-[11px] text-slate-500 font-mono">
+            إجمالي الأسطر: {rows.length} | الصالحة: {totals.validRowsCount}
+          </span>
         </div>
       </div>
       )}
 
       {/* 3. SUMMARY CARDS & TREASURY BREAKDOWN */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 print:hidden">
         {/* Card 1: Total Required */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[11px] text-slate-500 font-bold block">إجمالي المطلوب (المبيعات)</span>
-            <strong className="text-lg font-mono font-black text-slate-900 mt-0.5 block">
+            <span className="text-[10.5px] text-slate-500 font-bold block">إجمالي المطلوب (المبيعات)</span>
+            <strong className="text-base font-mono font-black text-slate-900 mt-0.5 block">
               {totals.totalRequired.toLocaleString('ar-SA')} ₪
             </strong>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
-            <Coins className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+            <Coins className="w-4 h-4" />
           </div>
         </div>
 
         {/* Card 2: Total Paid */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[11px] text-slate-500 font-bold block">إجمالي المقبوض (المدفوع)</span>
-            <strong className="text-lg font-mono font-black text-emerald-700 mt-0.5 block">
+            <span className="text-[10.5px] text-slate-500 font-bold block">إجمالي المقبوض (المدفوع)</span>
+            <strong className="text-base font-mono font-black text-emerald-700 mt-0.5 block">
               {totals.totalPaid.toLocaleString('ar-SA')} ₪
             </strong>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-            <Wallet className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+            <Wallet className="w-4 h-4" />
           </div>
         </div>
 
         {/* Card 3: Total Remaining */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[11px] text-slate-500 font-bold block">إجمالي الآجل (الذمم المتبقية)</span>
-            <strong className="text-lg font-mono font-black text-rose-700 mt-0.5 block">
+            <span className="text-[10.5px] text-slate-500 font-bold block">إجمالي الآجل (المتبقي)</span>
+            <strong className="text-base font-mono font-black text-rose-700 mt-0.5 block">
               {totals.totalRemaining.toLocaleString('ar-SA')} ₪
             </strong>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center font-bold">
-            <Clock className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center font-bold">
+            <Clock className="w-4 h-4" />
           </div>
         </div>
 
         {/* Card 4: Approval Status */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[11px] text-slate-500 font-bold block">حالة الاعتماد والفواتير</span>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <strong className="text-lg font-mono font-black text-emerald-700">
+            <span className="text-[10.5px] text-slate-500 font-bold block">حالة الاعتماد والفواتير</span>
+            <div className="flex items-center gap-1 mt-0.5">
+              <strong className="text-base font-mono font-black text-emerald-700">
                 {totals.approvedCount} معتمد
               </strong>
-              <span className="text-xs text-slate-400 font-bold">
+              <span className="text-[11px] text-slate-400 font-bold">
                 ({totals.pendingCount} معلق)
               </span>
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-            <CheckCircle2 className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+            <CheckCircle2 className="w-4 h-4" />
           </div>
         </div>
       </div>
 
       {/* 4. TREASURIES BREAKDOWN BAR */}
       {Object.keys(totals.treasuryBreakdown).length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs print:hidden">
-          <div className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-            <Building2 className="w-4 h-4 text-blue-600" />
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs print:hidden">
+          <div className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5 text-blue-600" />
             <span>توزيع المقبوضات حسب الصناديق والبنوك لليوم:</span>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {(Object.entries(totals.treasuryBreakdown) as [string, { name: string; amount: number; count: number }][]).map(([tKey, tData]) => (
               <div
                 key={tKey}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs"
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 flex items-center gap-1.5 text-xs"
               >
                 <span className="font-bold text-slate-700">{tData.name}:</span>
                 <strong className="font-mono text-emerald-800 font-black">
@@ -2441,24 +2466,24 @@ export const DailyEntrySheetView: React.FC = () => {
         </div>
       )}
 
-      {/* 5. NOTES ON DAILY SHEET */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs print:hidden">
-        <label className="text-xs font-bold text-slate-700 block mb-1">
-          ملاحظات عامة على كشف يوم العمل ({selectedDate}):
+      {/* 5. COMPACT GENERAL NOTES */}
+      <div className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-2xs flex items-center gap-2 print:hidden">
+        <label className="text-xs font-bold text-slate-600 shrink-0">
+          ملاحظات الكشف:
         </label>
-        <textarea
-          rows={2}
+        <input
+          type="text"
           value={sheetNotes}
           onChange={e => {
             setIsSaved(false);
             setSheetNotes(e.target.value);
           }}
-          placeholder="أية ملاحظات إدارية أو توجيهات خاصة بهذا اليوم..."
-          className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-blue-500"
+          placeholder="أية ملاحظات عامة اختيارية على كشف يوم العمل..."
+          className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:bg-white focus:border-blue-500 placeholder:text-slate-400"
         />
       </div>
 
-      {/* 6. CONFIRM DELETE ROW MODAL */}
+      {/* 6. CONFIRM DELETE ROW MODAL (حذف نهائي للسطر) */}
       {rowToDelete && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95" dir="rtl">
@@ -2467,17 +2492,17 @@ export const DailyEntrySheetView: React.FC = () => {
                 <Trash2 className="w-5 h-5 text-rose-600" />
               </div>
               <div>
-                <h3 className="font-black text-slate-900 text-sm">تأكيد حذف السطر</h3>
-                <p className="text-xs text-slate-500 font-bold">السطر رقم {rowToDelete.serialNumber}</p>
+                <h3 className="font-black text-slate-900 text-sm">حذف نهائي للسطر</h3>
+                <p className="text-xs text-slate-500 font-bold">السطر رقم #{rowToDelete.serialNumber}</p>
               </div>
             </div>
             
             <p className="text-xs text-slate-600 mb-4 leading-relaxed">
-              هل أنت متأكد من رغبتك في حذف هذا السطر
-              {rowToDelete.customerName ? ` الخاص بالزبون (${rowToDelete.customerName})` : ''}
+              هل أنت متأكد من الحذف النهائي لهذا السطر
+              {rowToDelete.customerName ? ` للزبون (${rowToDelete.customerName})` : ''}
               {rowToDelete.itemName ? ` والصنف (${rowToDelete.itemName})` : ''}
               {Number(rowToDelete.requiredAmount) > 0 ? ` بمبلغ (${Number(rowToDelete.requiredAmount).toFixed(2)} ₪)` : ''}
-              ؟ لا يمكن التراجع عن هذه العملية بعد التأكيد.
+              ؟ سيتم حذفه نهائياً من الكشف ولا يمكن التراجع عنه.
             </p>
 
             <div className="flex items-center justify-end gap-2">
@@ -2493,14 +2518,14 @@ export const DailyEntrySheetView: React.FC = () => {
                 onClick={() => executeDeleteRow(rowToDelete.id)}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
               >
-                نعم، تأكيد الحذف
+                تأكيد الحذف النهائي
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 7. CONFIRM DELETE ENTIRE DAY SHEET MODAL */}
+      {/* 7. CONFIRM DELETE ENTIRE DAY SHEET MODAL (حذف نهائي لكشف اليوم) */}
       {showDeleteDayConfirm && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95" dir="rtl">
@@ -2509,13 +2534,13 @@ export const DailyEntrySheetView: React.FC = () => {
                 <Trash2 className="w-5 h-5 text-rose-600" />
               </div>
               <div>
-                <h3 className="font-black text-slate-900 text-sm">تأكيد حذف كشف اليوم بالكامل</h3>
+                <h3 className="font-black text-slate-900 text-sm">حذف نهائي لكشف اليوم</h3>
                 <p className="text-xs text-slate-500 font-mono font-bold">تاريخ: {selectedDate}</p>
               </div>
             </div>
             
             <p className="text-xs text-slate-600 mb-4 leading-relaxed">
-              هل أنت متأكد من حذف كشف الإدخال اليومي ليوم ({selectedDate}) بالكامل؟ سيتم مسح جميع الحركات والأسطر المسجلة لهذا اليوم نهائياً.
+              هل أنت متأكد من الحذف النهائي لكشف الإدخال اليومي ليوم ({selectedDate}) بالكامل؟ سيتم مسح كافة الحركات والأسطر المسجلة لهذا اليوم نهائياً من السحابة والتخزين المحلي.
             </p>
 
             <div className="flex items-center justify-end gap-2">
@@ -2531,7 +2556,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 onClick={executeDeleteDaySheet}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
               >
-                نعم، تأكيد الحذف النهائي
+                تأكيد الحذف النهائي
               </button>
             </div>
           </div>
@@ -2599,7 +2624,7 @@ const CustomerCellInput: React.FC<{
           setIsOpen(true);
         }}
         placeholder={disabled ? 'محجوز للتعديل...' : 'ابحث أو اكتب اسم الزبون...'}
-        className={`w-full px-2 py-1 border rounded text-xs font-bold outline-none placeholder:font-normal ${
+        className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] font-bold outline-none placeholder:font-normal ${
           disabled
             ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
             : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400'
@@ -2697,11 +2722,11 @@ const ItemCellInput: React.FC<{
           setIsOpen(true);
         }}
         placeholder={disabled ? 'محجوز للتعديل...' : 'الصنف أو الخدمة...'}
-        className={`w-full px-2 py-1 border rounded text-xs font-bold outline-none placeholder:font-normal ${
+        className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] font-bold outline-none placeholder:font-normal ${
           disabled
             ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
             : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400'
-        } ${onAddSubItem ? 'pl-5.5' : ''}`}
+        } ${onAddSubItem ? 'pl-5' : ''}`}
       />
 
       {/* علامة + فقط في زاوية مربع الصنف */}
@@ -2714,7 +2739,7 @@ const ItemCellInput: React.FC<{
             e.preventDefault();
             onAddSubItem();
           }}
-          className="absolute bottom-1 left-1 w-4 h-4 rounded flex items-center justify-center bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 text-[12px] font-black leading-none transition-colors cursor-pointer z-10 active:scale-95 print:hidden select-none shadow-2xs"
+          className="absolute top-1 left-1 w-4 h-4 rounded flex items-center justify-center bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 text-[11px] font-black leading-none transition-colors cursor-pointer z-10 select-none shadow-2xs"
           title="إضافة صنف آخر لنفس الزبون (+)"
           aria-label="إضافة صنف آخر لنفس الزبون"
         >
