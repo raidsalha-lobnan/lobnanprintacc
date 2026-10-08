@@ -940,9 +940,19 @@ export interface DailyEntryRow {
   approvedAt?: string; // تاريخ ووقت الاعتماد
 }
 
+export interface RowLockInfo {
+  rowId: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  field?: string;
+  lockedAt: number; // timestamp
+}
+
 export interface DailyEntrySheet {
   date: string; // YYYY-MM-DD
   rows: DailyEntryRow[];
   notes?: string;
   updatedAt?: string;
+  activeLocks?: Record<string, RowLockInfo>; // rowId -> lock info
 }

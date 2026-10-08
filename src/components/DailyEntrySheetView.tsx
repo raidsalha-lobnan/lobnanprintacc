@@ -31,10 +31,16 @@ import {
   User,
   Users,
   Filter,
-  Globe
+  Globe,
+  Lock,
+  Unlock,
+  Edit3,
+  SlidersHorizontal,
+  Columns,
+  RotateCcw
 } from 'lucide-react';
 import { useAccounting } from '../context/AccountingContext';
-import { DailyEntryRow, DailyEntrySheet, Party, InventoryItem, Treasury } from '../types';
+import { DailyEntryRow, DailyEntrySheet, RowLockInfo, Party, InventoryItem, Treasury } from '../types';
 import {
   createEmptyDailyEntryRow,
   convertDailyEntryRowsToDrafts,
@@ -45,18 +51,38 @@ import { posSound } from '../utils/audio';
 
 const STORAGE_KEY_MULTI_DRAFTS = 'accounting_pending_multi_draft_invoices_v5';
 
+// Default column widths for Daily Entry Table (in pixels)
+const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  serial: 52,
+  customerName: 195,
+  subCustomerName: 155,
+  itemName: 205,
+  notes: 165,
+  requiredAmount: 115,
+  paidAmount: 135,
+  paymentNotes: 155,
+  treasury: 185,
+  actions: 85
+};
+
+const STORAGE_KEY_COL_WIDTHS = 'accounting_daily_sheet_col_widths_v2';
+
 export const DailyEntrySheetView: React.FC = () => {
   const {
     parties = [],
     inventory = [],
     treasuries = [],
     settings,
+    currentUser,
     setActiveTab,
     dailyEntrySheets,
     getDailyEntrySheet,
     saveDailyEntrySheet,
     deleteDailyEntrySheet,
-    getAllDailyEntryDates
+    getAllDailyEntryDates,
+    acquireDailyEntryRowLock,
+    releaseDailyEntryRowLock,
+    forceReleaseDailyEntryRowLock
   } = useAccounting();
 
   // Current selected business date (YYYY-MM-DD)
@@ -72,6 +98,140 @@ export const DailyEntrySheetView: React.FC = () => {
     type: 'success' | 'error' | 'info';
     text: string;
   } | null>(null);
+
+  // Manual Column Resizing & Widths Control
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_COL_WIDTHS);
+      if (saved) {
+        return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(saved) };
+      }
+    } catch (e) {}
+    return DEFAULT_COLUMN_WIDTHS;
+  });
+
+  const [showColumnControls, setShowColumnControls] = useState<boolean>(false);
+
+  const saveColumnWidths = (newWidths: Record<string, number>) => {
+    setColumnWidths(newWidths);
+    try {
+      localStorage.setItem(STORAGE_KEY_COL_WIDTHS, JSON.stringify(newWidths));
+    } catch (e) {}
+  };
+
+  const handleResetColumnWidths = () => {
+    setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+    try {
+      localStorage.removeItem(STORAGE_KEY_COL_WIDTHS);
+    } catch (e) {}
+  };
+
+  const applyColumnPreset = (preset: 'compact' | 'standard' | 'wide') => {
+    let multiplier = 1;
+    if (preset === 'compact') multiplier = 0.85;
+    if (preset === 'wide') multiplier = 1.25;
+
+    const adjusted: Record<string, number> = {};
+    Object.keys(DEFAULT_COLUMN_WIDTHS).forEach(key => {
+      adjusted[key] = Math.round(DEFAULT_COLUMN_WIDTHS[key] * multiplier);
+    });
+    saveColumnWidths(adjusted);
+  };
+
+  // Drag-to-resize column width state
+  const [resizingCol, setResizingCol] = useState<{
+    key: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  const handleStartResize = (e: React.MouseEvent, colKey: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingCol({
+      key: colKey,
+      startX: e.clientX,
+      startWidth: columnWidths[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 120
+    });
+  };
+
+  useEffect(() => {
+    if (!resizingCol) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // In RTL, dragging towards the left edge increases column width
+      const diff = resizingCol.startX - e.clientX;
+      const newWidth = Math.max(45, Math.min(600, resizingCol.startWidth + diff));
+      setColumnWidths(prev => {
+        const next = { ...prev, [resizingCol.key]: newWidth };
+        try {
+          localStorage.setItem(STORAGE_KEY_COL_WIDTHS, JSON.stringify(next));
+        } catch (err) {}
+        return next;
+      });
+    };
+
+    const handleMouseUp = () => {
+      setResizingCol(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingCol]);
+
+  // Collaborative Row/Cell Locks (Excel Online style)
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const localDirtyRowIds = useRef<Set<string>>(new Set());
+  const blurTimeoutRef = useRef<any>(null);
+
+  const currentSheet = dailyEntrySheets[selectedDate];
+  const activeLocks: Record<string, RowLockInfo> = currentSheet?.activeLocks || {};
+
+  // Active other collaborators on this sheet
+  const activeCollaborators = useMemo(() => {
+    const list: { userId: string; userName: string; rowId: string }[] = [];
+    const now = Date.now();
+    Object.values(activeLocks).forEach((lock: RowLockInfo) => {
+      if (lock && lock.userId !== currentUser?.id && (now - lock.lockedAt < 120000)) {
+        if (!list.some(c => c.userId === lock.userId)) {
+          list.push({ userId: lock.userId, userName: lock.userName, rowId: lock.rowId });
+        }
+      }
+    });
+    return list;
+  }, [activeLocks, currentUser]);
+
+  const handleRowFocus = (rowId: string, fieldName?: string) => {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
+    setEditingRowId(rowId);
+    localDirtyRowIds.current.add(rowId);
+    acquireDailyEntryRowLock(selectedDate, rowId, fieldName);
+  };
+
+  const handleRowBlur = (rowId: string) => {
+    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+    blurTimeoutRef.current = setTimeout(() => {
+      const activeEl = document.activeElement;
+      const stillInRow = activeEl?.closest(`[data-row-id="${rowId}"]`);
+      if (!stillInRow) {
+        if (editingRowId === rowId) {
+          setEditingRowId(null);
+        }
+        localDirtyRowIds.current.delete(rowId);
+        releaseDailyEntryRowLock(selectedDate, rowId);
+        // Save immediately on completing a row
+        saveDailyEntrySheet(selectedDate, rows, sheetNotes);
+        setIsSaved(true);
+      }
+    }, 150);
+  };
 
   // Default treasury (usually cash)
   const defaultTreasury = useMemo(() => {
@@ -89,13 +249,60 @@ export const DailyEntrySheetView: React.FC = () => {
     return filterCustomer.trim().length > 0 || filterSubCustomer.trim().length > 0 || showAllDaysDirectly || filterStatus !== 'all';
   }, [filterCustomer, filterSubCustomer, showAllDaysDirectly, filterStatus]);
 
-  // Load sheet for selected date
+  // Load & Reconcile sheet for selected date without wiping local edits
   useEffect(() => {
     const sheet = getDailyEntrySheet(selectedDate);
     if (sheet && sheet.rows && sheet.rows.length > 0) {
-      setRows(sheet.rows);
-      setSheetNotes(sheet.notes || '');
-    } else {
+      setRows(prevRows => {
+        // Initial mount or empty
+        if (prevRows.length === 0) {
+          return sheet.rows;
+        }
+
+        const activeId = editingRowId;
+        const dirtySet = localDirtyRowIds.current;
+        const remoteMap = new Map<string, DailyEntryRow>(sheet.rows.map(r => [r.id, r]));
+
+        const merged = prevRows.map(localRow => {
+          // If local row is actively being typed or dirty, preserve local edits!
+          if (localRow.id === activeId || dirtySet.has(localRow.id)) {
+            return localRow;
+          }
+
+          const remoteRow = remoteMap.get(localRow.id);
+          if (!remoteRow) return localRow;
+
+          // Prevent blank remote row from wiping populated local row
+          const localHasData = Boolean(
+            (localRow.customerName && localRow.customerName.trim()) ||
+            (localRow.itemName && localRow.itemName.trim()) ||
+            Number(localRow.requiredAmount) > 0 ||
+            Number(localRow.paidAmount) > 0
+          );
+          const remoteHasData = Boolean(
+            (remoteRow.customerName && remoteRow.customerName.trim()) ||
+            (remoteRow.itemName && remoteRow.itemName.trim()) ||
+            Number(remoteRow.requiredAmount) > 0 ||
+            Number(remoteRow.paidAmount) > 0
+          );
+
+          if (localHasData && !remoteHasData) {
+            return localRow;
+          }
+
+          return remoteRow;
+        });
+
+        // Add any new remote rows created by other users
+        const localIds = new Set(prevRows.map(r => r.id));
+        const newRemoteRows = sheet.rows.filter(r => !localIds.has(r.id));
+        return [...merged, ...newRemoteRows];
+      });
+
+      if (sheet.notes !== undefined) {
+        setSheetNotes(prev => (prev === '' ? (sheet.notes || '') : prev));
+      }
+    } else if (rows.length === 0) {
       // Create initial 5 blank rows for quick input
       const initialRows: DailyEntryRow[] = [
         createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name),
@@ -153,6 +360,7 @@ export const DailyEntrySheetView: React.FC = () => {
   // Handle changing cell values with automatic inheritance and cascading
   const handleUpdateRow = (rowId: string, updates: Partial<DailyEntryRow>) => {
     setIsSaved(false);
+    localDirtyRowIds.current.add(rowId);
     setRows(prev => {
       const rowIndex = prev.findIndex(r => r.id === rowId);
       if (rowIndex === -1) return prev;
@@ -1358,143 +1566,469 @@ export const DailyEntrySheetView: React.FC = () => {
         /* 2. THE MAIN DAILY ENTRY TABLE (When Not Filtering) */
         <div className="bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
           {/* Table Toolbar */}
-          <div className="bg-slate-800 text-white px-3 py-2 flex items-center justify-between print:hidden">
+          <div className="bg-slate-800 text-white px-3 py-2 flex flex-wrap items-center justify-between gap-2 print:hidden">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold">
                 جدول إدخال الحركات (عدد الأسطر: {rows.length})
               </span>
-            <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-mono">
-              الصالح للترحيل: {totals.validRowsCount}
-            </span>
-          </div>
+              <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-mono">
+                الصالح للترحيل: {totals.validRowsCount}
+              </span>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCleanEmptyRows}
-              className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-[11px] font-bold transition cursor-pointer"
-              title="حذف الأسطر الفارغة"
-            >
-              مسح الأسطر الفارغة
-            </button>
-            <button
-              type="button"
-              onClick={handleAddRow}
-              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>إضافة سطر (+)</span>
-            </button>
-          </div>
-        </div>
-
-        {/* The Responsive Table Container */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-right border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-100 text-slate-800 font-black border-b border-slate-300 text-[11px]">
-                <th className="py-2 px-2 text-center w-10 border-l border-slate-200">#</th>
-                <th className="py-2 px-3 w-48 border-l border-slate-200">اسم الزبون الرئيسي</th>
-                <th className="py-2 px-3 w-36 border-l border-slate-200">الزبون الفرعي</th>
-                <th className="py-2 px-3 w-48 border-l border-slate-200">الصنف</th>
-                <th className="py-2 px-3 min-w-[140px] border-l border-slate-200">ملاحظات</th>
-                <th className="py-2 px-2.5 text-center w-28 border-l border-slate-200">المبلغ المطلوب</th>
-                <th className="py-2 px-2.5 text-center w-28 border-l border-slate-200">المدفوع</th>
-                <th className="py-2 px-2.5 min-w-[130px] border-l border-slate-200">ملاحظة السداد</th>
-                <th className="py-2 px-2.5 w-44 border-l border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <span>الصندوق</span>
-                    <span className="text-[9px] font-normal text-blue-700 bg-blue-50 border border-blue-200 px-1 py-0.5 rounded flex items-center gap-0.5" title="يرتبط تلقائياً بالسطر السابق، والسطر الجديد يرث ما اختير في السطر الذي قبله">
-                      <Link2 className="w-2.5 h-2.5" />
-                      <span>يرث السابق</span>
-                    </span>
+              {/* Active Collaborators Live Indicator (Excel Online Style) */}
+              {activeCollaborators.length > 0 && (
+                <div className="flex items-center gap-1.5 bg-amber-950/90 text-amber-200 border border-amber-500/50 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold shadow-2xs">
+                  <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                  <span>يحرر الآن:</span>
+                  <div className="flex items-center gap-1">
+                    {activeCollaborators.map(c => (
+                      <span key={c.userId} className="bg-amber-400/20 text-amber-100 px-1.5 py-0.2 rounded font-black flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>{c.userName}</span>
+                      </span>
+                    ))}
                   </div>
-                </th>
-                <th className="py-2 px-2 text-center w-14 print:hidden">إجراء</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {rows.map((row, idx) => {
-                const reqVal = Number(row.requiredAmount || 0);
-                const paidVal = Number(row.paidAmount || 0);
-                const isPaidFull = reqVal > 0 && paidVal >= reqVal;
-                const isPartial = reqVal > 0 && paidVal > 0 && paidVal < reqVal;
-                const isCredit = reqVal > 0 && paidVal === 0;
+                </div>
+              )}
+            </div>
 
-                // Match customer if exists
-                const matchedCust = parties.find(p => 
-                  p.id === row.customerId || 
-                  p.name.trim().toLowerCase() === row.customerName.trim().toLowerCase()
-                );
-                const subCustList = matchedCust?.subCustomers || [];
+            <div className="flex items-center gap-1.5">
+              {/* Column Widths Customizer Button */}
+              <button
+                type="button"
+                onClick={() => setShowColumnControls(prev => !prev)}
+                className={`px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                  showColumnControls
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+                }`}
+                title="التحكم في عروض أعمدة الجدول يدوياً (سحب الأعمدة أو اختيار قياس جاهز)"
+              >
+                <Columns className="w-3.5 h-3.5" />
+                <span>عرض الأعمدة ⚙️</span>
+              </button>
 
-                const groupInfo = getRowCustomerGroupInfo(idx, rows);
-                const isApproved = Boolean(row.isApproved);
+              <button
+                type="button"
+                onClick={handleCleanEmptyRows}
+                className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-[11px] font-bold transition cursor-pointer"
+                title="حذف الأسطر الفارغة"
+              >
+                مسح الأسطر الفارغة
+              </button>
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>إضافة سطر (+)</span>
+              </button>
+            </div>
+          </div>
 
-                return (
-                  <tr
-                    key={row.id}
-                    className={`transition-colors ${
-                      isApproved
-                        ? 'bg-emerald-50/90 border-r-4 border-r-emerald-600 hover:bg-emerald-100/70 shadow-2xs text-slate-900'
-                        : row.isAdditionalItem
-                        ? 'bg-indigo-50/20 hover:bg-indigo-50/40 border-r-4 border-r-indigo-400'
-                        : idx % 2 === 0
-                        ? 'bg-white'
-                        : 'bg-slate-50/50'
-                    }`}
+          {/* Expandable Manual Column Widths Controls */}
+          {showColumnControls && (
+            <div className="bg-slate-900 border-b border-slate-700 p-3 text-slate-200 text-xs flex flex-col gap-2.5 print:hidden animate-in fade-in duration-200">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-blue-400" />
+                  <span className="font-bold text-white text-xs">
+                    التحكم في عرض أعمدة الجدول يدوياً:
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    (يمكنك أيضاً سحب الفواصل الرأسية بين عناوين الأعمدة مباشرة بالماوس كشيت الإكسل تماماً)
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 ml-1">قياسات سريعة:</span>
+                  <button
+                    type="button"
+                    onClick={() => applyColumnPreset('compact')}
+                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[10.5px] font-bold transition border border-slate-700 cursor-pointer"
                   >
-                    {/* 1. رقم مسلسل (مشترك لكافة أصناف نفس الزبون دون تجديد) */}
-                    <td className="py-1 px-1 text-center font-mono font-bold text-slate-700 border-l border-slate-200">
-                      <div className="flex flex-col items-center justify-center">
-                        <span className="font-black text-xs text-slate-800">{row.serialNumber}</span>
-                        {row.isAdditionalItem && (
-                          <span className="text-[8.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 rounded-sm mt-0.5" title="صنف إضافي لنفس الزبون">
-                            تابع
-                          </span>
-                        )}
-                        {isApproved && (
-                          <span className="mt-0.5 px-1 py-0.2 rounded text-[8px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
-                            <Check className="w-2 h-2" />
-                            <span>معتمد</span>
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                    مضغوط
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyColumnPreset('standard')}
+                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[10.5px] font-bold transition border border-slate-700 cursor-pointer"
+                  >
+                    قياسي
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyColumnPreset('wide')}
+                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[10.5px] font-bold transition border border-slate-700 cursor-pointer"
+                  >
+                    متسع
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetColumnWidths}
+                    className="px-2 py-0.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 rounded text-[10.5px] font-bold transition border border-rose-800/60 flex items-center gap-1 cursor-pointer mr-2"
+                    title="استعادة القياسات الافتراضية لكافة الأعمدة"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>استعادة الافتراضي</span>
+                  </button>
+                </div>
+              </div>
 
-                    {/* 2. اسم الزبون الرئيسي */}
-                    <td className="p-1 border-l border-slate-200">
-                      <div className="relative">
-                        <CustomerCellInput
-                          value={row.customerName}
-                          parties={parties}
-                          onChange={(name, custId) => {
-                            if (groupInfo.isMultiItem) {
-                              handleUpdateCustomerForGroup(row.serialNumber, name, custId);
-                            } else {
-                              handleUpdateRow(row.id, {
-                                customerName: name,
-                                customerId: custId
-                              });
-                            }
-                          }}
-                        />
-                        {row.isAdditionalItem && (
-                          <div className="text-[8.5px] text-indigo-600 font-bold px-1 mt-0.5 flex items-center gap-0.5">
-                            <span>نفس الزبون (مسلسل #{row.serialNumber})</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+              {/* Quick Sliders Grid for each column */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-[11px]">
+                {[
+                  { key: 'serial', label: '#' },
+                  { key: 'customerName', label: 'الزبون الرئيسي' },
+                  { key: 'subCustomerName', label: 'الزبون الفرعي' },
+                  { key: 'itemName', label: 'الصنف' },
+                  { key: 'notes', label: 'ملاحظات' },
+                  { key: 'requiredAmount', label: 'المطلوب' },
+                  { key: 'paidAmount', label: 'المدفوع' },
+                  { key: 'paymentNotes', label: 'ملاحظة السداد' },
+                  { key: 'treasury', label: 'الصندوق' },
+                  { key: 'actions', label: 'إجراءات' },
+                ].map(col => (
+                  <div key={col.key} className="bg-slate-800/80 p-1.5 rounded-lg border border-slate-700 flex flex-col gap-1">
+                    <div className="flex items-center justify-between font-bold text-slate-300">
+                      <span>{col.label}</span>
+                      <span className="font-mono text-[10px] text-blue-400">{columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key]}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="45"
+                      max="450"
+                      value={columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key]}
+                      onChange={e => {
+                        const val = parseInt(e.target.value, 10);
+                        saveColumnWidths({
+                          ...columnWidths,
+                          [col.key]: val
+                        });
+                      }}
+                      className="w-full accent-blue-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                    {/* 3. الزبون الفرعي */}
-                    <td className="p-1 border-l border-slate-200">
-                      {subCustList.length > 0 ? (
+          {/* The Responsive Table Container */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse text-xs table-fixed">
+              {/* Controlled Column Widths via Colgroup */}
+              <colgroup>
+                <col style={{ width: `${columnWidths.serial || DEFAULT_COLUMN_WIDTHS.serial}px` }} />
+                <col style={{ width: `${columnWidths.customerName || DEFAULT_COLUMN_WIDTHS.customerName}px` }} />
+                <col style={{ width: `${columnWidths.subCustomerName || DEFAULT_COLUMN_WIDTHS.subCustomerName}px` }} />
+                <col style={{ width: `${columnWidths.itemName || DEFAULT_COLUMN_WIDTHS.itemName}px` }} />
+                <col style={{ width: `${columnWidths.notes || DEFAULT_COLUMN_WIDTHS.notes}px` }} />
+                <col style={{ width: `${columnWidths.requiredAmount || DEFAULT_COLUMN_WIDTHS.requiredAmount}px` }} />
+                <col style={{ width: `${columnWidths.paidAmount || DEFAULT_COLUMN_WIDTHS.paidAmount}px` }} />
+                <col style={{ width: `${columnWidths.paymentNotes || DEFAULT_COLUMN_WIDTHS.paymentNotes}px` }} />
+                <col style={{ width: `${columnWidths.treasury || DEFAULT_COLUMN_WIDTHS.treasury}px` }} />
+                <col style={{ width: `${columnWidths.actions || DEFAULT_COLUMN_WIDTHS.actions}px` }} />
+              </colgroup>
+              <thead>
+                <tr className="bg-slate-100 text-slate-800 font-black border-b border-slate-300 text-[11px] select-none">
+                  {/* 1. # */}
+                  <th
+                    style={{ width: `${columnWidths.serial || DEFAULT_COLUMN_WIDTHS.serial}px` }}
+                    className="relative py-2 px-1 text-center border-l border-slate-200 group"
+                  >
+                    <span>#</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'serial')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل العرض"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 2. اسم الزبون الرئيسي */}
+                  <th
+                    style={{ width: `${columnWidths.customerName || DEFAULT_COLUMN_WIDTHS.customerName}px` }}
+                    className="relative py-2 px-3 border-l border-slate-200 group"
+                  >
+                    <span className="truncate block">اسم الزبون الرئيسي</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'customerName')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل عرض عمود الزبون"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 3. الزبون الفرعي */}
+                  <th
+                    style={{ width: `${columnWidths.subCustomerName || DEFAULT_COLUMN_WIDTHS.subCustomerName}px` }}
+                    className="relative py-2 px-3 border-l border-slate-200 group"
+                  >
+                    <span className="truncate block">الزبون الفرعي</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'subCustomerName')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل عرض عمود الزبون الفرعي"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 4. الصنف */}
+                  <th
+                    style={{ width: `${columnWidths.itemName || DEFAULT_COLUMN_WIDTHS.itemName}px` }}
+                    className="relative py-2 px-3 border-l border-slate-200 group"
+                  >
+                    <span className="truncate block">الصنف</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'itemName')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل عرض عمود الصنف"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 5. ملاحظات */}
+                  <th
+                    style={{ width: `${columnWidths.notes || DEFAULT_COLUMN_WIDTHS.notes}px` }}
+                    className="relative py-2 px-3 border-l border-slate-200 group"
+                  >
+                    <span className="truncate block">ملاحظات</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'notes')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل عرض عمود الملاحظات"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 6. المبلغ المطلوب */}
+                  <th
+                    style={{ width: `${columnWidths.requiredAmount || DEFAULT_COLUMN_WIDTHS.requiredAmount}px` }}
+                    className="relative py-2 px-2 text-center border-l border-slate-200 group"
+                  >
+                    <span className="truncate block">المبلغ المطلوب</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'requiredAmount')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل عرض عمود المبلغ المطلوب"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 7. المدفوع */}
+                  <th
+                    style={{ width: `${columnWidths.paidAmount || DEFAULT_COLUMN_WIDTHS.paidAmount}px` }}
+                    className="relative py-2 px-2 text-center border-l border-slate-200 group"
+                  >
+                    <span className="truncate block">المدفوع</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'paidAmount')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل عرض عمود المدفوع"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 8. ملاحظة السداد (الملاحظة المرفقة مع السداد قبل الصندوق) */}
+                  <th
+                    style={{ width: `${columnWidths.paymentNotes || DEFAULT_COLUMN_WIDTHS.paymentNotes}px` }}
+                    className="relative py-2 px-2.5 border-l border-slate-200 group"
+                  >
+                    <span className="truncate block">ملاحظة السداد</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'paymentNotes')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل عرض عمود ملاحظة السداد"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 9. الصندوق */}
+                  <th
+                    style={{ width: `${columnWidths.treasury || DEFAULT_COLUMN_WIDTHS.treasury}px` }}
+                    className="relative py-2 px-2.5 border-l border-slate-200 group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>الصندوق</span>
+                      <span className="text-[9px] font-normal text-blue-700 bg-blue-50 border border-blue-200 px-1 py-0.5 rounded flex items-center gap-0.5" title="يرتبط تلقائياً بالسطر السابق، والسطر الجديد يرث ما اختير في السطر الذي قبله">
+                        <Link2 className="w-2.5 h-2.5" />
+                        <span>يرث السابق</span>
+                      </span>
+                    </div>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'treasury')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل عرض عمود الصندوق"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 10. إجراء */}
+                  <th
+                    style={{ width: `${columnWidths.actions || DEFAULT_COLUMN_WIDTHS.actions}px` }}
+                    className="py-2 px-2 text-center print:hidden"
+                  >
+                    إجراء
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {rows.map((row, idx) => {
+                  const reqVal = Number(row.requiredAmount || 0);
+                  const paidVal = Number(row.paidAmount || 0);
+                  const isPaidFull = reqVal > 0 && paidVal >= reqVal;
+                  const isPartial = reqVal > 0 && paidVal > 0 && paidVal < reqVal;
+                  const isCredit = reqVal > 0 && paidVal === 0;
+
+                  // Collaborative row lock status
+                  const lock = activeLocks[row.id];
+                  const isLockedByOther = Boolean(
+                    lock &&
+                    lock.userId !== (currentUser?.id || 'usr-anon') &&
+                    (Date.now() - lock.lockedAt < 120000)
+                  );
+                  const isLockedByMe = editingRowId === row.id;
+
+                  // Match customer if exists
+                  const matchedCust = parties.find(p => 
+                    p.id === row.customerId || 
+                    p.name.trim().toLowerCase() === row.customerName.trim().toLowerCase()
+                  );
+                  const subCustList = matchedCust?.subCustomers || [];
+
+                  const groupInfo = getRowCustomerGroupInfo(idx, rows);
+                  const isApproved = Boolean(row.isApproved);
+
+                  return (
+                    <tr
+                      key={row.id}
+                      data-row-id={row.id}
+                      className={`transition-colors ${
+                        isLockedByOther
+                          ? 'bg-amber-50/90 border-r-4 border-r-amber-500 ring-1 ring-amber-300 shadow-2xs text-slate-900'
+                          : isLockedByMe
+                          ? 'bg-blue-50/40 border-r-4 border-r-blue-500 ring-1 ring-blue-300/80 shadow-2xs'
+                          : isApproved
+                          ? 'bg-emerald-50/90 border-r-4 border-r-emerald-600 hover:bg-emerald-100/70 shadow-2xs text-slate-900'
+                          : row.isAdditionalItem
+                          ? 'bg-indigo-50/20 hover:bg-indigo-50/40 border-r-4 border-r-indigo-400'
+                          : idx % 2 === 0
+                          ? 'bg-white'
+                          : 'bg-slate-50/50'
+                      }`}
+                    >
+                      {/* 1. رقم مسلسل (مشترك لكافة أصناف نفس الزبون دون تجديد) */}
+                      <td className="py-1 px-1 text-center font-mono font-bold text-slate-700 border-l border-slate-200">
+                        <div className="flex flex-col items-center justify-center">
+                          <span className="font-black text-xs text-slate-800">{row.serialNumber}</span>
+                          {row.isAdditionalItem && (
+                            <span className="text-[8.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 rounded-sm mt-0.5" title="صنف إضافي لنفس الزبون">
+                              تابع
+                            </span>
+                          )}
+                          {isApproved && (
+                            <span className="mt-0.5 px-1 py-0.2 rounded text-[8px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
+                              <Check className="w-2 h-2" />
+                              <span>معتمد</span>
+                            </span>
+                          )}
+                          {/* Live Lock Indicator (Excel Online Style) */}
+                          {isLockedByOther && (
+                            <div className="flex flex-col items-center gap-0.5 mt-1 bg-amber-100 border border-amber-300 px-1 py-0.5 rounded text-[8px] font-bold text-amber-900 shadow-2xs animate-pulse" title={`هذا البند محجوز حالياً للتعديل بواسطة (${lock.userName})`}>
+                              <div className="flex items-center gap-0.5">
+                                <Lock className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                <span className="truncate max-w-[45px]">{lock.userName}</span>
+                              </div>
+                              <span className="text-[7.5px] text-amber-700">يحرر الآن</span>
+                            </div>
+                          )}
+                          {isLockedByMe && (
+                            <div className="flex items-center gap-0.5 mt-1 bg-blue-100 text-blue-800 border border-blue-200 px-1 py-0.2 rounded text-[7.5px] font-bold">
+                              <Edit3 className="w-2 h-2 text-blue-600" />
+                              <span>قيد إدخالك</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 2. اسم الزبون الرئيسي */}
+                      <td className="p-1 border-l border-slate-200">
                         <div className="relative">
+                          <CustomerCellInput
+                            value={row.customerName}
+                            parties={parties}
+                            disabled={isLockedByOther}
+                            onFocus={() => handleRowFocus(row.id, 'customerName')}
+                            onBlur={() => handleRowBlur(row.id)}
+                            onChange={(name, custId) => {
+                              if (groupInfo.isMultiItem) {
+                                handleUpdateCustomerForGroup(row.serialNumber, name, custId);
+                              } else {
+                                handleUpdateRow(row.id, {
+                                  customerName: name,
+                                  customerId: custId
+                                });
+                              }
+                            }}
+                          />
+                          {row.isAdditionalItem && (
+                            <div className="text-[8.5px] text-indigo-600 font-bold px-1 mt-0.5 flex items-center gap-0.5">
+                              <span>نفس الزبون (مسلسل #{row.serialNumber})</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 3. الزبون الفرعي */}
+                      <td className="p-1 border-l border-slate-200">
+                        {subCustList.length > 0 ? (
+                          <div className="relative">
+                            <input
+                              type="text"
+                              disabled={isLockedByOther}
+                              list={`sub-list-${row.id}`}
+                              value={row.subCustomerName || ''}
+                              onFocus={() => handleRowFocus(row.id, 'subCustomerName')}
+                              onBlur={() => handleRowBlur(row.id)}
+                              onChange={e => {
+                                if (groupInfo.isMultiItem) {
+                                  handleUpdateSubCustomerForGroup(row.serialNumber, e.target.value);
+                                } else {
+                                  handleUpdateRow(row.id, { subCustomerName: e.target.value });
+                                }
+                              }}
+                              placeholder={isLockedByOther ? 'محجوز للتعديل...' : 'اختر أو اكتب الزبون الفرعي...'}
+                              className={`w-full px-2 py-1 border rounded text-xs outline-none ${
+                                isLockedByOther
+                                  ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                                  : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
+                              }`}
+                            />
+                            <datalist id={`sub-list-${row.id}`}>
+                              {subCustList.map(s => (
+                                <option key={s.id} value={s.name}>
+                                  {s.name} {s.phone ? `(${s.phone})` : ''}
+                                </option>
+                              ))}
+                            </datalist>
+                          </div>
+                        ) : (
                           <input
                             type="text"
-                            list={`sub-list-${row.id}`}
+                            disabled={isLockedByOther}
                             value={row.subCustomerName || ''}
+                            onFocus={() => handleRowFocus(row.id, 'subCustomerName')}
+                            onBlur={() => handleRowBlur(row.id)}
                             onChange={e => {
                               if (groupInfo.isMultiItem) {
                                 handleUpdateSubCustomerForGroup(row.serialNumber, e.target.value);
@@ -1502,251 +2036,282 @@ export const DailyEntrySheetView: React.FC = () => {
                                 handleUpdateRow(row.id, { subCustomerName: e.target.value });
                               }
                             }}
-                            placeholder="اختر أو اكتب الزبون الفرعي..."
-                            className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none"
+                            placeholder={isLockedByOther ? 'محجوز للتعديل...' : 'الزبون الفرعي إن وجد...'}
+                            className={`w-full px-2 py-1 border rounded text-xs outline-none ${
+                              isLockedByOther
+                                ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                                : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
+                            }`}
                           />
-                          <datalist id={`sub-list-${row.id}`}>
-                            {subCustList.map(s => (
-                              <option key={s.id} value={s.name}>
-                                {s.name} {s.phone ? `(${s.phone})` : ''}
-                              </option>
-                            ))}
-                          </datalist>
-                        </div>
-                      ) : (
+                        )}
+                      </td>
+
+                      {/* 4. الصنف + علامة (+) في زاوية مربع الصنف لإضافة صنف آخر لنفس الزبون */}
+                      <td className="p-1 border-l border-slate-200">
+                        <ItemCellInput
+                          value={row.itemName}
+                          inventory={inventory}
+                          disabled={isLockedByOther}
+                          onFocus={() => handleRowFocus(row.id, 'itemName')}
+                          onBlur={() => handleRowBlur(row.id)}
+                          onChange={(name, itemId, itemPrice) => {
+                            const updates: Partial<DailyEntryRow> = {
+                              itemName: name,
+                              itemId: itemId
+                            };
+                            // If price available and requiredAmount is currently 0, auto-fill it
+                            if (itemPrice && Number(row.requiredAmount || 0) === 0) {
+                              updates.requiredAmount = itemPrice;
+                            }
+                            handleUpdateRow(row.id, updates);
+                          }}
+                          onAddSubItem={() => handleAddCustomerSubItem(idx)}
+                        />
+                      </td>
+
+                      {/* 5. ملاحظات */}
+                      <td className="p-1 border-l border-slate-200">
                         <input
                           type="text"
-                          value={row.subCustomerName || ''}
-                          onChange={e => {
-                            if (groupInfo.isMultiItem) {
-                              handleUpdateSubCustomerForGroup(row.serialNumber, e.target.value);
-                            } else {
-                              handleUpdateRow(row.id, { subCustomerName: e.target.value });
-                            }
-                          }}
-                          placeholder="الزبون الفرعي إن وجد..."
-                          className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none"
+                          disabled={isLockedByOther}
+                          value={row.notes || ''}
+                          onFocus={() => handleRowFocus(row.id, 'notes')}
+                          onBlur={() => handleRowBlur(row.id)}
+                          onChange={e => handleUpdateRow(row.id, { notes: e.target.value })}
+                          placeholder={isLockedByOther ? 'محجوز...' : 'بيان، مقاسات، تفاصيل...'}
+                          className={`w-full px-2 py-1 border rounded text-xs outline-none ${
+                            isLockedByOther
+                              ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                              : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
+                          }`}
                         />
-                      )}
-                    </td>
+                      </td>
 
-                    {/* 4. الصنف + علامة (+) في زاوية مربع الصنف لإضافة صنف آخر لنفس الزبون */}
-                    <td className="p-1 border-l border-slate-200">
-                      <ItemCellInput
-                        value={row.itemName}
-                        inventory={inventory}
-                        onChange={(name, itemId, itemPrice) => {
-                          const updates: Partial<DailyEntryRow> = {
-                            itemName: name,
-                            itemId: itemId
-                          };
-                          // If price available and requiredAmount is currently 0, auto-fill it
-                          if (itemPrice && Number(row.requiredAmount || 0) === 0) {
-                            updates.requiredAmount = itemPrice;
-                          }
-                          handleUpdateRow(row.id, updates);
-                        }}
-                        onAddSubItem={() => handleAddCustomerSubItem(idx)}
-                      />
-                    </td>
-
-                    {/* 5. ملاحظات */}
-                    <td className="p-1 border-l border-slate-200">
-                      <input
-                        type="text"
-                        value={row.notes || ''}
-                        onChange={e => handleUpdateRow(row.id, { notes: e.target.value })}
-                        placeholder="بيان، مقاسات، تفاصيل..."
-                        className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none"
-                      />
-                    </td>
-
-                    {/* 6. المبلغ المطلوب (يجمع لكافة بنود نفس الزبون) */}
-                    <td className="p-1 border-l border-slate-200 text-center">
-                      <div className="relative flex items-center">
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={row.requiredAmount === 0 ? '' : row.requiredAmount}
-                          onChange={e => {
-                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                            handleUpdateRow(row.id, { requiredAmount: isNaN(val) ? 0 : val });
-                          }}
-                          placeholder="0.00"
-                          className="w-full text-center px-1.5 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded font-mono font-bold text-slate-900 outline-none"
-                        />
-                        <span className="text-[10px] text-slate-400 font-mono pl-1 select-none pointer-events-none">₪</span>
-                      </div>
-                      {groupInfo.isMultiItem && groupInfo.isLast && (
-                        <div className="text-[9px] text-blue-700 font-bold mt-0.5 bg-blue-50 border border-blue-200/60 rounded px-1 py-0.2" title="إجمالي المطلوب لكافة بنود هذا الزبون في هذه الفاتورة">
-                          مجموع: {groupInfo.totalGroupRequired.toFixed(2)} ₪
-                        </div>
-                      )}
-                    </td>
-
-                    {/* 7. المدفوع (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون فقط) */}
-                    <td className="p-1 border-l border-slate-200 text-center">
-                      {groupInfo.isMultiItem && !groupInfo.isLast ? (
-                        <div
-                          className="w-full text-center px-1 py-1 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10.5px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
-                          title="آلية الدفع مجمدة تلقائياً: تعتمد وتحدد في آخر بند لنفس الزبون لتغطية إجمالي الفاتورة"
-                        >
-                          <Lock className="w-2.5 h-2.5 text-slate-400" />
-                          <span>يعتمد بآخر بند</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
+                      {/* 6. المبلغ المطلوب (يجمع لكافة بنود نفس الزبون) */}
+                      <td className="p-1 border-l border-slate-200 text-center">
+                        <div className="relative flex items-center">
                           <input
                             type="number"
                             step="any"
                             min="0"
-                            value={row.paidAmount === 0 ? '' : row.paidAmount}
+                            disabled={isLockedByOther}
+                            value={row.requiredAmount === 0 ? '' : row.requiredAmount}
+                            onFocus={() => handleRowFocus(row.id, 'requiredAmount')}
+                            onBlur={() => handleRowBlur(row.id)}
                             onChange={e => {
                               const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                              handleUpdateRow(row.id, { paidAmount: isNaN(val) ? 0 : val });
-                            }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && idx === rows.length - 1) {
-                                e.preventDefault();
-                                handleAddRow();
-                              }
+                              handleUpdateRow(row.id, { requiredAmount: isNaN(val) ? 0 : val });
                             }}
                             placeholder="0.00"
-                            className={`w-full text-center px-1 py-1 bg-white border rounded font-mono font-bold outline-none ${
-                              isPaidFull
-                                ? 'border-emerald-300 text-emerald-800 bg-emerald-50/30'
-                                : isPartial
-                                ? 'border-amber-300 text-amber-800 bg-amber-50/30'
-                                : 'border-slate-200 text-slate-900'
+                            className={`w-full text-center px-1.5 py-1 border rounded font-mono font-bold outline-none ${
+                              isLockedByOther
+                                ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                                : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900'
                             }`}
                           />
-                          {/* Quick Full-Pay Button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleUpdateRow(row.id, { paidAmount: groupInfo.totalGroupRequired });
-                            }}
-                            disabled={groupInfo.totalGroupRequired <= 0}
-                            className="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 rounded text-[10px] font-bold border border-slate-200 transition shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed print:hidden"
-                            title="تسجيل سداد كامل المبلغ المطلوب للفاتورة"
-                          >
-                            كامل
-                          </button>
+                          <span className="text-[10px] text-slate-400 font-mono pl-1 select-none pointer-events-none">₪</span>
                         </div>
-                      )}
-                    </td>
-
-                    {/* 8. ملاحظة السداد (الملاحظة المرفقة مع السداد) */}
-                    <td className="p-1 border-l border-slate-200">
-                      {groupInfo.isMultiItem && !groupInfo.isLast ? (
-                        <div
-                          className="w-full text-center px-1 py-1 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
-                          title="ملاحظة السداد مجمدة: تعتمد وتحدد في آخر بند لنفس الزبون مع الدفع"
-                        >
-                          <Lock className="w-2.5 h-2.5 text-slate-400" />
-                          <span>بآخر بند</span>
-                        </div>
-                      ) : (
-                        <input
-                          type="text"
-                          value={row.paymentNotes || ''}
-                          onChange={e => handleUpdateRow(row.id, { paymentNotes: e.target.value })}
-                          placeholder="ملاحظة السداد..."
-                          className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none placeholder:text-slate-400"
-                        />
-                      )}
-                    </td>
-
-                    {/* 9. الصندوق (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون) */}
-                    <td className="p-1 border-l border-slate-200">
-                      {groupInfo.isMultiItem && !groupInfo.isLast ? (
-                        <div
-                          className="w-full px-1.5 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded text-xs truncate flex items-center justify-between cursor-not-allowed select-none"
-                          title="الصندوق موحد لكافة بنود نفس الزبون ويعتمد من آخر بند"
-                        >
-                          <span className="truncate text-[11px] font-medium">{groupInfo.lastItemOfGroup?.treasuryName || 'موحد مع الأخير'}</span>
-                          <Lock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={row.treasuryId || defaultTreasury?.id || ''}
-                            onChange={e => {
-                              const tId = e.target.value;
-                              const tObj = treasuries.find(t => t.id === tId);
-                              if (groupInfo.isMultiItem) {
-                                handleUpdateTreasuryForGroup(row.serialNumber, tId, tObj?.name || '');
-                              } else {
-                                handleUpdateRow(row.id, {
-                                  treasuryId: tId,
-                                  treasuryName: tObj?.name || ''
-                                });
-                              }
-                            }}
-                            onKeyDown={e => {
-                              // Pressing Enter in the last cell of the last row automatically creates a new row!
-                              if (e.key === 'Enter' && idx === rows.length - 1) {
-                                e.preventDefault();
-                                handleAddRow();
-                              }
-                            }}
-                            className="w-full px-1.5 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none cursor-pointer"
-                            title="اختيار الصندوق أو الخزنة (يرثه السطر التالي والجديد تلقائياً)"
-                          >
-                            {treasuries.map(t => (
-                              <option key={t.id} value={t.id}>
-                                {t.name} ({t.currency})
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => handleApplyTreasuryToSubsequent(idx)}
-                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition shrink-0 cursor-pointer print:hidden"
-                            title="تعميم هذا الصندوق تلقائياً على هذا السطر وكافة الأسطر التالية"
-                          >
-                            <ArrowDownToLine className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-
-                    {/* 9. إجراءات السطر */}
-                    <td className="p-1 text-center print:hidden">
-                      <div className="flex items-center justify-center gap-1">
-                        {isApproved && (
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab('invoices')}
-                            className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded transition cursor-pointer"
-                            title={`عرض الفاتورة المعتمدة (${row.approvedInvoiceNumber || ''}) في قائمة الفواتير`}
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </button>
+                        {groupInfo.isMultiItem && groupInfo.isLast && (
+                          <div className="text-[9px] text-blue-700 font-bold mt-0.5 bg-blue-50 border border-blue-200/60 rounded px-1 py-0.2" title="إجمالي المطلوب لكافة بنود هذا الزبون في هذه الفاتورة">
+                            مجموع: {groupInfo.totalGroupRequired.toFixed(2)} ₪
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => handleInsertRowBelow(idx)}
-                          className="p-1 text-slate-400 hover:text-blue-600 rounded transition cursor-pointer"
-                          title="إدراج سطر عادي جديد أسفل هذا السطر"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => promptDeleteRow(row)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
-                          title="حذف هذا السطر مع تأكيد الحذف"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+                      </td>
+
+                      {/* 7. المدفوع (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون فقط) */}
+                      <td className="p-1 border-l border-slate-200 text-center">
+                        {groupInfo.isMultiItem && !groupInfo.isLast ? (
+                          <div
+                            className="w-full text-center px-1 py-1 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10.5px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
+                            title="آلية الدفع مجمدة تلقائياً: تعتمد وتحدد في آخر بند لنفس الزبون لتغطية إجمالي الفاتورة"
+                          >
+                            <Lock className="w-2.5 h-2.5 text-slate-400" />
+                            <span>يعتمد بآخر بند</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              disabled={isLockedByOther}
+                              value={row.paidAmount === 0 ? '' : row.paidAmount}
+                              onFocus={() => handleRowFocus(row.id, 'paidAmount')}
+                              onBlur={() => handleRowBlur(row.id)}
+                              onChange={e => {
+                                const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                handleUpdateRow(row.id, { paidAmount: isNaN(val) ? 0 : val });
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && idx === rows.length - 1) {
+                                  e.preventDefault();
+                                  handleAddRow();
+                                }
+                              }}
+                              placeholder="0.00"
+                              className={`w-full text-center px-1 py-1 border rounded font-mono font-bold outline-none ${
+                                isLockedByOther
+                                  ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                                  : isPaidFull
+                                  ? 'border-emerald-300 text-emerald-800 bg-emerald-50/30'
+                                  : isPartial
+                                  ? 'border-amber-300 text-amber-800 bg-amber-50/30'
+                                  : 'border-slate-200 text-slate-900 bg-white'
+                              }`}
+                            />
+                            {/* Quick Full-Pay Button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleUpdateRow(row.id, { paidAmount: groupInfo.totalGroupRequired });
+                              }}
+                              disabled={isLockedByOther || groupInfo.totalGroupRequired <= 0}
+                              className="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 rounded text-[10px] font-bold border border-slate-200 transition shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed print:hidden"
+                              title="تسجيل سداد كامل المبلغ المطلوب للفاتورة"
+                            >
+                              كامل
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 8. ملاحظة السداد (الملاحظة المرفقة مع السداد) */}
+                      <td className="p-1 border-l border-slate-200">
+                        {groupInfo.isMultiItem && !groupInfo.isLast ? (
+                          <div
+                            className="w-full text-center px-1 py-1 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
+                            title="ملاحظة السداد مجمدة: تعتمد وتحدد في آخر بند لنفس الزبون مع الدفع"
+                          >
+                            <Lock className="w-2.5 h-2.5 text-slate-400" />
+                            <span>بآخر بند</span>
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            disabled={isLockedByOther}
+                            value={row.paymentNotes || ''}
+                            onFocus={() => handleRowFocus(row.id, 'paymentNotes')}
+                            onBlur={() => handleRowBlur(row.id)}
+                            onChange={e => handleUpdateRow(row.id, { paymentNotes: e.target.value })}
+                            placeholder={isLockedByOther ? 'محجوز...' : 'ملاحظة السداد...'}
+                            className={`w-full px-2 py-1 border rounded text-xs outline-none placeholder:text-slate-400 ${
+                              isLockedByOther
+                                ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                                : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
+                            }`}
+                          />
+                        )}
+                      </td>
+
+                      {/* 9. الصندوق (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون) */}
+                      <td className="p-1 border-l border-slate-200">
+                        {groupInfo.isMultiItem && !groupInfo.isLast ? (
+                          <div
+                            className="w-full px-1.5 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded text-xs truncate flex items-center justify-between cursor-not-allowed select-none"
+                            title="الصندوق موحد لكافة بنود نفس الزبون ويعتمد من آخر بند"
+                          >
+                            <span className="truncate text-[11px] font-medium">{groupInfo.lastItemOfGroup?.treasuryName || 'موحد مع الأخير'}</span>
+                            <Lock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <select
+                              disabled={isLockedByOther}
+                              value={row.treasuryId || defaultTreasury?.id || ''}
+                              onFocus={() => handleRowFocus(row.id, 'treasury')}
+                              onBlur={() => handleRowBlur(row.id)}
+                              onChange={e => {
+                                const tId = e.target.value;
+                                const tObj = treasuries.find(t => t.id === tId);
+                                if (groupInfo.isMultiItem) {
+                                  handleUpdateTreasuryForGroup(row.serialNumber, tId, tObj?.name || '');
+                                } else {
+                                  handleUpdateRow(row.id, {
+                                    treasuryId: tId,
+                                    treasuryName: tObj?.name || ''
+                                  });
+                                }
+                              }}
+                              onKeyDown={e => {
+                                // Pressing Enter in the last cell of the last row automatically creates a new row!
+                                if (e.key === 'Enter' && idx === rows.length - 1) {
+                                  e.preventDefault();
+                                  handleAddRow();
+                                }
+                              }}
+                              className={`w-full px-1.5 py-1 border rounded text-xs outline-none ${
+                                isLockedByOther
+                                  ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                                  : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800 cursor-pointer'
+                              }`}
+                              title="اختيار الصندوق أو الخزنة (يرثه السطر التالي والجديد تلقائياً)"
+                            >
+                              {treasuries.map(t => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} ({t.currency})
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              disabled={isLockedByOther}
+                              onClick={() => handleApplyTreasuryToSubsequent(idx)}
+                              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition shrink-0 cursor-pointer print:hidden disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="تعميم هذا الصندوق تلقائياً على هذا السطر وكافة الأسطر التالية"
+                            >
+                              <ArrowDownToLine className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 10. إجراءات السطر */}
+                      <td className="p-1 text-center print:hidden">
+                        <div className="flex items-center justify-center gap-1">
+                          {isLockedByOther && (
+                            <button
+                              type="button"
+                              onClick={() => forceReleaseDailyEntryRowLock(selectedDate, row.id)}
+                              className="p-1 text-amber-700 hover:text-amber-950 hover:bg-amber-100 rounded transition cursor-pointer"
+                              title={`فك الحجز يدوياً عن هذا البند (المحجوز بواسطة ${lock.userName}) في حال ترك الخانة مفتوحة`}
+                            >
+                              <Unlock className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {isApproved && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('invoices')}
+                              className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded transition cursor-pointer"
+                              title={`عرض الفاتورة المعتمدة (${row.approvedInvoiceNumber || ''}) في قائمة الفواتير`}
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            disabled={isLockedByOther}
+                            onClick={() => handleInsertRowBelow(idx)}
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="إدراج سطر عادي جديد أسفل هذا السطر"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isLockedByOther}
+                            onClick={() => promptDeleteRow(row)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="حذف هذا السطر مع تأكيد الحذف"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
             {/* Table Footer with Totals */}
             <tfoot>
               <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs">
@@ -1984,7 +2549,10 @@ const CustomerCellInput: React.FC<{
   value: string;
   parties: Party[];
   onChange: (customerName: string, customerId?: string) => void;
-}> = ({ value, parties, onChange }) => {
+  disabled?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}> = ({ value, parties, onChange, disabled, onFocus, onBlur }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -2016,17 +2584,29 @@ const CustomerCellInput: React.FC<{
     <div ref={wrapperRef} className="relative w-full">
       <input
         type="text"
+        disabled={disabled}
         value={value}
-        onFocus={() => setIsOpen(true)}
+        onFocus={() => {
+          if (disabled) return;
+          setIsOpen(true);
+          onFocus?.();
+        }}
+        onBlur={() => {
+          onBlur?.();
+        }}
         onChange={e => {
           onChange(e.target.value, undefined);
           setIsOpen(true);
         }}
-        placeholder="ابحث أو اكتب اسم الزبون..."
-        className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs font-bold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
+        placeholder={disabled ? 'محجوز للتعديل...' : 'ابحث أو اكتب اسم الزبون...'}
+        className={`w-full px-2 py-1 border rounded text-xs font-bold outline-none placeholder:font-normal ${
+          disabled
+            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+            : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400'
+        }`}
       />
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <div className="absolute top-full right-0 w-64 bg-white border border-blue-400 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto p-1 font-sans text-right mt-1">
           <div className="text-[10px] font-bold text-slate-500 px-2 py-1 bg-slate-50 rounded-t flex justify-between">
             <span>العملاء المقترحون ({filteredParties.length}):</span>
@@ -2069,7 +2649,10 @@ const ItemCellInput: React.FC<{
   inventory: InventoryItem[];
   onChange: (itemName: string, itemId?: string, itemPrice?: number) => void;
   onAddSubItem?: () => void;
-}> = ({ value, inventory, onChange, onAddSubItem }) => {
+  disabled?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}> = ({ value, inventory, onChange, onAddSubItem, disabled, onFocus, onBlur }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -2099,20 +2682,30 @@ const ItemCellInput: React.FC<{
     <div ref={wrapperRef} className="relative w-full">
       <input
         type="text"
+        disabled={disabled}
         value={value}
-        onFocus={() => setIsOpen(true)}
+        onFocus={() => {
+          if (disabled) return;
+          setIsOpen(true);
+          onFocus?.();
+        }}
+        onBlur={() => {
+          onBlur?.();
+        }}
         onChange={e => {
           onChange(e.target.value, undefined, undefined);
           setIsOpen(true);
         }}
-        placeholder="الصنف أو الخدمة..."
-        className={`w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs font-bold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400 ${
-          onAddSubItem ? 'pl-5.5' : ''
-        }`}
+        placeholder={disabled ? 'محجوز للتعديل...' : 'الصنف أو الخدمة...'}
+        className={`w-full px-2 py-1 border rounded text-xs font-bold outline-none placeholder:font-normal ${
+          disabled
+            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+            : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400'
+        } ${onAddSubItem ? 'pl-5.5' : ''}`}
       />
 
       {/* علامة + فقط في زاوية مربع الصنف */}
-      {onAddSubItem && (
+      {onAddSubItem && !disabled && (
         <button
           type="button"
           tabIndex={-1}
@@ -2129,7 +2722,7 @@ const ItemCellInput: React.FC<{
         </button>
       )}
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <div className="absolute top-full right-0 w-64 bg-white border border-blue-400 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto p-1 font-sans text-right mt-1">
           <div className="text-[10px] font-bold text-slate-500 px-2 py-1 bg-slate-50 rounded-t flex justify-between">
             <span>الأصناف المتوفرة ({filteredItems.length}):</span>

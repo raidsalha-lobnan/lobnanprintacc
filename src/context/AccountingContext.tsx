@@ -53,7 +53,8 @@ import {
   ZeroingExecutionResult,
   ExpenseItem,
   DailyEntryRow,
-  DailyEntrySheet
+  DailyEntrySheet,
+  RowLockInfo
 } from '../types';
 import {
   initialSettings,
@@ -476,9 +477,13 @@ interface AccountingContextType {
   dailyEntrySheets: Record<string, DailyEntrySheet>;
   getDailyEntrySheet: (date: string) => DailyEntrySheet;
   saveDailyEntrySheet: (date: string, rows: DailyEntryRow[], notes?: string) => void;
+  saveDailyEntryRow: (date: string, row: DailyEntryRow) => void;
   deleteDailyEntrySheet: (date: string) => void;
   getAllDailyEntryDates: () => string[];
   markDailyEntryRowsApproved: (date: string, rowIds: string[], invoiceId: string, invoiceNumber: string) => void;
+  acquireDailyEntryRowLock: (date: string, rowId: string, field?: string) => void;
+  releaseDailyEntryRowLock: (date: string, rowId: string) => void;
+  forceReleaseDailyEntryRowLock: (date: string, rowId: string) => void;
 }
 
 const AccountingContext = createContext<AccountingContextType | undefined>(undefined);
@@ -902,11 +907,63 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const saveDailyEntrySheet = (date: string, rows: DailyEntryRow[], notes?: string) => {
+    // الدمج الذكي للأسطر لمنع مسح أسطر ملأها مستخدم آخر بسطور فارغة
+    const existingRows = dailyEntrySheets[date]?.rows || [];
+    const mergedMap = new Map<string, DailyEntryRow>();
+    
+    // وضع الأسطر السابقة في السحابة أولاً
+    existingRows.forEach(r => {
+      mergedMap.set(r.id, r);
+    });
+
+    // دمج الأسطر الحالية مع الحفاظ على البيانات
+    rows.forEach(r => {
+      const existing = mergedMap.get(r.id);
+      if (!existing) {
+        mergedMap.set(r.id, r);
+      } else {
+        const incomingHasData = Boolean(
+          (r.customerName && r.customerName.trim()) ||
+          (r.itemName && r.itemName.trim()) ||
+          Number(r.requiredAmount) > 0 ||
+          Number(r.paidAmount) > 0 ||
+          (r.paymentNotes && r.paymentNotes.trim()) ||
+          (r.notes && r.notes.trim())
+        );
+        const existingHasData = Boolean(
+          (existing.customerName && existing.customerName.trim()) ||
+          (existing.itemName && existing.itemName.trim()) ||
+          Number(existing.requiredAmount) > 0 ||
+          Number(existing.paidAmount) > 0 ||
+          (existing.paymentNotes && existing.paymentNotes.trim()) ||
+          (existing.notes && existing.notes.trim())
+        );
+
+        if (incomingHasData || !existingHasData) {
+          mergedMap.set(r.id, r);
+        } else {
+          // إذا كانت بيانات المستخدم الآخر غير فارغة والحالية فارغة، الحفاظ على بيانات الآخر
+          mergedMap.set(r.id, existing);
+        }
+      }
+    });
+
+    const finalRows = Array.from(mergedMap.values());
+
+    const currentLocks = { ...(dailyEntrySheets[date]?.activeLocks || {}) };
+    const now = Date.now();
+    Object.keys(currentLocks).forEach(k => {
+      if (now - (currentLocks[k]?.lockedAt || 0) > 120000) {
+        delete currentLocks[k];
+      }
+    });
+
     const sheetData: DailyEntrySheet = {
       date,
-      rows,
+      rows: finalRows,
       notes: notes !== undefined ? notes : (dailyEntrySheets[date]?.notes || ''),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      activeLocks: currentLocks
     };
     setDailyEntrySheets(prev => {
       const updated: Record<string, DailyEntrySheet> = {
@@ -923,12 +980,44 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // مزامنة سحابية فورية لكشف الإدخال اليومي عبر Firestore ليعمل متزامناً لدى كافة المستخدمين
     try {
-      setDoc(doc(db, 'dailyEntrySheets', date), sheetData).catch(err => {
+      setDoc(doc(db, 'dailyEntrySheets', date), cleanDocForFirestore(sheetData), { merge: true }).catch(err => {
         console.warn('Firestore live write dailyEntrySheets error:', err);
       });
     } catch (e) {
       console.warn('Firestore write failed:', e);
     }
+  };
+
+  const saveDailyEntryRow = (date: string, row: DailyEntryRow) => {
+    setDailyEntrySheets(prev => {
+      const sheet = prev[date] || { date, rows: [], notes: '', updatedAt: new Date().toISOString() };
+      const currentRows = sheet.rows || [];
+      const rowIndex = currentRows.findIndex(r => r.id === row.id);
+      let updatedRows: DailyEntryRow[];
+      if (rowIndex >= 0) {
+        updatedRows = currentRows.map(r => r.id === row.id ? row : r);
+      } else {
+        updatedRows = [...currentRows, row];
+      }
+      const updatedSheet: DailyEntrySheet = {
+        ...sheet,
+        rows: updatedRows,
+        updatedAt: new Date().toISOString()
+      };
+      const updated: Record<string, DailyEntrySheet> = {
+        ...prev,
+        [date]: updatedSheet
+      };
+      try {
+        localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(updated));
+      } catch (err) {}
+
+      try {
+        setDoc(doc(db, 'dailyEntrySheets', date), updatedSheet).catch(() => {});
+      } catch (e) {}
+
+      return updated;
+    });
   };
 
   const deleteDailyEntrySheet = (date: string) => {
@@ -2088,6 +2177,61 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       status: 'active',
       createdAt: '2024-01-01'
     };
+  };
+
+  const acquireDailyEntryRowLock = (date: string, rowId: string, field?: string) => {
+    const user = currentUser;
+    const lock: RowLockInfo = {
+      rowId,
+      userId: user?.id || currentUserId || 'usr-anon',
+      userName: user?.fullName || user?.username || 'مستخدم النظام',
+      userEmail: user?.email,
+      field,
+      lockedAt: Date.now()
+    };
+
+    setDailyEntrySheets(prev => {
+      const sheet = prev[date] || { date, rows: [], notes: '', updatedAt: new Date().toISOString() };
+      const currentLocks = { ...(sheet.activeLocks || {}) };
+      const now = Date.now();
+      Object.keys(currentLocks).forEach(k => {
+        if (now - (currentLocks[k]?.lockedAt || 0) > 120000) {
+          delete currentLocks[k];
+        }
+      });
+      currentLocks[rowId] = lock;
+      const updatedSheet: DailyEntrySheet = {
+        ...sheet,
+        activeLocks: currentLocks
+      };
+      const updated = { ...prev, [date]: updatedSheet };
+      try {
+        setDoc(doc(db, 'dailyEntrySheets', date), cleanDocForFirestore(updatedSheet), { merge: true }).catch(() => {});
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const releaseDailyEntryRowLock = (date: string, rowId: string) => {
+    setDailyEntrySheets(prev => {
+      const sheet = prev[date];
+      if (!sheet || !sheet.activeLocks || !sheet.activeLocks[rowId]) return prev;
+      const currentLocks = { ...sheet.activeLocks };
+      delete currentLocks[rowId];
+      const updatedSheet: DailyEntrySheet = {
+        ...sheet,
+        activeLocks: currentLocks
+      };
+      const updated = { ...prev, [date]: updatedSheet };
+      try {
+        setDoc(doc(db, 'dailyEntrySheets', date), cleanDocForFirestore(updatedSheet), { merge: true }).catch(() => {});
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const forceReleaseDailyEntryRowLock = (date: string, rowId: string) => {
+    releaseDailyEntryRowLock(date, rowId);
   };
 
   const getActiveBranch = (): Branch | undefined => {
@@ -8084,9 +8228,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dailyEntrySheets,
         getDailyEntrySheet,
         saveDailyEntrySheet,
+        saveDailyEntryRow,
         deleteDailyEntrySheet,
         getAllDailyEntryDates,
         markDailyEntryRowsApproved,
+        acquireDailyEntryRowLock,
+        releaseDailyEntryRowLock,
+        forceReleaseDailyEntryRowLock,
         stats
       }}
     >

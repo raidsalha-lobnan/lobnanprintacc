@@ -113,6 +113,10 @@
     "/dailyEntrySheets/{date}": {
       "schema": "DailyEntrySheet",
       "description": "Live multi-user synced daily entry sheets indexed by date YYYY-MM-DD"
+    },
+    "/dailyEntrySheetLocks/{date}": {
+      "schema": "AuditLog",
+      "description": "Realtime row-level collaborative editing locks for daily entry sheets"
     }
   }
 }
