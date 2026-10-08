@@ -219,7 +219,7 @@ export const CustomerReceiptsLedgerModal: React.FC<CustomerReceiptsLedgerModalPr
                   partyReceipts.map((v, idx) => {
                     const treasury = treasuries.find(t => t.accountCode === v.accountCode);
                     return (
-                      <tr key={v.id} className="hover:bg-slate-50 transition-colors">
+                      <tr key={`${v.id || 'receipt'}-${idx}`} className="hover:bg-slate-50 transition-colors">
                         <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">
                           {idx + 1}
                         </td>

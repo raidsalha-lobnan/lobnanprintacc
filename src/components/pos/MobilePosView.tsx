@@ -2005,9 +2005,9 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
               </div>
             ) : (
               <div className="space-y-2 max-h-80 overflow-y-auto">
-                {heldInvoices.map((held) => (
+                {heldInvoices.map((held, hIdx) => (
                   <div
-                    key={held.id}
+                    key={`held-mob-${held.id || hIdx}-${hIdx}`}
                     className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-2 hover:bg-blue-50/50 transition-colors"
                   >
                     <div className="min-w-0 flex-1 space-y-0.5">
@@ -2354,9 +2354,9 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
                     (e.jobTitle && e.jobTitle.toLowerCase().includes(customerSearch.toLowerCase())) ||
                     (e.department && e.department.toLowerCase().includes(customerSearch.toLowerCase()))
                   )
-                  .map(emp => (
+                  .map((emp, idx) => (
                     <button
-                      key={emp.id}
+                      key={`mob-emp-${emp.id || idx}-${idx}`}
                       onClick={() => {
                         setSelectedCustomerId(emp.id);
                         setCustomerNameInput(emp.name);
@@ -2393,9 +2393,9 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
                     c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
                     (c.phone && c.phone.includes(customerSearch))
                   )
-                  .map(c => (
+                  .map((c, idx) => (
                     <button
-                      key={c.id}
+                      key={`mob-party-${c.id || idx}-${idx}`}
                       onClick={() => {
                         setSelectedCustomerId(c.id);
                         setCustomerNameInput(c.name);

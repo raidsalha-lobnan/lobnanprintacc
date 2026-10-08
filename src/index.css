@@ -492,7 +492,8 @@ textarea::selection {
   table {
     page-break-inside: auto !important;
     break-inside: auto !important;
-    border-collapse: collapse !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
     width: 100% !important;
   }
 
@@ -545,11 +546,38 @@ textarea::selection {
     break-inside: auto !important;
   }
 
+  /* Strip background-colors and outer borders on sub-table wrapper divs in print so they can split across pages smoothly */
+  tr.print-allow-break,
+  tr.print-allow-break > td,
+  tr.print-allow-break div {
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    border-style: none !important;
+    border-width: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    overflow: visible !important;
+  }
+
+  /* But keep the inner table cells styled with borders so it remains readable */
+  tr.print-allow-break table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    background-color: #ffffff !important;
+  }
+
   /* Re-enforce cell rules inside sub-tables to keep individual item text clean */
   .report-sub-table td,
   .report-sub-table th,
   .sub-table td,
-  .sub-table th {
+  .sub-table th,
+  tr.print-allow-break td,
+  tr.print-allow-break th {
+    border: 1px solid #cbd5e1 !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
