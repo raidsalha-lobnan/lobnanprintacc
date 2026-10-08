@@ -937,42 +937,24 @@ export const DailyEntrySheetView: React.FC = () => {
                       )}
                     </td>
 
-                    {/* 4. الصنف + زر (+) في الزاوية السفلية لإضافة صنف آخر لنفس الزبون */}
+                    {/* 4. الصنف + علامة (+) في زاوية مربع الصنف لإضافة صنف آخر لنفس الزبون */}
                     <td className="p-1 border-l border-slate-200">
-                      <div className="flex flex-col gap-1">
-                        <ItemCellInput
-                          value={row.itemName}
-                          inventory={inventory}
-                          onChange={(name, itemId, itemPrice) => {
-                            const updates: Partial<DailyEntryRow> = {
-                              itemName: name,
-                              itemId: itemId
-                            };
-                            // If price available and requiredAmount is currently 0, auto-fill it
-                            if (itemPrice && Number(row.requiredAmount || 0) === 0) {
-                              updates.requiredAmount = itemPrice;
-                            }
-                            handleUpdateRow(row.id, updates);
-                          }}
-                        />
-                        {/* زر + في الزاوية السفلية لاسم الصنف في البنود */}
-                        <div className="flex items-center justify-between text-[10px] px-0.5 print:hidden">
-                          <button
-                            type="button"
-                            onClick={() => handleAddCustomerSubItem(idx)}
-                            className="px-1.5 py-0.5 rounded text-[9.5px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200/90 flex items-center gap-1 transition shadow-2xs cursor-pointer active:scale-95"
-                            title="إضافة صنف آخر لنفس الزبون (نفس الفاتورة والمسلسل، تجميع المبالغ، وتعتمد آلية الدفع بآخر بند)"
-                          >
-                            <Plus className="w-2.5 h-2.5 text-blue-600 stroke-[3]" />
-                            <span>+ صنف لنفس الزبون</span>
-                          </button>
-                          {groupInfo.isMultiItem && (
-                            <span className="text-[9px] text-slate-500 font-medium">
-                              بند {groupInfo.itemIndexInGroup + 1} من {groupInfo.groupCount}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      <ItemCellInput
+                        value={row.itemName}
+                        inventory={inventory}
+                        onChange={(name, itemId, itemPrice) => {
+                          const updates: Partial<DailyEntryRow> = {
+                            itemName: name,
+                            itemId: itemId
+                          };
+                          // If price available and requiredAmount is currently 0, auto-fill it
+                          if (itemPrice && Number(row.requiredAmount || 0) === 0) {
+                            updates.requiredAmount = itemPrice;
+                          }
+                          handleUpdateRow(row.id, updates);
+                        }}
+                        onAddSubItem={() => handleAddCustomerSubItem(idx)}
+                      />
                     </td>
 
                     {/* 5. ملاحظات */}
@@ -1185,7 +1167,7 @@ export const DailyEntrySheetView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-[11px] text-slate-600">
             <span className="flex items-center gap-1.5 font-medium">
               <Plus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span>زر <strong>(+ صنف لنفس الزبون)</strong> أسفل اسم الصنف يضيف أصناف لنفس الزبون بنفس المسلسل، مع تجميع المبالغ وتجميد الدفع لآخر بند.</span>
+              <span>علامة <strong>(+)</strong> بزاوية مربع الصنف تضيف أصناف لنفس الزبون بنفس المسلسل، مع تجميع المبالغ وتجميد الدفع لآخر بند.</span>
             </span>
             <span className="flex items-center gap-1.5 font-medium">
               <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1471,7 +1453,8 @@ const ItemCellInput: React.FC<{
   value: string;
   inventory: InventoryItem[];
   onChange: (itemName: string, itemId?: string, itemPrice?: number) => void;
-}> = ({ value, inventory, onChange }) => {
+  onAddSubItem?: () => void;
+}> = ({ value, inventory, onChange, onAddSubItem }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -1508,8 +1491,28 @@ const ItemCellInput: React.FC<{
           setIsOpen(true);
         }}
         placeholder="الصنف أو الخدمة..."
-        className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs font-bold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
+        className={`w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs font-bold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400 ${
+          onAddSubItem ? 'pl-5.5' : ''
+        }`}
       />
+
+      {/* علامة + فقط في زاوية مربع الصنف */}
+      {onAddSubItem && (
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onAddSubItem();
+          }}
+          className="absolute bottom-1 left-1 w-4 h-4 rounded flex items-center justify-center bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 text-[12px] font-black leading-none transition-colors cursor-pointer z-10 active:scale-95 print:hidden select-none shadow-2xs"
+          title="إضافة صنف آخر لنفس الزبون (+)"
+          aria-label="إضافة صنف آخر لنفس الزبون"
+        >
+          +
+        </button>
+      )}
 
       {isOpen && (
         <div className="absolute top-full right-0 w-64 bg-white border border-blue-400 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto p-1 font-sans text-right mt-1">
