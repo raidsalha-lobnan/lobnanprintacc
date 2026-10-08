@@ -579,10 +579,10 @@ textarea::selection {
   div[class*="overflow-"],
   div[class*="min-h-"],
   div[class*="max-h-"],
-  .overflow-x-auto,
-  .overflow-y-auto,
-  .overflow-hidden,
-  [class*="overflow-"] {
+  div.overflow-x-auto,
+  div.overflow-y-auto,
+  div.overflow-hidden,
+  div[class*="overflow-"] {
     display: block !important;
     overflow: visible !important;
     height: auto !important;
@@ -593,6 +593,25 @@ textarea::selection {
     background: transparent !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
+  }
+
+  /* Force table elements to preserve semantic display in print */
+  table {
+    display: table !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    overflow: visible !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tbody {
+    display: table-row-group !important;
+  }
+  tr:not(.print-allow-break) {
+    display: table-row !important;
   }
 
   /* Print Area Isolation Support */

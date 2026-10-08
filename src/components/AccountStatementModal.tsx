@@ -384,15 +384,15 @@ export const AccountStatementModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick Entity Selector: Searchable Combobox with Icon */}
-            <div className="flex items-center gap-2 flex-1 min-w-[280px] max-w-md">
+            {/* Quick Entity Selector with Top Bar Toggles & Counts */}
+            <div className="flex items-center gap-2 flex-wrap flex-1 justify-end">
               <div className="flex items-center gap-1.5 font-bold text-slate-700 whitespace-nowrap text-xs">
                 <div className={`p-1.5 rounded-lg ${statementMode === 'party' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
                   {statementMode === 'party' ? <Users className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                 </div>
-                <span>{statementMode === 'party' ? 'اختيار الزبون / العميل:' : 'اختيار الموظف:'}</span>
+                <span>{statementMode === 'party' ? 'العميل:' : 'الموظف:'}</span>
               </div>
-              <div className="flex-1 min-w-[200px]">
+              <div className="w-56 sm:w-64">
                 {statementMode === 'party' ? (
                   <AutocompleteCombobox
                     items={partyOptions}
@@ -405,7 +405,7 @@ export const AccountStatementModal: React.FC = () => {
                       }
                     }}
                     entityType="customer"
-                    placeholder="ابحث واكتب اسم الزبون، الكود، أو الهاتف للمطابقة..."
+                    placeholder="ابحث واكتب اسم الزبون..."
                     className="w-full text-xs"
                     inputClassName="py-1 px-2.5 text-xs font-bold bg-white"
                   />
@@ -421,12 +421,66 @@ export const AccountStatementModal: React.FC = () => {
                       }
                     }}
                     entityType="employee"
-                    placeholder="ابحث واكتب اسم الموظف للمطابقة..."
+                    placeholder="ابحث واكتب اسم الموظف..."
                     className="w-full text-xs"
                     inputClassName="py-1 px-2.5 text-xs font-bold bg-white"
                   />
                 )}
               </div>
+
+              {statementMode === 'party' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="h-6 w-px bg-slate-300 self-center hidden sm:block mx-1"></div>
+                  
+                  <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer font-bold select-none font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={showItemDetails}
+                      onChange={e => setShowItemDetails(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>تفاصيل بنود الفواتير والمقاسات</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowImageThumbnailsInStatement(prev => !prev)}
+                    className={`px-2 py-0.5 rounded text-xs font-bold cursor-pointer transition-all flex items-center gap-1 border select-none ${
+                      showImageThumbnailsInStatement
+                        ? 'bg-purple-600 text-white border-purple-700 hover:bg-purple-700'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                    title={showImageThumbnailsInStatement ? 'إخفاء مصغرات صور الأصناف من الكشف' : 'إظهار مصغرات صور الأصناف تحت جدول الفاتورة'}
+                  >
+                    <ImageIcon className={`w-3.5 h-3.5 ${showImageThumbnailsInStatement ? 'text-amber-300' : 'text-purple-600'}`} />
+                    <span>صور الأصناف</span>
+                  </button>
+
+                  <div className="text-[10px] text-slate-500 font-bold bg-slate-100 border border-slate-200 rounded px-2 py-0.5">
+                    عدد الحركات: <strong className="font-mono text-slate-900">{displayedPartyRows.length}</strong>
+                  </div>
+                </div>
+              )}
+
+              {statementMode === 'employee' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="h-6 w-px bg-slate-300 self-center hidden sm:block mx-1"></div>
+                  
+                  <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer font-bold select-none font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={showItemDetails}
+                      onChange={e => setShowItemDetails(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>تفاصيل العمليات والأصناف</span>
+                  </label>
+
+                  <div className="text-[10px] text-slate-500 font-bold bg-slate-100 border border-slate-200 rounded px-2 py-0.5">
+                    عدد الحركات: <strong className="font-mono text-slate-900">{displayedEmployeeRows.length}</strong>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -438,7 +492,9 @@ export const AccountStatementModal: React.FC = () => {
                 <span>الفترة المحددة:</span>
               </span>
 
-              <DateInput value={fromDate} onChange={e => setFromDate(e.target.value)}
+              <DateInput
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
                 className="bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-700 font-mono focus:ring-1 focus:ring-blue-500"
                 title="من تاريخ"
               />
@@ -483,41 +539,7 @@ export const AccountStatementModal: React.FC = () => {
                 </button>
               </div>
             </div>
-
             <div className="flex items-center gap-3">
-              {statementMode === 'party' && (
-                <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer font-bold select-none">
-                  <input
-                    type="checkbox"
-                    checked={showItemDetails}
-                    onChange={e => setShowItemDetails(e.target.checked)}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>عرض تفاصيل وملاحظات وأبعاد الأصناف</span>
-                </label>
-              )}
-
-              {statementMode === 'party' && (
-                <button
-                  type="button"
-                  onClick={() => setShowImageThumbnailsInStatement(prev => !prev)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 border select-none ${
-                    showImageThumbnailsInStatement
-                      ? 'bg-purple-600 text-white border-purple-700 shadow-2xs hover:bg-purple-700'
-                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                  }`}
-                  title={showImageThumbnailsInStatement ? 'إخفاء مصغرات صور الأصناف من الكشف' : 'إظهار مصغرات صور الأصناف تحت جدول الفاتورة'}
-                >
-                  <ImageIcon className={`w-3.5 h-3.5 ${showImageThumbnailsInStatement ? 'text-amber-300' : 'text-purple-600'}`} />
-                  <span>{showImageThumbnailsInStatement ? 'إخفاء صور الأصناف' : 'إظهار صور الأصناف 🖼️'}</span>
-                  <span className={`text-[9.5px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                    showImageThumbnailsInStatement ? 'bg-purple-800 text-purple-100' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {showImageThumbnailsInStatement ? 'مفعل' : 'معطل'}
-                  </span>
-                </button>
-              )}
-
               <div className="flex items-center gap-1">
                 <span className="font-semibold text-slate-600 flex items-center gap-1">
                   <Filter className="w-3.5 h-3.5 text-slate-400" />
@@ -644,7 +666,7 @@ export const AccountStatementModal: React.FC = () => {
               </div>
 
               {/* Detailed Transactions Table - Optimized Font 12 & A4 Width */}
-              <div className="border border-slate-400 rounded-md overflow-x-auto shadow-2xs min-h-[440px] print:min-h-[720px] flex flex-col justify-between bg-white">
+              <div className="border border-slate-400 rounded-md overflow-x-auto shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white">
                 <table className="w-full text-right report-table border-collapse h-full">
                   <thead>
                     <tr className="bg-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-200 print:text-slate-900">
@@ -1205,7 +1227,7 @@ export const AccountStatementModal: React.FC = () => {
               </div>
 
               {/* Transactions Table */}
-              <div className="border border-slate-400 rounded-md overflow-x-auto shadow-2xs min-h-[440px] print:min-h-[720px] flex flex-col justify-between bg-white">
+              <div className="border border-slate-400 rounded-md overflow-x-auto shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white">
                 <table className="w-full text-right report-table border-collapse h-full">
                   <thead>
                     <tr className="bg-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-200 print:text-slate-900">

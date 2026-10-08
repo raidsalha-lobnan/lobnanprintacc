@@ -908,6 +908,42 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                   </select>
                 </div>
               )}
+
+              {activeReport === 'customer_statement' && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="h-6 w-px bg-slate-200 self-center hidden sm:block mx-0.5"></div>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setShowStatementItemDetails(prev => !prev)}
+                    className={`px-2 py-1 rounded-lg font-bold text-[10.5px] cursor-pointer transition-colors flex items-center gap-1.5 border select-none ${
+                      showStatementItemDetails
+                        ? 'bg-blue-600 text-white border-blue-700 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{showStatementItemDetails ? 'إخفاء تفاصيل الفواتير' : 'إظهار تفاصيل الفواتير والمقاسات'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowStatementImageThumbnails(prev => !prev)}
+                    className={`px-2 py-1 rounded-lg font-bold text-[10.5px] cursor-pointer transition-all flex items-center gap-1 border select-none ${
+                      showStatementImageThumbnails
+                        ? 'bg-purple-600 text-white border-purple-700 shadow-2xs hover:bg-purple-700'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                    title={showStatementImageThumbnails ? 'إخفاء مصغرات صور الأصناف من الكشف' : 'إظهار مصغرات صور الأصناف تحت جدول الفاتورة'}
+                  >
+                    <ImageIcon className={`w-3 h-3 ${showStatementImageThumbnails ? 'text-amber-300' : 'text-purple-600'}`} />
+                    <span>{showStatementImageThumbnails ? 'إخفاء صور الأصناف' : 'إظهار صور الأصناف 🖼️'}</span>
+                  </button>
+
+                  <div className="text-[10px] text-slate-500 font-bold bg-slate-100 border border-slate-200 rounded px-2 py-1 select-none">
+                    عدد الحركات: <strong className="font-mono text-slate-900">{customerStatementData?.rows?.length || 0}</strong>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -960,6 +996,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                   </select>
                 </div>
               )}
+
+              {activeReport === 'supplier_statement' && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="h-6 w-px bg-slate-200 self-center hidden sm:block mx-0.5"></div>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setShowStatementItemDetails(prev => !prev)}
+                    className={`px-2 py-1 rounded-lg font-bold text-[10.5px] cursor-pointer transition-colors flex items-center gap-1.5 border select-none ${
+                      showStatementItemDetails
+                        ? 'bg-amber-700 text-white border-amber-800 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{showStatementItemDetails ? 'إخفاء تفاصيل الفواتير' : 'إظهار تفاصيل الفواتير والمقاسات'}</span>
+                  </button>
+
+                  <div className="text-[10px] text-slate-500 font-bold bg-slate-100 border border-slate-200 rounded px-2 py-1 select-none">
+                    عدد الحركات: <strong className="font-mono text-slate-900">{supplierStatementData?.rows?.length || 0}</strong>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -979,6 +1037,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
                   searchPlaceholder="اكتب اسم أو كود الموظف..."
                   emptyMessage="لا يوجد موظف مطابق"
                 />
+              </div>
+
+              <div className="text-[10px] text-slate-500 font-bold bg-slate-100 border border-slate-200 rounded px-2 py-1 select-none">
+                عدد الحركات: <strong className="font-mono text-slate-900">{employeeStatementData?.rows?.length || 0}</strong>
               </div>
             </div>
           )}
@@ -1056,47 +1118,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
             </div>
           </div>
 
-          {/* شريط أدوات الكشف (عرض/إخفاء بنود الفواتير) */}
-          <div className="flex items-center justify-between print:hidden bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setShowStatementItemDetails(prev => !prev)}
-                className={`px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors flex items-center gap-1 ${
-                  showStatementItemDetails
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                }`}
-              >
-                <span>{showStatementItemDetails ? 'إخفاء تفاصيل بنود الفواتير' : 'إظهار تفاصيل بنود الفواتير والمقاسات'}</span>
-              </button>
 
-              <button
-                type="button"
-                onClick={() => setShowStatementImageThumbnails(prev => !prev)}
-                className={`px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-all flex items-center gap-1.5 border select-none ${
-                  showStatementImageThumbnails
-                    ? 'bg-purple-600 text-white border-purple-700 shadow-2xs hover:bg-purple-700'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                }`}
-                title={showStatementImageThumbnails ? 'إخفاء مصغرات صور الأصناف من الكشف' : 'إظهار مصغرات صور الأصناف تحت جدول الفاتورة'}
-              >
-                <ImageIcon className={`w-3.5 h-3.5 ${showStatementImageThumbnails ? 'text-amber-300' : 'text-purple-600'}`} />
-                <span>{showStatementImageThumbnails ? 'إخفاء صور الأصناف' : 'إظهار صور الأصناف 🖼️'}</span>
-                <span className={`text-[9.5px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                  showStatementImageThumbnails ? 'bg-purple-800 text-purple-100' : 'bg-slate-100 text-slate-500'
-                }`}>
-                  {showStatementImageThumbnails ? 'مفعل' : 'معطل'}
-                </span>
-              </button>
-            </div>
-            <div className="text-[10px] text-slate-400 font-light">
-              عدد الحركات: <strong className="font-mono text-slate-900">{customerStatementData.rows.length}</strong>
-            </div>
-          </div>
 
           {/* 3. جدول الحركات المالي المفصل */}
-          <div className="overflow-x-auto border border-slate-400 rounded-md shadow-2xs min-h-[440px] print:min-h-[720px] flex flex-col justify-between bg-white">
+          <div className="overflow-x-auto border border-slate-400 rounded-md shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white">
             <table className="w-full text-right report-table border-collapse h-full">
               <thead className="bg-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-200 print:text-slate-900">
                 <tr>
@@ -1598,31 +1623,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
             </div>
           </div>
 
-          {/* شريط أدوات الكشف (عرض/إخفاء بنود الفواتير) */}
-          <div className="flex items-center justify-between print:hidden bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowStatementItemDetails(prev => !prev)}
-                className={`px-3 py-1.5 rounded font-bold cursor-pointer transition-colors flex items-center gap-1 ${
-                  showStatementItemDetails
-                    ? 'bg-amber-700 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                }`}
-              >
-                <span>{showStatementItemDetails ? 'إخفاء تفاصيل بنود الفواتير' : 'إظهار تفاصيل بنود الفواتير والمقاسات'}</span>
-              </button>
-              <span className="text-[10px] text-slate-400 font-light">
-                (الصنف، البيان، الطول، العرض، العدد، الكمية، السعر)
-              </span>
-            </div>
-            <div className="text-[10px] text-slate-400 font-light">
-              عدد الحركات: <strong className="font-mono text-slate-900">{supplierStatementData.rows.length}</strong>
-            </div>
-          </div>
+
 
           {/* 3. جدول الحركات المالي المفصل للمورد */}
-          <div className="overflow-x-auto border border-slate-400 rounded-md shadow-2xs min-h-[440px] print:min-h-[720px] flex flex-col justify-between bg-white">
+          <div className="overflow-x-auto border border-slate-400 rounded-md shadow-2xs min-h-[440px] print:min-h-0 flex flex-col justify-between bg-white">
             <table className="w-full text-right report-table border-collapse h-full">
               <thead className="bg-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-200 print:text-slate-900">
                 <tr>
