@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1e293b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Al-Ayham" />
+    
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      (function() {
+        try {
+          var currentFetch = window.fetch ? window.fetch.bind(window) : undefined;
+          try {
+            Object.defineProperty(window, 'fetch', {
+              get: function() { return currentFetch; },
+              set: function(fn) { currentFetch = fn; },
+              configurable: true,
+              enumerable: true
+            });
+          } catch (e1) {
+            try {
+              Object.defineProperty(Window.prototype, 'fetch', {
+                get: function() { return currentFetch; },
+                set: function(fn) { currentFetch = fn; },
+                configurable: true,
+                enumerable: true
+              });
+            } catch (e2) {}
+          }
+        } catch (e) {}
+
+        // Safely prevent Vite HMR "send was called before connect" when socket is not yet open
+        if (typeof window !== 'undefined' && window.WebSocket) {
+          var origWebSocketSend = WebSocket.prototype.send;
+          WebSocket.prototype.send = function() {
+            if (this.readyState !== WebSocket.OPEN) {
+              return;
+            }
+            return origWebSocketSend.apply(this, arguments);
+          };
+        }
+
+        var isViteWsNotice = function(args) {
+          var joined = args.map(function(a) { return String(a || ''); }).join(' ');
+          return (
+            joined.includes('send was called before connect') ||
+            joined.includes('WebSocket is closed') ||
+            (joined.includes('[vite]') && joined.includes('connect'))
+          );
+        };
+
+        var safeErr = (typeof console !== 'undefined' && console.error) ? console.error.bind(console) : function() {};
+        var safeWarn = (typeof console !== 'undefined' && console.warn) ? console.warn.bind(console) : function() {};
+        var safeLog = (typeof console !== 'undefined' && console.log) ? console.log.bind(console) : function() {};
+        try {
+          window.origConsoleError = safeErr;
+          window.origConsoleWarn = safeWarn;
+          window.origConsoleLog = safeLog;
+        } catch (e) {}
+        var origConsoleError = safeErr;
+        var origConsoleWarn = safeWarn;
+        var origConsoleLog = safeLog;
+
+        console.error = function() {
+          var args = Array.prototype.slice.call(arguments);
+          if (isViteWsNotice(args)) return;
+          (window.origConsoleError || origConsoleError || safeErr).apply(console, arguments);
+        };
+
+        console.warn = function() {
+          var args = Array.prototype.slice.call(arguments);
+          if (isViteWsNotice(args)) return;
+          origConsoleWarn.apply(console, arguments);
+        };
+
+        console.log = function() {
+          var args = Array.prototype.slice.call(arguments);
+          if (isViteWsNotice(args)) return;
+          origConsoleLog.apply(console, arguments);
+        };
+
+        window.addEventListener('error', function(event) {
+          if (!event || !event.message) {
+            event?.preventDefault?.();
+            return;
+          }
+          var msg = String(event.message || '');
+          if (
+            msg.includes('fetch') ||
+            msg.includes('getter') ||
+            msg.includes('ResizeObserver') ||
+            msg.includes('AudioContext') ||
+            msg.includes('send was called before connect') ||
+            msg.includes('WebSocket') ||
+            msg.includes('[vite]') ||
+            msg.includes('Sheet fetch error')
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            return true;
+          }
+        }, true);
+
+        // Catch unhandled promise rejections to prevent blank uncaught crashes
+        window.addEventListener('unhandledrejection', function(event) {
+          var reasonStr = String(event.reason || '');
+          if (
+            reasonStr.includes('send was called before connect') ||
+            reasonStr.includes('WebSocket') ||
+            reasonStr.includes('vite') ||
+            reasonStr.includes('Sheet fetch error')
+          ) {
+            event.preventDefault();
+            return;
+          }
+          console.warn('Unhandled promise rejection safely handled:', event.reason);
+          event.preventDefault();
+        });
+
+        // Enforce Native Desktop App Behavior: Prevent browser Save As (Ctrl+S) and Print (Ctrl+P) dialogs
+        window.addEventListener('keydown', function(e) {
+          var isCtrlOrMeta = e.ctrlKey || e.metaKey;
+          if (isCtrlOrMeta) {
+            var key = String(e.key || '').toLowerCase();
+            var code = String(e.code || '');
+            // Prevent Ctrl+S / Ctrl+س (Save webpage as HTML dialog)
+            if (code === 'KeyS' || key === 's' || key === 'س') {
+              e.preventDefault();
+            }
+            // Prevent Ctrl+P / Ctrl+ح (Browser default print dialog)
+            if (code === 'KeyP' || key === 'p' || key === 'ح') {
+              e.preventDefault();
+            }
+          }
+        }, { capture: true, passive: false });
+      })();
+    </script>
+    <title>برنامج الأيهم المحاسبي - مطبعة ومكتبة لبنان - م.رائد صالحة</title>
+    <meta name="description" content="برنامج الأيهم المحاسبي وإداري شامل ومتكامل لمطبعة ومكتبة لبنان - م.رائد صالحة. يشمل نقاط البيع السريعة، تتبع أوامر الطباعة والتصنيع، المخزون، الحسابات العامة وشجرة الحسابات، قيود اليومية، والقوائم المالية والضريبية." />
+    <meta property="og:title" content="برنامج الأيهم المحاسبي - مطبعة ومكتبة لبنان - م.رائد صالحة" />
+    <meta property="og:description" content="برنامج الأيهم المحاسبي وإداري شامل ومتكامل لمطبعة ومكتبة لبنان - م.رائد صالحة. يشمل نقاط البيع السريعة، تتبع أوامر الطباعة والتصنيع، المخزون، الحسابات العامة وشجرة الحسابات، قيود اليومية، والقوائم المالية والضريبية." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * {
+        font-family: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif !important;
+      }
+      html, body {
+        font-family: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+      }
+      @media print {
+        .no-print {
+          display: none !important;
+        }
+        .print-only {
+          display: block !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "Party": {
+      "title": "Party",
+      "description": "Customer or supplier account profile with contact and balance details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 200 },
+        "type": { "type": "string", "enum": ["customer", "supplier", "both"] },
+        "phone": { "type": "string", "maxLength": 50 },
+        "balance": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Sales invoice or point of sale transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string", "maxLength": 100 },
+        "customerName": { "type": "string", "maxLength": 200 },
+        "totalAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["paid", "partial", "unpaid"] }
+      },
+      "required": ["id", "invoiceNumber", "totalAmount", "date"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Staff member with salary details and financial transactions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 200 },
+        "code": { "type": "string", "maxLength": 50 },
+        "position": { "type": "string", "maxLength": 100 },
+        "salary": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "salary"]
+    },
+    "PaymentVoucher": {
+      "title": "PaymentVoucher",
+      "description": "Cash receipt or payment voucher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "voucherNumber": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["receipt", "payment"] },
+        "amount": { "type": "number" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "voucherNumber", "type", "amount", "date"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Audit trail log for deleted invoices and operations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "entityType": { "type": "string" },
+        "invoiceId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "user": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "reason": { "type": "string" }
+      },
+      "required": ["id", "action", "invoiceId", "user", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/parties/{partyId}": {
+      "schema": "Party",
+      "description": "Collection of customer and supplier records"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Collection of sales invoices"
+    },
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Collection of employee profiles and payroll history"
+    },
+    "/vouchers/{voucherId}": {
+      "schema": "PaymentVoucher",
+      "description": "Collection of payment and receipt vouchers"
+    },
+    "/auditLog/{auditLogId}": {
+      "schema": "AuditLog",
+      "description": "Collection of audit trail and delete logs"
+    },
+    "/deletedInvoices/{deletedInvoiceId}": {
+      "schema": "Invoice",
+      "description": "Recycle bin collection of deleted sales invoices for restore and review"
+    }
+  }
+}
