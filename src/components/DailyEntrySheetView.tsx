@@ -24,7 +24,11 @@ import {
   Layers,
   HelpCircle,
   RefreshCw,
-  X
+  X,
+  Link2,
+  ArrowDownToLine,
+  Lock,
+  ExternalLink
 } from 'lucide-react';
 import { useAccounting } from '../context/AccountingContext';
 import { DailyEntryRow, DailyEntrySheet, Party, InventoryItem, Treasury } from '../types';
@@ -45,6 +49,7 @@ export const DailyEntrySheetView: React.FC = () => {
     treasuries = [],
     settings,
     setActiveTab,
+    dailyEntrySheets,
     getDailyEntrySheet,
     saveDailyEntrySheet,
     deleteDailyEntrySheet,
@@ -89,7 +94,7 @@ export const DailyEntrySheetView: React.FC = () => {
       setSheetNotes('');
     }
     setIsSaved(true);
-  }, [selectedDate]);
+  }, [selectedDate, dailyEntrySheets]);
 
   // Available dates that have recorded entries
   const recordedDates = useMemo(() => {
@@ -115,53 +120,341 @@ export const DailyEntrySheetView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [rows, sheetNotes, selectedDate]);
 
-  // Handle changing cell values
+  // Helper to find the treasury from the preceding row or closest previous row with a treasury
+  const getPrecedingTreasury = (beforeIndex: number, currentRows: DailyEntryRow[]) => {
+    for (let i = beforeIndex - 1; i >= 0; i--) {
+      if (currentRows[i]?.treasuryId) {
+        return {
+          id: currentRows[i].treasuryId,
+          name: currentRows[i].treasuryName || ''
+        };
+      }
+    }
+    return {
+      id: defaultTreasury?.id || '',
+      name: defaultTreasury?.name || ''
+    };
+  };
+
+  // Handle changing cell values with automatic inheritance and cascading
   const handleUpdateRow = (rowId: string, updates: Partial<DailyEntryRow>) => {
     setIsSaved(false);
+    setRows(prev => {
+      const rowIndex = prev.findIndex(r => r.id === rowId);
+      if (rowIndex === -1) return prev;
+
+      // 1. If treasury was explicitly changed on this row:
+      if (updates.treasuryId) {
+        return prev.map((r, i) => {
+          if (r.id === rowId) {
+            return { ...r, ...updates };
+          }
+          // Automatically propagate to all subsequent rows that are empty / not yet filled
+          if (i > rowIndex) {
+            const isRowEmpty = (!r.customerName || !r.customerName.trim()) &&
+                               (!r.itemName || !r.itemName.trim()) &&
+                               (!r.requiredAmount || Number(r.requiredAmount) === 0) &&
+                               (!r.paidAmount || Number(r.paidAmount) === 0);
+            if (isRowEmpty) {
+              return {
+                ...r,
+                treasuryId: updates.treasuryId!,
+                treasuryName: updates.treasuryName || ''
+              };
+            }
+          }
+          return r;
+        });
+      }
+
+      // 2. If entering data into a row (idx > 0) that still has the default/empty treasury,
+      // automatically inherit what was selected in the preceding row!
+      if (rowIndex > 0 && !updates.treasuryId) {
+        const preceding = getPrecedingTreasury(rowIndex, prev);
+        const currentRow = prev[rowIndex];
+        if (preceding.id && (!currentRow.treasuryId || currentRow.treasuryId === defaultTreasury?.id)) {
+          updates.treasuryId = preceding.id;
+          updates.treasuryName = preceding.name;
+        }
+      }
+
+      return prev.map(r => {
+        if (r.id !== rowId) return r;
+        return { ...r, ...updates };
+      });
+    });
+  };
+
+  // Helper to recalculate serial numbers keeping the exact same serial for all items of the same customer
+  const recalculateSerialNumbers = (currentRows: DailyEntryRow[]): DailyEntryRow[] => {
+    let seq = 0;
+    let prevRow: DailyEntryRow | null = null;
+
+    return currentRows.map((r, idx) => {
+      const isContinuation = idx > 0 && Boolean(r.isAdditionalItem);
+      if (!isContinuation) {
+        seq += 1;
+      }
+      const assignedSerial = isContinuation && prevRow ? prevRow.serialNumber : seq;
+      const updated: DailyEntryRow = {
+        ...r,
+        serialNumber: assignedSerial
+      };
+      prevRow = updated;
+      return updated;
+    });
+  };
+
+  // Helper to find customer group info for a specific row index
+  const getRowCustomerGroupInfo = (rowIndex: number, currentRows: DailyEntryRow[]) => {
+    const currentRow = currentRows[rowIndex];
+    if (!currentRow) {
+      return {
+        isMultiItem: false,
+        isLast: true,
+        itemIndexInGroup: 0,
+        groupCount: 1,
+        totalGroupRequired: 0,
+        lastItemOfGroup: currentRow
+      };
+    }
+
+    const targetSerial = currentRow.serialNumber;
+    const groupIndices: number[] = [];
+    currentRows.forEach((r, idx) => {
+      if (r.serialNumber === targetSerial) {
+        groupIndices.push(idx);
+      }
+    });
+
+    const isMultiItem = groupIndices.length > 1;
+    const isLast = groupIndices[groupIndices.length - 1] === rowIndex;
+    const itemIndexInGroup = groupIndices.indexOf(rowIndex);
+    const totalGroupRequired = groupIndices.reduce((sum, i) => sum + Number(currentRows[i]?.requiredAmount || 0), 0);
+    const lastItemOfGroup = currentRows[groupIndices[groupIndices.length - 1]];
+
+    return {
+      isMultiItem,
+      isLast,
+      itemIndexInGroup,
+      groupCount: groupIndices.length,
+      totalGroupRequired,
+      lastItemOfGroup
+    };
+  };
+
+  // Add sub-item for the SAME customer in the same invoice (زر + في الزاوية السفلية لاسم الصنف)
+  // وظيفة هذا الزر: إضافة أكثر من صنف لنفس الزبون، تجميع المبالغ، تجميد آلية الدفع واعتمادها لآخر بند فقط، ونفس الرقم المتسلسل
+  const handleAddCustomerSubItem = (index: number) => {
+    setIsSaved(false);
+    setRows(prev => {
+      const parent = prev[index];
+      if (!parent) return prev;
+
+      const targetSerial = parent.serialNumber;
+      // Find the last row in this customer group
+      let lastGroupIdx = index;
+      for (let i = index; i < prev.length; i++) {
+        if (prev[i].serialNumber === targetSerial) {
+          lastGroupIdx = i;
+        } else {
+          break;
+        }
+      }
+
+      const lastRow = prev[lastGroupIdx];
+      // Create new sub-item row for the same customer
+      const newSubRow: DailyEntryRow = {
+        id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        serialNumber: targetSerial, // نفس الرقم المتسلسل للزبون دون تجديد التسلسل!
+        customerId: parent.customerId,
+        customerName: parent.customerName || '',
+        subCustomerId: parent.subCustomerId,
+        subCustomerName: parent.subCustomerName || '',
+        itemName: '',
+        itemId: undefined,
+        notes: '',
+        requiredAmount: 0,
+        paidAmount: lastRow.paidAmount || 0, // آلية الدفع تنتقل وتعتمد لآخر بند
+        treasuryId: lastRow.treasuryId || parent.treasuryId,
+        treasuryName: lastRow.treasuryName || parent.treasuryName,
+        parentRowId: parent.parentRowId || parent.id,
+        isAdditionalItem: true,
+        isApproved: false
+      };
+
+      // تجمد آلية الدفع في الأسطر السابقة لنفس الزبون (قيمة المدفوع تصبح 0 وتجمد لتعمل فقط في آخر بند)
+      const updatedPrev = prev.map((r, i) => {
+        if (r.serialNumber === targetSerial) {
+          return {
+            ...r,
+            paidAmount: 0
+          };
+        }
+        return r;
+      });
+
+      const nextRows = [
+        ...updatedPrev.slice(0, lastGroupIdx + 1),
+        newSubRow,
+        ...updatedPrev.slice(lastGroupIdx + 1)
+      ];
+
+      return recalculateSerialNumbers(nextRows);
+    });
+
+    posSound.beep(1100, 0.05);
+    setStatusMessage({
+      type: 'info',
+      text: `تمت إضافة بند جديد لنفس الزبون بنفس الرقم المتسلسل! آلية الدفع تعتمد بآخر بند.`
+    });
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  // Helper to update customer name across the whole customer group
+  const handleUpdateCustomerForGroup = (serialNumber: number, customerName: string, customerId?: string) => {
+    setIsSaved(false);
     setRows(prev => prev.map(r => {
-      if (r.id !== rowId) return r;
-      return { ...r, ...updates };
+      if (r.serialNumber === serialNumber) {
+        return {
+          ...r,
+          customerName,
+          customerId
+        };
+      }
+      return r;
     }));
   };
 
-  // Add a new row at the end
+  // Helper to update subCustomer name across the whole customer group
+  const handleUpdateSubCustomerForGroup = (serialNumber: number, subCustomerName: string, subCustomerId?: string) => {
+    setIsSaved(false);
+    setRows(prev => prev.map(r => {
+      if (r.serialNumber === serialNumber) {
+        return {
+          ...r,
+          subCustomerName,
+          subCustomerId
+        };
+      }
+      return r;
+    }));
+  };
+
+  // Helper to update treasury across the customer group
+  const handleUpdateTreasuryForGroup = (serialNumber: number, treasuryId: string, treasuryName: string) => {
+    setIsSaved(false);
+    setRows(prev => prev.map(r => {
+      if (r.serialNumber === serialNumber) {
+        return {
+          ...r,
+          treasuryId,
+          treasuryName
+        };
+      }
+      return r;
+    }));
+  };
+
+  // Add a new row at the end - automatically inherits what was selected in the row before it
   const handleAddRow = () => {
     setIsSaved(false);
     setRows(prev => {
       const nextSerial = prev.length > 0 ? Math.max(...prev.map(r => r.serialNumber || 0)) + 1 : 1;
-      const lastRow = prev[prev.length - 1];
-      const treasuryId = lastRow?.treasuryId || defaultTreasury?.id || '';
-      const treasuryName = lastRow?.treasuryName || defaultTreasury?.name || '';
-      return [...prev, createEmptyDailyEntryRow(nextSerial, treasuryId, treasuryName)];
+      const preceding = getPrecedingTreasury(prev.length, prev);
+      const newRow = createEmptyDailyEntryRow(nextSerial, preceding.id, preceding.name);
+      return recalculateSerialNumbers([...prev, newRow]);
     });
   };
 
-  // Insert a row directly below an existing row
+  // Insert a row directly below an existing row - inherits from the row directly above it
   const handleInsertRowBelow = (index: number) => {
     setIsSaved(false);
     setRows(prev => {
       const current = prev[index];
+      const preceding = (current?.treasuryId)
+        ? { id: current.treasuryId, name: current.treasuryName || '' }
+        : getPrecedingTreasury(index + 1, prev);
       const newRow = createEmptyDailyEntryRow(
         index + 2,
-        current?.treasuryId || defaultTreasury?.id,
-        current?.treasuryName || defaultTreasury?.name
+        preceding.id,
+        preceding.name
       );
       const next = [...prev.slice(0, index + 1), newRow, ...prev.slice(index + 1)];
-      // Re-index serial numbers
-      return next.map((r, i) => ({ ...r, serialNumber: i + 1 }));
+      return recalculateSerialNumbers(next);
     });
   };
 
-  // Delete a row
-  const handleDeleteRow = (rowId: string) => {
+  // Apply a row's treasury to all rows below it with confirmation toast
+  const handleApplyTreasuryToSubsequent = (fromIndex: number) => {
+    const sourceRow = rows[fromIndex];
+    if (!sourceRow || !sourceRow.treasuryId) return;
+
+    setIsSaved(false);
+    setRows(prev => prev.map((r, i) => {
+      if (i >= fromIndex) {
+        return {
+          ...r,
+          treasuryId: sourceRow.treasuryId,
+          treasuryName: sourceRow.treasuryName || ''
+        };
+      }
+      return r;
+    }));
+
+    setStatusMessage({
+      type: 'info',
+      text: `تم تعميم "${sourceRow.treasuryName || 'الصندوق المحدد'}" على كافة الأسطر التالية بنجاح.`
+    });
+    setTimeout(() => setStatusMessage(null), 2500);
+  };
+
+  // Deletion Confirmation States
+  const [rowToDelete, setRowToDelete] = useState<DailyEntryRow | null>(null);
+  const [showDeleteDayConfirm, setShowDeleteDayConfirm] = useState<boolean>(false);
+
+  // Prompt row deletion with confirmation
+  const promptDeleteRow = (row: DailyEntryRow) => {
+    setRowToDelete(row);
+  };
+
+  // Execute row deletion after confirmation
+  const executeDeleteRow = (rowId: string) => {
     setIsSaved(false);
     setRows(prev => {
       const filtered = prev.filter(r => r.id !== rowId);
       if (filtered.length === 0) {
         return [createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name)];
       }
-      return filtered.map((r, i) => ({ ...r, serialNumber: i + 1 }));
+      return recalculateSerialNumbers(filtered);
     });
+    setRowToDelete(null);
+    setStatusMessage({
+      type: 'info',
+      text: 'تم حذف السطر بنجاح.'
+    });
+    setTimeout(() => setStatusMessage(null), 2500);
+  };
+
+  // Delete entire day sheet with confirmation
+  const executeDeleteDaySheet = () => {
+    deleteDailyEntrySheet(selectedDate);
+    const initialRows: DailyEntryRow[] = [
+      createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name),
+      createEmptyDailyEntryRow(2, defaultTreasury?.id, defaultTreasury?.name),
+      createEmptyDailyEntryRow(3, defaultTreasury?.id, defaultTreasury?.name),
+      createEmptyDailyEntryRow(4, defaultTreasury?.id, defaultTreasury?.name),
+      createEmptyDailyEntryRow(5, defaultTreasury?.id, defaultTreasury?.name)
+    ];
+    setRows(initialRows);
+    setSheetNotes('');
+    setIsSaved(true);
+    setShowDeleteDayConfirm(false);
+    setStatusMessage({
+      type: 'success',
+      text: `تم حذف كشف الإدخال اليومي لتاريخ ${selectedDate} بالكامل.`
+    });
+    setTimeout(() => setStatusMessage(null), 3000);
   };
 
   // Clear empty rows
@@ -176,7 +469,7 @@ export const DailyEntrySheetView: React.FC = () => {
       if (filtered.length === 0) {
         return [createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name)];
       }
-      return filtered.map((r, i) => ({ ...r, serialNumber: i + 1 }));
+      return recalculateSerialNumbers(filtered);
     });
   };
 
@@ -192,13 +485,13 @@ export const DailyEntrySheetView: React.FC = () => {
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  // Transfer this day's entries directly to Drafts screen
+  // Transfer this day's entries directly to Drafts screen in dedicated invoice review mode
   const handleTransferToDrafts = () => {
     // 1. First save current sheet
     saveDailyEntrySheet(selectedDate, rows, sheetNotes);
     setIsSaved(true);
 
-    // 2. Convert to multi drafts
+    // 2. Convert to multi drafts (with multi-item customer grouping)
     const newDrafts = convertDailyEntryRowsToDrafts(
       selectedDate,
       rows,
@@ -216,13 +509,17 @@ export const DailyEntrySheetView: React.FC = () => {
       return;
     }
 
-    // 3. Load existing drafts from localStorage and prepend/append
+    // 3. Load existing drafts from localStorage and prepend
     try {
       const saved = localStorage.getItem(STORAGE_KEY_MULTI_DRAFTS);
       const existingDrafts = saved ? JSON.parse(saved) : [];
-      // Combine, filtering out any duplicate IDs
+      // Combine: Put new drafts first so the user starts with the first new invoice
       const combined = [...newDrafts, ...existingDrafts.filter((d: any) => !newDrafts.some(n => n.id === d.id))];
       localStorage.setItem(STORAGE_KEY_MULTI_DRAFTS, JSON.stringify(combined));
+
+      // Set flags to open directly in dedicated_invoice review mode at index 0
+      localStorage.setItem('accounting_drafts_open_dedicated', 'true');
+      localStorage.setItem('accounting_drafts_active_index', '0');
     } catch (err) {
       console.error('Failed to merge drafts:', err);
     }
@@ -230,13 +527,13 @@ export const DailyEntrySheetView: React.FC = () => {
     posSound.cash();
     setStatusMessage({
       type: 'success',
-      text: `تم ترحيل ${newDrafts.length} حركة كمسودات فواتير بنجاح! جاري الانتقال لشاشة المسودات...`
+      text: `تم ترحيل ${newDrafts.length} فاتورة بنجاح! جاري الانتقال لشاشة مراجعة واعتماد الفواتير الفردية...`
     });
 
     // 4. Navigate to excel_drafts
     setTimeout(() => {
       setActiveTab('excel_drafts');
-    }, 900);
+    }, 700);
   };
 
   // Date Navigation
@@ -342,10 +639,27 @@ export const DailyEntrySheetView: React.FC = () => {
               type="button"
               onClick={handleTransferToDrafts}
               className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition cursor-pointer"
-              title="ترحيل جميع حركات كشف اليوم كمسودات فواتير في شاشة المسودات"
+              title="ترحيل حركات كشف اليوم كمسودات فواتير والانتقال لشاشة مراجعة واعتماد الفواتير بالتتابع"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>ترحيل إلى مسودات الفواتير 🚀</span>
+              <span>
+                {totals.pendingCount > 0
+                  ? `ترحيل إلى مسودات الفواتير (${totals.pendingCount}) 🚀`
+                  : totals.validRowsCount > 0 && totals.approvedCount === totals.validRowsCount
+                  ? 'كافة الفواتير معتمدة ومحفوظة ✔'
+                  : 'ترحيل إلى مسودات الفواتير 🚀'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowDeleteDayConfirm(true)}
+              disabled={!recordedDates.includes(selectedDate) && rows.every(r => !r.customerName && !r.itemName && Number(r.requiredAmount) === 0)}
+              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="حذف كشف هذا اليوم بالكامل مع تأكيد الحذف"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              <span>حذف كشف اليوم</span>
             </button>
 
             <button
@@ -424,6 +738,31 @@ export const DailyEntrySheetView: React.FC = () => {
         </div>
       </div>
 
+      {/* APPROVED ROWS HIGHLIGHT BANNER */}
+      {totals.approvedCount > 0 && (
+        <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 px-3.5 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-emerald-950 shadow-2xs print:hidden">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              تم اعتماد وحفظ <strong className="font-mono text-emerald-800 text-sm font-black">{totals.approvedCount}</strong> أسطر كفواتير مبيعات رسمية (مظللة باللون الأخضر المميز)
+              {totals.pendingCount > 0 && (
+                <span className="text-slate-600 font-normal mr-2">
+                  (يتبقى <strong className="font-mono text-slate-800 font-bold">{totals.pendingCount}</strong> بانتظار الاعتماد)
+                </span>
+              )}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('invoices')}
+            className="text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1 text-xs cursor-pointer font-black"
+          >
+            <span>عرض الفواتير المعتمدة ➔</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* 2. THE MAIN DAILY ENTRY TABLE */}
       <div className="bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
         {/* Table Toolbar */}
@@ -469,7 +808,15 @@ export const DailyEntrySheetView: React.FC = () => {
                 <th className="py-2 px-3 min-w-[140px] border-l border-slate-200">ملاحظات</th>
                 <th className="py-2 px-2.5 text-center w-28 border-l border-slate-200">المبلغ المطلوب</th>
                 <th className="py-2 px-2.5 text-center w-28 border-l border-slate-200">المدفوع</th>
-                <th className="py-2 px-3 w-36 border-l border-slate-200">الصندوق</th>
+                <th className="py-2 px-2.5 w-44 border-l border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span>الصندوق</span>
+                    <span className="text-[9px] font-normal text-blue-700 bg-blue-50 border border-blue-200 px-1 py-0.5 rounded flex items-center gap-0.5" title="يرتبط تلقائياً بالسطر السابق، والسطر الجديد يرث ما اختير في السطر الذي قبله">
+                      <Link2 className="w-2.5 h-2.5" />
+                      <span>يرث السابق</span>
+                    </span>
+                  </div>
+                </th>
                 <th className="py-2 px-2 text-center w-14 print:hidden">إجراء</th>
               </tr>
             </thead>
@@ -488,16 +835,38 @@ export const DailyEntrySheetView: React.FC = () => {
                 );
                 const subCustList = matchedCust?.subCustomers || [];
 
+                const groupInfo = getRowCustomerGroupInfo(idx, rows);
+                const isApproved = Boolean(row.isApproved);
+
                 return (
                   <tr
                     key={row.id}
-                    className={`hover:bg-blue-50/40 transition-colors ${
-                      idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'
+                    className={`transition-colors ${
+                      isApproved
+                        ? 'bg-emerald-50/90 border-r-4 border-r-emerald-600 hover:bg-emerald-100/70 shadow-2xs text-slate-900'
+                        : row.isAdditionalItem
+                        ? 'bg-indigo-50/20 hover:bg-indigo-50/40 border-r-4 border-r-indigo-400'
+                        : idx % 2 === 0
+                        ? 'bg-white'
+                        : 'bg-slate-50/50'
                     }`}
                   >
-                    {/* 1. رقم مسلسل */}
-                    <td className="py-1 px-1 text-center font-mono font-bold text-slate-500 border-l border-slate-200">
-                      {idx + 1}
+                    {/* 1. رقم مسلسل (مشترك لكافة أصناف نفس الزبون دون تجديد) */}
+                    <td className="py-1 px-1 text-center font-mono font-bold text-slate-700 border-l border-slate-200">
+                      <div className="flex flex-col items-center justify-center">
+                        <span className="font-black text-xs text-slate-800">{row.serialNumber}</span>
+                        {row.isAdditionalItem && (
+                          <span className="text-[8.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 rounded-sm mt-0.5" title="صنف إضافي لنفس الزبون">
+                            تابع
+                          </span>
+                        )}
+                        {isApproved && (
+                          <span className="mt-0.5 px-1 py-0.2 rounded text-[8px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
+                            <Check className="w-2 h-2" />
+                            <span>معتمد</span>
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* 2. اسم الزبون الرئيسي */}
@@ -507,12 +876,21 @@ export const DailyEntrySheetView: React.FC = () => {
                           value={row.customerName}
                           parties={parties}
                           onChange={(name, custId) => {
-                            handleUpdateRow(row.id, {
-                              customerName: name,
-                              customerId: custId
-                            });
+                            if (groupInfo.isMultiItem) {
+                              handleUpdateCustomerForGroup(row.serialNumber, name, custId);
+                            } else {
+                              handleUpdateRow(row.id, {
+                                customerName: name,
+                                customerId: custId
+                              });
+                            }
                           }}
                         />
+                        {row.isAdditionalItem && (
+                          <div className="text-[8.5px] text-indigo-600 font-bold px-1 mt-0.5 flex items-center gap-0.5">
+                            <span>نفس الزبون (مسلسل #{row.serialNumber})</span>
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -524,7 +902,13 @@ export const DailyEntrySheetView: React.FC = () => {
                             type="text"
                             list={`sub-list-${row.id}`}
                             value={row.subCustomerName || ''}
-                            onChange={e => handleUpdateRow(row.id, { subCustomerName: e.target.value })}
+                            onChange={e => {
+                              if (groupInfo.isMultiItem) {
+                                handleUpdateSubCustomerForGroup(row.serialNumber, e.target.value);
+                              } else {
+                                handleUpdateRow(row.id, { subCustomerName: e.target.value });
+                              }
+                            }}
                             placeholder="اختر أو اكتب الزبون الفرعي..."
                             className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none"
                           />
@@ -540,30 +924,55 @@ export const DailyEntrySheetView: React.FC = () => {
                         <input
                           type="text"
                           value={row.subCustomerName || ''}
-                          onChange={e => handleUpdateRow(row.id, { subCustomerName: e.target.value })}
+                          onChange={e => {
+                            if (groupInfo.isMultiItem) {
+                              handleUpdateSubCustomerForGroup(row.serialNumber, e.target.value);
+                            } else {
+                              handleUpdateRow(row.id, { subCustomerName: e.target.value });
+                            }
+                          }}
                           placeholder="الزبون الفرعي إن وجد..."
                           className="w-full px-2 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none"
                         />
                       )}
                     </td>
 
-                    {/* 4. الصنف */}
+                    {/* 4. الصنف + زر (+) في الزاوية السفلية لإضافة صنف آخر لنفس الزبون */}
                     <td className="p-1 border-l border-slate-200">
-                      <ItemCellInput
-                        value={row.itemName}
-                        inventory={inventory}
-                        onChange={(name, itemId, itemPrice) => {
-                          const updates: Partial<DailyEntryRow> = {
-                            itemName: name,
-                            itemId: itemId
-                          };
-                          // If price available and requiredAmount is currently 0, auto-fill it
-                          if (itemPrice && Number(row.requiredAmount || 0) === 0) {
-                            updates.requiredAmount = itemPrice;
-                          }
-                          handleUpdateRow(row.id, updates);
-                        }}
-                      />
+                      <div className="flex flex-col gap-1">
+                        <ItemCellInput
+                          value={row.itemName}
+                          inventory={inventory}
+                          onChange={(name, itemId, itemPrice) => {
+                            const updates: Partial<DailyEntryRow> = {
+                              itemName: name,
+                              itemId: itemId
+                            };
+                            // If price available and requiredAmount is currently 0, auto-fill it
+                            if (itemPrice && Number(row.requiredAmount || 0) === 0) {
+                              updates.requiredAmount = itemPrice;
+                            }
+                            handleUpdateRow(row.id, updates);
+                          }}
+                        />
+                        {/* زر + في الزاوية السفلية لاسم الصنف في البنود */}
+                        <div className="flex items-center justify-between text-[10px] px-0.5 print:hidden">
+                          <button
+                            type="button"
+                            onClick={() => handleAddCustomerSubItem(idx)}
+                            className="px-1.5 py-0.5 rounded text-[9.5px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200/90 flex items-center gap-1 transition shadow-2xs cursor-pointer active:scale-95"
+                            title="إضافة صنف آخر لنفس الزبون (نفس الفاتورة والمسلسل، تجميع المبالغ، وتعتمد آلية الدفع بآخر بند)"
+                          >
+                            <Plus className="w-2.5 h-2.5 text-blue-600 stroke-[3]" />
+                            <span>+ صنف لنفس الزبون</span>
+                          </button>
+                          {groupInfo.isMultiItem && (
+                            <span className="text-[9px] text-slate-500 font-medium">
+                              بند {groupInfo.itemIndexInGroup + 1} من {groupInfo.groupCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
 
                     {/* 5. ملاحظات */}
@@ -577,7 +986,7 @@ export const DailyEntrySheetView: React.FC = () => {
                       />
                     </td>
 
-                    {/* 6. المبلغ المطلوب */}
+                    {/* 6. المبلغ المطلوب (يجمع لكافة بنود نفس الزبون) */}
                     <td className="p-1 border-l border-slate-200 text-center">
                       <div className="relative flex items-center">
                         <input
@@ -594,89 +1003,145 @@ export const DailyEntrySheetView: React.FC = () => {
                         />
                         <span className="text-[10px] text-slate-400 font-mono pl-1 select-none pointer-events-none">₪</span>
                       </div>
+                      {groupInfo.isMultiItem && groupInfo.isLast && (
+                        <div className="text-[9px] text-blue-700 font-bold mt-0.5 bg-blue-50 border border-blue-200/60 rounded px-1 py-0.2" title="إجمالي المطلوب لكافة بنود هذا الزبون في هذه الفاتورة">
+                          مجموع: {groupInfo.totalGroupRequired.toFixed(2)} ₪
+                        </div>
+                      )}
                     </td>
 
-                    {/* 7. المدفوع */}
+                    {/* 7. المدفوع (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون فقط) */}
                     <td className="p-1 border-l border-slate-200 text-center">
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={row.paidAmount === 0 ? '' : row.paidAmount}
-                          onChange={e => {
-                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                            handleUpdateRow(row.id, { paidAmount: isNaN(val) ? 0 : val });
-                          }}
-                          placeholder="0.00"
-                          className={`w-full text-center px-1 py-1 bg-white border rounded font-mono font-bold outline-none ${
-                            isPaidFull
-                              ? 'border-emerald-300 text-emerald-800 bg-emerald-50/30'
-                              : isPartial
-                              ? 'border-amber-300 text-amber-800 bg-amber-50/30'
-                              : 'border-slate-200 text-slate-900'
-                          }`}
-                        />
-                        {/* Quick Full-Pay Button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleUpdateRow(row.id, { paidAmount: reqVal });
-                          }}
-                          disabled={reqVal <= 0}
-                          className="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 rounded text-[10px] font-bold border border-slate-200 transition shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed print:hidden"
-                          title="تسجيل سداد كامل المبلغ المطلوب"
+                      {groupInfo.isMultiItem && !groupInfo.isLast ? (
+                        <div
+                          className="w-full text-center px-1 py-1 bg-slate-100 text-slate-400 border border-slate-200 rounded font-mono text-[10.5px] flex items-center justify-center gap-1 cursor-not-allowed select-none"
+                          title="آلية الدفع مجمدة تلقائياً: تعتمد وتحدد في آخر بند لنفس الزبون لتغطية إجمالي الفاتورة"
                         >
-                          كامل
-                        </button>
-                      </div>
+                          <Lock className="w-2.5 h-2.5 text-slate-400" />
+                          <span>يعتمد بآخر بند</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={row.paidAmount === 0 ? '' : row.paidAmount}
+                            onChange={e => {
+                              const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                              handleUpdateRow(row.id, { paidAmount: isNaN(val) ? 0 : val });
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && idx === rows.length - 1) {
+                                e.preventDefault();
+                                handleAddRow();
+                              }
+                            }}
+                            placeholder="0.00"
+                            className={`w-full text-center px-1 py-1 bg-white border rounded font-mono font-bold outline-none ${
+                              isPaidFull
+                                ? 'border-emerald-300 text-emerald-800 bg-emerald-50/30'
+                                : isPartial
+                                ? 'border-amber-300 text-amber-800 bg-amber-50/30'
+                                : 'border-slate-200 text-slate-900'
+                            }`}
+                          />
+                          {/* Quick Full-Pay Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdateRow(row.id, { paidAmount: groupInfo.totalGroupRequired });
+                            }}
+                            disabled={groupInfo.totalGroupRequired <= 0}
+                            className="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 rounded text-[10px] font-bold border border-slate-200 transition shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed print:hidden"
+                            title="تسجيل سداد كامل المبلغ المطلوب للفاتورة"
+                          >
+                            كامل
+                          </button>
+                        </div>
+                      )}
                     </td>
 
-                    {/* 8. الصندوق */}
+                    {/* 8. الصندوق (يجمد في الأسطر السابقة ويعتمد في آخر بند لنفس الزبون) */}
                     <td className="p-1 border-l border-slate-200">
-                      <select
-                        value={row.treasuryId || defaultTreasury?.id || ''}
-                        onChange={e => {
-                          const tId = e.target.value;
-                          const tObj = treasuries.find(t => t.id === tId);
-                          handleUpdateRow(row.id, {
-                            treasuryId: tId,
-                            treasuryName: tObj?.name || ''
-                          });
-                        }}
-                        onKeyDown={e => {
-                          // Pressing Enter or Tab in the last cell of the last row automatically creates a new row!
-                          if (e.key === 'Enter' && idx === rows.length - 1) {
-                            e.preventDefault();
-                            handleAddRow();
-                          }
-                        }}
-                        className="w-full px-1.5 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none cursor-pointer"
-                      >
-                        {treasuries.map(t => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.currency})
-                          </option>
-                        ))}
-                      </select>
+                      {groupInfo.isMultiItem && !groupInfo.isLast ? (
+                        <div
+                          className="w-full px-1.5 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded text-xs truncate flex items-center justify-between cursor-not-allowed select-none"
+                          title="الصندوق موحد لكافة بنود نفس الزبون ويعتمد من آخر بند"
+                        >
+                          <span className="truncate text-[11px] font-medium">{groupInfo.lastItemOfGroup?.treasuryName || 'موحد مع الأخير'}</span>
+                          <Lock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={row.treasuryId || defaultTreasury?.id || ''}
+                            onChange={e => {
+                              const tId = e.target.value;
+                              const tObj = treasuries.find(t => t.id === tId);
+                              if (groupInfo.isMultiItem) {
+                                handleUpdateTreasuryForGroup(row.serialNumber, tId, tObj?.name || '');
+                              } else {
+                                handleUpdateRow(row.id, {
+                                  treasuryId: tId,
+                                  treasuryName: tObj?.name || ''
+                                });
+                              }
+                            }}
+                            onKeyDown={e => {
+                              // Pressing Enter in the last cell of the last row automatically creates a new row!
+                              if (e.key === 'Enter' && idx === rows.length - 1) {
+                                e.preventDefault();
+                                handleAddRow();
+                              }
+                            }}
+                            className="w-full px-1.5 py-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded text-xs text-slate-800 outline-none cursor-pointer"
+                            title="اختيار الصندوق أو الخزنة (يرثه السطر التالي والجديد تلقائياً)"
+                          >
+                            {treasuries.map(t => (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({t.currency})
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyTreasuryToSubsequent(idx)}
+                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition shrink-0 cursor-pointer print:hidden"
+                            title="تعميم هذا الصندوق تلقائياً على هذا السطر وكافة الأسطر التالية"
+                          >
+                            <ArrowDownToLine className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </td>
 
                     {/* 9. إجراءات السطر */}
                     <td className="p-1 text-center print:hidden">
                       <div className="flex items-center justify-center gap-1">
+                        {isApproved && (
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('invoices')}
+                            className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded transition cursor-pointer"
+                            title={`عرض الفاتورة المعتمدة (${row.approvedInvoiceNumber || ''}) في قائمة الفواتير`}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleInsertRowBelow(idx)}
                           className="p-1 text-slate-400 hover:text-blue-600 rounded transition cursor-pointer"
-                          title="إدراج سطر أسفل هذا السطر"
+                          title="إدراج سطر عادي جديد أسفل هذا السطر"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeleteRow(row.id)}
+                          onClick={() => promptDeleteRow(row)}
                           className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
-                          title="حذف هذا السطر"
+                          title="حذف هذا السطر مع تأكيد الحذف"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -714,12 +1179,17 @@ export const DailyEntrySheetView: React.FC = () => {
             className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-bold flex items-center gap-1.5 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>إضافة سطر جديد (Enter في آخر صندوق)</span>
+            <span>إضافة سطر جديد (يرث الصندوق تلقائياً)</span>
           </button>
 
-          <div className="flex items-center gap-3">
-            <span className="text-slate-500 text-[11px]">
-              ملاحظة: يتم حفظ البيانات تلقائياً، والترحيل ينقل الحركات لشاشة المسودات للاعتماد السريع.
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-[11px] text-slate-600">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Plus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>زر <strong>(+ صنف لنفس الزبون)</strong> أسفل اسم الصنف يضيف أصناف لنفس الزبون بنفس المسلسل، مع تجميع المبالغ وتجميد الدفع لآخر بند.</span>
+            </span>
+            <span className="flex items-center gap-1.5 font-medium">
+              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>الأسطر المعتمدة تظلل بلون أخضر مميز فور اعتماد الفاتورة.</span>
             </span>
           </div>
         </div>
@@ -766,16 +1236,21 @@ export const DailyEntrySheetView: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 4: Valid Entries Count */}
+        {/* Card 4: Approval Status */}
         <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-[11px] text-slate-500 font-bold block">عدد العمليات الصالحة</span>
-            <strong className="text-lg font-mono font-black text-slate-900 mt-0.5 block">
-              {totals.validRowsCount} <span className="text-xs text-slate-400 font-normal">من {totals.rowsCount}</span>
-            </strong>
+            <span className="text-[11px] text-slate-500 font-bold block">حالة الاعتماد والفواتير</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <strong className="text-lg font-mono font-black text-emerald-700">
+                {totals.approvedCount} معتمد
+              </strong>
+              <span className="text-xs text-slate-400 font-bold">
+                ({totals.pendingCount} معلق)
+              </span>
+            </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
-            <Layers className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -788,7 +1263,7 @@ export const DailyEntrySheetView: React.FC = () => {
             <span>توزيع المقبوضات حسب الصناديق والبنوك لليوم:</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            {Object.entries(totals.treasuryBreakdown).map(([tKey, tData]) => (
+            {(Object.entries(totals.treasuryBreakdown) as [string, { name: string; amount: number; count: number }][]).map(([tKey, tData]) => (
               <div
                 key={tKey}
                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs"
@@ -820,6 +1295,86 @@ export const DailyEntrySheetView: React.FC = () => {
           className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-blue-500"
         />
       </div>
+
+      {/* 6. CONFIRM DELETE ROW MODAL */}
+      {rowToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95" dir="rtl">
+            <div className="flex items-center gap-3 text-rose-600 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">تأكيد حذف السطر</h3>
+                <p className="text-xs text-slate-500 font-bold">السطر رقم {rowToDelete.serialNumber}</p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              هل أنت متأكد من رغبتك في حذف هذا السطر
+              {rowToDelete.customerName ? ` الخاص بالزبون (${rowToDelete.customerName})` : ''}
+              {rowToDelete.itemName ? ` والصنف (${rowToDelete.itemName})` : ''}
+              {Number(rowToDelete.requiredAmount) > 0 ? ` بمبلغ (${Number(rowToDelete.requiredAmount).toFixed(2)} ₪)` : ''}
+              ؟ لا يمكن التراجع عن هذه العملية بعد التأكيد.
+            </p>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRowToDelete(null)}
+                className="px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => executeDeleteRow(rowToDelete.id)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
+              >
+                نعم، تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. CONFIRM DELETE ENTIRE DAY SHEET MODAL */}
+      {showDeleteDayConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95" dir="rtl">
+            <div className="flex items-center gap-3 text-rose-600 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">تأكيد حذف كشف اليوم بالكامل</h3>
+                <p className="text-xs text-slate-500 font-mono font-bold">تاريخ: {selectedDate}</p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              هل أنت متأكد من حذف كشف الإدخال اليومي ليوم ({selectedDate}) بالكامل؟ سيتم مسح جميع الحركات والأسطر المسجلة لهذا اليوم نهائياً.
+            </p>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteDayConfirm(false)}
+                className="px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={executeDeleteDaySheet}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
+              >
+                نعم، تأكيد الحذف النهائي
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

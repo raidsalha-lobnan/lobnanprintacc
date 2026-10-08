@@ -151,6 +151,20 @@ caption {
 .report-sub-table td {
   font-size: 9pt !important;
   padding: 2.5px 5px !important;
+  border-color: #cbd5e1 !important;
+  border-left: 1px solid #cbd5e1 !important;
+}
+
+.report-sub-table thead tr {
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.report-sub-table tbody tr {
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.report-sub-table tbody tr:last-child {
+  border-bottom: none !important;
 }
 
 .report-sub-table td div,

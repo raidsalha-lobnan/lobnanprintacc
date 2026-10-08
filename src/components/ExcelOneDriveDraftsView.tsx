@@ -44,7 +44,11 @@ import {
   CalendarCheck
 } from 'lucide-react';
 import { useAccounting } from '../context/AccountingContext';
-import { convertDailyEntryRowsToDrafts, calculateDailyEntryTotals } from '../services/dailyEntryService';
+import {
+  convertDailyEntryRowsToDrafts,
+  calculateDailyEntryTotals,
+  markDailyEntryRowsApprovedInStorage
+} from '../services/dailyEntryService';
 import {
   PaymentMethod,
   Party,
@@ -262,7 +266,8 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
     setSelectedInvoiceForPrint,
     getItemPriceForCustomer,
     getDailyEntrySheet,
-    getAllDailyEntryDates
+    getAllDailyEntryDates,
+    markDailyEntryRowsApproved
   } = useAccounting();
 
   // Full Screen & View Modes
@@ -393,6 +398,31 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
       localStorage.setItem(STORAGE_KEY_URL, sheetUrl);
     }
   }, [sheetUrl]);
+
+  // Check if opened from Daily Entry Sheet to directly enter dedicated_invoice mode
+  useEffect(() => {
+    try {
+      const shouldOpenDedicated = localStorage.getItem('accounting_drafts_open_dedicated');
+      if (shouldOpenDedicated === 'true') {
+        localStorage.removeItem('accounting_drafts_open_dedicated');
+        const targetIdx = parseInt(localStorage.getItem('accounting_drafts_active_index') || '0', 10);
+        localStorage.removeItem('accounting_drafts_active_index');
+        
+        // Reload latest drafts from storage to ensure we have the freshly transferred daily entry drafts
+        const saved = localStorage.getItem(STORAGE_KEY_MULTI_DRAFTS);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setDraftInvoices(parsed);
+          }
+        }
+        setViewMode('dedicated_invoice');
+        setActiveDraftIndex(isNaN(targetIdx) ? 0 : targetIdx);
+      }
+    } catch (err) {
+      console.warn('Dedicated mode check error:', err);
+    }
+  }, []);
 
   // Current draft in dedicated invoice view
   const currentDraft = useMemo(() => {
@@ -1105,6 +1135,24 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
         console.error(e);
       }
 
+      // تعليم وتظليل أسطر كشف الإدخال اليومي المعتمدة فوراً وتوثيق رقم الفاتورة
+      if (draft.sourceDailyDate && draft.sourceDailyRowIds && draft.sourceDailyRowIds.length > 0) {
+        markDailyEntryRowsApprovedInStorage(
+          draft.sourceDailyDate,
+          draft.sourceDailyRowIds,
+          savedInvoice.id,
+          generatedInvoiceNumber
+        );
+        if (markDailyEntryRowsApproved) {
+          markDailyEntryRowsApproved(
+            draft.sourceDailyDate,
+            draft.sourceDailyRowIds,
+            savedInvoice.id,
+            generatedInvoiceNumber
+          );
+        }
+      }
+
       // 1. مسح الفاتورة من المسودات وتحديث التخزين المحلي فوراً لأنها أصبحت فاتورة كاشير فعلية
       setDraftInvoices(prev => {
         const next = prev.filter(d => d.id !== draft.id);
@@ -1629,6 +1677,16 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
               >
                 <span>الفاتورة التالية</span>
                 <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('daily_entry_sheet')}
+                className="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition border border-blue-600 cursor-pointer shadow-xs"
+                title="الرجوع إلى كشف الإدخال اليومي لمشاهدة الأسطر المعتمدة والمظللة"
+              >
+                <CalendarCheck className="w-3.5 h-3.5" />
+                <span>العودة للكشف اليومي 📅</span>
               </button>
 
               <button

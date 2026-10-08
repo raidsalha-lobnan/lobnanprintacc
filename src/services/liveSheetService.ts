@@ -39,6 +39,8 @@ export interface MultiItemDraftInvoice {
   selected: boolean;
   isApproved: boolean;
   rawRowIndices?: number[];
+  sourceDailyDate?: string;
+  sourceDailyRowIds?: string[];
 
   // Original Excel preview metadata for transparency & direct comparison
   rawHeaders?: string[];

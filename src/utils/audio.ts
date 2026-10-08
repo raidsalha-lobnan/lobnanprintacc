@@ -101,8 +101,12 @@ class PosSoundManager {
     }
   }
 
-  beep() {
+  beep(_freq?: number, _dur?: number) {
     this.playSuccessBeep();
+  }
+
+  cash() {
+    this.playCashBeep();
   }
 
   click() {

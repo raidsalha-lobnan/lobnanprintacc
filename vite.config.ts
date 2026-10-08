@@ -140,8 +140,7 @@ export default defineConfig(() => {
           maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // 15MB
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       })
     ],

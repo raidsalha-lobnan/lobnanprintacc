@@ -931,6 +931,12 @@ export interface DailyEntryRow {
   paidAmount: number; // المدفوع
   treasuryId?: string; // الصندوق
   treasuryName?: string; // اسم الصندوق
+  parentRowId?: string; // معرف السطر الأب إذا كان صنف إضافي لنفس الزبون
+  isAdditionalItem?: boolean; // هل هو صنف إضافي لنفس الزبون
+  isApproved?: boolean; // هل تم اعتماد السطر كفاتورة
+  approvedInvoiceId?: string; // معرف الفاتورة المعتمدة
+  approvedInvoiceNumber?: string; // رقم الفاتورة المعتمدة
+  approvedAt?: string; // تاريخ ووقت الاعتماد
 }
 
 export interface DailyEntrySheet {

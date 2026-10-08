@@ -478,6 +478,7 @@ interface AccountingContextType {
   saveDailyEntrySheet: (date: string, rows: DailyEntryRow[], notes?: string) => void;
   deleteDailyEntrySheet: (date: string) => void;
   getAllDailyEntryDates: () => string[];
+  markDailyEntryRowsApproved: (date: string, rowIds: string[], invoiceId: string, invoiceNumber: string) => void;
 }
 
 const AccountingContext = createContext<AccountingContextType | undefined>(undefined);
@@ -938,6 +939,39 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       .filter(d => dailyEntrySheets[d]?.rows && dailyEntrySheets[d].rows.length > 0)
       .sort()
       .reverse();
+  };
+
+  const markDailyEntryRowsApproved = (date: string, rowIds: string[], invoiceId: string, invoiceNumber: string) => {
+    setDailyEntrySheets(prev => {
+      const sheet = prev[date];
+      if (!sheet || !sheet.rows) return prev;
+      const updatedRows = sheet.rows.map(r => {
+        if (rowIds.includes(r.id)) {
+          return {
+            ...r,
+            isApproved: true,
+            approvedInvoiceId: invoiceId,
+            approvedInvoiceNumber: invoiceNumber,
+            approvedAt: new Date().toISOString()
+          };
+        }
+        return r;
+      });
+      const updated: Record<string, DailyEntrySheet> = {
+        ...prev,
+        [date]: {
+          ...sheet,
+          rows: updatedRows,
+          updatedAt: new Date().toISOString()
+        }
+      };
+      try {
+        localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Failed to update daily entry sheet approval in localStorage', err);
+      }
+      return updated;
+    });
   };
 
   // Granular Roles & System Users State
@@ -8000,6 +8034,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         saveDailyEntrySheet,
         deleteDailyEntrySheet,
         getAllDailyEntryDates,
+        markDailyEntryRowsApproved,
         stats
       }}
     >
