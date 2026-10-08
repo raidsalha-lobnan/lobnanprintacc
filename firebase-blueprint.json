@@ -71,6 +71,18 @@
         "reason": { "type": "string" }
       },
       "required": ["id", "action", "invoiceId", "user", "timestamp"]
+    },
+    "DailyEntrySheet": {
+      "title": "DailyEntrySheet",
+      "description": "Daily entry sheet containing line entries for multiple customers and items",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "rows": { "type": "array" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["date", "rows"]
     }
   },
   "firestore": {
@@ -97,6 +109,10 @@
     "/deletedInvoices/{deletedInvoiceId}": {
       "schema": "Invoice",
       "description": "Recycle bin collection of deleted sales invoices for restore and review"
+    },
+    "/dailyEntrySheets/{date}": {
+      "schema": "DailyEntrySheet",
+      "description": "Live multi-user synced daily entry sheets indexed by date YYYY-MM-DD"
     }
   }
 }

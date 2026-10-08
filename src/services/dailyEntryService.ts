@@ -1,5 +1,7 @@
 import { DailyEntryRow, DailyEntrySheet, Party, InventoryItem, Treasury, PaymentMethod } from '../types';
 import { DraftInvoiceItem, MultiItemDraftInvoice, autoMatchDraftEntities } from './liveSheetService';
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export const DAILY_ENTRY_STORAGE_KEY = 'accounting_daily_entry_sheets_v1';
 
@@ -195,6 +197,17 @@ export function markDailyEntryRowsApprovedInStorage(
     sheet.updatedAt = new Date().toISOString();
     sheets[date] = sheet;
     localStorage.setItem(DAILY_ENTRY_STORAGE_KEY, JSON.stringify(sheets));
+
+    // مزامنة فورية مع Firestore
+    try {
+      if (db) {
+        setDoc(doc(db, 'dailyEntrySheets', date), sheet).catch(err => {
+          console.warn('Firestore dailyEntrySheets write notice:', err);
+        });
+      }
+    } catch (e) {
+      console.warn('Firestore sync error:', e);
+    }
   } catch (err) {
     console.error('Error marking daily entry rows approved in storage:', err);
   }

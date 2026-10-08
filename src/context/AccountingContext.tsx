@@ -902,15 +902,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const saveDailyEntrySheet = (date: string, rows: DailyEntryRow[], notes?: string) => {
+    const sheetData: DailyEntrySheet = {
+      date,
+      rows,
+      notes: notes !== undefined ? notes : (dailyEntrySheets[date]?.notes || ''),
+      updatedAt: new Date().toISOString()
+    };
     setDailyEntrySheets(prev => {
       const updated: Record<string, DailyEntrySheet> = {
         ...prev,
-        [date]: {
-          date,
-          rows,
-          notes: notes !== undefined ? notes : (prev[date]?.notes || ''),
-          updatedAt: new Date().toISOString()
-        }
+        [date]: sheetData
       };
       try {
         localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(updated));
@@ -919,6 +920,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       return updated;
     });
+
+    // مزامنة سحابية فورية لكشف الإدخال اليومي عبر Firestore ليعمل متزامناً لدى كافة المستخدمين
+    try {
+      setDoc(doc(db, 'dailyEntrySheets', date), sheetData).catch(err => {
+        console.warn('Firestore live write dailyEntrySheets error:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore write failed:', e);
+    }
   };
 
   const deleteDailyEntrySheet = (date: string) => {
@@ -932,6 +942,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       return next;
     });
+
+    try {
+      deleteDoc(doc(db, 'dailyEntrySheets', date)).catch(err => {
+        console.warn('Firestore delete dailyEntrySheets error:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore delete failed:', e);
+    }
   };
 
   const getAllDailyEntryDates = (): string[] => {
@@ -942,6 +960,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const markDailyEntryRowsApproved = (date: string, rowIds: string[], invoiceId: string, invoiceNumber: string) => {
+    let sheetToSync: DailyEntrySheet | null = null;
     setDailyEntrySheets(prev => {
       const sheet = prev[date];
       if (!sheet || !sheet.rows) return prev;
@@ -957,13 +976,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         return r;
       });
+      sheetToSync = {
+        ...sheet,
+        rows: updatedRows,
+        updatedAt: new Date().toISOString()
+      };
       const updated: Record<string, DailyEntrySheet> = {
         ...prev,
-        [date]: {
-          ...sheet,
-          rows: updatedRows,
-          updatedAt: new Date().toISOString()
-        }
+        [date]: sheetToSync
       };
       try {
         localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(updated));
@@ -972,6 +992,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       return updated;
     });
+
+    if (sheetToSync) {
+      try {
+        setDoc(doc(db, 'dailyEntrySheets', date), sheetToSync).catch(err => {
+          console.warn('Firestore live update dailyEntrySheets approval error:', err);
+        });
+      } catch (e) {
+        console.warn('Firestore approval update failed:', e);
+      }
+    }
   };
 
   // Granular Roles & System Users State
@@ -1883,6 +1913,28 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(docs)); } catch {}
       }, (e) => console.debug('Live purchaseReturns sync:', e));
       unsubs.push(unsubPurchaseReturns);
+
+      // 20. Live Daily Entry Sheets Realtime Multi-User Sync (كشف الإدخال اليومي المتزامن سحابياً)
+      const unsubDailyEntrySheets = onSnapshot(collection(db, 'dailyEntrySheets'), (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) return;
+        const sheetsMap: Record<string, DailyEntrySheet> = {};
+        snapshot.docs.forEach(docSnap => {
+          const data = docSnap.data() as DailyEntrySheet;
+          if (data && data.date) {
+            sheetsMap[data.date] = data;
+          }
+        });
+        if (Object.keys(sheetsMap).length > 0) {
+          setDailyEntrySheets(prev => {
+            const merged = { ...prev, ...sheetsMap };
+            try {
+              localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      }, (e) => console.debug('Live dailyEntrySheets sync notice:', e));
+      unsubs.push(unsubDailyEntrySheets);
     } catch (listenerErr) {
       console.warn('Realtime listeners initialization notice:', listenerErr);
     }

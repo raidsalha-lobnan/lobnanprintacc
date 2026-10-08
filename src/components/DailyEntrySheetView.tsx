@@ -27,8 +27,11 @@ import {
   X,
   Link2,
   ArrowDownToLine,
-  Lock,
-  ExternalLink
+  ExternalLink,
+  User,
+  Users,
+  Filter,
+  Globe
 } from 'lucide-react';
 import { useAccounting } from '../context/AccountingContext';
 import { DailyEntryRow, DailyEntrySheet, Party, InventoryItem, Treasury } from '../types';
@@ -74,6 +77,17 @@ export const DailyEntrySheetView: React.FC = () => {
   const defaultTreasury = useMemo(() => {
     return treasuries.find(t => t.type === 'cash' || t.name?.includes('نقدي')) || treasuries[0];
   }, [treasuries]);
+
+  // Customer & Sub-Customer Live Filtering Across All Entry Days
+  const [filterCustomer, setFilterCustomer] = useState<string>('');
+  const [filterSubCustomer, setFilterSubCustomer] = useState<string>('');
+  const [filterScope, setFilterScope] = useState<'all_days' | 'selected_day'>('all_days');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'pending'>('all');
+  const [showAllDaysDirectly, setShowAllDaysDirectly] = useState<boolean>(false);
+
+  const isFilterActive = useMemo(() => {
+    return filterCustomer.trim().length > 0 || filterSubCustomer.trim().length > 0 || showAllDaysDirectly || filterStatus !== 'all';
+  }, [filterCustomer, filterSubCustomer, showAllDaysDirectly, filterStatus]);
 
   // Load sheet for selected date
   useEffect(() => {
@@ -545,6 +559,100 @@ export const DailyEntrySheetView: React.FC = () => {
 
   const totals = useMemo(() => calculateDailyEntryTotals(rows), [rows]);
 
+  // All flattened rows across all recorded days in the database
+  const allRecordedRowsWithDate = useMemo(() => {
+    const list: Array<DailyEntryRow & { sheetDate: string }> = [];
+    const allDates = Object.keys(dailyEntrySheets).sort().reverse();
+    if (!allDates.includes(selectedDate)) {
+      allDates.unshift(selectedDate);
+    }
+    
+    allDates.forEach(d => {
+      const dateRows = (d === selectedDate && rows.length > 0)
+        ? rows
+        : (dailyEntrySheets[d]?.rows || []);
+
+      dateRows.forEach(r => {
+        const hasContent = Boolean(
+          (r.customerName && r.customerName.trim().length > 0) ||
+          (r.itemName && r.itemName.trim().length > 0) ||
+          Number(r.requiredAmount) > 0 ||
+          Number(r.paidAmount) > 0
+        );
+        if (hasContent) {
+          list.push({
+            ...r,
+            sheetDate: d
+          });
+        }
+      });
+    });
+
+    return list;
+  }, [dailyEntrySheets, selectedDate, rows]);
+
+  const customerSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    parties.forEach(p => { if (p.name) set.add(p.name); });
+    allRecordedRowsWithDate.forEach(r => { if (r.customerName) set.add(r.customerName); });
+    return Array.from(set).sort();
+  }, [parties, allRecordedRowsWithDate]);
+
+  const subCustomerSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    parties.forEach(p => {
+      (p.subCustomers || []).forEach(s => { if (s.name) set.add(s.name); });
+    });
+    allRecordedRowsWithDate.forEach(r => { if (r.subCustomerName) set.add(r.subCustomerName); });
+    return Array.from(set).sort();
+  }, [parties, allRecordedRowsWithDate]);
+
+  const filteredRows = useMemo(() => {
+    if (!isFilterActive) return [];
+
+    const sourceRows = filterScope === 'all_days'
+      ? allRecordedRowsWithDate
+      : rows.map(r => ({ ...r, sheetDate: selectedDate }));
+
+    return sourceRows.filter(r => {
+      if (filterCustomer.trim()) {
+        const qCust = normalizeArabicText(filterCustomer);
+        const rCust = normalizeArabicText(r.customerName || '');
+        if (!rCust.includes(qCust)) return false;
+      }
+
+      if (filterSubCustomer.trim()) {
+        const qSub = normalizeArabicText(filterSubCustomer);
+        const rSub = normalizeArabicText(r.subCustomerName || '');
+        if (!rSub.includes(qSub)) return false;
+      }
+
+      if (filterStatus === 'approved' && !r.isApproved) return false;
+      if (filterStatus === 'pending' && r.isApproved) return false;
+
+      return true;
+    });
+  }, [isFilterActive, filterScope, allRecordedRowsWithDate, rows, selectedDate, filterCustomer, filterSubCustomer, filterStatus]);
+
+  const filteredTotals = useMemo(() => {
+    let req = 0;
+    let paid = 0;
+    let approved = 0;
+    filteredRows.forEach(r => {
+      req += Number(r.requiredAmount || 0);
+      paid += Number(r.paidAmount || 0);
+      if (r.isApproved) approved += 1;
+    });
+    return {
+      count: filteredRows.length,
+      totalRequired: req,
+      totalPaid: paid,
+      totalRemaining: Math.max(0, req - paid),
+      approvedCount: approved,
+      pendingCount: filteredRows.length - approved
+    };
+  }, [filteredRows]);
+
   return (
     <div className="space-y-3 font-sans pb-16 print:p-0 print:space-y-0" dir="rtl">
       {/* 1. TOP HEADER & DATE CONTROLS */}
@@ -763,14 +871,484 @@ export const DailyEntrySheetView: React.FC = () => {
         </div>
       )}
 
-      {/* 2. THE MAIN DAILY ENTRY TABLE */}
-      <div className="bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
-        {/* Table Toolbar */}
-        <div className="bg-slate-800 text-white px-3 py-2 flex items-center justify-between print:hidden">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold">
-              جدول إدخال الحركات (عدد الأسطر: {rows.length})
-            </span>
+      {/* 2. CUSTOMER & SUB-CUSTOMER LIVE FILTER BAR (Across All Entry Days) */}
+      <div className="bg-white border border-slate-300 rounded-2xl p-3 sm:p-4 shadow-sm print:hidden">
+        <div className="flex flex-col gap-3">
+          
+          {/* Header Row: Title & Sync Badge */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-200">
+                <Filter className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-black text-slate-900">
+                    تصفية واستعلام الحركات (لكافة أيام الإدخال)
+                  </span>
+                  {isFilterActive && (
+                    <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                      التصفية مفعلة ({filteredRows.length} نتيجة)
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  استعلم عن زبون أو زبون فرعي عبر كامل سجل أيام الإدخال مع إظهار حالة الاعتماد والهايلايت
+                </span>
+              </div>
+            </div>
+
+            {/* Live Realtime Cloud Sync Badge */}
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>متزامن سحابياً بلحظتها مع كافة المستخدمين 🟢</span>
+              </span>
+
+              {isFilterActive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterCustomer('');
+                    setFilterSubCustomer('');
+                    setShowAllDaysDirectly(false);
+                    setFilterStatus('all');
+                  }}
+                  className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                  title="مسح التصفية والعودة للكشف اليومي"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>مسح التصفية</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Inputs Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {/* 1. Customer Filter Input */}
+            <div className="relative">
+              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                تصفية باسم الزبون الرئيسي:
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="filter-customers-list"
+                  value={filterCustomer}
+                  onChange={e => {
+                    setFilterCustomer(e.target.value);
+                    if (e.target.value.trim()) setFilterScope('all_days');
+                  }}
+                  placeholder="ابحث باسم الزبون..."
+                  className="w-full pr-8 pl-6 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded-xl text-xs font-bold text-slate-900 outline-none transition"
+                />
+                <User className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                {filterCustomer && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterCustomer('')}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <datalist id="filter-customers-list">
+                  {customerSuggestions.map((c, i) => (
+                    <option key={`cust-sug-${i}`} value={c} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            {/* 2. Sub-Customer Filter Input */}
+            <div className="relative">
+              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                تصفية باسم الزبون الفرعي:
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="filter-subcustomers-list"
+                  value={filterSubCustomer}
+                  onChange={e => {
+                    setFilterSubCustomer(e.target.value);
+                    if (e.target.value.trim()) setFilterScope('all_days');
+                  }}
+                  placeholder="ابحث باسم الزبون الفرعي..."
+                  className="w-full pr-8 pl-6 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded-xl text-xs font-bold text-slate-900 outline-none transition"
+                />
+                <Users className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                {filterSubCustomer && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterSubCustomer('')}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <datalist id="filter-subcustomers-list">
+                  {subCustomerSuggestions.map((s, i) => (
+                    <option key={`sub-sug-${i}`} value={s} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            {/* 3. Scope Selector (كافة أيام الإدخال vs اليوم المحدد) */}
+            <div>
+              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                نطاق أيام البحث:
+              </label>
+              <div className="grid grid-cols-2 gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setFilterScope('all_days')}
+                  className={`py-1 px-2 rounded-lg font-bold transition cursor-pointer text-center ${
+                    filterScope === 'all_days'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  كافة أيام الإدخال
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterScope('selected_day')}
+                  className={`py-1 px-2 rounded-lg font-bold transition cursor-pointer text-center ${
+                    filterScope === 'selected_day'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  اليوم المحدد ({selectedDate.slice(5)})
+                </button>
+              </div>
+            </div>
+
+            {/* 4. Approval Status Filter Selector */}
+            <div>
+              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                حالة الاعتماد:
+              </label>
+              <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('all')}
+                  className={`py-1 rounded-lg font-bold transition cursor-pointer text-center ${
+                    filterStatus === 'all'
+                      ? 'bg-slate-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  الكل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('approved')}
+                  className={`py-1 rounded-lg font-bold transition cursor-pointer text-center ${
+                    filterStatus === 'approved'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="المعتمد فقط (مع الهايلايت الأخضر)"
+                >
+                  معتمد ✔
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('pending')}
+                  className={`py-1 rounded-lg font-bold transition cursor-pointer text-center ${
+                    filterStatus === 'pending'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="المعلق (غير المعتمد)"
+                >
+                  معلق ⏳
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Quick Browse All Days Toggle Button */}
+          {!isFilterActive && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+              <span className="text-[11px] text-slate-500 font-medium">
+                اكتب اسم الزبون أو الزبون الفرعي أعلاه للفلترة عبر كافة الأيام، أو استعرض كامل السجل مباشرة:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAllDaysDirectly(true);
+                  setFilterScope('all_days');
+                }}
+                className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg border border-blue-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>استعراض سجل كافة أيام الإدخال ({allRecordedRowsWithDate.length} حركة) ➔</span>
+              </button>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* FILTERED VIEW ACROSS ENTRY DAYS OR STANDARD DAILY SHEET */}
+      {isFilterActive ? (
+        <div className="space-y-3">
+          {/* Summary Stats Strip for Filter Results */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center shadow-2xs">
+              <span className="text-[10px] text-slate-400 font-bold block">الحركات المطابقة</span>
+              <strong className="text-base font-mono font-black text-slate-800">{filteredTotals.count}</strong>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center shadow-2xs">
+              <span className="text-[10px] text-slate-400 font-bold block">إجمالي المطلوب</span>
+              <strong className="text-base font-mono font-black text-slate-900">{filteredTotals.totalRequired.toFixed(2)} ₪</strong>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center shadow-2xs">
+              <span className="text-[10px] text-slate-400 font-bold block">إجمالي المدفوع</span>
+              <strong className="text-base font-mono font-black text-emerald-700">{filteredTotals.totalPaid.toFixed(2)} ₪</strong>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center shadow-2xs">
+              <span className="text-[10px] text-slate-400 font-bold block">المتبقي (الآجل)</span>
+              <strong className="text-base font-mono font-black text-rose-700">{filteredTotals.totalRemaining.toFixed(2)} ₪</strong>
+            </div>
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-center shadow-2xs">
+              <span className="text-[10px] text-emerald-700 font-bold block">المعتمد (بالهايلايت)</span>
+              <strong className="text-base font-mono font-black text-emerald-800">{filteredTotals.approvedCount}</strong>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-center shadow-2xs">
+              <span className="text-[10px] text-amber-700 font-bold block">المعلق (غير معتمد)</span>
+              <strong className="text-base font-mono font-black text-amber-800">{filteredTotals.pendingCount}</strong>
+            </div>
+          </div>
+
+          {/* The Filtered Table Container */}
+          <div className="bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-slate-800 text-white px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold">
+                  جدول نتائج التصفية عبر {filterScope === 'all_days' ? 'كافة أيام الإدخال' : `يوم ${selectedDate}`}
+                </span>
+                <span className="text-[10px] bg-slate-700 text-slate-200 px-2 py-0.5 rounded font-mono">
+                  {filteredRows.length} حركة مطابقة
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterCustomer('');
+                    setFilterSubCustomer('');
+                    setShowAllDaysDirectly(false);
+                    setFilterStatus('all');
+                  }}
+                  className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-bold transition cursor-pointer"
+                >
+                  العودة للكشف اليومي العادي
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-right border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 select-none">
+                    <th className="py-2 px-2 text-center border-l border-slate-200">تاريخ اليوم</th>
+                    <th className="py-2 px-1 text-center border-l border-slate-200 w-12">#</th>
+                    <th className="py-2 px-2 border-l border-slate-200">الزبون الرئيسي</th>
+                    <th className="py-2 px-2 border-l border-slate-200">الزبون الفرعي</th>
+                    <th className="py-2 px-2 border-l border-slate-200">الصنف / الخدمة</th>
+                    <th className="py-2 px-2 border-l border-slate-200">ملاحظات / بيان</th>
+                    <th className="py-2 px-2 text-center border-l border-slate-200 w-24">المطلوب</th>
+                    <th className="py-2 px-2 text-center border-l border-slate-200 w-24">المدفوع</th>
+                    <th className="py-2 px-2 text-center border-l border-slate-200">الصندوق / الخزنة</th>
+                    <th className="py-2 px-2 text-center border-l border-slate-200">حالة الاعتماد</th>
+                    <th className="py-2 px-2 text-center w-24">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filteredRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="py-8 text-center text-slate-400 text-xs">
+                        لا توجد حركات مطابقة للزبون أو الزبون الفرعي المحدد في نطاق التصفية.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRows.map((row, idx) => {
+                      const isApproved = Boolean(row.isApproved);
+                      return (
+                        <tr
+                          key={`flt-${row.sheetDate}-${row.id}-${idx}`}
+                          className={`transition-colors ${
+                            isApproved
+                              ? 'bg-emerald-50/90 border-r-4 border-r-emerald-600 hover:bg-emerald-100/70 shadow-2xs text-slate-900'
+                              : row.isAdditionalItem
+                              ? 'bg-indigo-50/20 hover:bg-indigo-50/40 border-r-4 border-r-indigo-400'
+                              : idx % 2 === 0
+                              ? 'bg-white'
+                              : 'bg-slate-50/50'
+                          }`}
+                        >
+                          {/* 1. تاريخ اليوم */}
+                          <td className="py-2 px-2 text-center border-l border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedDate(row.sheetDate);
+                                setFilterCustomer('');
+                                setFilterSubCustomer('');
+                                setShowAllDaysDirectly(false);
+                              }}
+                              className="font-mono font-bold text-xs bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white px-2 py-0.5 rounded-lg border border-blue-200 transition cursor-pointer"
+                              title="فتح كشف هذا اليوم للتعديل والإدخال"
+                            >
+                              {row.sheetDate}
+                            </button>
+                          </td>
+
+                          {/* 2. رقم مسلسل */}
+                          <td className="py-2 px-1 text-center font-mono font-bold text-slate-700 border-l border-slate-200">
+                            <div className="flex flex-col items-center justify-center">
+                              <span className="font-black text-xs text-slate-800">{row.serialNumber}</span>
+                              {row.isAdditionalItem && (
+                                <span className="text-[8.5px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 rounded-sm mt-0.5">
+                                  تابع
+                                </span>
+                              )}
+                              {isApproved && (
+                                <span className="mt-0.5 px-1 py-0.2 rounded text-[8px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
+                                  <Check className="w-2 h-2" />
+                                  <span>معتمد</span>
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 3. اسم الزبون الرئيسي */}
+                          <td className="p-2 border-l border-slate-200 font-bold text-xs text-slate-900">
+                            {row.customerName || <span className="text-slate-400 italic font-normal">--</span>}
+                          </td>
+
+                          {/* 4. الزبون الفرعي */}
+                          <td className="p-2 border-l border-slate-200 text-xs text-slate-700">
+                            {row.subCustomerName || <span className="text-slate-400 italic font-normal">--</span>}
+                          </td>
+
+                          {/* 5. الصنف */}
+                          <td className="p-2 border-l border-slate-200 text-xs font-bold text-slate-800">
+                            {row.itemName || <span className="text-slate-400 italic font-normal">--</span>}
+                          </td>
+
+                          {/* 6. ملاحظات */}
+                          <td className="p-2 border-l border-slate-200 text-xs text-slate-600">
+                            {row.notes || <span className="text-slate-400 italic font-normal">--</span>}
+                          </td>
+
+                          {/* 7. المطلوب */}
+                          <td className="p-2 border-l border-slate-200 text-center font-mono font-bold text-xs text-slate-900">
+                            {Number(row.requiredAmount || 0).toFixed(2)} ₪
+                          </td>
+
+                          {/* 8. المدفوع */}
+                          <td className="p-2 border-l border-slate-200 text-center font-mono font-bold text-xs text-emerald-800">
+                            {Number(row.paidAmount || 0).toFixed(2)} ₪
+                          </td>
+
+                          {/* 9. الصندوق */}
+                          <td className="p-2 border-l border-slate-200 text-xs text-slate-700 text-center">
+                            {row.treasuryName || <span className="text-slate-400">الصندوق النقدي</span>}
+                          </td>
+
+                          {/* 10. حالة الاعتماد */}
+                          <td className="p-2 border-l border-slate-200 text-center">
+                            {isApproved ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
+                                  <Check className="w-2.5 h-2.5" />
+                                  <span>معتمد</span>
+                                </span>
+                                {row.approvedInvoiceNumber && (
+                                  <span className="text-[9.5px] font-mono text-emerald-800 font-bold">
+                                    فاتورة: {row.approvedInvoiceNumber}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                <span>معلق (غير معتمد)</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 11. إجراءات */}
+                          <td className="p-2 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {isApproved && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab('invoices')}
+                                  className="p-1.5 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded-lg transition cursor-pointer"
+                                  title={`عرض الفاتورة (${row.approvedInvoiceNumber || ''})`}
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDate(row.sheetDate);
+                                  setFilterCustomer('');
+                                  setFilterSubCustomer('');
+                                  setShowAllDaysDirectly(false);
+                                }}
+                                className="px-2 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 rounded-lg text-[10.5px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                title="فتح كشف هذا اليوم بالكامل للإدخال والتعديل"
+                              >
+                                <Calendar className="w-3 h-3" />
+                                <span>فتح اليوم</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs">
+                    <td colSpan={6} className="py-2.5 px-3 text-left">
+                      إجمالي نتائج التصفية ({filteredRows.length} حركة):
+                    </td>
+                    <td className="py-2.5 px-2 text-center font-mono text-sm text-slate-900">
+                      {filteredTotals.totalRequired.toFixed(2)} ₪
+                    </td>
+                    <td className="py-2.5 px-2 text-center font-mono text-sm text-emerald-800">
+                      {filteredTotals.totalPaid.toFixed(2)} ₪
+                    </td>
+                    <td colSpan={3} className="py-2.5 px-3 text-slate-600 text-[11px]">
+                      المتبقي/الآجل: <strong className="font-mono text-rose-700 font-bold">{filteredTotals.totalRemaining.toFixed(2)} ₪</strong>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* 2. THE MAIN DAILY ENTRY TABLE (When Not Filtering) */
+        <div className="bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
+          {/* Table Toolbar */}
+          <div className="bg-slate-800 text-white px-3 py-2 flex items-center justify-between print:hidden">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold">
+                جدول إدخال الحركات (عدد الأسطر: {rows.length})
+              </span>
             <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-mono">
               الصالح للترحيل: {totals.validRowsCount}
             </span>
@@ -1176,6 +1754,7 @@ export const DailyEntrySheetView: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* 3. SUMMARY CARDS & TREASURY BREAKDOWN */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 print:hidden">
