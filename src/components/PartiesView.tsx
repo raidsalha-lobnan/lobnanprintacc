@@ -277,13 +277,13 @@ export const PartiesView: React.FC = () => {
     const q = searchQuery.trim().toLowerCase();
     const matchSearch =
       !q ||
-      (p.code && p.code.toLowerCase().includes(q)) ||
-      p.name.toLowerCase().includes(q) ||
-      p.phone.includes(q) ||
-      (p.contactPerson && p.contactPerson.toLowerCase().includes(q)) ||
-      (p.city && p.city.toLowerCase().includes(q)) ||
-      (p.commercialRegister && p.commercialRegister.includes(q)) ||
-      (p.taxNumber && p.taxNumber.includes(q));
+      (p.code && typeof p.code === 'string' && p.code.toLowerCase().includes(q)) ||
+      (p.name && typeof p.name === 'string' && p.name.toLowerCase().includes(q)) ||
+      (p.phone && typeof p.phone === 'string' && p.phone.includes(q)) ||
+      (p.contactPerson && typeof p.contactPerson === 'string' && p.contactPerson.toLowerCase().includes(q)) ||
+      (p.city && typeof p.city === 'string' && p.city.toLowerCase().includes(q)) ||
+      (p.commercialRegister && typeof p.commercialRegister === 'string' && p.commercialRegister.includes(q)) ||
+      (p.taxNumber && typeof p.taxNumber === 'string' && p.taxNumber.includes(q));
 
     if (!matchSearch) return false;
 

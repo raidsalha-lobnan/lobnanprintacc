@@ -523,19 +523,38 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
               className="bg-[#1f4a7c] text-white text-[10.5px] font-mono px-1 py-0.5 rounded border border-blue-400/30 focus:outline-none cursor-pointer w-full text-center"
             />
           </div>
-          {(startDate !== todayStr || endDate !== todayStr) && (
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={() => {
                 setStartDate(todayStr);
                 setEndDate(todayStr);
               }}
-              className="text-[9px] bg-blue-600 hover:bg-blue-500 text-white font-bold px-1.5 py-0.5 rounded shrink-0 transition-colors cursor-pointer"
-              title="إعادة تعيين إلى اليوم"
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 transition-colors cursor-pointer ${
+                startDate === todayStr && endDate === todayStr
+                  ? 'bg-blue-500 text-white shadow-2xs font-black'
+                  : 'bg-[#1f4a7c] hover:bg-blue-600 text-blue-100'
+              }`}
+              title="عرض فواتير اليوم"
             >
               اليوم
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+              }}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 transition-colors cursor-pointer ${
+                !startDate && !endDate
+                  ? 'bg-amber-500 text-white shadow-2xs font-black'
+                  : 'bg-[#1f4a7c] hover:bg-blue-600 text-blue-100'
+              }`}
+              title="عرض كشوف وفواتير كافة الأيام وكافة المستخدمين"
+            >
+              كافة التواريخ
+            </button>
+          </div>
         </div>
       </div>
 
