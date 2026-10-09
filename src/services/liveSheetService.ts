@@ -34,6 +34,7 @@ export interface MultiItemDraftInvoice {
   subCustomerPhone?: string;
   paymentMethod: PaymentMethod;
   notes?: string;
+  paymentNotes?: string;
   items: DraftInvoiceItem[];
   totalAmount: number;
   selected: boolean;

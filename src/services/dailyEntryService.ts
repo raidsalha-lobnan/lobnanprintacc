@@ -126,7 +126,6 @@ export function convertDailyEntryRowsToDrafts(
     const isAllApproved = groupRows.every(r => r.isApproved);
     const itemNotes = groupRows.map(r => r.notes?.trim()).filter(Boolean).join(' | ');
     const payNotes = groupRows.map(r => r.paymentNotes?.trim()).filter(Boolean).join(' | ');
-    const notesCombined = [itemNotes, payNotes ? `(سداد: ${payNotes})` : ''].filter(Boolean).join(' - ');
 
     const draft: MultiItemDraftInvoice = {
       id: draftId,
@@ -136,7 +135,8 @@ export function convertDailyEntryRowsToDrafts(
       subCustomerName: firstRow.subCustomerName?.trim() || undefined,
       subCustomerId: firstRow.subCustomerId,
       paymentMethod: paymentMethod,
-      notes: notesCombined,
+      notes: itemNotes || undefined,
+      paymentNotes: payNotes || undefined,
       items: draftItems,
       totalAmount: totalRequired,
       selected: true,

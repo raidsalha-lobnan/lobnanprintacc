@@ -1046,7 +1046,7 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
           unitPrice: it.unitPrice || 0,
           discount: 0,
           total: it.totalAmount || 0,
-          notes: it.notes || draft.notes || '',
+          notes: it.notes || '',
           attachments: it.attachments || []
         };
       });
@@ -1123,6 +1123,7 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
           bankCurrency: draft.bankCurrency || 'ILS',
           bankExchangeRate: bRate,
           bankTreasuryCode: draft.bankTreasuryCode || '1102',
+          paymentNotes: draft.paymentNotes,
           userId: currentUser?.id,
           userName: currentUser?.name || currentUser?.fullName || 'مدير النظام',
           workflowStatus: 'new'
