@@ -218,7 +218,9 @@ export const DailyEntrySheetView: React.FC = () => {
     }
     setEditingRowId(rowId);
     localDirtyRowIds.current.add(rowId);
-    acquireDailyEntryRowLock(selectedDate, rowId, fieldName);
+    setTimeout(() => {
+      acquireDailyEntryRowLock(selectedDate, rowId, fieldName);
+    }, 0);
   };
 
   const handleRowBlur = (rowId: string) => {
@@ -247,7 +249,7 @@ export const DailyEntrySheetView: React.FC = () => {
   const [filterDate, setFilterDate] = useState<string>(''); // تصفية وفلترة مباشرة على عمود التاريخ
   const [filterCustomer, setFilterCustomer] = useState<string>('');
   const [filterSubCustomer, setFilterSubCustomer] = useState<string>('');
-  const [filterScope, setFilterScope] = useState<'selected_day' | 'all_days'>('all_days');
+  const [filterScope, setFilterScope] = useState<'selected_day' | 'all_days'>('selected_day');
   const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'pending'>('all');
   const [showAllDaysDirectly, setShowAllDaysDirectly] = useState<boolean>(false);
 
@@ -269,11 +271,11 @@ export const DailyEntrySheetView: React.FC = () => {
         setSheetNotes(sheet.notes || '');
       } else {
         const initialRows: DailyEntryRow[] = [
-          createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name),
-          createEmptyDailyEntryRow(2, defaultTreasury?.id, defaultTreasury?.name),
-          createEmptyDailyEntryRow(3, defaultTreasury?.id, defaultTreasury?.name),
-          createEmptyDailyEntryRow(4, defaultTreasury?.id, defaultTreasury?.name),
-          createEmptyDailyEntryRow(5, defaultTreasury?.id, defaultTreasury?.name)
+          createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate),
+          createEmptyDailyEntryRow(2, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate),
+          createEmptyDailyEntryRow(3, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate),
+          createEmptyDailyEntryRow(4, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate),
+          createEmptyDailyEntryRow(5, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate)
         ];
         setRows(initialRows);
         setSheetNotes('');
@@ -331,13 +333,13 @@ export const DailyEntrySheetView: React.FC = () => {
         setSheetNotes(prev => (prev === '' ? (sheet.notes || '') : prev));
       }
     } else if (rows.length === 0) {
-      // Create initial 5 blank rows for quick input
+      // Create initial 5 blank rows for quick input with selectedDate
       const initialRows: DailyEntryRow[] = [
-        createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name),
-        createEmptyDailyEntryRow(2, defaultTreasury?.id, defaultTreasury?.name),
-        createEmptyDailyEntryRow(3, defaultTreasury?.id, defaultTreasury?.name),
-        createEmptyDailyEntryRow(4, defaultTreasury?.id, defaultTreasury?.name),
-        createEmptyDailyEntryRow(5, defaultTreasury?.id, defaultTreasury?.name)
+        createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate),
+        createEmptyDailyEntryRow(2, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate),
+        createEmptyDailyEntryRow(3, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate),
+        createEmptyDailyEntryRow(4, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate),
+        createEmptyDailyEntryRow(5, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate)
       ];
       setRows(initialRows);
       setSheetNotes('');
@@ -369,6 +371,17 @@ export const DailyEntrySheetView: React.FC = () => {
     };
   };
 
+  // التاريخ تلقائياً يدخل تبعاً للبند السابق إلى حين تعديله بتاريخ آخر
+  const getPrecedingDate = (beforeIndex: number, currentRows: DailyEntryRow[], fallbackDate: string): string => {
+    for (let i = beforeIndex - 1; i >= 0; i--) {
+      const rowDate = currentRows[i]?.entryDate;
+      if (rowDate && rowDate.trim()) {
+        return rowDate;
+      }
+    }
+    return fallbackDate;
+  };
+
   // Handle changing cell values with automatic inheritance and cascading
   const handleUpdateRow = (rowId: string, updates: Partial<DailyEntryRow>) => {
     setIsSaved(false);
@@ -376,6 +389,26 @@ export const DailyEntrySheetView: React.FC = () => {
     setRows(prev => {
       const rowIndex = prev.findIndex(r => r.id === rowId);
       if (rowIndex === -1) return prev;
+
+      // إذا تم تعديل التاريخ: يورث تلقائياً للأسطر التالية الفارغة إلى حين تعديله بتاريخ آخر
+      if (updates.entryDate) {
+        const newDate = updates.entryDate;
+        return prev.map((r, i) => {
+          if (r.id === rowId) {
+            return { ...r, ...updates };
+          }
+          if (i > rowIndex) {
+            const isRowEmpty = (!r.customerName || !r.customerName.trim()) &&
+                               (!r.itemName || !r.itemName.trim()) &&
+                               (!r.requiredAmount || Number(r.requiredAmount) === 0) &&
+                               (!r.paidAmount || Number(r.paidAmount) === 0);
+            if (isRowEmpty) {
+              return { ...r, entryDate: newDate };
+            }
+          }
+          return r;
+        });
+      }
 
       // 1. If treasury was explicitly changed on this row:
       if (updates.treasuryId) {
@@ -602,7 +635,19 @@ export const DailyEntrySheetView: React.FC = () => {
     setRows(prev => {
       const nextSerial = prev.length > 0 ? Math.max(...prev.map(r => r.serialNumber || 0)) + 1 : 1;
       const preceding = getPrecedingTreasury(prev.length, prev);
-      const newRow = createEmptyDailyEntryRow(nextSerial, preceding.id, preceding.name);
+      const precedingDate = getPrecedingDate(prev.length, prev, selectedDate);
+      const newRow = createEmptyDailyEntryRow(
+        nextSerial,
+        preceding.id,
+        preceding.name,
+        '',
+        undefined,
+        '',
+        undefined,
+        undefined,
+        false,
+        precedingDate
+      );
       return recalculateSerialNumbers([...prev, newRow]);
     });
   };
@@ -615,10 +660,20 @@ export const DailyEntrySheetView: React.FC = () => {
       const preceding = (current?.treasuryId)
         ? { id: current.treasuryId, name: current.treasuryName || '' }
         : getPrecedingTreasury(index + 1, prev);
+      const precedingDate = (current?.entryDate)
+        ? current.entryDate
+        : getPrecedingDate(index + 1, prev, selectedDate);
       const newRow = createEmptyDailyEntryRow(
         index + 2,
         preceding.id,
-        preceding.name
+        preceding.name,
+        '',
+        undefined,
+        '',
+        undefined,
+        undefined,
+        false,
+        precedingDate
       );
       const next = [...prev.slice(0, index + 1), newRow, ...prev.slice(index + 1)];
       return recalculateSerialNumbers(next);
@@ -676,6 +731,7 @@ export const DailyEntrySheetView: React.FC = () => {
     const precedingTreasury = (targetRow.treasuryId)
       ? { id: targetRow.treasuryId, name: targetRow.treasuryName || '' }
       : getPrecedingTreasury(index + 1, updatedRows);
+    const rowDate = targetRow.entryDate || getPrecedingDate(index + 1, updatedRows, selectedDate);
 
     const newRow = createEmptyDailyEntryRow(
       nextSerial,
@@ -687,7 +743,7 @@ export const DailyEntrySheetView: React.FC = () => {
       undefined,
       undefined,
       false,
-      targetRow.entryDate || selectedDate
+      rowDate
     );
 
     const nextRowsWithNew = [
@@ -928,7 +984,23 @@ export const DailyEntrySheetView: React.FC = () => {
     setSelectedDate(d.toISOString().split('T')[0]);
   };
 
-  const totals = useMemo(() => calculateDailyEntryTotals(rows), [rows]);
+  // القائمة المعروضة في الجدول بناءً على وضع العرض (كشف متتابع لكافة الأيام أو يوم محدد)
+  const displayedRows = useMemo(() => {
+    if (viewMode === 'single_day') {
+      // عند تحديد يوم محدد: يعرض فقط البنود المسجلة بتاريخ اليوم المحدد
+      return rows.filter(r => (r.entryDate || selectedDate) === selectedDate);
+    }
+    // في وضع كشف متتابع: عرض إدخالات كل الأيام بشكل جدول متتابع مرتب ومفروز حسب التاريخ والمتسلسل
+    return [...rows].sort((a, b) => {
+      const dateA = a.entryDate || selectedDate;
+      const dateB = b.entryDate || selectedDate;
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return (a.serialNumber || 0) - (b.serialNumber || 0);
+    });
+  }, [rows, viewMode, selectedDate]);
+
+  // Calculate totals dynamically from displayed rows
+  const totals = useMemo(() => calculateDailyEntryTotals(displayedRows), [displayedRows]);
 
   // All flattened rows across all recorded days in the database
   const allRecordedRowsWithDate = useMemo(() => {
@@ -1051,29 +1123,31 @@ export const DailyEntrySheetView: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setViewMode('continuous');
-                  setFilterDate('');
                 }}
-                className={`px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                className={`px-3 py-1 rounded-md text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                   viewMode === 'continuous'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
+                title="عرض إدخالات كل الأيام بشكل جدول متتابع مرتب ومفروز حسب اليوم"
               >
-                كشف متتابع
+                <Layers className="w-3.5 h-3.5" />
+                <span>كشف متتابع (كافة الأيام)</span>
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setViewMode('single_day');
-                  setFilterDate(selectedDate);
                 }}
-                className={`px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                className={`px-3 py-1 rounded-md text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                   viewMode === 'single_day'
-                    ? 'bg-white text-slate-900 shadow-2xs'
+                    ? 'bg-white text-slate-900 shadow-2xs font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
+                title="عرض فقط البنود المسجلة بتاريخ اليوم المحدد"
               >
-                يوم محدد
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                <span>يوم محدد ({selectedDate})</span>
               </button>
             </div>
 
@@ -1094,7 +1168,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 onChange={e => {
                   const d = e.target.value;
                   setSelectedDate(d);
-                  if (viewMode === 'single_day') {
+                  if (filterDate) {
                     setFilterDate(d);
                   }
                 }}
@@ -1203,10 +1277,7 @@ export const DailyEntrySheetView: React.FC = () => {
               <input
                 type="date"
                 value={filterDate}
-                onChange={e => {
-                  setFilterDate(e.target.value);
-                  if (e.target.value) setFilterScope('all_days');
-                }}
+                onChange={e => setFilterDate(e.target.value)}
                 className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-slate-800 outline-none focus:border-blue-500"
               />
             </div>
@@ -1218,10 +1289,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 type="text"
                 list="filter-customers-list"
                 value={filterCustomer}
-                onChange={e => {
-                  setFilterCustomer(e.target.value);
-                  if (e.target.value.trim()) setFilterScope('all_days');
-                }}
+                onChange={e => setFilterCustomer(e.target.value)}
                 placeholder="اسم الزبون..."
                 className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 w-36"
               />
@@ -1239,10 +1307,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 type="text"
                 list="filter-subcustomers-list"
                 value={filterSubCustomer}
-                onChange={e => {
-                  setFilterSubCustomer(e.target.value);
-                  if (e.target.value.trim()) setFilterScope('all_days');
-                }}
+                onChange={e => setFilterSubCustomer(e.target.value)}
                 placeholder="الفرعي..."
                 className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 w-28"
               />
@@ -1929,7 +1994,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {rows.map((row, idx) => {
+                {displayedRows.map((row, idx) => {
                   const reqVal = Number(row.requiredAmount || 0);
                   const paidVal = Number(row.paidAmount || 0);
                   const isPaidFull = reqVal > 0 && paidVal >= reqVal;
@@ -1952,7 +2017,7 @@ export const DailyEntrySheetView: React.FC = () => {
                   );
                   const subCustList = matchedCust?.subCustomers || [];
 
-                  const groupInfo = getRowCustomerGroupInfo(idx, rows);
+                  const groupInfo = getRowCustomerGroupInfo(idx, displayedRows);
                   const isApproved = Boolean(row.isApproved);
 
                   return (

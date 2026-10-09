@@ -2153,44 +2153,48 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       lockedAt: Date.now()
     };
 
-    setDailyEntrySheets(prev => {
-      const sheet = prev[date] || { date, rows: [], notes: '', updatedAt: new Date().toISOString() };
-      const currentLocks = { ...(sheet.activeLocks || {}) };
-      const now = Date.now();
-      Object.keys(currentLocks).forEach(k => {
-        if (now - (currentLocks[k]?.lockedAt || 0) > 120000) {
-          delete currentLocks[k];
-        }
+    setTimeout(() => {
+      setDailyEntrySheets(prev => {
+        const sheet = prev[date] || { date, rows: [], notes: '', updatedAt: new Date().toISOString() };
+        const currentLocks = { ...(sheet.activeLocks || {}) };
+        const now = Date.now();
+        Object.keys(currentLocks).forEach(k => {
+          if (now - (currentLocks[k]?.lockedAt || 0) > 120000) {
+            delete currentLocks[k];
+          }
+        });
+        currentLocks[rowId] = lock;
+        const updatedSheet: DailyEntrySheet = {
+          ...sheet,
+          activeLocks: currentLocks
+        };
+        const updated = { ...prev, [date]: updatedSheet };
+        try {
+          setDoc(doc(db, 'dailyEntrySheets', date), cleanDocForFirestore(updatedSheet), { merge: true }).catch(() => {});
+        } catch (e) {}
+        return updated;
       });
-      currentLocks[rowId] = lock;
-      const updatedSheet: DailyEntrySheet = {
-        ...sheet,
-        activeLocks: currentLocks
-      };
-      const updated = { ...prev, [date]: updatedSheet };
-      try {
-        setDoc(doc(db, 'dailyEntrySheets', date), cleanDocForFirestore(updatedSheet), { merge: true }).catch(() => {});
-      } catch (e) {}
-      return updated;
-    });
+    }, 0);
   };
 
   const releaseDailyEntryRowLock = (date: string, rowId: string) => {
-    setDailyEntrySheets(prev => {
-      const sheet = prev[date];
-      if (!sheet || !sheet.activeLocks || !sheet.activeLocks[rowId]) return prev;
-      const currentLocks = { ...sheet.activeLocks };
-      delete currentLocks[rowId];
-      const updatedSheet: DailyEntrySheet = {
-        ...sheet,
-        activeLocks: currentLocks
-      };
-      const updated = { ...prev, [date]: updatedSheet };
-      try {
-        setDoc(doc(db, 'dailyEntrySheets', date), cleanDocForFirestore(updatedSheet), { merge: true }).catch(() => {});
-      } catch (e) {}
-      return updated;
-    });
+    setTimeout(() => {
+      setDailyEntrySheets(prev => {
+        const sheet = prev[date];
+        if (!sheet || !sheet.activeLocks || !sheet.activeLocks[rowId]) return prev;
+        const currentLocks = { ...sheet.activeLocks };
+        delete currentLocks[rowId];
+        const updatedSheet: DailyEntrySheet = {
+          ...sheet,
+          activeLocks: currentLocks
+        };
+        const updated = { ...prev, [date]: updatedSheet };
+        try {
+          setDoc(doc(db, 'dailyEntrySheets', date), cleanDocForFirestore(updatedSheet), { merge: true }).catch(() => {});
+        } catch (e) {}
+        return updated;
+      });
+    }, 0);
   };
 
   const forceReleaseDailyEntryRowLock = (date: string, rowId: string) => {
