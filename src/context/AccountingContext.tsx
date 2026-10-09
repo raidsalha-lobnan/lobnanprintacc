@@ -1522,8 +1522,20 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               await syncToFirebaseRef.current(true);
             }
         } else if (isMounted && hasCloudData) {
-            if (data.parties !== undefined && data.parties.length > 0) setParties(data.parties);
-            if (data.invoices !== undefined && data.invoices.length > 0) setInvoices(data.invoices);
+            if (data.parties !== undefined && data.parties.length > 0) {
+              setParties(prev => deduplicateById([...(data.parties || []), ...prev], 'party'));
+            }
+            if (data.invoices !== undefined && data.invoices.length > 0) {
+              setInvoices(prev => {
+                const combined = deduplicateById([...(data.invoices || []), ...prev], 'inv');
+                return combined.sort((a, b) => {
+                  const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+                  const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+                  if (numA !== numB) return numB - numA;
+                  return (b.createdAt || '').localeCompare(a.createdAt || '');
+                });
+              });
+            }
             if (data.employees !== undefined && data.employees.length > 0) setEmployees(data.employees);
             if (data.vouchers !== undefined && data.vouchers.length > 0) setVouchers(data.vouchers);
             if (data.printOrders !== undefined && data.printOrders.length > 0) setPrintOrders(data.printOrders);
@@ -1630,7 +1642,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       // 1. Live Invoices (فواتير المبيعات ونقاط البيع لحظياً لكافة المستخدمين)
       const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => ({ ...d.data(), id: d.id } as Invoice))
@@ -1673,15 +1685,24 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (invCmp !== 0) return invCmp;
           return (b.createdAt || '').localeCompare(a.createdAt || '');
         });
-        const dedupedInvoices = deduplicateById(docs, 'inv');
-        setInvoices(dedupedInvoices);
-        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(dedupedInvoices)); } catch {}
+        let finalInvoicesList: Invoice[] = [];
+        setInvoices(prev => {
+          const combined = deduplicateById([...docs, ...prev], 'inv');
+          finalInvoicesList = combined.sort((a, b) => {
+            const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+            const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+            if (numA !== numB) return numB - numA;
+            return (b.createdAt || '').localeCompare(a.createdAt || '');
+          });
+          return finalInvoicesList;
+        });
+        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(finalInvoicesList)); } catch {}
       }, (e) => console.debug('Live invoices sync:', e));
       unsubs.push(unsubInvoices);
 
       // 1B. Live Deleted Invoices (سلة فواتير المبيعات المحذوفة)
       const unsubDeletedInvoices = onSnapshot(collection(db, 'deletedInvoices'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Invoice));
         docs.sort((a, b) => {
           const timeA = new Date(a.deletedAt || a.date || 0).getTime() || 0;
@@ -1696,7 +1717,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 2. Live Print Orders (أوامر تشغيل ومطبوعات المطبعة لحظياً للجميع)
       const unsubPrintOrders = onSnapshot(collection(db, 'printOrders'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => d.data() as PrintJobOrder)
@@ -1728,7 +1749,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 3. Live Parties (العملاء والموردين وحساباتهم وأرصدتهم لحظياً)
       const unsubParties = onSnapshot(collection(db, 'parties'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => d.data() as Party)
@@ -1743,7 +1764,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 4. Live Inventory (المخزون، الأصناف، والأسعار لكافة المستخدمين)
       const unsubInventory = onSnapshot(collection(db, 'inventory'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => ({ ...d.data(), id: d.id } as InventoryItem))
@@ -1772,7 +1793,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 5. Live Vouchers (سندات القبض والصرف)
       const unsubVouchers = onSnapshot(collection(db, 'vouchers'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => d.data() as PaymentVoucher)
@@ -1786,7 +1807,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 6. Live Users (المستخدمين وبياناتهم وصلاحياتهم المحفوظة في قاعدة البيانات)
       const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => d.data() as SystemUser)
@@ -1800,7 +1821,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 7. Live Roles (الأدوار وصلاحيات الشاشات)
       const unsubRoles = onSnapshot(collection(db, 'roles'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as Role).filter(r => r && r.id);
         if (docs.length > 0) {
           setRoles(docs);
@@ -1811,7 +1832,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 8. Live Treasuries (الصناديق والخزائن)
       const unsubTreasuries = onSnapshot(collection(db, 'treasuries'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as Treasury).filter(t => t && t.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.accountCode || '').localeCompare(b.accountCode || '') || (a.name || '').localeCompare(b.name || ''));
@@ -1823,7 +1844,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 9. Live Purchases (المشتريات)
       const unsubPurchases = onSnapshot(collection(db, 'purchases'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as PurchaseInvoice).filter(p => p && p.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
@@ -1834,7 +1855,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 10. Live Expenses (المصروفات)
       const unsubExpenses = onSnapshot(collection(db, 'expenses'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as ExpenseItem).filter(e => e && e.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
@@ -1845,7 +1866,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 11. Live Debt Clearings (المقاصات)
       const unsubDebtClearings = onSnapshot(collection(db, 'debtClearings'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as DebtClearingRecord).filter(dc => dc && dc.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
@@ -1856,7 +1877,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 12. Live Accounts (شجرة الحسابات)
       const unsubAccounts = onSnapshot(collection(db, 'accounts'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as Account).filter(a => a && a.code);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
@@ -1868,7 +1889,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 13. Live Journal Entries (قيود اليومية العامة)
       const unsubJournals = onSnapshot(collection(db, 'journals'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as JournalEntry).filter(j => j && j.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (Number(b.entryNumber) || 0) - (Number(a.entryNumber) || 0));
@@ -1879,7 +1900,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 14. Live Stock Movements (حركات المخزون)
       const unsubStockMovements = onSnapshot(collection(db, 'stockMovements'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as StockMovement).filter(sm => sm && sm.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -1890,7 +1911,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 15. Live Employees (الموظفين)
       const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as Employee).filter(emp => emp && emp.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.code || '').localeCompare(b.code || '') || (a.name || '').localeCompare(b.name || ''));
@@ -1902,7 +1923,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 16. Live Payroll Sheets (مسيرات الرواتب)
       const unsubPayroll = onSnapshot(collection(db, 'payrollSheets'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as PayrollSheet).filter(ps => ps && ps.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -1913,7 +1934,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 17. Live Companies & Branches (الشركات والفروع)
       const unsubBranches = onSnapshot(collection(db, 'branches'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as Branch).filter(b => b && b.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.branchCode || '').localeCompare(b.branchCode || ''));
@@ -1925,7 +1946,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 18. Live Warehouses & Operations (المستودعات وحركاتها)
       const unsubWarehouses = onSnapshot(collection(db, 'warehouses'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as Warehouse).filter(w => w && w.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
@@ -1936,7 +1957,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       unsubs.push(unsubWarehouses);
 
       const unsubWhOps = onSnapshot(collection(db, 'warehouseOperations'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as WarehouseOperation).filter(wo => wo && wo.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || b.createdAt || '').localeCompare(a.date || a.createdAt || ''));
@@ -1947,7 +1968,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 19. Live Sales Returns & Purchase Returns (المردودات)
       const unsubSalesReturns = onSnapshot(collection(db, 'salesReturns'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as SalesReturn).filter(sr => sr && sr.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || b.createdAt || '').localeCompare(a.date || a.createdAt || ''));
@@ -1957,7 +1978,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       unsubs.push(unsubSalesReturns);
 
       const unsubPurchaseReturns = onSnapshot(collection(db, 'purchaseReturns'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const docs = snapshot.docs.map(d => d.data() as PurchaseReturn).filter(pr => pr && pr.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || b.createdAt || '').localeCompare(a.date || a.createdAt || ''));
@@ -1968,7 +1989,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 20. Live Daily Entry Sheets Realtime Multi-User Sync (كشف الإدخال اليومي المتزامن سحابياً)
       const unsubDailyEntrySheets = onSnapshot(collection(db, 'dailyEntrySheets'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Receive live cloud snapshot updates from all users immediately
         const sheetsMap: Record<string, DailyEntrySheet> = {};
         snapshot.docs.forEach(docSnap => {
           const data = docSnap.data() as DailyEntrySheet;
@@ -5220,7 +5241,31 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    const invoiceNumber = oldInvoice ? oldInvoice.invoiceNumber : (extraOptions?.invoiceNumber || `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, '0')}`);
+    // Calculate next sequence dynamically from all cloud invoices to prevent duplicate numbers across users
+    let computedSeq = 1;
+    if (!oldInvoice && (!extraOptions?.invoiceNumber || extraOptions.invoiceNumber === 'INV-0001')) {
+      let maxNum = 0;
+      (invoices || []).forEach(inv => {
+        if (inv.invoiceNumber) {
+          const match = inv.invoiceNumber.match(/\d+/g);
+          if (match) {
+            match.forEach(m => {
+              const num = parseInt(m, 10);
+              if (!isNaN(num) && num > maxNum && num < 100000) maxNum = num;
+            });
+          }
+        }
+      });
+      let storedMax = 0;
+      try { storedMax = parseInt(localStorage.getItem('pos_max_invoice_seq') || '0', 10); } catch {}
+      computedSeq = Math.max(maxNum, storedMax, (invoices || []).length) + 1;
+    }
+
+    const invoiceNumber = oldInvoice
+      ? oldInvoice.invoiceNumber
+      : (extraOptions?.invoiceNumber && extraOptions.invoiceNumber !== 'INV-0001')
+      ? extraOptions.invoiceNumber
+      : `INV-${String(computedSeq).padStart(4, '0')}`;
     const today = extraOptions?.date || new Date().toISOString().split('T')[0];
     const appliedTaxRate = extraOptions?.taxRate !== undefined ? extraOptions.taxRate : settings.vatRate;
     const additionalFees = extraOptions?.additionalCharges || 0;
