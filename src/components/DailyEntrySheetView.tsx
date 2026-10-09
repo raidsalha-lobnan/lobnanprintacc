@@ -232,9 +232,8 @@ export const DailyEntrySheetView: React.FC = () => {
         if (editingRowId === rowId) {
           setEditingRowId(null);
         }
-        localDirtyRowIds.current.delete(rowId);
+        // إزالة الحفل وإلغاء قفل السطر دون طمس البيانات المحلية المكتوبة
         releaseDailyEntryRowLock(selectedDate, rowId);
-        // الاحتفاظ بالبيانات محلياً فقط أثناء الإدخال، ولا تتم المزامنة إلا بالضغط على (+)
         setIsSaved(false);
       }
     }, 150);
@@ -296,36 +295,25 @@ export const DailyEntrySheetView: React.FC = () => {
         const remoteMap = new Map<string, DailyEntryRow>(sheet.rows.map(r => [r.id, r]));
 
         const merged = prevRows.map(localRow => {
-          // البند قيد الإدخال حالياً يُحفظ محلياً ولا يتم طمسه من السحابة حتى يضغط المستخدم على (+)
-          if (localRow.id === activeId || dirtySet.has(localRow.id) || localRow.isSaved === false) {
+          // حماية فائقة للبيانات المحلية: إذا كان السطر غير محفوظ، أو يملك بيانات أدخلها المستخدم، ينبغي عدم طمسه من الحالة البعيدة
+          const localHasData = Boolean(
+            (localRow.customerName && localRow.customerName.trim()) ||
+            (localRow.itemName && localRow.itemName.trim()) ||
+            (localRow.notes && localRow.notes.trim()) ||
+            Number(localRow.requiredAmount) > 0 ||
+            Number(localRow.paidAmount) > 0
+          );
+
+          if (localRow.id === activeId || dirtySet.has(localRow.id) || localRow.isSaved === false || localHasData) {
             return localRow;
           }
 
           const remoteRow = remoteMap.get(localRow.id);
           if (!remoteRow) return localRow;
 
-          // Prevent blank remote row from wiping populated local row
-          const localHasData = Boolean(
-            (localRow.customerName && localRow.customerName.trim()) ||
-            (localRow.itemName && localRow.itemName.trim()) ||
-            Number(localRow.requiredAmount) > 0 ||
-            Number(localRow.paidAmount) > 0
-          );
-          const remoteHasData = Boolean(
-            (remoteRow.customerName && remoteRow.customerName.trim()) ||
-            (remoteRow.itemName && remoteRow.itemName.trim()) ||
-            Number(remoteRow.requiredAmount) > 0 ||
-            Number(remoteRow.paidAmount) > 0
-          );
-
-          if (localHasData && !remoteHasData) {
-            return localRow;
-          }
-
           return remoteRow;
         });
 
-        // لا نعيد دمج الأسطر المحذوفة
         return merged;
       });
 
