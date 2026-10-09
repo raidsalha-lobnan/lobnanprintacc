@@ -2741,7 +2741,9 @@ const CustomerCellInput: React.FC<{
               <button
                 key={`cust-${p.id || idx}`}
                 type="button"
-                onClick={() => {
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   onChange(p.name, p.id);
                   setIsOpen(false);
                 }}
@@ -2856,7 +2858,9 @@ const ItemCellInput: React.FC<{
               <button
                 key={`item-${inv.id || idx}`}
                 type="button"
-                onClick={() => {
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   onChange(inv.name, inv.id, inv.sellingPrice);
                   setIsOpen(false);
                 }}
