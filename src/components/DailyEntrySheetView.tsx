@@ -89,7 +89,7 @@ export const DailyEntrySheetView: React.FC = () => {
 
   // Current selected business date (YYYY-MM-DD)
   // وضع عرض الكشف: متتابع بدون فلترة باليوم (افتراضي) أو يوم محدد فقط
-  const [viewMode, setViewMode] = useState<'continuous' | 'single_day'>('continuous');
+  const [viewMode, setViewMode] = useState<'continuous' | 'single_day'>('single_day');
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
   });
@@ -503,16 +503,17 @@ export const DailyEntrySheetView: React.FC = () => {
 
   // Add sub-item for the SAME customer in the same invoice (زر + في الزاوية السفلية لاسم الصنف)
   // وظيفة هذا الزر: إضافة أكثر من صنف لنفس الزبون، تجميع المبالغ، تجميد آلية الدفع واعتمادها لآخر بند فقط، ونفس الرقم المتسلسل
-  const handleAddCustomerSubItem = (index: number) => {
+  const handleAddCustomerSubItem = (rowId: string) => {
     setIsSaved(false);
     setRows(prev => {
-      const parent = prev[index];
-      if (!parent) return prev;
+      const parentIdx = prev.findIndex(r => r.id === rowId);
+      if (parentIdx === -1) return prev;
+      const parent = prev[parentIdx];
 
       const targetSerial = parent.serialNumber;
-      // Find the last row in this customer group
-      let lastGroupIdx = index;
-      for (let i = index; i < prev.length; i++) {
+      // Find the last row in this customer group across state
+      let lastGroupIdx = parentIdx;
+      for (let i = parentIdx; i < prev.length; i++) {
         if (prev[i].serialNumber === targetSerial) {
           lastGroupIdx = i;
         } else {
@@ -544,7 +545,7 @@ export const DailyEntrySheetView: React.FC = () => {
       };
 
       // تجمد آلية الدفع وملاحظة السداد في الأسطر السابقة لنفس الزبون لتعتمد فقط في آخر بند
-      const updatedPrev = prev.map((r, i) => {
+      const updatedPrev = prev.map((r) => {
         if (r.serialNumber === targetSerial) {
           return {
             ...r,
@@ -1089,7 +1090,7 @@ export const DailyEntrySheetView: React.FC = () => {
   }, [filteredRows]);
 
   return (
-    <div className="space-y-3 font-sans pb-16 print:p-0 print:space-y-0" dir="rtl">
+    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden font-sans gap-2 p-1 print:h-auto print:overflow-visible print:p-0" dir="rtl">
       {/* 1. UNIFIED COMPACT HEADER BAR (دمج كافة الأسطر بسطر واحد وحذف الكلام الزائد) */}
       <div className="bg-white border border-slate-300 rounded-2xl p-2.5 sm:px-4 shadow-sm print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1797,7 +1798,7 @@ export const DailyEntrySheetView: React.FC = () => {
           )}
 
           {/* The Responsive Table Container with Sticky Header */}
-          <div className="overflow-x-auto overflow-y-auto max-h-[70vh] min-h-[360px] border border-slate-200 rounded-xl relative scrollbar-thin shadow-2xs bg-white">
+          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto border border-slate-300 rounded-xl relative scrollbar-thin shadow-xs bg-white">
             <table className="w-full text-right border-collapse text-xs table-fixed">
               {/* Controlled Column Widths via Colgroup */}
               <colgroup>
@@ -2019,8 +2020,8 @@ export const DailyEntrySheetView: React.FC = () => {
                           ? 'bg-blue-50/40 border-r-4 border-r-blue-500 ring-1 ring-blue-300/80 shadow-2xs'
                           : isApproved
                           ? 'bg-emerald-50/90 border-r-4 border-r-emerald-600 hover:bg-emerald-100/70 shadow-2xs text-slate-900'
-                          : row.isAdditionalItem
-                          ? 'bg-slate-200/80 hover:bg-slate-200/90 border-r-4 border-r-slate-400 font-medium'
+                          : (groupInfo.isMultiItem || row.isAdditionalItem)
+                          ? 'bg-slate-200/85 hover:bg-slate-200/95 border-r-4 border-r-slate-400 font-medium'
                           : idx % 2 === 0
                           ? 'bg-white'
                           : 'bg-slate-50/50'
@@ -2059,14 +2060,18 @@ export const DailyEntrySheetView: React.FC = () => {
                       <td className="py-0.5 px-1 text-center font-mono text-[11px] font-bold border-l border-slate-200 align-middle bg-slate-50/40">
                         <input
                           type="date"
-                          disabled={isLockedByOther}
+                          disabled={isLockedByOther || row.isAdditionalItem}
                           value={row.entryDate || selectedDate}
                           onChange={e => {
                             const newDate = e.target.value;
                             handleUpdateRow(row.id, { entryDate: newDate });
                           }}
-                          className="w-full bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded px-1 py-0.5 text-center text-[10.5px] font-mono font-bold text-slate-800 outline-none transition"
-                          title="تاريخ حركة هذا السطر"
+                          className={`w-full border rounded px-1 py-0.5 text-center text-[10.5px] font-mono font-bold text-slate-800 outline-none transition ${
+                            row.isAdditionalItem
+                              ? 'bg-slate-200/90 border-slate-300 text-slate-600 cursor-not-allowed select-none'
+                              : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500'
+                          }`}
+                          title={row.isAdditionalItem ? "التاريخ مقفل تلقائياً كبند تابع لنفس الفاتورة" : "تاريخ حركة هذا السطر"}
                         />
                       </td>
 
@@ -2074,9 +2079,10 @@ export const DailyEntrySheetView: React.FC = () => {
                       <td className="p-0.5 border-l border-slate-200">
                         <div className="relative">
                           <CustomerCellInput
+                            isAdditionalItem={groupInfo.isMultiItem || row.isAdditionalItem}
                             value={row.customerName}
                             parties={parties}
-                            disabled={isLockedByOther}
+                            disabled={isLockedByOther || row.isAdditionalItem}
                             onFocus={() => handleRowFocus(row.id, 'customerName')}
                             onBlur={() => handleRowBlur(row.id)}
                             onChange={(name, custId) => {
@@ -2099,7 +2105,7 @@ export const DailyEntrySheetView: React.FC = () => {
                           <div className="relative">
                             <input
                               type="text"
-                              disabled={isLockedByOther}
+                              disabled={isLockedByOther || row.isAdditionalItem}
                               list={`sub-list-${row.id}`}
                               value={row.subCustomerName || ''}
                               onFocus={() => handleRowFocus(row.id, 'subCustomerName')}
@@ -2115,7 +2121,9 @@ export const DailyEntrySheetView: React.FC = () => {
                               className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] outline-none ${
                                 isLockedByOther
                                   ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
-                                  : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
+                                  : (groupInfo.isMultiItem || row.isAdditionalItem)
+                                ? 'bg-slate-200/90 border-slate-300 hover:border-slate-400 focus:border-blue-500 text-slate-900 font-bold'
+                                : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
                               }`}
                             />
                             <datalist id={`sub-list-${row.id}`}>
@@ -2129,7 +2137,7 @@ export const DailyEntrySheetView: React.FC = () => {
                         ) : (
                           <input
                             type="text"
-                            disabled={isLockedByOther}
+                            disabled={isLockedByOther || row.isAdditionalItem}
                             value={row.subCustomerName || ''}
                             onFocus={() => handleRowFocus(row.id, 'subCustomerName')}
                             onBlur={() => handleRowBlur(row.id)}
@@ -2144,6 +2152,8 @@ export const DailyEntrySheetView: React.FC = () => {
                             className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] outline-none ${
                               isLockedByOther
                                 ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                                : (groupInfo.isMultiItem || row.isAdditionalItem)
+                                ? 'bg-slate-200/90 border-slate-300 hover:border-slate-400 focus:border-blue-500 text-slate-900 font-bold'
                                 : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
                             }`}
                           />
@@ -2153,6 +2163,7 @@ export const DailyEntrySheetView: React.FC = () => {
                       {/* 4. الصنف + علامة (+) في زاوية مربع الصنف لإضافة صنف آخر لنفس الزبون */}
                       <td className="p-0.5 border-l border-slate-200">
                         <ItemCellInput
+                          isAdditionalItem={groupInfo.isMultiItem || row.isAdditionalItem}
                           value={row.itemName}
                           inventory={inventory}
                           disabled={isLockedByOther}
@@ -2169,7 +2180,7 @@ export const DailyEntrySheetView: React.FC = () => {
                             }
                             handleUpdateRow(row.id, updates);
                           }}
-                          onAddSubItem={() => handleAddCustomerSubItem(idx)}
+                          onAddSubItem={() => handleAddCustomerSubItem(row.id)}
                         />
                       </td>
 
@@ -2186,7 +2197,9 @@ export const DailyEntrySheetView: React.FC = () => {
                           className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] outline-none ${
                             isLockedByOther
                               ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
-                              : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
+                              : (groupInfo.isMultiItem || row.isAdditionalItem)
+                                ? 'bg-slate-200/90 border-slate-300 hover:border-slate-400 focus:border-blue-500 text-slate-900 font-bold'
+                                : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
                           }`}
                         />
                       </td>
@@ -2300,6 +2313,8 @@ export const DailyEntrySheetView: React.FC = () => {
                             className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] outline-none placeholder:text-slate-400 ${
                               isLockedByOther
                                 ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                                : (groupInfo.isMultiItem || row.isAdditionalItem)
+                                ? 'bg-slate-200/90 border-slate-300 hover:border-slate-400 focus:border-blue-500 text-slate-900 font-bold'
                                 : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-800'
                             }`}
                           />
@@ -2446,105 +2461,52 @@ export const DailyEntrySheetView: React.FC = () => {
         </div>
       )}
 
-      {/* 3. SUMMARY CARDS & TREASURY BREAKDOWN */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 print:hidden">
-        {/* Card 1: Total Required */}
-        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10.5px] text-slate-500 font-bold block">إجمالي المطلوب (المبيعات)</span>
-            <strong className="text-base font-mono font-black text-slate-900 mt-0.5 block">
-              {totals.totalRequired.toLocaleString('ar-SA')} ₪
-            </strong>
+      {/* COMPACT SINGLE-ROW FOOTER TOOLBAR (شريط إجماليات وملاحظات مدمج بسطر واحد) */}
+      <div className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 shadow-xs flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs print:hidden">
+        {/* 1. Summary Totals Badges */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <span className="text-slate-500 font-bold text-[11px]">المطلوب:</span>
+            <strong className="font-mono font-black text-slate-900">{totals.totalRequired.toFixed(2)} ₪</strong>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
-            <Coins className="w-4 h-4" />
+          <div className="flex items-center gap-1 border-r border-slate-200 pr-3">
+            <span className="text-slate-500 font-bold text-[11px]">المقبوض:</span>
+            <strong className="font-mono font-black text-emerald-700">{totals.totalPaid.toFixed(2)} ₪</strong>
           </div>
-        </div>
-
-        {/* Card 2: Total Paid */}
-        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10.5px] text-slate-500 font-bold block">إجمالي المقبوض (المدفوع)</span>
-            <strong className="text-base font-mono font-black text-emerald-700 mt-0.5 block">
-              {totals.totalPaid.toLocaleString('ar-SA')} ₪
-            </strong>
+          <div className="flex items-center gap-1 border-r border-slate-200 pr-3">
+            <span className="text-slate-500 font-bold text-[11px]">الآجل:</span>
+            <strong className="font-mono font-black text-rose-700">{totals.totalRemaining.toFixed(2)} ₪</strong>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-            <Wallet className="w-4 h-4" />
+          <div className="flex items-center gap-1 border-r border-slate-200 pr-3">
+            <span className="text-slate-500 font-bold text-[11px]">الحالة:</span>
+            <span className="font-bold text-emerald-700">{totals.approvedCount} معتمد</span>
+            {totals.pendingCount > 0 && <span className="text-slate-400">({totals.pendingCount} معلق)</span>}
           </div>
         </div>
 
-        {/* Card 3: Total Remaining */}
-        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10.5px] text-slate-500 font-bold block">إجمالي الآجل (المتبقي)</span>
-            <strong className="text-base font-mono font-black text-rose-700 mt-0.5 block">
-              {totals.totalRemaining.toLocaleString('ar-SA')} ₪
-            </strong>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center font-bold">
-            <Clock className="w-4 h-4" />
-          </div>
-        </div>
-
-        {/* Card 4: Approval Status */}
-        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10.5px] text-slate-500 font-bold block">حالة الاعتماد والفواتير</span>
-            <div className="flex items-center gap-1 mt-0.5">
-              <strong className="text-base font-mono font-black text-emerald-700">
-                {totals.approvedCount} معتمد
-              </strong>
-              <span className="text-[11px] text-slate-400 font-bold">
-                ({totals.pendingCount} معلق)
-              </span>
+        {/* 2. Treasuries Breakdown & Compact Notes */}
+        <div className="flex items-center gap-2 flex-1 max-w-xl">
+          {Object.keys(totals.treasuryBreakdown).length > 0 && (
+            <div className="flex items-center gap-1 shrink-0 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg text-[11px]">
+              <Building2 className="w-3 h-3 text-blue-600" />
+              {(Object.entries(totals.treasuryBreakdown) as [string, { name: string; amount: number; count: number }][]).slice(0, 2).map(([tKey, tData]) => (
+                <span key={tKey} className="font-bold text-slate-700">
+                  {tData.name}: <strong className="font-mono text-emerald-800">{tData.amount.toFixed(2)} ₪</strong>
+                </span>
+              ))}
             </div>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
+          )}
+          <input
+            type="text"
+            value={sheetNotes}
+            onChange={e => {
+              setIsSaved(false);
+              setSheetNotes(e.target.value);
+            }}
+            placeholder="ملاحظات الكشف..."
+            className="flex-1 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:bg-white focus:border-blue-500 placeholder:text-slate-400 min-w-[140px]"
+          />
         </div>
-      </div>
-
-      {/* 4. TREASURIES BREAKDOWN BAR */}
-      {Object.keys(totals.treasuryBreakdown).length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs print:hidden">
-          <div className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 text-blue-600" />
-            <span>توزيع المقبوضات حسب الصناديق والبنوك لليوم:</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {(Object.entries(totals.treasuryBreakdown) as [string, { name: string; amount: number; count: number }][]).map(([tKey, tData]) => (
-              <div
-                key={tKey}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 flex items-center gap-1.5 text-xs"
-              >
-                <span className="font-bold text-slate-700">{tData.name}:</span>
-                <strong className="font-mono text-emerald-800 font-black">
-                  {tData.amount.toFixed(2)} ₪
-                </strong>
-                <span className="text-[10px] text-slate-400 font-mono">({tData.count} حركات)</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 5. COMPACT GENERAL NOTES */}
-      <div className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-2xs flex items-center gap-2 print:hidden">
-        <label className="text-xs font-bold text-slate-600 shrink-0">
-          ملاحظات الكشف:
-        </label>
-        <input
-          type="text"
-          value={sheetNotes}
-          onChange={e => {
-            setIsSaved(false);
-            setSheetNotes(e.target.value);
-          }}
-          placeholder="أية ملاحظات عامة اختيارية على كشف يوم العمل..."
-          className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:bg-white focus:border-blue-500 placeholder:text-slate-400"
-        />
       </div>
 
       {/* 6. CONFIRM DELETE ROW MODAL (حذف نهائي للسطر) */}
@@ -2657,9 +2619,10 @@ const CustomerCellInput: React.FC<{
   parties: Party[];
   onChange: (customerName: string, customerId?: string) => void;
   disabled?: boolean;
+  isAdditionalItem?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
-}> = ({ value, parties, onChange, disabled, onFocus, onBlur }) => {
+}> = ({ value, parties, onChange, disabled, isAdditionalItem, onFocus, onBlur }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -2709,6 +2672,8 @@ const CustomerCellInput: React.FC<{
         className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] font-bold outline-none placeholder:font-normal ${
           disabled
             ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none"
+            : isAdditionalItem
+            ? "bg-slate-200/90 border-slate-300 hover:border-slate-400 focus:border-blue-500 text-slate-900 font-bold"
             : "bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400"
         }`}
       />
@@ -2759,9 +2724,10 @@ const ItemCellInput: React.FC<{
   onChange: (itemName: string, itemId?: string, itemPrice?: number) => void;
   onAddSubItem?: () => void;
   disabled?: boolean;
+  isAdditionalItem?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
-}> = ({ value, inventory, onChange, onAddSubItem, disabled, onFocus, onBlur }) => {
+}> = ({ value, inventory, onChange, onAddSubItem, disabled, isAdditionalItem, onFocus, onBlur }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -2809,6 +2775,8 @@ const ItemCellInput: React.FC<{
         className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] font-bold outline-none placeholder:font-normal ${
           disabled
             ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none"
+            : isAdditionalItem
+            ? "bg-slate-200/90 border-slate-300 hover:border-slate-400 focus:border-blue-500 text-slate-900 font-bold"
             : "bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400"
         } ${onAddSubItem ? "pl-5" : ""}`}
       />
