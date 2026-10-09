@@ -37,7 +37,8 @@ import {
   Edit3,
   SlidersHorizontal,
   Columns,
-  RotateCcw
+  RotateCcw,
+  Eraser
 } from 'lucide-react';
 import { useAccounting } from '../context/AccountingContext';
 import { DailyEntryRow, DailyEntrySheet, RowLockInfo, Party, InventoryItem, Treasury } from '../types';
@@ -54,6 +55,7 @@ const STORAGE_KEY_MULTI_DRAFTS = 'accounting_pending_multi_draft_invoices_v5';
 // Default column widths for Daily Entry Table (in pixels)
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   serial: 52,
+  entryDate: 110,
   customerName: 195,
   subCustomerName: 155,
   itemName: 205,
@@ -86,6 +88,8 @@ export const DailyEntrySheetView: React.FC = () => {
   } = useAccounting();
 
   // Current selected business date (YYYY-MM-DD)
+  // وضع عرض الكشف: متتابع بدون فلترة باليوم (افتراضي) أو يوم محدد فقط
+  const [viewMode, setViewMode] = useState<'continuous' | 'single_day'>('continuous');
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
   });
@@ -111,6 +115,7 @@ export const DailyEntrySheetView: React.FC = () => {
   });
 
   const [showColumnControls, setShowColumnControls] = useState<boolean>(false);
+  const [showFilterBar, setShowFilterBar] = useState<boolean>(false);
 
   const saveColumnWidths = (newWidths: Record<string, number>) => {
     setColumnWidths(newWidths);
@@ -227,9 +232,8 @@ export const DailyEntrySheetView: React.FC = () => {
         }
         localDirtyRowIds.current.delete(rowId);
         releaseDailyEntryRowLock(selectedDate, rowId);
-        // Save immediately on completing a row
-        saveDailyEntrySheet(selectedDate, rows, sheetNotes);
-        setIsSaved(true);
+        // الاحتفاظ بالبيانات محلياً فقط أثناء الإدخال، ولا تتم المزامنة إلا بالضغط على (+)
+        setIsSaved(false);
       }
     }, 150);
   };
@@ -240,15 +244,16 @@ export const DailyEntrySheetView: React.FC = () => {
   }, [treasuries]);
 
   // Customer & Sub-Customer Live Filtering Across All Entry Days
+  const [filterDate, setFilterDate] = useState<string>(''); // تصفية وفلترة مباشرة على عمود التاريخ
   const [filterCustomer, setFilterCustomer] = useState<string>('');
   const [filterSubCustomer, setFilterSubCustomer] = useState<string>('');
-  const [filterScope, setFilterScope] = useState<'selected_day' | 'all_days'>('selected_day');
+  const [filterScope, setFilterScope] = useState<'selected_day' | 'all_days'>('all_days');
   const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'pending'>('all');
   const [showAllDaysDirectly, setShowAllDaysDirectly] = useState<boolean>(false);
 
   const isFilterActive = useMemo(() => {
-    return filterCustomer.trim().length > 0 || filterSubCustomer.trim().length > 0 || showAllDaysDirectly || filterStatus !== 'all';
-  }, [filterCustomer, filterSubCustomer, showAllDaysDirectly, filterStatus]);
+    return filterDate.trim().length > 0 || filterCustomer.trim().length > 0 || filterSubCustomer.trim().length > 0 || showAllDaysDirectly || filterStatus !== 'all';
+  }, [filterDate, filterCustomer, filterSubCustomer, showAllDaysDirectly, filterStatus]);
 
   // Load & Reconcile sheet for selected date without mixing days or wiping local edits
   useEffect(() => {
@@ -289,8 +294,8 @@ export const DailyEntrySheetView: React.FC = () => {
         const remoteMap = new Map<string, DailyEntryRow>(sheet.rows.map(r => [r.id, r]));
 
         const merged = prevRows.map(localRow => {
-          // If local row is actively being typed or dirty, preserve local edits!
-          if (localRow.id === activeId || dirtySet.has(localRow.id)) {
+          // البند قيد الإدخال حالياً يُحفظ محلياً ولا يتم طمسه من السحابة حتى يضغط المستخدم على (+)
+          if (localRow.id === activeId || dirtySet.has(localRow.id) || localRow.isSaved === false) {
             return localRow;
           }
 
@@ -347,24 +352,8 @@ export const DailyEntrySheetView: React.FC = () => {
     return getAllDailyEntryDates();
   }, [getAllDailyEntryDates, isSaved]);
 
-  // Auto-save debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // Only save if there's at least one non-empty row or notes
-      const hasContent = rows.some(r => 
-        (r.customerName && r.customerName.trim().length > 0) || 
-        (r.itemName && r.itemName.trim().length > 0) || 
-        Number(r.requiredAmount) > 0 || 
-        Number(r.paidAmount) > 0
-      );
-      if (hasContent) {
-        saveDailyEntrySheet(selectedDate, rows, sheetNotes);
-        setIsSaved(true);
-      }
-    }, 800);
-
-    return () => clearTimeout(timer);
-  }, [rows, sheetNotes, selectedDate]);
+  // لا يتم الحفظ والمزامنة السحابية تلقائياً أثناء الكتابة لمنع أي تداخل
+  // المزامنة تتم فقط على البنود المحفوظة عند الضغط على أيقونة (+) أو الحفظ الصريح أو بعد الحذف
 
   // Helper to find the treasury from the preceding row or closest previous row with a treasury
   const getPrecedingTreasury = (beforeIndex: number, currentRows: DailyEntryRow[]) => {
@@ -531,6 +520,7 @@ export const DailyEntrySheetView: React.FC = () => {
         treasuryName: lastRow.treasuryName || parent.treasuryName,
         parentRowId: parent.parentRowId || parent.id,
         isAdditionalItem: true,
+        entryDate: parent.entryDate || selectedDate,
         isApproved: false
       };
 
@@ -661,6 +651,68 @@ export const DailyEntrySheetView: React.FC = () => {
     setTimeout(() => setStatusMessage(null), 2500);
   };
 
+
+  // وظيفة أيقونة (+) في آخر عمود:
+  // 1. حفظ وتثبيت البند الحالي
+  // 2. تفعيل المزامنة السحابية فوراً على البنود المحفوظة لدى كافة المستخدمين
+  // 3. فتح سطر جديد متتابع للإدخال
+  const handleSaveRowAndOpenNew = (index: number) => {
+    const targetRow = rows[index];
+    if (!targetRow) return;
+
+    // تثبيت هذا البند كمحفوظ رسمياً
+    const updatedRows = rows.map((r, i) => {
+      if (i === index) {
+        return {
+          ...r,
+          isSaved: true
+        };
+      }
+      return r;
+    });
+
+    // إنشاء سطر جديد متتابع
+    const nextSerial = updatedRows.length > 0
+      ? Math.max(...updatedRows.map(r => r.serialNumber || 0)) + 1
+      : 1;
+    const precedingTreasury = (targetRow.treasuryId)
+      ? { id: targetRow.treasuryId, name: targetRow.treasuryName || '' }
+      : getPrecedingTreasury(index + 1, updatedRows);
+
+    const newRow = createEmptyDailyEntryRow(
+      nextSerial,
+      precedingTreasury.id,
+      precedingTreasury.name,
+      '',
+      undefined,
+      '',
+      undefined,
+      undefined,
+      false,
+      targetRow.entryDate || selectedDate
+    );
+
+    const nextRowsWithNew = [
+      ...updatedRows.slice(0, index + 1),
+      newRow,
+      ...updatedRows.slice(index + 1)
+    ];
+
+    const recalculated = recalculateSerialNumbers(nextRowsWithNew);
+    setRows(recalculated);
+    setIsSaved(true);
+
+    // المزامنة السحابية الفورية للبنود المحفوظة
+    saveDailyEntrySheet(selectedDate, recalculated, sheetNotes);
+    posSound.cash();
+
+    setStatusMessage({
+      type: 'success',
+      text: 'تم حفظ البند (#' + targetRow.serialNumber + ') ومزامنته سحابياً بنجاح، وفُتح سطر جديد للإدخال!'
+    });
+    setTimeout(() => setStatusMessage(null), 2500);
+  };
+
   // Deletion Confirmation States
   const [rowToDelete, setRowToDelete] = useState<DailyEntryRow | null>(null);
   const [showDeleteDayConfirm, setShowDeleteDayConfirm] = useState<boolean>(false);
@@ -686,11 +738,14 @@ export const DailyEntrySheetView: React.FC = () => {
     setIsSaved(false);
     setRows(prev => {
       const filtered = prev.filter(r => r.id !== rowId);
-      if (filtered.length === 0) {
-        return [createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name)];
-      }
-      return recalculateSerialNumbers(filtered);
+      const res = filtered.length === 0
+        ? [createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate)]
+        : recalculateSerialNumbers(filtered);
+      // مزامنة فورية للسحابة بعد الحذف
+      saveDailyEntrySheet(selectedDate, res, sheetNotes);
+      return res;
     });
+    setIsSaved(true);
     setRowToDelete(null);
     setStatusMessage({
       type: 'info',
@@ -724,6 +779,61 @@ export const DailyEntrySheetView: React.FC = () => {
     setStatusMessage({
       type: 'success',
       text: `تم الحذف النهائي لكشف يوم ${dateToDelete} بنجاح من السحابة والجهاز.`
+    });
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+
+  // تفريغ ومسح الكلام والبيانات في السطر مع الحفاظ على السطر فارغاً
+  const handleClearRowData = (rowId: string) => {
+    setIsSaved(false);
+    setRows(prev => {
+      const updated = prev.map(r => {
+        if (r.id === rowId) {
+          return {
+            ...r,
+            customerName: "",
+            customerId: undefined,
+            subCustomerName: "",
+            itemName: "",
+            itemId: undefined,
+            notes: "",
+            requiredAmount: 0,
+            paidAmount: 0,
+            isApproved: false,
+            approvedInvoiceNumber: undefined,
+            approvedAt: undefined
+          };
+        }
+        return r;
+      });
+      // مزامنة فورية للسحابة بعد تفريغ السطر
+      saveDailyEntrySheet(selectedDate, updated, sheetNotes);
+      return updated;
+    });
+    setIsSaved(true);
+    setRowToDelete(null);
+    setStatusMessage({
+      type: "info",
+      text: "تم مسح وتفريغ الكلام والبيانات من السطر بنجاح مع بقاء السطر."
+    });
+    setTimeout(() => setStatusMessage(null), 2500);
+  };
+
+  // تفريغ ومسح كافة الكلام والبيانات لكشف اليوم مع الحفاظ على الأسطر فارغة
+  const handleClearDayData = () => {
+    setIsSaved(false);
+    setRows(prev => {
+      const emptyCount = Math.max(5, prev.length);
+      return Array.from({ length: emptyCount }, (_, idx) =>
+        createEmptyDailyEntryRow(idx + 1, defaultTreasury?.id, defaultTreasury?.name)
+      );
+    });
+    setSheetNotes("");
+    setShowDeleteDayConfirm(false);
+    setStatusMessage({
+      type: "info",
+      text: "تم مسح وتفريغ كلام وحركات كشف اليوم بالكامل مع بقاء الأسطر جاهزة للإدخال."
     });
     setTimeout(() => setStatusMessage(null), 3000);
   };
@@ -876,6 +986,10 @@ export const DailyEntrySheetView: React.FC = () => {
       : rows.map(r => ({ ...r, sheetDate: selectedDate }));
 
     return sourceRows.filter(r => {
+      if (filterDate.trim()) {
+        const rowD = r.entryDate || r.sheetDate;
+        if (rowD !== filterDate) return false;
+      }
       if (filterCustomer.trim()) {
         const qCust = normalizeArabicText(filterCustomer);
         const rCust = normalizeArabicText(r.customerName || '');
@@ -916,153 +1030,269 @@ export const DailyEntrySheetView: React.FC = () => {
 
   return (
     <div className="space-y-3 font-sans pb-16 print:p-0 print:space-y-0" dir="rtl">
-      {/* 1. TOP HEADER & DATE CONTROLS */}
-      <div className="bg-white border border-slate-300 rounded-2xl p-3 sm:p-4 shadow-sm print:hidden">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      {/* 1. UNIFIED COMPACT HEADER BAR (دمج كافة الأسطر بسطر واحد وحذف الكلام الزائد) */}
+      <div className="bg-white border border-slate-300 rounded-2xl p-2.5 sm:px-4 shadow-sm print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           
-          {/* Title & Badge */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-              <CalendarCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                  كشف إدخال يومي
-                </h1>
-                <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-                  حركات يوم العمل
-                </span>
-                {isSaved ? (
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-bold">
-                    <Check className="w-3 h-3 text-emerald-600" />
-                    <span>محفوظ</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 font-bold animate-pulse">
-                    <Clock className="w-3 h-3" />
-                    <span>تعديلات غير محفوظة</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Date Selector & Fast Nav */}
-          <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 p-1 rounded-xl">
-            <span className="text-xs font-bold text-slate-700 flex items-center gap-1 mr-1">
-              <Calendar className="w-3.5 h-3.5 text-blue-600" />
-              <span>تاريخ اليوم:</span>
-            </span>
-
-            <button
-              type="button"
-              onClick={() => changeDateByDays(-1)}
-              className="p-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition cursor-pointer"
-              title="اليوم السابق"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
-            />
-
-            <button
-              type="button"
-              onClick={() => changeDateByDays(1)}
-              className="p-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition cursor-pointer"
-              title="اليوم التالي"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-              className="px-2 py-0.5 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition cursor-pointer"
-            >
-              اليوم الحالي
-            </button>
-          </div>
-
-          {/* Action Buttons */}
+          {/* Right: Title & Date Selector & View Mode */}
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
+                <CalendarCheck className="w-4 h-4" />
+              </div>
+              <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                كشف إدخال يومي
+              </h1>
+            </div>
+
+            {/* Mode: Continuous vs Single Day */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('continuous');
+                  setFilterDate('');
+                }}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                  viewMode === 'continuous'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                كشف متتابع
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('single_day');
+                  setFilterDate(selectedDate);
+                }}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                  viewMode === 'single_day'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                يوم محدد
+              </button>
+            </div>
+
+            {/* Date Picker & Navigation */}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => changeDateByDays(-1)}
+                className="p-1 hover:bg-slate-200 rounded text-slate-700 transition cursor-pointer"
+                title="اليوم السابق"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={e => {
+                  const d = e.target.value;
+                  setSelectedDate(d);
+                  if (viewMode === 'single_day') {
+                    setFilterDate(d);
+                  }
+                }}
+                className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+              />
+
+              <button
+                type="button"
+                onClick={() => changeDateByDays(1)}
+                className="p-1 hover:bg-slate-200 rounded text-slate-700 transition cursor-pointer"
+                title="اليوم التالي"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                className="px-2 py-0.5 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded text-[11px] font-bold transition cursor-pointer"
+              >
+                اليوم
+              </button>
+            </div>
+
+            {/* Live Filter Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setShowFilterBar(prev => !prev)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer border ${
+                showFilterBar || isFilterActive
+                  ? 'bg-blue-50 text-blue-700 border-blue-300'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              }`}
+              title="تصفية واستعلام الحركات"
+            >
+              <Filter className="w-3.5 h-3.5 text-blue-600" />
+              <span>بحث وتصفية</span>
+              {isFilterActive && (
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+              )}
+            </button>
+          </div>
+
+          {/* Left: Quick Actions & Status */}
+          <div className="flex items-center gap-1.5">
+            {isSaved ? (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 font-bold">
+                <Check className="w-3 h-3 text-emerald-600" />
+                <span>محفوظ</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 font-bold animate-pulse">
+                <Clock className="w-3 h-3" />
+                <span>غير محفوظ</span>
+              </span>
+            )}
+
             <button
               type="button"
               onClick={handleSaveExplicit}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
               title="حفظ بيانات الكشف الآن"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>حفظ الكشف</span>
+              <span>حفظ</span>
             </button>
 
             <button
               type="button"
               onClick={handleTransferToDrafts}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition cursor-pointer"
-              title="ترحيل حركات كشف اليوم كمسودات فواتير والانتقال لشاشة مراجعة واعتماد الفواتير بالتتابع"
+              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              title="ترحيل الحركات كمسودات فواتير"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>
-                {totals.pendingCount > 0
-                  ? `ترحيل إلى مسودات الفواتير (${totals.pendingCount}) 🚀`
-                  : totals.validRowsCount > 0 && totals.approvedCount === totals.validRowsCount
-                  ? 'كافة الفواتير معتمدة ومحفوظة ✔'
-                  : 'ترحيل إلى مسودات الفواتير 🚀'}
-              </span>
+              <span>ترحيل ({totals.pendingCount > 0 ? totals.pendingCount : totals.validRowsCount})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowDeleteDayConfirm(true)}
               disabled={!recordedDates.includes(selectedDate) && rows.every(r => !r.customerName && !r.itemName && Number(r.requiredAmount) === 0)}
-              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-              title="حذف نهائي لكشف هذا اليوم من السحابة وقاعدة البيانات"
+              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              title="حذف نهائي لكشف هذا اليوم"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-              <span>حذف نهائي</span>
             </button>
 
             <button
               type="button"
               onClick={() => window.print()}
-              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition cursor-pointer"
-              title="طباعة كشف هذا اليوم"
+              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg transition cursor-pointer"
+              title="طباعة"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-3.5 h-3.5" />
             </button>
           </div>
 
         </div>
 
-        {/* Existing Dates Pills Bar */}
-        {recordedDates.length > 0 && (
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            <span className="text-[11px] text-slate-400 font-bold shrink-0">
-              أيام مسجلة سابقة:
-            </span>
-            {recordedDates.slice(0, 10).map(d => {
-              const isCurrent = d === selectedDate;
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setSelectedDate(d)}
-                  className={`px-2.5 py-0.5 rounded-lg text-[11px] font-mono font-bold transition shrink-0 cursor-pointer ${
-                    isCurrent
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
-                  }`}
-                >
-                  {d}
-                </button>
-              );
-            })}
+        {/* Collapsible Search & Filter Row */}
+        {(showFilterBar || isFilterActive) && (
+          <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+            {/* 1. Date Filter */}
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-600">التاريخ:</span>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={e => {
+                  setFilterDate(e.target.value);
+                  if (e.target.value) setFilterScope('all_days');
+                }}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-slate-800 outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* 2. Customer Filter */}
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-600">الزبون:</span>
+              <input
+                type="text"
+                list="filter-customers-list"
+                value={filterCustomer}
+                onChange={e => {
+                  setFilterCustomer(e.target.value);
+                  if (e.target.value.trim()) setFilterScope('all_days');
+                }}
+                placeholder="اسم الزبون..."
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 w-36"
+              />
+              <datalist id="filter-customers-list">
+                {customerSuggestions.map((c, i) => (
+                  <option key={`cust-sug-${i}`} value={c} />
+                ))}
+              </datalist>
+            </div>
+
+            {/* 3. SubCustomer Filter */}
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-600">الفرعي:</span>
+              <input
+                type="text"
+                list="filter-subcustomers-list"
+                value={filterSubCustomer}
+                onChange={e => {
+                  setFilterSubCustomer(e.target.value);
+                  if (e.target.value.trim()) setFilterScope('all_days');
+                }}
+                placeholder="الفرعي..."
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 w-28"
+              />
+              <datalist id="filter-subcustomers-list">
+                {subCustomerSuggestions.map((s, i) => (
+                  <option key={`sub-sug-${i}`} value={s} />
+                ))}
+              </datalist>
+            </div>
+
+            {/* 4. Scope Buttons */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setFilterScope('all_days')}
+                className={`px-2 py-0.5 rounded font-bold text-[10.5px] transition cursor-pointer ${
+                  filterScope === 'all_days' ? 'bg-blue-600 text-white' : 'text-slate-600'
+                }`}
+              >
+                كافة الأيام
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterScope('selected_day')}
+                className={`px-2 py-0.5 rounded font-bold text-[10.5px] transition cursor-pointer ${
+                  filterScope === 'selected_day' ? 'bg-blue-600 text-white' : 'text-slate-600'
+                }`}
+              >
+                اليوم المحدد
+              </button>
+            </div>
+
+            {/* Clear Filter Button */}
+            {isFilterActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterDate('');
+                  setFilterCustomer('');
+                  setFilterSubCustomer('');
+                  setShowAllDaysDirectly(false);
+                  setFilterStatus('all');
+                }}
+                className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer mr-auto"
+                title="مسح التصفية"
+              >
+                <X className="w-3 h-3" />
+                <span>مسح التصفية</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1070,7 +1300,7 @@ export const DailyEntrySheetView: React.FC = () => {
       {/* STATUS TOAST MESSAGE */}
       {statusMessage && (
         <div
-          className={`p-3 rounded-xl border flex items-center justify-between text-xs font-bold animate-in fade-in duration-200 ${
+          className={`p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold animate-in fade-in duration-200 ${
             statusMessage.type === 'success'
               ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
               : statusMessage.type === 'error'
@@ -1101,253 +1331,6 @@ export const DailyEntrySheetView: React.FC = () => {
           <span>عدد الحركات: <strong className="font-mono">{totals.validRowsCount}</strong></span>
           <span>إجمالي المطلوب: <strong className="font-mono">{totals.totalRequired.toFixed(2)} ₪</strong></span>
           <span>إجمالي المدفوع: <strong className="font-mono">{totals.totalPaid.toFixed(2)} ₪</strong></span>
-        </div>
-      </div>
-
-      {/* APPROVED ROWS HIGHLIGHT BANNER */}
-      {totals.approvedCount > 0 && (
-        <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 px-3.5 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-emerald-950 shadow-2xs print:hidden">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
-              تم اعتماد وحفظ <strong className="font-mono text-emerald-800 text-sm font-black">{totals.approvedCount}</strong> أسطر كفواتير مبيعات رسمية (مظللة باللون الأخضر المميز)
-              {totals.pendingCount > 0 && (
-                <span className="text-slate-600 font-normal mr-2">
-                  (يتبقى <strong className="font-mono text-slate-800 font-bold">{totals.pendingCount}</strong> بانتظار الاعتماد)
-                </span>
-              )}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveTab('invoices')}
-            className="text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1 text-xs cursor-pointer font-black"
-          >
-            <span>عرض الفواتير المعتمدة ➔</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* 2. CUSTOMER & SUB-CUSTOMER LIVE FILTER BAR (Across All Entry Days) */}
-      <div className="bg-white border border-slate-300 rounded-2xl p-3 sm:p-4 shadow-sm print:hidden">
-        <div className="flex flex-col gap-3">
-          
-          {/* Header Row: Title & Sync Badge */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-200">
-                <Filter className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-black text-slate-900">
-                    تصفية واستعلام الحركات (لكافة أيام الإدخال)
-                  </span>
-                  {isFilterActive && (
-                    <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-                      التصفية مفعلة ({filteredRows.length} نتيجة)
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Live Realtime Cloud Sync Badge */}
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>متزامن سحابياً بلحظتها مع كافة المستخدمين 🟢</span>
-              </span>
-
-              {isFilterActive && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilterCustomer('');
-                    setFilterSubCustomer('');
-                    setShowAllDaysDirectly(false);
-                    setFilterStatus('all');
-                  }}
-                  className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-                  title="مسح التصفية والعودة للكشف اليومي"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>مسح التصفية</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Filter Inputs Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {/* 1. Customer Filter Input */}
-            <div className="relative">
-              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                تصفية باسم الزبون الرئيسي:
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="filter-customers-list"
-                  value={filterCustomer}
-                  onChange={e => {
-                    setFilterCustomer(e.target.value);
-                    if (e.target.value.trim()) setFilterScope('all_days');
-                  }}
-                  placeholder="ابحث باسم الزبون..."
-                  className="w-full pr-8 pl-6 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded-xl text-xs font-bold text-slate-900 outline-none transition"
-                />
-                <User className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                {filterCustomer && (
-                  <button
-                    type="button"
-                    onClick={() => setFilterCustomer('')}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                <datalist id="filter-customers-list">
-                  {customerSuggestions.map((c, i) => (
-                    <option key={`cust-sug-${i}`} value={c} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            {/* 2. Sub-Customer Filter Input */}
-            <div className="relative">
-              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                تصفية باسم الزبون الفرعي:
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="filter-subcustomers-list"
-                  value={filterSubCustomer}
-                  onChange={e => {
-                    setFilterSubCustomer(e.target.value);
-                    if (e.target.value.trim()) setFilterScope('all_days');
-                  }}
-                  placeholder="ابحث باسم الزبون الفرعي..."
-                  className="w-full pr-8 pl-6 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded-xl text-xs font-bold text-slate-900 outline-none transition"
-                />
-                <Users className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                {filterSubCustomer && (
-                  <button
-                    type="button"
-                    onClick={() => setFilterSubCustomer('')}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                <datalist id="filter-subcustomers-list">
-                  {subCustomerSuggestions.map((s, i) => (
-                    <option key={`sub-sug-${i}`} value={s} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            {/* 3. Scope Selector (كافة أيام الإدخال vs اليوم المحدد) */}
-            <div>
-              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                نطاق أيام البحث:
-              </label>
-              <div className="grid grid-cols-2 gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setFilterScope('all_days')}
-                  className={`py-1 px-2 rounded-lg font-bold transition cursor-pointer text-center ${
-                    filterScope === 'all_days'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  كافة أيام الإدخال
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterScope('selected_day')}
-                  className={`py-1 px-2 rounded-lg font-bold transition cursor-pointer text-center ${
-                    filterScope === 'selected_day'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  اليوم المحدد ({selectedDate.slice(5)})
-                </button>
-              </div>
-            </div>
-
-            {/* 4. Approval Status Filter Selector */}
-            <div>
-              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                حالة الاعتماد:
-              </label>
-              <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('all')}
-                  className={`py-1 rounded-lg font-bold transition cursor-pointer text-center ${
-                    filterStatus === 'all'
-                      ? 'bg-slate-800 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  الكل
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('approved')}
-                  className={`py-1 rounded-lg font-bold transition cursor-pointer text-center ${
-                    filterStatus === 'approved'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="المعتمد فقط (مع الهايلايت الأخضر)"
-                >
-                  معتمد ✔
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('pending')}
-                  className={`py-1 rounded-lg font-bold transition cursor-pointer text-center ${
-                    filterStatus === 'pending'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="المعلق (غير المعتمد)"
-                >
-                  معلق ⏳
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Quick Browse All Days Toggle Button */}
-          {!isFilterActive && (
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
-              <span className="text-[11px] text-slate-500 font-medium">
-                اكتب اسم الزبون أو الزبون الفرعي أعلاه للفلترة عبر كافة الأيام، أو استعرض كامل السجل مباشرة:
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAllDaysDirectly(true);
-                  setFilterScope('all_days');
-                }}
-                className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg border border-blue-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>استعراض سجل كافة أيام الإدخال ({allRecordedRowsWithDate.length} حركة) ➔</span>
-              </button>
-            </div>
-          )}
-
         </div>
       </div>
 
@@ -1397,6 +1380,7 @@ export const DailyEntrySheetView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    setFilterDate('');
                     setFilterCustomer('');
                     setFilterSubCustomer('');
                     setShowAllDaysDirectly(false);
@@ -1456,6 +1440,7 @@ export const DailyEntrySheetView: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 setSelectedDate(row.sheetDate);
+                                setFilterDate('');
                                 setFilterCustomer('');
                                 setFilterSubCustomer('');
                                 setShowAllDaysDirectly(false);
@@ -1608,8 +1593,11 @@ export const DailyEntrySheetView: React.FC = () => {
           {/* Table Toolbar */}
           <div className="bg-slate-800 text-white px-3 py-2 flex flex-wrap items-center justify-between gap-2 print:hidden">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold">
-                جدول إدخال الحركات (عدد الأسطر: {rows.length})
+              <span className="text-xs font-bold flex items-center gap-1.5">
+                <span>جدول إدخال الحركات المتتابعة (عدد الأسطر: {rows.length})</span>
+                <span className="bg-blue-600/60 text-blue-200 text-[10px] px-1.5 py-0.2 rounded font-mono font-normal">
+                  {viewMode === 'continuous' ? 'متتابع لكافة التواريخ 📋' : 'يوم ' + selectedDate}
+                </span>
               </span>
               <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-mono">
                 الصالح للترحيل: {totals.validRowsCount}
@@ -1719,6 +1707,7 @@ export const DailyEntrySheetView: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-[11px]">
                 {[
                   { key: 'serial', label: '#' },
+                  { key: 'entryDate', label: 'تاريخ اليوم' },
                   { key: 'customerName', label: 'الزبون الرئيسي' },
                   { key: 'subCustomerName', label: 'الزبون الفرعي' },
                   { key: 'itemName', label: 'الصنف' },
@@ -1760,6 +1749,7 @@ export const DailyEntrySheetView: React.FC = () => {
               {/* Controlled Column Widths via Colgroup */}
               <colgroup>
                 <col style={{ width: `${columnWidths.serial || DEFAULT_COLUMN_WIDTHS.serial}px` }} />
+                <col style={{ width: `${columnWidths.entryDate || DEFAULT_COLUMN_WIDTHS.entryDate || 110}px` }} />
                 <col style={{ width: `${columnWidths.customerName || DEFAULT_COLUMN_WIDTHS.customerName}px` }} />
                 <col style={{ width: `${columnWidths.subCustomerName || DEFAULT_COLUMN_WIDTHS.subCustomerName}px` }} />
                 <col style={{ width: `${columnWidths.itemName || DEFAULT_COLUMN_WIDTHS.itemName}px` }} />
@@ -1787,7 +1777,22 @@ export const DailyEntrySheetView: React.FC = () => {
                     </div>
                   </th>
 
-                  {/* 2. اسم الزبون الرئيسي */}
+                  {/* 2. تاريخ اليوم (كشف متتابع) */}
+                  <th
+                    style={{ width: `${columnWidths.entryDate || DEFAULT_COLUMN_WIDTHS.entryDate || 110}px` }}
+                    className="sticky top-0 z-20 bg-slate-100 relative py-1 px-1 text-center border-l border-slate-200 group text-slate-800"
+                  >
+                    <span className="truncate block font-black">التاريخ 📅</span>
+                    <div
+                      onMouseDown={(e) => handleStartResize(e, 'entryDate')}
+                      className="absolute top-0 bottom-0 left-0 w-2.5 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-600 transition-colors z-20 flex items-center justify-center opacity-0 group-hover:opacity-100"
+                      title="اسحب لتعديل العرض"
+                    >
+                      <div className="w-0.5 h-full bg-slate-400 group-hover:bg-blue-600"></div>
+                    </div>
+                  </th>
+
+                  {/* 3. اسم الزبون الرئيسي */}
                   <th
                     style={{ width: `${columnWidths.customerName || DEFAULT_COLUMN_WIDTHS.customerName}px` }}
                     className="sticky top-0 z-20 bg-slate-100 relative py-1 px-2 border-l border-slate-200 group"
@@ -1916,9 +1921,10 @@ export const DailyEntrySheetView: React.FC = () => {
                   {/* 10. إجراء */}
                   <th
                     style={{ width: `${columnWidths.actions || DEFAULT_COLUMN_WIDTHS.actions}px` }}
-                    className="sticky top-0 z-20 bg-slate-100 py-1 px-1.5 text-center print:hidden"
+                    className="sticky top-0 z-20 bg-slate-100 py-1 px-1 text-center print:hidden font-black text-slate-800"
+                    title="أيقونة (+) لحفظ البند ومزامنته سحابياً وفتح سطر جديد"
                   >
-                    إجراء
+                    <span>حفظ (+)</span>
                   </th>
                 </tr>
               </thead>
@@ -1967,40 +1973,53 @@ export const DailyEntrySheetView: React.FC = () => {
                           : 'bg-slate-50/50'
                       }`}
                     >
-                      {/* 1. رقم مسلسل (مشترك ومدمج لكافة أصناف نفس الزبون دون تكرار ودون تابع) */}
-                      {(!groupInfo.isMultiItem || groupInfo.isFirst) && (
-                        <td
-                          rowSpan={groupInfo.isMultiItem ? groupInfo.groupCount : 1}
-                          className="py-0.5 px-0.5 text-center font-mono font-bold text-slate-700 border-l border-slate-200 align-middle bg-slate-50/70"
-                        >
-                          <div className="flex flex-col items-center justify-center min-h-[28px]">
-                            <span className="font-black text-sm text-slate-900">{row.serialNumber}</span>
-                            {isApproved && (
-                              <span className="mt-0.5 px-1 rounded-xs text-[7.5px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
-                                <Check className="w-2 h-2" />
-                                <span>معتمد</span>
-                              </span>
-                            )}
-                            {/* Live Lock Indicator (Excel Online Style) */}
-                            {isLockedByOther && (
-                              <div className="flex flex-col items-center gap-0.2 mt-0.5 bg-amber-100 border border-amber-300 px-1 py-0.2 rounded text-[7.5px] font-bold text-amber-900 shadow-2xs animate-pulse" title={`هذا البند محجوز حالياً للتعديل بواسطة (${lock.userName})`}>
-                                <div className="flex items-center gap-0.5">
-                                  <Lock className="w-2 h-2 text-amber-700 shrink-0" />
-                                  <span className="truncate max-w-[42px]">{lock.userName}</span>
-                                </div>
+                      {/* 1. رقم مسلسل: يُعرض في كل سطر بشكل مستقل ومنظم لمنع أي تداخل بالأعمدة */}
+                      <td className="py-0.5 px-0.5 text-center font-mono font-bold text-slate-700 border-l border-slate-200 align-middle bg-slate-50/70">
+                        <div className="flex flex-col items-center justify-center min-h-[28px]">
+                          <span className="font-black text-sm text-slate-900">{row.serialNumber}</span>
+                          {row.isAdditionalItem && (
+                            <span className="text-[8px] text-blue-600 font-bold leading-none" title="بند إضافي لنفس الزبون">+بند</span>
+                          )}
+                          {isApproved && (
+                            <span className="mt-0.5 px-1 rounded-xs text-[7.5px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
+                              <Check className="w-2 h-2" />
+                              <span>معتمد</span>
+                            </span>
+                          )}
+                          {/* Live Lock Indicator (Excel Online Style) */}
+                          {isLockedByOther && (
+                            <div className="flex flex-col items-center gap-0.2 mt-0.5 bg-amber-100 border border-amber-300 px-1 py-0.2 rounded text-[7.5px] font-bold text-amber-900 shadow-2xs animate-pulse" title={`هذا البند محجوز حالياً للتعديل بواسطة (${lock.userName})`}>
+                              <div className="flex items-center gap-0.5">
+                                <Lock className="w-2 h-2 text-amber-700 shrink-0" />
+                                <span className="truncate max-w-[42px]">{lock.userName}</span>
                               </div>
-                            )}
-                            {isLockedByMe && (
-                              <div className="flex items-center gap-0.5 mt-0.5 bg-blue-100 text-blue-800 border border-blue-200 px-1 py-0.2 rounded text-[7px] font-bold">
-                                <Edit3 className="w-1.5 h-1.5 text-blue-600" />
-                                <span>تعديل</span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      )}
+                            </div>
+                          )}
+                          {isLockedByMe && (
+                            <div className="flex items-center gap-0.5 mt-0.5 bg-blue-100 text-blue-800 border border-blue-200 px-1 py-0.2 rounded text-[7px] font-bold">
+                              <Edit3 className="w-1.5 h-1.5 text-blue-600" />
+                              <span>تعديل</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
 
-                      {/* 2. اسم الزبون الرئيسي */}
+                      {/* 2. عمود تاريخ اليوم: يُعرض في كل سطر بحقل مستقل يضمن ثبات وترتيب الأعمدة 100% */}
+                      <td className="py-0.5 px-1 text-center font-mono text-[11px] font-bold border-l border-slate-200 align-middle bg-slate-50/40">
+                        <input
+                          type="date"
+                          disabled={isLockedByOther}
+                          value={row.entryDate || selectedDate}
+                          onChange={e => {
+                            const newDate = e.target.value;
+                            handleUpdateRow(row.id, { entryDate: newDate });
+                          }}
+                          className="w-full bg-white border border-slate-200 hover:border-slate-400 focus:border-blue-500 rounded px-1 py-0.5 text-center text-[10.5px] font-mono font-bold text-slate-800 outline-none transition"
+                          title="تاريخ حركة هذا السطر"
+                        />
+                      </td>
+
+                      {/* 3. اسم الزبون الرئيسي */}
                       <td className="p-0.5 border-l border-slate-200">
                         <div className="relative">
                           <CustomerCellInput
@@ -2176,9 +2195,9 @@ export const DailyEntrySheetView: React.FC = () => {
                                 handleUpdateRow(row.id, { paidAmount: isNaN(val) ? 0 : val });
                               }}
                               onKeyDown={e => {
-                                if (e.key === 'Enter' && idx === rows.length - 1) {
+                                if (e.key === 'Enter') {
                                   e.preventDefault();
-                                  handleAddRow();
+                                  handleSaveRowAndOpenNew(idx);
                                 }
                               }}
                               placeholder="0.00"
@@ -2324,11 +2343,20 @@ export const DailyEntrySheetView: React.FC = () => {
                           <button
                             type="button"
                             disabled={isLockedByOther}
-                            onClick={() => handleInsertRowBelow(idx)}
-                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="إدراج سطر جديد أسفل هذا السطر"
+                            onClick={() => handleSaveRowAndOpenNew(idx)}
+                            className="p-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center group"
+                            title="حفظ البند ومزامنته سحابياً وفتح سطر جديد (+)"
                           >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-4 h-4 text-white group-hover:scale-110 transition-transform font-black" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isLockedByOther}
+                            onClick={() => handleClearRowData(row.id)}
+                            className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="مسح وتفريغ الكلام والبيانات فقط من هذا السطر"
+                          >
+                            <Eraser className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
@@ -2348,7 +2376,7 @@ export const DailyEntrySheetView: React.FC = () => {
             {/* Table Footer with Sticky Totals */}
             <tfoot className="sticky bottom-0 z-20 shadow-xs">
               <tr className="bg-slate-100 font-black border-t-2 border-slate-400 text-slate-900 text-xs">
-                <td colSpan={5} className="sticky bottom-0 bg-slate-100 py-1.5 px-2 text-left">
+                <td colSpan={6} className="sticky bottom-0 bg-slate-100 py-1.5 px-2 text-left">
                   الإجمالي العام لكشف اليوم ({selectedDate}):
                 </td>
                 <td className="sticky bottom-0 bg-slate-100 py-1.5 px-1 text-center font-mono text-xs font-black text-slate-900">
@@ -2364,22 +2392,7 @@ export const DailyEntrySheetView: React.FC = () => {
             </tfoot>
           </table>
         </div>
-
-        {/* Bottom Bar inside Table */}
-        <div className="bg-slate-50 p-1.5 px-2.5 border-t border-slate-200 flex items-center justify-between text-xs print:hidden">
-          <button
-            type="button"
-            onClick={handleAddRow}
-            className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>إضافة سطر جديد (يرث الصندوق تلقائياً)</span>
-          </button>
-          <span className="text-[11px] text-slate-500 font-mono">
-            إجمالي الأسطر: {rows.length} | الصالحة: {totals.validRowsCount}
-          </span>
         </div>
-      </div>
       )}
 
       {/* 3. SUMMARY CARDS & TREASURY BREAKDOWN */}
@@ -2505,7 +2518,7 @@ export const DailyEntrySheetView: React.FC = () => {
               ؟ سيتم حذفه نهائياً من الكشف ولا يمكن التراجع عنه.
             </p>
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setRowToDelete(null)}
@@ -2515,10 +2528,19 @@ export const DailyEntrySheetView: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={() => handleClearRowData(rowToDelete.id)}
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                title="تفريغ الحقول ومسح النص والأرقام مع بقاء السطر نفسه"
+              >
+                <Eraser className="w-3.5 h-3.5" />
+                <span>حذف الكلام فقط</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => executeDeleteRow(rowToDelete.id)}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
               >
-                تأكيد الحذف النهائي
+                تأكيد الحذف النهائي للسطر
               </button>
             </div>
           </div>
@@ -2543,7 +2565,7 @@ export const DailyEntrySheetView: React.FC = () => {
               هل أنت متأكد من الحذف النهائي لكشف الإدخال اليومي ليوم ({selectedDate}) بالكامل؟ سيتم مسح كافة الحركات والأسطر المسجلة لهذا اليوم نهائياً من السحابة والتخزين المحلي.
             </p>
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowDeleteDayConfirm(false)}
@@ -2553,10 +2575,19 @@ export const DailyEntrySheetView: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={handleClearDayData}
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                title="مسح وتفريغ كافة الحركات والكلام مع إبقاء كشف اليوم فارغاً"
+              >
+                <Eraser className="w-3.5 h-3.5" />
+                <span>حذف الكلام فقط (تفريغ الكشف)</span>
+              </button>
+              <button
+                type="button"
                 onClick={executeDeleteDaySheet}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
               >
-                تأكيد الحذف النهائي
+                تأكيد الحذف النهائي للكشف
               </button>
             </div>
           </div>
@@ -2583,13 +2614,13 @@ const CustomerCellInput: React.FC<{
 
   const filteredParties = useMemo(() => {
     const q = normalizeArabicText(value);
-    if (!q) return parties.filter(p => p.type === 'customer' || p.type === 'both').slice(0, 15);
+    if (!q) return parties.filter(p => p.type === "customer" || p.type === "both").slice(0, 15);
     return parties
-      .filter(p => p.type === 'customer' || p.type === 'both')
+      .filter(p => p.type === "customer" || p.type === "both")
       .filter(p => {
         const pNorm = normalizeArabicText(p.name);
-        const codeNorm = normalizeArabicText(p.code || '');
-        const phoneNorm = normalizeArabicText(p.phone || '');
+        const codeNorm = normalizeArabicText(p.code || "");
+        const phoneNorm = normalizeArabicText(p.phone || "");
         return pNorm.includes(q) || codeNorm.includes(q) || phoneNorm.includes(q);
       })
       .slice(0, 15);
@@ -2601,8 +2632,8 @@ const CustomerCellInput: React.FC<{
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
@@ -2623,11 +2654,11 @@ const CustomerCellInput: React.FC<{
           onChange(e.target.value, undefined);
           setIsOpen(true);
         }}
-        placeholder={disabled ? 'محجوز للتعديل...' : 'ابحث أو اكتب اسم الزبون...'}
+        placeholder={disabled ? "محجوز للتعديل..." : "ابحث أو اكتب اسم الزبون..."}
         className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] font-bold outline-none placeholder:font-normal ${
           disabled
-            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
-            : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400'
+            ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none"
+            : "bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400"
         }`}
       />
 
@@ -2699,8 +2730,8 @@ const ItemCellInput: React.FC<{
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
@@ -2721,15 +2752,14 @@ const ItemCellInput: React.FC<{
           onChange(e.target.value, undefined, undefined);
           setIsOpen(true);
         }}
-        placeholder={disabled ? 'محجوز للتعديل...' : 'الصنف أو الخدمة...'}
+        placeholder={disabled ? "محجوز للتعديل..." : "الصنف أو الخدمة..."}
         className={`w-full px-1.5 py-0.5 h-7 border rounded text-[11px] font-bold outline-none placeholder:font-normal ${
           disabled
-            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none'
-            : 'bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400'
-        } ${onAddSubItem ? 'pl-5' : ''}`}
+            ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed select-none"
+            : "bg-white border-slate-200 hover:border-slate-400 focus:border-blue-500 text-slate-900 placeholder:text-slate-400"
+        } ${onAddSubItem ? "pl-5" : ""}`}
       />
 
-      {/* علامة + فقط في زاوية مربع الصنف */}
       {onAddSubItem && !disabled && (
         <button
           type="button"

@@ -74,15 +74,28 @@
     },
     "DailyEntrySheet": {
       "title": "DailyEntrySheet",
-      "description": "Daily entry sheet containing line entries for multiple customers and items",
+      "description": "Daily entry sheet containing summary info",
       "type": "object",
       "properties": {
         "date": { "type": "string" },
-        "rows": { "type": "array" },
         "notes": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["date", "rows"]
+      "required": ["date"]
+    },
+    "DailyEntryRow": {
+      "title": "DailyEntryRow",
+      "description": "Individual row entry for a daily entry sheet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "itemName": { "type": "string" },
+        "requiredAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "isApproved": { "type": "boolean" }
+      },
+      "required": ["id"]
     }
   },
   "firestore": {
@@ -112,11 +125,16 @@
     },
     "/dailyEntrySheets/{date}": {
       "schema": "DailyEntrySheet",
-      "description": "Live multi-user synced daily entry sheets indexed by date YYYY-MM-DD"
+      "description": "Summary data for a daily entry sheet"
+    },
+    "/dailyEntrySheets/{date}/rows/{rowId}": {
+      "schema": "DailyEntryRow",
+      "description": "Individual rows for daily entry sheets for atomic syncing"
     },
     "/dailyEntrySheetLocks/{date}": {
       "schema": "AuditLog",
       "description": "Realtime row-level collaborative editing locks for daily entry sheets"
     }
+
   }
 }

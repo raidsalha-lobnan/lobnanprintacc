@@ -1012,8 +1012,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(updated));
       } catch (err) {}
 
+      // Atomic row update in sub-collection
       try {
-        setDoc(doc(db, 'dailyEntrySheets', date), updatedSheet).catch(() => {});
+        setDoc(doc(db, 'dailyEntrySheets', date, 'rows', row.id), cleanDocForFirestore(row)).catch(err => {
+          console.warn('Firestore sub-collection row write failed:', err);
+        });
       } catch (e) {}
 
       return updated;

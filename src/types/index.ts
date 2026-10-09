@@ -920,6 +920,8 @@ export interface ZeroingExecutionResult {
 export interface DailyEntryRow {
   id: string;
   serialNumber: number; // رقم مسلسل
+  entryDate?: string; // تاريخ اليوم (YYYY-MM-DD) للحركة المتتابعة
+  isSaved?: boolean; // هل تم حفظ وتثبيت هذا البند رسمياً والمزامنة عليه
   customerId?: string;
   customerName: string; // اسم الزبون الرئيسي
   subCustomerId?: string;

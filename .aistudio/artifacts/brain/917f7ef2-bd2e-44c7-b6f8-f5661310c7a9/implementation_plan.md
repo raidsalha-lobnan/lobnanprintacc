@@ -1,40 +1,25 @@
-# خطة نشر التطبيق على منصة استضافة خارجية وربط قاعدة البيانات
+# Implementation Plan: Migrating Daily Entry Rows to Sub-collections
 
-## 1. هل ستظل قاعدة البيانات متصلة؟
-**نعم بالتأكيد (100%)**:
-- قاعدة بيانات التطبيق **Google Cloud Firestore** (`ai-studio-remixcopyofcopyo-917f7ef2-bd2e-44c7-b6f8-f5661310c7a9`) سحابية بالكامل ومستقلة عن مكان الاستضافة.
-- كل الفواتير، الحسابات، قيود اليومية، المخزون، والزبائن تظل مخزنة في السحابة وتتصل تلقائياً مع أي رابط أو موقع يتم النشر عليه فور إدخال إعدادات الاتصال المضمنة في التطبيق.
+## Overview
+To resolve the synchronization issues where concurrent edits overwrite each other in the daily entry sheets, we will migrate the daily entry rows from a single document to a Firestore sub-collection: `dailyEntrySheets/{date}/rows/{rowId}`.
 
----
+## Steps
 
-## 2. خيارات النشر والاستضافة الموصى بها
+1.  **Firebase Blueprint Update**: Update `firebase-blueprint.json` to reflect the new structure:
+    -   Collection `dailyEntrySheets`: Holds summary information (date, notes, updatedAt).
+    -   Sub-collection `dailyEntrySheets/{date}/rows`: Holds individual `DailyEntryRow` documents.
 
-### الخيار الأول: النشر عبر Vercel أو Netlify (الأسرع والأسهل - مجاني ودائم)
-- **المميزات**: 
-  - رابط مجاني دائم لا يتغير أبداً (مثل: `lobnan-accounting.vercel.app`).
-  - إمكانية ربط دومين خاص باسمك (مثل: `app.lobnanprint.com`) بضغطة زر مجاناً.
-  - شهادة أمان SSL تلقائية وسرعة فائقة في الشرق الأوسط والعالم.
+2.  **Firestore Rules Update**: Update `firestore.rules` to secure the new sub-collection:
+    -   Secure `dailyEntrySheets/{date}`.
+    -   Secure `dailyEntrySheets/{date}/rows/{rowId}`.
 
-### الخيار الثاني: النشر عبر Firebase Hosting (نفس مشروع Google)
-- **المميزات**:
-  - استضافة رسمية من Google على نفس حساب وقاعدة بيانات Firebase الحالية.
-  - رابط مجاني نظيف دائم (مثل: `lobnan-acc.web.app` أو `lobnan-acc.firebaseapp.com`).
-  - دعم الدومين الخاص وإدارة مركزية من لوحة تحكم Firebase.
+3.  **AccountingContext.tsx Refactoring**:
+    -   Update `saveDailyEntryRow` to perform a `setDoc` on `dailyEntrySheets/{date}/rows/{rowId}`.
+    -   Update `deleteDailyEntrySheet` to use a `batch` deletion or a cloud function (if possible) or client-side deletion of the sub-collection rows.
+    -   Implement a real-time `onSnapshot` listener on `dailyEntrySheets/{date}/rows` to sync local state with the sub-collection.
+    -   Remove or adapt `saveDailyEntrySheet` to only update summary fields.
 
-### الخيار الثالث: الاستمرار على الرابط الحالي مع التثبيت كتطبيق (PWA)
-- **المميزات**:
-  - لا يتطلب أي نقل أو إعدادات إضافية.
-  - الرابط الحالي الثابت للمشروع:
-    `https://ais-pre-rrq4iadarsp4ke7zjjcj7z-336083283797.europe-west2.run.app`
-  - تثبيت البرنامج على أجهزة الكاشير والإدارة كبرنامج سطح مكتب مستقل.
-
----
-
-## 3. خطوات التنفيذ لتجهيز النشر الخارجي
-
-1. **تجهيز ملفات البناء (Build Bundle)**:
-   - تم إنشاء وتجهيز المجلد الكامل `dist/` الجاهز للرفع على أي استضافة بملف واحد.
-2. **ملفات التوجيه (SPA Routing)**:
-   - إضافة ملفات التوجيه `vercel.json` و `_redirects` و `firebase.json` لضمان عمل كل الصفحات والروابط الداخلية بدون أخطاء 404 عند إعادة تحميل الصفحة.
-3. **اعتماد الدومين الجديد في Firebase Auth (خطوة واحدة بسيطة)**:
-   - إضافة الرابط الجديد في لوحة Firebase Console ضمن `Authorized Domains` لتسجيل الدخول السلس.
+4.  **Verification**:
+    -   Ensure real-time sync works across multiple clients.
+    -   Verify that edits to one row do not interfere with other rows.
+    -   Run `compile_applet` to ensure no breaking changes.

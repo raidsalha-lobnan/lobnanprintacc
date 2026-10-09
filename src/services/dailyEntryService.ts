@@ -17,11 +17,14 @@ export function createEmptyDailyEntryRow(
   subCustomerName: string = '',
   subCustomerId?: string,
   parentRowId?: string,
-  isAdditionalItem: boolean = false
+  isAdditionalItem: boolean = false,
+  entryDate?: string
 ): DailyEntryRow {
+  const todayDate = entryDate || new Date().toISOString().split('T')[0];
   return {
     id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     serialNumber,
+    entryDate: todayDate,
     customerName,
     customerId,
     subCustomerName,

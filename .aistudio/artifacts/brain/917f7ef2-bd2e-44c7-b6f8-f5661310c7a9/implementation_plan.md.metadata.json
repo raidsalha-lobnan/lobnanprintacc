@@ -1,6 +1,6 @@
 {
-  "summary":  "خطة النشر والاستضافة الخارجية مع ضمان استمرار ربط قاعدة البيانات السحابية (Firestore) بكافة البيانات والحسابات.",
-  "updatedAt":  "2026-10-02T21:45:48.474524135Z",
+  "summary":  "Implementation plan for migrating daily entry rows to a sub-collection structure in Firestore to solve synchronization conflicts.",
+  "updatedAt":  "2026-10-08T23:09:42.432553735Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
