@@ -443,14 +443,14 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className={`flex flex-col ${(activeTab === 'pos' || activeTab === 'new_print_order') ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-[#eef2f6] text-[#0f172a] font-sans selection:bg-blue-600 selection:text-white print:h-auto print:bg-white print:overflow-visible ${isPrintModalActive ? 'print-modal-is-active' : ''}`} dir="rtl">
+    <div className={`flex flex-col ${(activeTab === 'pos' || activeTab === 'new_print_order' || activeTab === 'daily_entry') ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-[#eef2f6] text-[#0f172a] font-sans selection:bg-blue-600 selection:text-white print:h-auto print:bg-white print:overflow-visible ${isPrintModalActive ? 'print-modal-is-active' : ''}`} dir="rtl">
       {/* Top Header & Horizontal Menu Bar - ALWAYS hidden during print */}
       <div className={`print:hidden ${activeTab !== 'pos' && activeTab !== 'new_print_order' ? 'sticky top-0 z-[100]' : ''}`}>
         <Navbar />
       </div>
 
       {/* Main Content Area - Hidden during print if any print modal is open */}
-      <main className={`${(activeTab === 'pos' || activeTab === 'new_print_order' || activeTab === 'manual_invoices' || activeTab === 'special_invoice') ? "flex-1 min-h-0 w-full p-0 flex flex-col overflow-hidden" : "flex-1 p-2.5 sm:p-3.5 pb-8 w-full flex flex-col overflow-y-auto"} ${isPrintModalActive ? "print:hidden" : "print:p-0 print:m-0 print:overflow-visible print:h-auto print:max-h-none"}`}>
+      <main className={`${(activeTab === 'pos' || activeTab === 'new_print_order' || activeTab === 'manual_invoices' || activeTab === 'special_invoice' || activeTab === 'daily_entry') ? "flex-1 min-h-0 w-full p-1 sm:p-2 flex flex-col overflow-hidden" : "flex-1 p-2.5 sm:p-3.5 pb-8 w-full flex flex-col overflow-y-auto"} ${isPrintModalActive ? "print:hidden" : "print:p-0 print:m-0 print:overflow-visible print:h-auto print:max-h-none"}`}>
         <ErrorBoundary fallbackTitle="حدث تنبيه في عرض هذه الشاشة">
           {renderContent()}
         </ErrorBoundary>

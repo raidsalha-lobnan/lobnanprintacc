@@ -566,11 +566,7 @@ export const DailyEntrySheetView: React.FC = () => {
     });
 
     posSound.beep(1100, 0.05);
-    setStatusMessage({
-      type: 'info',
-      text: `تمت إضافة بند جديد لنفس الزبون بنفس الرقم المتسلسل! آلية الدفع تعتمد بآخر بند.`
-    });
-    setTimeout(() => setStatusMessage(null), 3000);
+
   };
 
   // Helper to update customer name across the whole customer group
@@ -749,11 +745,7 @@ export const DailyEntrySheetView: React.FC = () => {
     saveDailyEntrySheet(selectedDate, recalculated, sheetNotes);
     posSound.cash();
 
-    setStatusMessage({
-      type: 'success',
-      text: 'تم حفظ البند (#' + targetRow.serialNumber + ') ومزامنته سحابياً بنجاح، وفُتح سطر جديد للإدخال!'
-    });
-    setTimeout(() => setStatusMessage(null), 2500);
+
   };
 
   // Deletion Confirmation States
@@ -1090,7 +1082,7 @@ export const DailyEntrySheetView: React.FC = () => {
   }, [filteredRows]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden font-sans gap-2 p-1 print:h-auto print:overflow-visible print:p-0" dir="rtl">
+    <div className="flex-1 min-h-0 h-full flex flex-col overflow-hidden font-sans gap-1.5 p-0.5 print:h-auto print:overflow-visible print:p-0" dir="rtl">
       {/* 1. UNIFIED COMPACT HEADER BAR (دمج كافة الأسطر بسطر واحد وحذف الكلام الزائد) */}
       <div className="bg-white border border-slate-300 rounded-2xl p-2.5 sm:px-4 shadow-sm print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-2">
