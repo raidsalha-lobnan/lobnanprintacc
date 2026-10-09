@@ -907,48 +907,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const saveDailyEntrySheet = (date: string, rows: DailyEntryRow[], notes?: string) => {
-    // الدمج الذكي للأسطر لمنع مسح أسطر ملأها مستخدم آخر بسطور فارغة
-    const existingRows = dailyEntrySheets[date]?.rows || [];
-    const mergedMap = new Map<string, DailyEntryRow>();
-    
-    // وضع الأسطر السابقة في السحابة أولاً
-    existingRows.forEach(r => {
-      mergedMap.set(r.id, r);
-    });
-
-    // دمج الأسطر الحالية مع الحفاظ على البيانات
-    rows.forEach(r => {
-      const existing = mergedMap.get(r.id);
-      if (!existing) {
-        mergedMap.set(r.id, r);
-      } else {
-        const incomingHasData = Boolean(
-          (r.customerName && r.customerName.trim()) ||
-          (r.itemName && r.itemName.trim()) ||
-          Number(r.requiredAmount) > 0 ||
-          Number(r.paidAmount) > 0 ||
-          (r.paymentNotes && r.paymentNotes.trim()) ||
-          (r.notes && r.notes.trim())
-        );
-        const existingHasData = Boolean(
-          (existing.customerName && existing.customerName.trim()) ||
-          (existing.itemName && existing.itemName.trim()) ||
-          Number(existing.requiredAmount) > 0 ||
-          Number(existing.paidAmount) > 0 ||
-          (existing.paymentNotes && existing.paymentNotes.trim()) ||
-          (existing.notes && existing.notes.trim())
-        );
-
-        if (incomingHasData || !existingHasData) {
-          mergedMap.set(r.id, r);
-        } else {
-          // إذا كانت بيانات المستخدم الآخر غير فارغة والحالية فارغة، الحفاظ على بيانات الآخر
-          mergedMap.set(r.id, existing);
-        }
-      }
-    });
-
-    const finalRows = Array.from(mergedMap.values());
+    // الحفظ المباشر والنهائي للأسطر المعتمدة: الأسطر المحذوفة تُحذف نهائياً ولا يتم إعادتها
+    const finalRows = rows;
 
     const currentLocks = { ...(dailyEntrySheets[date]?.activeLocks || {}) };
     const now = Date.now();

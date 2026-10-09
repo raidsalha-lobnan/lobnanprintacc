@@ -323,10 +323,8 @@ export const DailyEntrySheetView: React.FC = () => {
           return remoteRow;
         });
 
-        // Add any new remote rows created by other users for THIS DAY
-        const localIds = new Set(prevRows.map(r => r.id));
-        const newRemoteRows = sheet.rows.filter(r => !localIds.has(r.id));
-        return [...merged, ...newRemoteRows];
+        // لا نعيد دمج الأسطر المحذوفة
+        return merged;
       });
 
       if (sheet.notes !== undefined) {
@@ -851,11 +849,13 @@ export const DailyEntrySheetView: React.FC = () => {
         Number(r.requiredAmount) > 0 || 
         Number(r.paidAmount) > 0
       );
-      if (filtered.length === 0) {
-        return [createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name)];
-      }
-      return recalculateSerialNumbers(filtered);
+      const res = filtered.length === 0
+        ? [createEmptyDailyEntryRow(1, defaultTreasury?.id, defaultTreasury?.name, '', undefined, '', undefined, undefined, false, selectedDate)]
+        : recalculateSerialNumbers(filtered);
+      saveDailyEntrySheet(selectedDate, res, sheetNotes);
+      return res;
     });
+    setIsSaved(true);
   };
 
   // Save explicitly
