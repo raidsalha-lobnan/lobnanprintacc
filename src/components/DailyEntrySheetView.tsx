@@ -735,10 +735,10 @@ export const DailyEntrySheetView: React.FC = () => {
       rowDate
     );
 
+    // السطر الجديد لزبون جديد يضاف دائماً في آخر الجدول بدلاً من إقحامه بين السطور
     const nextRowsWithNew = [
-      ...updatedRows.slice(0, index + 1),
-      newRow,
-      ...updatedRows.slice(index + 1)
+      ...updatedRows,
+      newRow
     ];
 
     const recalculated = recalculateSerialNumbers(nextRowsWithNew);
