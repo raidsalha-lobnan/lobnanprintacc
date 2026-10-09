@@ -1481,7 +1481,7 @@ export const DailyEntrySheetView: React.FC = () => {
                             isApproved
                               ? 'bg-emerald-50/90 border-r-4 border-r-emerald-600 hover:bg-emerald-100/70 shadow-2xs text-slate-900'
                               : row.isAdditionalItem
-                              ? 'bg-indigo-50/20 hover:bg-indigo-50/40 border-r-4 border-r-indigo-400'
+                              ? 'bg-slate-200/80 hover:bg-slate-200/90 border-r-4 border-r-slate-400 font-medium'
                               : idx % 2 === 0
                               ? 'bg-white'
                               : 'bg-slate-50/50'
@@ -2020,7 +2020,7 @@ export const DailyEntrySheetView: React.FC = () => {
                           : isApproved
                           ? 'bg-emerald-50/90 border-r-4 border-r-emerald-600 hover:bg-emerald-100/70 shadow-2xs text-slate-900'
                           : row.isAdditionalItem
-                          ? 'bg-indigo-50/20 hover:bg-indigo-50/40 border-r-4 border-r-indigo-400'
+                          ? 'bg-slate-200/80 hover:bg-slate-200/90 border-r-4 border-r-slate-400 font-medium'
                           : idx % 2 === 0
                           ? 'bg-white'
                           : 'bg-slate-50/50'
@@ -2030,9 +2030,7 @@ export const DailyEntrySheetView: React.FC = () => {
                       <td className="py-0.5 px-0.5 text-center font-mono font-bold text-slate-700 border-l border-slate-200 align-middle bg-slate-50/70">
                         <div className="flex flex-col items-center justify-center min-h-[28px]">
                           <span className="font-black text-sm text-slate-900">{row.serialNumber}</span>
-                          {row.isAdditionalItem && (
-                            <span className="text-[8px] text-blue-600 font-bold leading-none" title="بند إضافي لنفس الزبون">+بند</span>
-                          )}
+                          
                           {isApproved && (
                             <span className="mt-0.5 px-1 rounded-xs text-[7.5px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-2xs" title={`معتمد بالفاتورة: ${row.approvedInvoiceNumber || ''}`}>
                               <Check className="w-2 h-2" />
