@@ -787,6 +787,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+
+  // Polling server sync hub for multi-device live sync
+  useEffect(() => {
+    pullServerSyncState();
+    const interval = setInterval(() => {
+      pullServerSyncState();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+
   }, []);
 
   const [accounts, setAccounts] = useState<Account[]>(() => {
@@ -4441,6 +4452,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setInventory(prev => {
       const next = [newItem, ...prev];
       broadcastEntityChange('inventory', next);
+      pushToServerSync('inventory', newItem);
       return next;
     });
 
@@ -5291,6 +5303,113 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Create POS Sale
   
+  
+  // Multi-Device Central Sync Engine
+  const lastServerSyncTimeRef = React.useRef<number>(0);
+
+  const pushToServerSync = async (entity: string, item: any) => {
+    try {
+      await fetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity, item })
+      });
+    } catch (e) {
+      // offline fallback
+    }
+  };
+
+  const pullServerSyncState = async () => {
+    try {
+      const res = await fetch('/api/sync/state');
+      if (!res.ok) return;
+      const json = await res.json();
+      if (!json || !json.data) return;
+
+      const delSet = (() => {
+        const s = new Set<string>();
+        try {
+          const l = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
+          if (Array.isArray(l)) l.forEach((d: any) => { if (d && d.col && d.id) s.add(`${d.col}_${d.id}`); });
+        } catch {}
+        return s;
+      })();
+
+      // Invoices
+      if (json.data.invoices && Array.isArray(json.data.invoices.items) && json.data.invoices.items.length > 0) {
+        const serverInvoices: Invoice[] = json.data.invoices.items;
+        setInvoices(prev => {
+          const map = new Map<string, Invoice>();
+          // Existing local
+          for (const inv of prev) {
+            if (inv && inv.id && !delSet.has(`invoices_${inv.id}`)) map.set(inv.id, inv);
+          }
+          let changed = false;
+          for (const sInv of serverInvoices) {
+            if (sInv && sInv.id && !delSet.has(`invoices_${sInv.id}`)) {
+              if (!map.has(sInv.id)) {
+                map.set(sInv.id, sInv);
+                changed = true;
+              }
+            }
+          }
+          if (!changed) return prev;
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => {
+            const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+            const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+            if (numA !== numB) return numB - numA;
+            return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+          });
+          try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      }
+
+      // Parties
+      if (json.data.parties && Array.isArray(json.data.parties.items) && json.data.parties.items.length > 0) {
+        const serverParties: Party[] = json.data.parties.items;
+        setParties(prev => {
+          const map = new Map<string, Party>();
+          for (const p of prev) if (p && p.id) map.set(p.id, p);
+          let changed = false;
+          for (const sp of serverParties) {
+            if (sp && sp.id && !map.has(sp.id)) {
+              map.set(sp.id, sp);
+              changed = true;
+            }
+          }
+          if (!changed) return prev;
+          const merged = Array.from(map.values());
+          try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      }
+
+      // Inventory
+      if (json.data.inventory && Array.isArray(json.data.inventory.items) && json.data.inventory.items.length > 0) {
+        const serverItems: InventoryItem[] = json.data.inventory.items;
+        setInventory(prev => {
+          const map = new Map<string, InventoryItem>();
+          for (const it of prev) if (it && it.id) map.set(it.id, it);
+          let changed = false;
+          for (const sit of serverItems) {
+            if (sit && sit.id && !map.has(sit.id)) {
+              map.set(sit.id, sit);
+              changed = true;
+            }
+          }
+          if (!changed) return prev;
+          const merged = Array.from(map.values());
+          try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      }
+    } catch (e) {
+      // offline or network hiccup
+    }
+  };
+
   const broadcastEntityChange = (entity: string, data: any) => {
     try {
       if (syncChannelRef.current) {
@@ -6031,6 +6150,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setInvoices(prev => {
         const next = [newInvoice, ...prev];
         broadcastEntityChange('invoices', next);
+        pushToServerSync('invoices', newInvoice);
         return next;
       });
     }
