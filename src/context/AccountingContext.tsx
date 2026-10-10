@@ -1340,16 +1340,19 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Multi-Device Central Sync Engine
   const lastServerSyncTimeRef = React.useRef<number>(0);
 
-  const pushToServerSync = async (entity: string, item: any) => {
+  const pushToServerSync = (entity: string, item: any) => {
     try {
-      await fetch('/api/sync/push', {
+      // Use direct fetch with fire-and-forget for instant push to server database
+      fetch('/api/sync/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entity, item })
+      }).then(res => res.json()).then(data => {
+        console.log('✓ Instant Server Push Succeeded for', entity, ':', data?.count);
+      }).catch(e => {
+        console.warn('Push sync retry notice:', e);
       });
-    } catch (e) {
-      // offline fallback
-    }
+    } catch (e) {}
   };
 
   // Flag to push local existing records to sync hub on boot
@@ -6636,7 +6639,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setDeletedInvoices(prev => [deletedSnapshot, ...prev.filter(d => d.id !== id)]);
 
     // 2. الحذف من الفواتير النشطة في Firestore
-    setInvoices(prev => prev.filter(inv => inv.id !== id));
+    setInvoices(prev => {
+      const next = prev.filter(inv => inv.id !== id);
+      pushToServerSync('invoices', { id, _deleted: true });
+      broadcastEntityChange('invoices', next);
+      return next;
+    });
     registerDeletedDoc('invoices', id);
     deleteDoc(doc(db, 'invoices', id)).catch(err => console.warn('Direct cloud delete invoice notice:', err));
 
@@ -6698,7 +6706,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setDoc(doc(db, 'invoices', id), cleanDocForFirestore(cleanRestored)).catch(err => {
       console.warn('Error writing restored invoice to Firestore:', err);
     });
-    setInvoices(prev => [cleanRestored, ...prev.filter(i => i.id !== id)]);
+    setInvoices(prev => {
+      const next = [cleanRestored, ...prev.filter(i => i.id !== id)];
+      pushToServerSync('invoices', cleanRestored);
+      broadcastEntityChange('invoices', next);
+      return next;
+    });
 
     // 4. التوثيق في سجل التدقيق
     try {
@@ -6775,13 +6788,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       createdAt: now.toLocaleDateString('ar-EG') + ' ' + now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })
     };
 
-    setInvoices(prev => prev.map(inv => {
-      if (inv.id !== invoiceId) return inv;
-      return {
-        ...inv,
-        technicalNotes: [...(inv.technicalNotes || []), newNote]
-      };
-    }));
+    setInvoices(prev => {
+      const next = prev.map(inv => {
+        if (inv.id !== invoiceId) return inv;
+        const updated = { ...inv, technicalNotes: [...(inv.technicalNotes || []), newNote] };
+        pushToServerSync('invoices', updated);
+        return updated;
+      });
+      broadcastEntityChange('invoices', next);
+      return next;
+    });
   };
 
   const addInvoiceItemAttachment = (
