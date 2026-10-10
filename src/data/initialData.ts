@@ -1,34 +1,43 @@
 import { Account, InventoryItem, Party, PrintJobOrder, Invoice, PurchaseInvoice, PurchaseReturn, SalesReturn, JournalEntry, Employee, EmployeeAdvance, EmployeeDeduction, EmployeeIncentive, PayrollSheet, Treasury, Company, Branch, Warehouse, SystemUser, Role, DebtClearingRecord, ExpenseItem, BusinessSettings, StockMovement } from '../types';
 
 export const initialSettings: BusinessSettings = {
-  companyName: 'مطبعة ومكتبة لبنان',
-  taxRate: 16,
-  taxEnabled: true,
+  businessName: 'مطبعة ومكتبة لبنان',
+  businessNameEn: 'Lobnan Press & Library',
+  activityType: 'مطبعة ومكتبة ومستلزمات دعاية وإعلان',
   currency: 'ILS',
-  currencySymbol: '₪',
-  baseCurrencyCode: 'ILS',
-  address: 'فلسطين - رام الله - شارع الإرسال',
+  vatRate: 16,
+  invoiceFooterNote: 'شكراً لتعاملكم معنا - نسعد بخدمتكم دائماً',
+  logoText: 'مطبعة ومكتبة لبنان',
   phone: '0590000000',
+  email: 'raid.salha@gmail.com',
+  address: 'فلسطين - رام الله - شارع الإرسال',
   logoUrl: '',
-  categories: ['قرطاسية ومكتبية ومدرسية', 'كتب وروايات وقصص', 'مطبوعات ورقية وأوفست', 'مطبوعات دعاية وإعلان', 'مطبوعات قماش وأنسجة', 'خدمات تصميم وتصوير', 'أخرى'],
+  categories: [
+    { id: 'cat-1', name: 'قرطاسية ومكتبية ومدرسية' },
+    { id: 'cat-2', name: 'كتب وروايات وقصص' },
+    { id: 'cat-3', name: 'مطبوعات ورقية وأوفست' },
+    { id: 'cat-4', name: 'مطبوعات دعاية وإعلان' },
+    { id: 'cat-5', name: 'مطبوعات قماش وأنسجة' },
+    { id: 'cat-6', name: 'خدمات تصميم وتصوير' },
+    { id: 'cat-7', name: 'أخرى' }
+  ] as any,
   currencies: [
-    { code: 'ILS', name: 'شيكل إسرائيلي', symbol: '₪', exchangeRate: 1.0, isBaseCurrency: true },
-    { code: 'USD', name: 'دولار أمريكي', symbol: '$', exchangeRate: 3.65, isBaseCurrency: false },
-    { code: 'JOD', name: 'دينار أردني', symbol: 'د.أ', exchangeRate: 5.15, isBaseCurrency: false },
-    { code: 'EUR', name: 'يورو أوروبي', symbol: '€', exchangeRate: 3.95, isBaseCurrency: false }
-  ],
+    { code: 'ILS', name: 'شيكل إسرائيلي', symbol: '₪', rateToBase: 1.0, isBaseCurrency: true },
+    { code: 'USD', name: 'دولار أمريكي', symbol: '$', rateToBase: 3.65, isBaseCurrency: false },
+    { code: 'JOD', name: 'دينار أردني', symbol: 'د.أ', rateToBase: 5.15, isBaseCurrency: false },
+    { code: 'EUR', name: 'يورو أوروبي', symbol: '€', rateToBase: 3.95, isBaseCurrency: false }
+  ] as any,
   sqlServerConfig: {
     enabled: false,
-    host: 'localhost',
+    server: 'localhost',
     port: 1433,
-    databaseName: 'LobnanAccountingDb',
-    username: 'sa',
+    database: 'LobnanAccountingDb',
+    user: 'sa',
     password: '',
     syncIntervalMinutes: 5,
     autoSyncOnAction: true
-  }
+  } as any
 };
-
 export const initialAccounts: Account[] = [];
 export const initialInventory: InventoryItem[] = ([
   {

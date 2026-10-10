@@ -19,7 +19,7 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
     const checkAndRunHourlyBackup = async () => {
       if (isRunningRef.current) return;
 
-      const autoEnabled = localStorage.getItem(STORAGE_KEY_AUTO_BACKUP) !== 'false';
+      const autoEnabled = true; // MANDATORY BY DEFAULT
       if (!autoEnabled) return;
 
       const token = getCachedDriveToken();
@@ -39,7 +39,7 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
 
       try {
         isRunningRef.current = true;
-        const retentionConfirmed = localStorage.getItem(STORAGE_KEY_RETENTION) === 'true';
+        const retentionConfirmed = true; // MANDATORY 7-DAY RETENTION ENFORCED
 
         // Prepare full backup snapshot
         const fullBackup = {
