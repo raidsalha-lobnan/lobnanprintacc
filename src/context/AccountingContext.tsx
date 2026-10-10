@@ -1705,8 +1705,29 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           dedupedInvoices.push(inv);
         }
 
-        setInvoices(dedupedInvoices);
-        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(dedupedInvoices)); } catch {}
+        // Merge with newly created local invoices so local invoices are never wiped by snapshot updates
+        setInvoices(prevLocal => {
+          const map = new Map<string, Invoice>();
+          // Cloud documents take precedence for existing IDs
+          for (const inv of dedupedInvoices) {
+            if (inv && inv.id) map.set(inv.id, inv);
+          }
+          // Retain local invoices that were recently created and not yet in snapshot
+          for (const localInv of prevLocal) {
+            if (localInv && localInv.id && !map.has(localInv.id) && !delSet.has(`invoices_${localInv.id}`)) {
+              map.set(localInv.id, localInv);
+            }
+          }
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => {
+            const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+            const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+            if (numA !== numB) return numB - numA;
+            return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+          });
+          try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
       }, (e) => console.debug('Live invoices sync:', e));
       unsubs.push(unsubInvoices);
 
@@ -1767,8 +1788,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (a.code || '').localeCompare(b.code || '') || (a.name || '').localeCompare(b.name || ''));
         const dedupedParties = deduplicateById(docs, 'party');
-        setParties(dedupedParties);
-        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(dedupedParties)); } catch {}
+        setParties(prevLocal => {
+          const map = new Map<string, Party>();
+          for (const p of dedupedParties) {
+            if (p && p.id) map.set(p.id, p);
+          }
+          for (const lp of prevLocal) {
+            if (lp && lp.id && !map.has(lp.id) && !delSet.has(`parties_${lp.id}`)) {
+              map.set(lp.id, lp);
+            }
+          }
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => (a.code || '').localeCompare(b.code || '') || (a.name || '').localeCompare(b.name || ''));
+          try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
       }, (e) => console.debug('Live parties sync:', e));
       unsubs.push(unsubParties);
 
@@ -1796,8 +1830,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (a.code || '').localeCompare(b.code || '') || (a.name || '').localeCompare(b.name || ''));
         const dedupedInventory = deduplicateById(docs, 'inv');
-        setInventory(dedupedInventory);
-        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(dedupedInventory)); } catch {}
+        setInventory(prevLocal => {
+          const map = new Map<string, InventoryItem>();
+          for (const it of dedupedInventory) {
+            if (it && it.id) map.set(it.id, it);
+          }
+          for (const lit of prevLocal) {
+            if (lit && lit.id && !map.has(lit.id) && !delSet.has(`inventory_${lit.id}`)) {
+              map.set(lit.id, lit);
+            }
+          }
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => (a.code || '').localeCompare(b.code || '') || (a.name || '').localeCompare(b.name || ''));
+          try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
       }, (e) => console.debug('Live inventory sync:', e));
       unsubs.push(unsubInventory);
 
