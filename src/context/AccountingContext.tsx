@@ -1485,6 +1485,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
           }
           const merged = Array.from(map.values());
+          if (prev.length === 0 && merged.length > 0) {
+            try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
+            return merged;
+          }
           if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
             return prev;
           }
@@ -1509,6 +1513,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
           }
           const merged = Array.from(map.values());
+          if (prev.length === 0 && merged.length > 0) {
+            try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
+            return merged;
+          }
           if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
             return prev;
           }
@@ -2025,7 +2033,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
           return merged;
         });
-      }, (e) => console.debug('Live invoices sync:', e));
+      }, (e) => {
+        // Cloud Quota Exceeded or offline: fallback to Server Sync Hub
+        pullServerSyncState();
+      });
       unsubs.push(unsubInvoices);
 
       // 1B. Live Deleted Invoices (سلة فواتير المبيعات المحذوفة)
@@ -2085,7 +2096,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
           return merged;
         });
-      }, (e) => console.debug('Live printOrders sync:', e));
+      }, (e) => { pullServerSyncState(); });
       unsubs.push(unsubPrintOrders);
 
       // 3. Live Parties (العملاء والموردين وحساباتهم وأرصدتهم لحظياً)
@@ -2113,7 +2124,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
           return merged;
         });
-      }, (e) => console.debug('Live parties sync:', e));
+      }, (e) => { pullServerSyncState(); });
       unsubs.push(unsubParties);
 
       // 4. Live Inventory (المخزون، الأصناف، والأسعار لكافة المستخدمين)
@@ -2155,7 +2166,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
           return merged;
         });
-      }, (e) => console.debug('Live inventory sync:', e));
+      }, (e) => { pullServerSyncState(); });
       unsubs.push(unsubInventory);
 
       // 5. Live Vouchers (سندات القبض والصرف)
@@ -2183,7 +2194,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
           return merged;
         });
-      }, (e) => console.debug('Live vouchers sync:', e));
+      }, (e) => { pullServerSyncState(); });
       unsubs.push(unsubVouchers);
 
       // 6. Live Users (المستخدمين وبياناتهم وصلاحياتهم المحفوظة في قاعدة البيانات)
