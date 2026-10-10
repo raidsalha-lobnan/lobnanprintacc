@@ -198,7 +198,7 @@ export const DashboardView: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-2.5 text-left font-mono font-bold text-slate-900">
-                      {inv.totalAmount.toLocaleString('ar-SA')}
+                      {(inv.totalAmount || 0).toLocaleString('ar-SA')}
                     </td>
                   </tr>
                 ))}

@@ -260,19 +260,19 @@ export const TransactionLifecycleModal: React.FC = () => {
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-500 block mb-1">المجموع قبل الضريبة</span>
                   <strong className="text-slate-900 font-mono text-sm">
-                    {(inv.subtotal - inv.discountTotal).toLocaleString('ar-SA')} {settings.currency}
+                    {((inv.subtotal || 0) - (inv.discountTotal || 0)).toLocaleString('ar-SA')} {settings.currency}
                   </strong>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-500 block mb-1">ضريبة القيمة المضافة ({inv.taxRate || settings.vatRate}%)</span>
                   <strong className="text-slate-900 font-mono text-sm">
-                    {inv.taxAmount.toLocaleString('ar-SA')} {settings.currency}
+                    {(inv.taxAmount || 0).toLocaleString('ar-SA')} {settings.currency}
                   </strong>
                 </div>
                 <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-200">
                   <span className="text-indigo-600 block mb-1 font-semibold">إجمالي الفاتورة النهائي</span>
                   <strong className="text-indigo-950 font-mono text-base font-black">
-                    {inv.totalAmount.toLocaleString('ar-SA')} {settings.currency}
+                    {(inv.totalAmount || 0).toLocaleString('ar-SA')} {settings.currency}
                   </strong>
                 </div>
                 <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
@@ -413,7 +413,7 @@ export const TransactionLifecycleModal: React.FC = () => {
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between">
                       <span className="text-slate-600">سحوبات الفاتورة (مدين):</span>
-                      <strong className="font-mono text-rose-600">+{inv.totalAmount.toLocaleString('ar-SA')}</strong>
+                      <strong className="font-mono text-rose-600">+{(inv.totalAmount || 0).toLocaleString('ar-SA')}</strong>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600">المسدد فوراً (دائن):</span>
@@ -761,7 +761,7 @@ export const TransactionLifecycleModal: React.FC = () => {
                     </li>
                     <li className="flex justify-between pt-1 border-t border-slate-100 font-bold text-slate-900">
                       <span>ضريبة المخرجات المستحقة:</span>
-                      <strong className="text-amber-600 font-mono">+{inv.taxAmount.toLocaleString('ar-SA')}</strong>
+                      <strong className="text-amber-600 font-mono">+{(inv.taxAmount || 0).toLocaleString('ar-SA')}</strong>
                     </li>
                   </ul>
                 </div>

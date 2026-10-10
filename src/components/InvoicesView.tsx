@@ -137,7 +137,7 @@ export const InvoicesView: React.FC = () => {
           <div className="text-left bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 text-xs">
             <span className="text-slate-500 block">إجمالي الفواتير المعروضة:</span>
             <strong className="text-slate-900 text-sm font-mono font-black">
-              {totalInvoiced.toLocaleString('ar-SA')} {settings.currency}
+              {(totalInvoiced || 0).toLocaleString('ar-SA')} {settings.currency}
             </strong>
           </div>
         </div>
@@ -278,13 +278,13 @@ export const InvoicesView: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-2 px-3 font-mono font-semibold text-slate-600 whitespace-nowrap align-middle">
-                    {(inv.subtotal - inv.discountTotal).toLocaleString('ar-SA')} {inv.currencySymbol || settings.currency}
+                    {((inv.subtotal || 0) - (inv.discountTotal || 0)).toLocaleString('ar-SA')} {inv.currencySymbol || settings.currency}
                   </td>
                   <td className="py-2 px-3 font-mono text-slate-500 whitespace-nowrap align-middle">
-                    {inv.taxAmount.toLocaleString('ar-SA')}
+                    {(inv.taxAmount || 0).toLocaleString('ar-SA')}
                   </td>
                   <td className="py-2 px-3 font-mono font-bold text-slate-900 text-sm whitespace-nowrap align-middle">
-                    {inv.totalAmount.toLocaleString('ar-SA')} {inv.currencySymbol || settings.currency}
+                    {(inv.totalAmount || 0).toLocaleString('ar-SA')} {inv.currencySymbol || settings.currency}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap align-middle">
                     {(() => {
