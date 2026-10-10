@@ -1473,16 +1473,22 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const serverParties: Party[] = json.data.parties.items;
         setParties(prev => {
           const map = new Map<string, Party>();
-          for (const p of prev) if (p && p.id) map.set(p.id, p);
-          let changed = false;
-          for (const sp of serverParties) {
-            if (sp && sp.id && !map.has(sp.id)) {
-              map.set(sp.id, sp);
-              changed = true;
+          // Combine server + local
+          const pool = [...serverParties, ...prev];
+          for (const p of pool) {
+            if (p && p.id && !delSet.has(`parties_${p.id}`)) {
+              if (!map.has(p.id)) map.set(p.id, p);
+              else {
+                // If server has updated fields, prefer server item or merged
+                const existing = map.get(p.id)!;
+                map.set(p.id, { ...existing, ...p });
+              }
             }
           }
-          if (!changed) return prev;
           const merged = Array.from(map.values());
+          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
+            return prev;
+          }
           try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
           return merged;
         });
@@ -1493,16 +1499,20 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const serverItems: InventoryItem[] = json.data.inventory.items;
         setInventory(prev => {
           const map = new Map<string, InventoryItem>();
-          for (const it of prev) if (it && it.id) map.set(it.id, it);
-          let changed = false;
-          for (const sit of serverItems) {
-            if (sit && sit.id && !map.has(sit.id)) {
-              map.set(sit.id, sit);
-              changed = true;
+          const pool = [...serverItems, ...prev];
+          for (const it of pool) {
+            if (it && it.id && !delSet.has(`inventory_${it.id}`)) {
+              if (!map.has(it.id)) map.set(it.id, it);
+              else {
+                const existing = map.get(it.id)!;
+                map.set(it.id, { ...existing, ...it });
+              }
             }
           }
-          if (!changed) return prev;
           const merged = Array.from(map.values());
+          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
+            return prev;
+          }
           try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
           return merged;
         });
