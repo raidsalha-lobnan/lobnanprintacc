@@ -1358,30 +1358,29 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const pullServerSyncState = async () => {
     try {
       // First boot: push whatever this client has locally to the server hub so every device shares its records!
-      if (!hasUploadedLocalSeedRef.current) {
-        hasUploadedLocalSeedRef.current = true;
-        const entitiesToSeed = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders'];
-        for (const ent of entitiesToSeed) {
-          try {
-            const raw = localStorage.getItem(`${STORAGE_KEY}_${ent}`);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                fetch('/api/sync/push', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ entity: ent, items: parsed })
-                }).catch(() => {});
-              }
+      const entitiesToSeed = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders'];
+      for (const ent of entitiesToSeed) {
+        try {
+          const raw = localStorage.getItem(`${STORAGE_KEY}_${ent}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              fetch('/api/sync/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entity: ent, items: parsed })
+              }).catch(() => {});
             }
-          } catch {}
-        }
+          }
+        } catch {}
       }
 
       const res = await fetch('/api/sync/state');
       if (!res.ok) return;
       const json = await res.json();
       if (!json || !json.data) return;
+
+      // Make sure Firestore snapshot and server sync hub update local state even when local storage is brand new/empty!
 
       const delSet = (() => {
         const s = new Set<string>();
@@ -1527,7 +1526,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     pullServerSyncState();
     const interval = setInterval(() => {
       pullServerSyncState();
-    }, 2500);
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
