@@ -678,8 +678,90 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const fetchFromFirebaseRef = React.useRef<any>(null);
   const lastSyncErrorRef = React.useRef<string | null>(null);
 
-  // Track online/offline status for instant auto-sync when network returns
+  // BroadcastChannel for instant real-time synchronization across all tabs and open windows on the same machine
+  const syncChannelRef = React.useRef<BroadcastChannel | null>(null);
+
+  // Track online/offline status for instant auto-sync when network returns + Listen for cross-tab broadcasts
   useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const channel = new BroadcastChannel('accounting_app_live_sync');
+        syncChannelRef.current = channel;
+
+        channel.onmessage = (event) => {
+          if (!event.data || typeof event.data !== 'object') return;
+          const { type, payload } = event.data;
+
+          if (type === 'SYNC_ENTITY_UPDATE') {
+            const { entity, data } = payload || {};
+            if (!entity || !data) return;
+
+            if (entity === 'invoices') {
+              setInvoices(prev => {
+                const map = new Map<string, Invoice>();
+                for (const inv of data) if (inv && inv.id) map.set(inv.id, inv);
+                for (const p of prev) if (p && p.id && !map.has(p.id)) map.set(p.id, p);
+                const merged = Array.from(map.values());
+                merged.sort((a, b) => {
+                  const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+                  const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+                  if (numA !== numB) return numB - numA;
+                  return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+                });
+                return merged;
+              });
+            } else if (entity === 'parties') {
+              setParties(prev => {
+                const map = new Map<string, Party>();
+                for (const item of data) if (item && item.id) map.set(item.id, item);
+                for (const p of prev) if (p && p.id && !map.has(p.id)) map.set(p.id, p);
+                return Array.from(map.values());
+              });
+            } else if (entity === 'inventory') {
+              setInventory(prev => {
+                const map = new Map<string, InventoryItem>();
+                for (const item of data) if (item && item.id) map.set(item.id, item);
+                for (const p of prev) if (p && p.id && !map.has(p.id)) map.set(p.id, p);
+                return Array.from(map.values());
+              });
+            } else if (entity === 'vouchers') {
+              setVouchers(data);
+            } else if (entity === 'printOrders') {
+              setPrintOrders(data);
+            } else if (entity === 'purchases') {
+              setPurchases(data);
+            }
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('BroadcastChannel init note:', e);
+    }
+
+    // Storage Event fallback for cross-tab sync
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (!e.key || !e.newValue) return;
+      try {
+        if (e.key === `${STORAGE_KEY}_invoices`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setInvoices(parsed);
+        } else if (e.key === `${STORAGE_KEY}_parties`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setParties(parsed);
+        } else if (e.key === `${STORAGE_KEY}_inventory`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setInventory(parsed);
+        } else if (e.key === `${STORAGE_KEY}_vouchers`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setVouchers(parsed);
+        } else if (e.key === `${STORAGE_KEY}_printOrders`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setPrintOrders(parsed);
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
     const handleOnline = async () => {
       setIsOnline(true);
       console.log('Online event: internet connection restored. Triggering auto-sync with main database...');
@@ -692,11 +774,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
     const handleOffline = () => {
       setIsOnline(false);
-      console.log('Offline event: internet connection lost. System running fully offline on LocalStorage without disruption.');
+      console.log('Offline event: internet connection lost.');
     };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
     return () => {
+      if (syncChannelRef.current) {
+        try { syncChannelRef.current.close(); } catch {}
+      }
+      window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -4351,7 +4438,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     const newItem: InventoryItem = { ...item, id, code: uniqueCode, lastMovementDate: today };
-    setInventory(prev => [newItem, ...prev]);
+    setInventory(prev => {
+      const next = [newItem, ...prev];
+      broadcastEntityChange('inventory', next);
+      return next;
+    });
 
     // Save directly to cloud
     setDoc(doc(db, 'inventory', newItem.id), cleanDocForFirestore(newItem)).catch(err => {
@@ -5199,6 +5290,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Create POS Sale
+  
+  const broadcastEntityChange = (entity: string, data: any) => {
+    try {
+      if (syncChannelRef.current) {
+        syncChannelRef.current.postMessage({
+          type: 'SYNC_ENTITY_UPDATE',
+          payload: { entity, data, time: Date.now() }
+        });
+      }
+    } catch {}
+  };
+
   const createPosSale = (
     items: Array<{
       item: InventoryItem;
@@ -5925,7 +6028,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setInvoices(prev => prev.map(inv => inv.id === extraOptions.editingInvoiceId ? newInvoice : inv));
     } else {
       console.log('CREATING NEW INVOICE', newInvoice.id);
-      setInvoices(prev => [newInvoice, ...prev]);
+      setInvoices(prev => {
+        const next = [newInvoice, ...prev];
+        broadcastEntityChange('invoices', next);
+        return next;
+      });
     }
     
     // Direct immediate cloud save for multi-user synchronization
