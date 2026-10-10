@@ -127,6 +127,11 @@ function saveEntityData(entity: string, data: any[]) {
   }
 }
 
+
+app.get('/api/app-version', (_req, res) => {
+  res.json({ version: '1791656836620', time: Date.now() });
+});
+
 app.get('/api/sync/state', (req, res) => {
   const entities = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders', 'purchases'];
   const result: Record<string, any> = {};
@@ -183,9 +188,10 @@ const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath, {
   maxAge: '1d',
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('index.html') || filePath.endsWith('sw.js')) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    }
+    // Strict no-cache headers for instant app updates across all browsers
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
   }
 }));
 

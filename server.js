@@ -102,6 +102,9 @@ function saveEntityData(entity, data) {
     console.error(`Failed to save sync entity ${entity}:`, err);
   }
 }
+app.get("/api/app-version", (_req, res) => {
+  res.json({ version: "1791656836620", time: Date.now() });
+});
 app.get("/api/sync/state", (req, res) => {
   const entities = ["invoices", "parties", "inventory", "vouchers", "printOrders", "purchases"];
   const result = {};
@@ -149,9 +152,9 @@ var distPath = path.join(__dirname, "dist");
 app.use(express.static(distPath, {
   maxAge: "1d",
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith("index.html") || filePath.endsWith("sw.js")) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
   }
 }));
 app.get("*", (_req, res) => {

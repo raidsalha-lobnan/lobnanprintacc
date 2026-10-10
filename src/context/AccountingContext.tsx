@@ -1542,7 +1542,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Continuous 1-second sync loop
     const interval = setInterval(() => {
       pullServerSyncState();
-    }, 1000);
+    }, 500);
 
     return () => {
       clearTimeout(initialTimer);

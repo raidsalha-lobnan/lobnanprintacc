@@ -84,6 +84,32 @@ const MainLayout: React.FC = () => {
     document.title = title;
   }, [settings?.appTitle]);
 
+
+  // Auto App Code Version Checker & Reload Trigger
+  // Ensures browsers automatically pull new code updates from server without manual force-refresh
+  React.useEffect(() => {
+    let currentServerVersion: string | null = null;
+    const checkVersion = async () => {
+      try {
+        const res = await fetch('/api/app-version');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.version) {
+          if (currentServerVersion === null) {
+            currentServerVersion = data.version;
+          } else if (currentServerVersion !== data.version) {
+            console.log('New application code build detected. Reloading browser automatically...');
+            window.location.reload();
+          }
+        }
+      } catch (e) {}
+    };
+
+    checkVersion();
+    const interval = setInterval(checkVersion, 5000); // Check every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   // Enforce screen permissions
   React.useEffect(() => {
     const isAllowed = () => {
