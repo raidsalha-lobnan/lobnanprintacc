@@ -1368,6 +1368,44 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return s;
       })();
 
+      // Print Orders
+      if (json.data.printOrders && Array.isArray(json.data.printOrders.items) && json.data.printOrders.items.length > 0) {
+        const serverOrders: PrintJobOrder[] = json.data.printOrders.items;
+        setPrintOrders(prev => {
+          const map = new Map<string, PrintJobOrder>();
+          for (const ord of prev) if (ord && ord.id && !delSet.has(`printOrders_${ord.id}`)) map.set(ord.id, ord);
+          let changed = false;
+          for (const sOrd of serverOrders) {
+            if (sOrd && sOrd.id && !delSet.has(`printOrders_${sOrd.id}`)) {
+              if (!map.has(sOrd.id)) { map.set(sOrd.id, sOrd); changed = true; }
+            }
+          }
+          if (!changed) return prev;
+          const merged = Array.from(map.values());
+          try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      }
+
+      // Vouchers
+      if (json.data.vouchers && Array.isArray(json.data.vouchers.items) && json.data.vouchers.items.length > 0) {
+        const serverVouchers: PaymentVoucher[] = json.data.vouchers.items;
+        setVouchers(prev => {
+          const map = new Map<string, PaymentVoucher>();
+          for (const v of prev) if (v && v.id && !delSet.has(`vouchers_${v.id}`)) map.set(v.id, v);
+          let changed = false;
+          for (const sv of serverVouchers) {
+            if (sv && sv.id && !delSet.has(`vouchers_${sv.id}`)) {
+              if (!map.has(sv.id)) { map.set(sv.id, sv); changed = true; }
+            }
+          }
+          if (!changed) return prev;
+          const merged = Array.from(map.values());
+          try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      }
+
       // Invoices
       if (json.data.invoices && Array.isArray(json.data.invoices.items) && json.data.invoices.items.length > 0) {
         const serverInvoices: Invoice[] = json.data.invoices.items;
@@ -1979,8 +2017,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || (b.id || '').localeCompare(a.id || ''));
         const dedupedPrn = deduplicateById(docs, 'prn');
-        setPrintOrders(dedupedPrn);
-        try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(dedupedPrn)); } catch {}
+        setPrintOrders(prevLocal => {
+          const map = new Map<string, PrintJobOrder>();
+          for (const item of dedupedPrn) {
+            if (item && item.id) map.set(item.id, item);
+          }
+          for (const lp of prevLocal) {
+            if (lp && lp.id && !map.has(lp.id) && !delSet.has(`printOrders_${lp.id}`)) {
+              map.set(lp.id, lp);
+            }
+          }
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || (b.id || '').localeCompare(a.id || ''));
+          try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
       }, (e) => console.debug('Live printOrders sync:', e));
       unsubs.push(unsubPrintOrders);
 
@@ -2063,8 +2114,22 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           .filter(v => v && v.id && !delSet.has(`vouchers_${v.id}`));
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
-        setVouchers(docs);
-        try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(docs)); } catch {}
+        const dedupedVch = deduplicateById(docs, 'vch');
+        setVouchers(prevLocal => {
+          const map = new Map<string, PaymentVoucher>();
+          for (const item of dedupedVch) {
+            if (item && item.id) map.set(item.id, item);
+          }
+          for (const lp of prevLocal) {
+            if (lp && lp.id && !map.has(lp.id) && !delSet.has(`vouchers_${lp.id}`)) {
+              map.set(lp.id, lp);
+            }
+          }
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
+          try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
       }, (e) => console.debug('Live vouchers sync:', e));
       unsubs.push(unsubVouchers);
 
@@ -3865,7 +3930,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       exchangeRate: rate,
       baseAmount: baseEquivalent
     };
-    setVouchers(prev => [newVoucher, ...prev]);
+    setVouchers(prev => {
+      const next = [newVoucher, ...prev];
+      broadcastEntityChange('vouchers', next);
+      pushToServerSync('vouchers', newVoucher);
+      return next;
+    });
     setDoc(doc(db, 'vouchers', newVoucher.id), cleanDocForFirestore(newVoucher)).catch(() => {});
 
     return {
@@ -4051,7 +4121,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       exchangeRate: rate,
       baseAmount: baseEquivalent
     };
-    setVouchers(prev => [newVoucher, ...prev]);
+    setVouchers(prev => {
+      const next = [newVoucher, ...prev];
+      broadcastEntityChange('vouchers', next);
+      pushToServerSync('vouchers', newVoucher);
+      return next;
+    });
     setDoc(doc(db, 'vouchers', newVoucher.id), cleanDocForFirestore(newVoucher)).catch(() => {});
 
     return {
@@ -4916,7 +4991,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       description: `${type === 'salary' ? 'صرف راتب' : 'صرف سلفة'} للموظف: ${targetEmp.name} (${targetEmp.jobTitle}) - ${period}`
     };
 
-    setVouchers(prev => [newVoucher, ...prev]);
+    setVouchers(prev => {
+      const next = [newVoucher, ...prev];
+      broadcastEntityChange('vouchers', next);
+      pushToServerSync('vouchers', newVoucher);
+      return next;
+    });
     setDoc(doc(db, 'vouchers', newVoucher.id), cleanDocForFirestore(newVoucher)).catch(() => {});
 
     addJournalEntry({
@@ -4974,7 +5054,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         accountCode: '1104',
         description: `سند صرف سلفة نقدية للموظف: ${emp.name} (${emp.jobTitle}) - ${reason}`
       };
-      setVouchers(prev => [newVoucher, ...prev]);
+      setVouchers(prev => {
+      const next = [newVoucher, ...prev];
+      broadcastEntityChange('vouchers', next);
+      pushToServerSync('vouchers', newVoucher);
+      return next;
+    });
       setDoc(doc(db, 'vouchers', newVoucher.id), cleanDocForFirestore(newVoucher)).catch(() => {});
 
       // Journal entry: Debit 1104 (سلف ومستحقات الموظفين), Credit Treasury (1101/1102)
@@ -5257,7 +5342,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       accountCode: '5201',
       description: `صرف كشف رواتب ${sheet.sheetNumber}: ${sheet.title} - مسحوب من ${treasuryName} لعدد ${sheet.employeesCount} موظف`
     };
-    setVouchers(prev => [newVoucher, ...prev]);
+    setVouchers(prev => {
+      const next = [newVoucher, ...prev];
+      broadcastEntityChange('vouchers', next);
+      pushToServerSync('vouchers', newVoucher);
+      return next;
+    });
 
     // 2. Generate Journal Entry
     // Gross expense = totalBasic + totalAllowances + totalIncentives - totalDeductions
@@ -6709,7 +6799,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       createdAt: today
     };
 
-    setPrintOrders(prev => [newOrder, ...prev]);
+    setPrintOrders(prev => {
+      const next = [newOrder, ...prev];
+      broadcastEntityChange('printOrders', next);
+      pushToServerSync('printOrders', newOrder);
+      return next;
+    });
 
     // Save directly to Firestore for real-time multi-user syncing
     setDoc(doc(db, 'printOrders', newOrder.id), cleanDocForFirestore(newOrder)).catch(err => {
@@ -7056,7 +7151,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       baseAmount
     };
 
-    setVouchers(prev => [newVoucher, ...prev]);
+    setVouchers(prev => {
+      const next = [newVoucher, ...prev];
+      broadcastEntityChange('vouchers', next);
+      pushToServerSync('vouchers', newVoucher);
+      return next;
+    });
 
     // Direct cloud save
     setDoc(doc(db, 'vouchers', newVoucher.id), cleanDocForFirestore(newVoucher)).catch(err => {
