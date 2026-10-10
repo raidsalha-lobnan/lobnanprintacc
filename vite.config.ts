@@ -1,3 +1,115 @@
+
+import fs from 'fs';
+
+const SYNC_DATA_DIR = path.resolve(__dirname, '.sync_data');
+if (!fs.existsSync(SYNC_DATA_DIR)) {
+  try { fs.mkdirSync(SYNC_DATA_DIR, { recursive: true }); } catch {}
+}
+
+const syncCache: Record<string, any[]> = {};
+const syncTimestamps: Record<string, number> = {};
+
+function getEntityData(entity: string): any[] {
+  if (syncCache[entity]) return syncCache[entity];
+  const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
+  if (fs.existsSync(filePath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (Array.isArray(data)) {
+        syncCache[entity] = data;
+        syncTimestamps[entity] = Date.now();
+        return data;
+      }
+    } catch {}
+  }
+  syncCache[entity] = [];
+  syncTimestamps[entity] = Date.now();
+  return [];
+}
+
+function putEntityData(entity: string, data: any[]) {
+  syncCache[entity] = data;
+  syncTimestamps[entity] = Date.now();
+  const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data), 'utf8');
+  } catch {}
+}
+
+function syncHubPlugin() {
+  return {
+    name: 'central-sync-hub',
+    configureServer(server: any) {
+      server.middlewares.use((req: any, res: any, next: any) => {
+        const url = req.url || '';
+        
+        if (url.startsWith('/api/sync/state')) {
+          const entities = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders', 'purchases'];
+          const result: Record<string, any> = {};
+          for (const ent of entities) {
+            result[ent] = {
+              items: getEntityData(ent),
+              version: syncTimestamps[ent] || Date.now()
+            };
+          }
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 200;
+          return res.end(JSON.stringify({ success: true, data: result, serverTime: Date.now() }));
+        }
+
+        if (url.startsWith('/api/sync/push') && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const { entity, item, items } = JSON.parse(body || '{}');
+              if (!entity) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'Missing entity' }));
+              }
+
+              const current = getEntityData(entity);
+              const map = new Map<string, any>();
+              for (const it of current) {
+                if (it && it.id) map.set(String(it.id), it);
+              }
+
+              if (item && item.id) {
+                map.set(String(item.id), item);
+              }
+
+              if (Array.isArray(items)) {
+                for (const it of items) {
+                  if (it && it.id) map.set(String(it.id), it);
+                }
+              }
+
+              const updatedList = Array.from(map.values());
+              putEntityData(entity, updatedList);
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({
+                success: true,
+                count: updatedList.length,
+                version: syncTimestamps[entity]
+              }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        next();
+      });
+    }
+  };
+}
+
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -95,6 +207,7 @@ export default defineConfig(() => {
       react(), 
       tailwindcss(),
       liveSheetProxyPlugin(),
+      syncHubPlugin(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['apple-touch-icon.png', 'icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
