@@ -706,7 +706,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
                   const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
                   if (numA !== numB) return numB - numA;
-                  return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
                 });
                 return merged;
               });
@@ -8589,7 +8589,103 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     todaySales
   };
 
-  return (
+  
+  const forcePushAndPullSync = async (): Promise<{ success: boolean; message: string; invoicesCount: number }> => {
+    try {
+      console.log('🚀 Executing Forced Full Master Push & Pull Sync...');
+      
+      // 1. Gather all local data arrays
+      const invoicesToPush = invoices;
+      const partiesToPush = parties;
+      const inventoryToPush = inventory;
+      const vouchersToPush = vouchers;
+      const printOrdersToPush = printOrders;
+
+      // 2. Direct POST to /api/sync/push for all entities
+      if (invoicesToPush.length > 0) {
+        await fetch('/api/sync/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'invoices', items: invoicesToPush })
+        });
+      }
+
+      if (partiesToPush.length > 0) {
+        await fetch('/api/sync/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'parties', items: partiesToPush })
+        });
+      }
+
+      if (inventoryToPush.length > 0) {
+        await fetch('/api/sync/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'inventory', items: inventoryToPush })
+        });
+      }
+
+      if (vouchersToPush.length > 0) {
+        await fetch('/api/sync/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'vouchers', items: vouchersToPush })
+        });
+      }
+
+      if (printOrdersToPush.length > 0) {
+        await fetch('/api/sync/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity: 'printOrders', items: printOrdersToPush })
+        });
+      }
+
+      // 3. Immediately GET state from server hub
+      const stateRes = await fetch('/api/sync/state');
+      if (!stateRes.ok) throw new Error('فشل الاتصال بخادم المزامنة المركزي.');
+
+      const stateJson = await stateRes.json();
+      if (!stateJson || !stateJson.data) throw new Error('استجابة خادم المزامنة غير مكتملة.');
+
+      let totalInvs = 0;
+      if (Array.isArray(stateJson.data.invoices?.items) && stateJson.data.invoices.items.length > 0) {
+        const mergedInvs = stateJson.data.invoices.items;
+        totalInvs = mergedInvs.length;
+        setInvoices(mergedInvs);
+        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(mergedInvs)); } catch {}
+      }
+
+      if (Array.isArray(stateJson.data.parties?.items) && stateJson.data.parties.items.length > 0) {
+        setParties(stateJson.data.parties.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(stateJson.data.parties.items)); } catch {}
+      }
+
+      if (Array.isArray(stateJson.data.inventory?.items) && stateJson.data.inventory.items.length > 0) {
+        setInventory(stateJson.data.inventory.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(stateJson.data.inventory.items)); } catch {}
+      }
+
+      // Broadcast to other tabs as well
+      broadcastEntityChange('invoices', invoices);
+
+      return {
+        success: true,
+        message: `تم إجبار التراحل وترحيل كافة البيانات بنجاح! الإجمالي المعتمد على السيرفر: ${totalInvs} فاتورة.`,
+        invoicesCount: totalInvs
+      };
+    } catch (err: any) {
+      console.error('Force Push & Pull Error:', err);
+      return {
+        success: false,
+        message: err.message || 'حدث خطأ أثناء إجبار التراحل الفوري.',
+        invoicesCount: invoices.length
+      };
+    }
+  };
+
+return (
     <AccountingContext.Provider
       value={{
         settings,
