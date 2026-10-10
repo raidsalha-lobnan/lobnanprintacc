@@ -65,6 +65,86 @@ var PORT = process.env.PORT ? Number(process.env.PORT) : 3e3;
 app.get("/health", (_req, res) => {
   res.status(200).send("OK");
 });
+var SYNC_DATA_DIR = path.join(__dirname, ".sync_data");
+if (!fs.existsSync(SYNC_DATA_DIR)) {
+  try {
+    fs.mkdirSync(SYNC_DATA_DIR, { recursive: true });
+  } catch {
+  }
+}
+var syncCache = {};
+var syncTimestamps = {};
+function loadEntityData(entity) {
+  if (syncCache[entity]) return syncCache[entity];
+  const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
+  if (fs.existsSync(filePath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      if (Array.isArray(data)) {
+        syncCache[entity] = data;
+        syncTimestamps[entity] = Date.now();
+        return data;
+      }
+    } catch {
+    }
+  }
+  syncCache[entity] = [];
+  syncTimestamps[entity] = Date.now();
+  return [];
+}
+function saveEntityData(entity, data) {
+  syncCache[entity] = data;
+  syncTimestamps[entity] = Date.now();
+  const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data), "utf8");
+  } catch (err) {
+    console.error(`Failed to save sync entity ${entity}:`, err);
+  }
+}
+app.get("/api/sync/state", (req, res) => {
+  const entities = ["invoices", "parties", "inventory", "vouchers", "printOrders", "purchases"];
+  const result = {};
+  for (const ent of entities) {
+    result[ent] = {
+      items: loadEntityData(ent),
+      version: syncTimestamps[ent] || Date.now()
+    };
+  }
+  res.json({ success: true, data: result, serverTime: Date.now() });
+});
+app.post("/api/sync/push", (req, res) => {
+  try {
+    const { entity, item, items, op } = req.body;
+    if (!entity || typeof entity !== "string") {
+      return res.status(400).json({ error: "Missing entity" });
+    }
+    const current = loadEntityData(entity);
+    const map = /* @__PURE__ */ new Map();
+    for (const it of current) {
+      if (it && it.id) map.set(String(it.id), it);
+    }
+    if (item && item.id) {
+      map.set(String(item.id), item);
+    }
+    if (Array.isArray(items)) {
+      for (const it of items) {
+        if (it && it.id) map.set(String(it.id), it);
+      }
+    }
+    const updatedList = Array.from(map.values());
+    saveEntityData(entity, updatedList);
+    res.json({
+      success: true,
+      count: updatedList.length,
+      version: syncTimestamps[entity],
+      items: updatedList
+    });
+  } catch (err) {
+    console.error("Sync push error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 var distPath = path.join(__dirname, "dist");
 app.use(express.static(distPath, {
   maxAge: "1d",

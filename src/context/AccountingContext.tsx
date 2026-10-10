@@ -1521,13 +1521,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // Polling server sync hub for multi-device live sync
+  // Immediate and continuous multi-device live sync with server database
   useEffect(() => {
+    // Run immediately on component mount
     pullServerSyncState();
+
+    // Secondary immediate kick after 300ms to guarantee state update on first render
+    const initialTimer = setTimeout(() => {
+      pullServerSyncState();
+    }, 300);
+
+    // Continuous 1-second sync loop
     const interval = setInterval(() => {
       pullServerSyncState();
     }, 1000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
   }, []);
 
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<Invoice | null>(null);
