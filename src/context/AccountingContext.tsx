@@ -517,16 +517,32 @@ function safeLoadObject<T>(key: string, fallback: T): T {
   }
 }
 
-function deduplicateById<T extends { id?: string }>(items: T[], prefix = 'item'): T[] {
-  const seen = new Set<string>();
-  return items.map((item, idx) => {
-    let id = item.id;
-    if (!id || seen.has(id)) {
-      id = `${id || prefix}-${idx}-${Math.random().toString(36).substring(2, 7)}`;
+function deduplicateById<T extends { id?: string; invoiceNumber?: string }>(items: T[], prefix = 'item'): T[] {
+  const seenIds = new Set<string>();
+  const result: T[] = [];
+
+  for (const item of items) {
+    if (!item) continue;
+    const id = item.id;
+    
+    // If item has no ID, assign one
+    if (!id) {
+      const generatedId = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      seenIds.add(generatedId);
+      result.push({ ...item, id: generatedId });
+      continue;
     }
-    seen.add(id);
-    return { ...item, id };
-  });
+
+    // If ID was already seen in this array, IGNORE duplicate copy instead of re-keying and creating shadow documents!
+    if (seenIds.has(id)) {
+      continue;
+    }
+
+    seenIds.add(id);
+    result.push(item);
+  }
+
+  return result;
 }
 
 // One-time self-purging of old mock demo entries from browser localStorage
@@ -1630,7 +1646,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       // 1. Live Invoices (فواتير المبيعات ونقاط البيع لحظياً لكافة المستخدمين)
       const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => ({ ...d.data(), id: d.id } as Invoice))
@@ -1639,7 +1655,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             const num = parseInt((inv.invoiceNumber || '').replace(/\D/g, ''), 10);
             if (num === 11 || inv.invoiceNumber === 'INV-0011' || inv.invoiceNumber === 'INV-00011' || inv.id === 'inv-11') {
               registerDeletedDoc('invoices', inv.id);
-              deleteDoc(doc(db, 'invoices', inv.id)).catch(() => {});
+              deleteDoc(doc(db, 'invoices', inv.id)).catch(err => { if (err?.code !== 'resource-exhausted') console.debug(err); });
               return false;
             }
             return true;
@@ -1673,7 +1689,22 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (invCmp !== 0) return invCmp;
           return (b.createdAt || '').localeCompare(a.createdAt || '');
         });
-        const dedupedInvoices = deduplicateById(docs, 'inv');
+        // Deduplicate strictly by ID first, then by invoiceNumber to eliminate ghost duplicates
+        const dedupedById = deduplicateById(docs, 'inv');
+        const seenNumbers = new Set<string>();
+        const dedupedInvoices: Invoice[] = [];
+
+        for (const inv of dedupedById) {
+          const num = (inv.invoiceNumber || '').trim();
+          if (num && seenNumbers.has(num)) {
+            // Delete duplicate ghost copy from Firestore
+            deleteDoc(doc(db, 'invoices', inv.id)).catch(() => {});
+            continue;
+          }
+          if (num) seenNumbers.add(num);
+          dedupedInvoices.push(inv);
+        }
+
         setInvoices(dedupedInvoices);
         try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(dedupedInvoices)); } catch {}
       }, (e) => console.debug('Live invoices sync:', e));
@@ -1681,7 +1712,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 1B. Live Deleted Invoices (سلة فواتير المبيعات المحذوفة)
       const unsubDeletedInvoices = onSnapshot(collection(db, 'deletedInvoices'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Invoice));
         docs.sort((a, b) => {
           const timeA = new Date(a.deletedAt || a.date || 0).getTime() || 0;
@@ -1696,7 +1727,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 2. Live Print Orders (أوامر تشغيل ومطبوعات المطبعة لحظياً للجميع)
       const unsubPrintOrders = onSnapshot(collection(db, 'printOrders'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => d.data() as PrintJobOrder)
@@ -1728,7 +1759,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 3. Live Parties (العملاء والموردين وحساباتهم وأرصدتهم لحظياً)
       const unsubParties = onSnapshot(collection(db, 'parties'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => d.data() as Party)
@@ -1743,7 +1774,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 4. Live Inventory (المخزون، الأصناف، والأسعار لكافة المستخدمين)
       const unsubInventory = onSnapshot(collection(db, 'inventory'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => ({ ...d.data(), id: d.id } as InventoryItem))
@@ -1772,7 +1803,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 5. Live Vouchers (سندات القبض والصرف)
       const unsubVouchers = onSnapshot(collection(db, 'vouchers'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => d.data() as PaymentVoucher)
@@ -1786,7 +1817,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 6. Live Users (المستخدمين وبياناتهم وصلاحياتهم المحفوظة في قاعدة البيانات)
       const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const delSet = getDeletedSet();
         const docs = snapshot.docs
           .map(d => d.data() as SystemUser)
@@ -1800,7 +1831,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 7. Live Roles (الأدوار وصلاحيات الشاشات)
       const unsubRoles = onSnapshot(collection(db, 'roles'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as Role).filter(r => r && r.id);
         if (docs.length > 0) {
           setRoles(docs);
@@ -1811,7 +1842,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 8. Live Treasuries (الصناديق والخزائن)
       const unsubTreasuries = onSnapshot(collection(db, 'treasuries'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as Treasury).filter(t => t && t.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.accountCode || '').localeCompare(b.accountCode || '') || (a.name || '').localeCompare(b.name || ''));
@@ -1823,7 +1854,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 9. Live Purchases (المشتريات)
       const unsubPurchases = onSnapshot(collection(db, 'purchases'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as PurchaseInvoice).filter(p => p && p.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
@@ -1834,7 +1865,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 10. Live Expenses (المصروفات)
       const unsubExpenses = onSnapshot(collection(db, 'expenses'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as ExpenseItem).filter(e => e && e.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
@@ -1845,7 +1876,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 11. Live Debt Clearings (المقاصات)
       const unsubDebtClearings = onSnapshot(collection(db, 'debtClearings'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as DebtClearingRecord).filter(dc => dc && dc.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
@@ -1856,7 +1887,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 12. Live Accounts (شجرة الحسابات)
       const unsubAccounts = onSnapshot(collection(db, 'accounts'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as Account).filter(a => a && a.code);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
@@ -1868,7 +1899,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 13. Live Journal Entries (قيود اليومية العامة)
       const unsubJournals = onSnapshot(collection(db, 'journals'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as JournalEntry).filter(j => j && j.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (Number(b.entryNumber) || 0) - (Number(a.entryNumber) || 0));
@@ -1879,7 +1910,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 14. Live Stock Movements (حركات المخزون)
       const unsubStockMovements = onSnapshot(collection(db, 'stockMovements'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as StockMovement).filter(sm => sm && sm.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -1890,7 +1921,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 15. Live Employees (الموظفين)
       const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as Employee).filter(emp => emp && emp.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.code || '').localeCompare(b.code || '') || (a.name || '').localeCompare(b.name || ''));
@@ -1902,7 +1933,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 16. Live Payroll Sheets (مسيرات الرواتب)
       const unsubPayroll = onSnapshot(collection(db, 'payrollSheets'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as PayrollSheet).filter(ps => ps && ps.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -1913,7 +1944,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 17. Live Companies & Branches (الشركات والفروع)
       const unsubBranches = onSnapshot(collection(db, 'branches'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as Branch).filter(b => b && b.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.branchCode || '').localeCompare(b.branchCode || ''));
@@ -1925,7 +1956,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 18. Live Warehouses & Operations (المستودعات وحركاتها)
       const unsubWarehouses = onSnapshot(collection(db, 'warehouses'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as Warehouse).filter(w => w && w.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
@@ -1936,7 +1967,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       unsubs.push(unsubWarehouses);
 
       const unsubWhOps = onSnapshot(collection(db, 'warehouseOperations'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as WarehouseOperation).filter(wo => wo && wo.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || b.createdAt || '').localeCompare(a.date || a.createdAt || ''));
@@ -1947,7 +1978,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 19. Live Sales Returns & Purchase Returns (المردودات)
       const unsubSalesReturns = onSnapshot(collection(db, 'salesReturns'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as SalesReturn).filter(sr => sr && sr.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || b.createdAt || '').localeCompare(a.date || a.createdAt || ''));
@@ -1957,7 +1988,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       unsubs.push(unsubSalesReturns);
 
       const unsubPurchaseReturns = onSnapshot(collection(db, 'purchaseReturns'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const docs = snapshot.docs.map(d => d.data() as PurchaseReturn).filter(pr => pr && pr.id);
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || b.createdAt || '').localeCompare(a.date || a.createdAt || ''));
@@ -1968,7 +1999,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 20. Live Daily Entry Sheets Realtime Multi-User Sync (كشف الإدخال اليومي المتزامن سحابياً)
       const unsubDailyEntrySheets = onSnapshot(collection(db, 'dailyEntrySheets'), (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
+        // Live sync processing
         const sheetsMap: Record<string, DailyEntrySheet> = {};
         snapshot.docs.forEach(docSnap => {
           const data = docSnap.data() as DailyEntrySheet;
@@ -5181,7 +5212,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    const invId = extraOptions?.editingInvoiceId || 'inv-pos-' + Date.now();
+    // 1. التحقق الفوري ومنع التكرار نهائياً لأي معرف عملية (Transaction ID)
+    let invId = extraOptions?.editingInvoiceId;
+    if (!invId) {
+      invId = 'inv-pos-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+      // التأكد من عدم وجود معرف عملية مطاط أو مكرر بنفس المعرف في الفواتير الحالية
+      let attempts = 0;
+      while (invoices.some(inv => inv.id === invId) && attempts < 10) {
+        invId = 'inv-pos-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+        attempts++;
+      }
+    }
 
     
     // If editing, find the old invoice and reverse its effects
@@ -5220,7 +5261,43 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    const invoiceNumber = oldInvoice ? oldInvoice.invoiceNumber : (extraOptions?.invoiceNumber || `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, '0')}`);
+    // 2. الفحص الصارم لرقم الفاتورة ومنع تكرار أي رقم فاتورة مطلقاً
+    let invoiceNumber = oldInvoice ? oldInvoice.invoiceNumber : extraOptions?.invoiceNumber;
+    if (!invoiceNumber) {
+      let maxNum = 0;
+      invoices.forEach(inv => {
+        if (inv.invoiceNumber) {
+          const matched = inv.invoiceNumber.match(/\d+/g);
+          if (matched && matched.length > 0) {
+            const num = parseInt(matched[matched.length - 1], 10);
+            if (!isNaN(num) && num > maxNum && num < 1000000) {
+              maxNum = num;
+            }
+          }
+        }
+      });
+      invoiceNumber = `INV-${String(maxNum + 1).padStart(4, '0')}`;
+    }
+
+    // التحقق النهائي من عدم وجود أي فاتورة سابقة تحمل نفس رقم الفاتورة للعمليات الجديدة
+    if (!oldInvoice) {
+      const isNumDuplicate = invoices.some(inv => inv.invoiceNumber && inv.invoiceNumber.trim() === invoiceNumber.trim() && inv.id !== invId);
+      if (isNumDuplicate) {
+        let maxNum = 0;
+        invoices.forEach(inv => {
+          if (inv.invoiceNumber) {
+            const matched = inv.invoiceNumber.match(/\d+/g);
+            if (matched && matched.length > 0) {
+              const num = parseInt(matched[matched.length - 1], 10);
+              if (!isNaN(num) && num > maxNum && num < 1000000) {
+                maxNum = num;
+              }
+            }
+          }
+        });
+        invoiceNumber = `INV-${String(maxNum + 1).padStart(4, '0')}`;
+      }
+    }
     const today = extraOptions?.date || new Date().toISOString().split('T')[0];
     const appliedTaxRate = extraOptions?.taxRate !== undefined ? extraOptions.taxRate : settings.vatRate;
     const additionalFees = extraOptions?.additionalCharges || 0;

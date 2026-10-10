@@ -591,6 +591,18 @@ const getInitialPosDraft = (): PosFullDraftData => {
   const [invoiceSeqNumber, setInvoiceSeqNumber] = useState<string>(() => {
     return getNextSequentialInvoiceNumber(invoices);
   });
+
+  // Auto-sync next sequence number whenever new invoices arrive from other users via cloud Firestore
+  useEffect(() => {
+    if (!editingPosInvoiceId) {
+      const nextNumStr = getNextSequentialInvoiceNumber(invoices);
+      const currentVal = parseInt(invoiceSeqNumber, 10) || 0;
+      const cloudVal = parseInt(nextNumStr, 10) || 0;
+      if (cloudVal > currentVal) {
+        setInvoiceSeqNumber(nextNumStr);
+      }
+    }
+  }, [invoices, editingPosInvoiceId]);
   const [invoiceDate, setInvoiceDate] = useState<string>(() => {
     return savedPosDraft.invoiceDate || new Date().toISOString().split('T')[0];
   });

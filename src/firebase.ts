@@ -26,11 +26,7 @@ let firestoreDb;
 setLogLevel('silent'); // Suppress verbose connection warnings in console
 try {
   firestoreDb = initializeFirestore(app, {
-    ignoreUndefinedProperties: true,
-    experimentalAutoDetectLongPolling: true,
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
+    ignoreUndefinedProperties: true
   }, config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)' ? config.firestoreDatabaseId : undefined);
 } catch (e) {
   try {
