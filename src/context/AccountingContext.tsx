@@ -1360,19 +1360,22 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // First boot: push whatever this client has locally to the server hub so every device shares its records!
       if (!hasUploadedLocalSeedRef.current) {
         hasUploadedLocalSeedRef.current = true;
-        try {
-          const localInvoicesRaw = localStorage.getItem(`${STORAGE_KEY}_invoices`);
-          if (localInvoicesRaw) {
-            const parsed = JSON.parse(localInvoicesRaw);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              fetch('/api/sync/push', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entity: 'invoices', items: parsed })
-              }).catch(() => {});
+        const entitiesToSeed = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders'];
+        for (const ent of entitiesToSeed) {
+          try {
+            const raw = localStorage.getItem(`${STORAGE_KEY}_${ent}`);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                fetch('/api/sync/push', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ entity: ent, items: parsed })
+                }).catch(() => {});
+              }
             }
-          }
-        } catch {}
+          } catch {}
+        }
       }
 
       const res = await fetch('/api/sync/state');
@@ -4718,12 +4721,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       merged = { ...updated, id } as InventoryItem;
     }
 
-    setInventory(prev => prev.map(it => (it.id === id ? merged : it)));
-    try {
-      const next = inventory.map(it => (it.id === id ? merged : it));
-      if (!inventory.some(it => it.id === id)) next.push(merged);
-      localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(next));
-    } catch {}
+    setInventory(prev => {
+      const next = prev.map(it => (it.id === id ? merged : it));
+      if (!prev.some(it => it.id === id)) next.push(merged);
+      broadcastEntityChange('inventory', next);
+      pushToServerSync('inventory', merged);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     setDoc(doc(db, 'inventory', id), cleanDocForFirestore(merged), { merge: true }).catch(() => {});
   };
 
@@ -4825,6 +4832,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
     setParties(prev => {
       const next = [...prev, newParty];
+      broadcastEntityChange('parties', next);
+      pushToServerSync('parties', newParty);
       try {
         localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(next));
         localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'true');
@@ -4889,10 +4898,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         localStorage.setItem('accounting_synced_hashes', JSON.stringify(hashes));
       } catch (e) {}
 
-      // 3. Direct cloud update
+      // 3. Direct cloud update and multi-device hub push
       setDoc(doc(db, 'parties', targetId), cleanDocForFirestore(merged), { merge: true }).catch(err => {
         console.warn('Direct cloud update party notice:', err);
       });
+      broadcastEntityChange('parties', nextParties);
+      pushToServerSync('parties', merged);
 
       return nextParties;
     });
