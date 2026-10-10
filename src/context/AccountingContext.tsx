@@ -1352,8 +1352,29 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  // Flag to push local existing records to sync hub on boot
+  const hasUploadedLocalSeedRef = React.useRef<boolean>(false);
+
   const pullServerSyncState = async () => {
     try {
+      // First boot: push whatever this client has locally to the server hub so every device shares its records!
+      if (!hasUploadedLocalSeedRef.current) {
+        hasUploadedLocalSeedRef.current = true;
+        try {
+          const localInvoicesRaw = localStorage.getItem(`${STORAGE_KEY}_invoices`);
+          if (localInvoicesRaw) {
+            const parsed = JSON.parse(localInvoicesRaw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              fetch('/api/sync/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entity: 'invoices', items: parsed })
+              }).catch(() => {});
+            }
+          }
+        } catch {}
+      }
+
       const res = await fetch('/api/sync/state');
       if (!res.ok) return;
       const json = await res.json();
@@ -1411,18 +1432,26 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const serverInvoices: Invoice[] = json.data.invoices.items;
         setInvoices(prev => {
           const map = new Map<string, Invoice>();
-          for (const inv of prev) {
-            if (inv && inv.id && !delSet.has(`invoices_${inv.id}`)) map.set(inv.id, inv);
-          }
+          const seenNums = new Set<string>();
+
+          // Merge both lists into single combined pool
+          const allPool = [...serverInvoices, ...prev];
           let changed = false;
-          for (const sInv of serverInvoices) {
-            if (sInv && sInv.id && !delSet.has(`invoices_${sInv.id}`)) {
-              if (!map.has(sInv.id)) {
-                map.set(sInv.id, sInv);
-                changed = true;
-              }
-            }
+
+          for (const inv of allPool) {
+            if (!inv || !inv.id || delSet.has(`invoices_${inv.id}`)) continue;
+            const num = (inv.invoiceNumber || '').trim();
+            if (num && seenNums.has(num)) continue;
+            if (map.has(inv.id)) continue;
+
+            if (num) seenNums.add(num);
+            map.set(inv.id, inv);
           }
+
+          if (map.size !== prev.length) {
+            changed = true;
+          }
+
           if (!changed) return prev;
           const merged = Array.from(map.values());
           merged.sort((a, b) => {

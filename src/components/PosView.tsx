@@ -2651,7 +2651,8 @@ const getInitialPosDraft = (): PosFullDraftData => {
   const [currentNavInvoiceIndex, setCurrentNavInvoiceIndex] = useState<number>(-1);
 
   const loadInvoiceToScreen = (inv: Invoice) => {
-    setCustomerName(inv.customerName);
+    if (!inv) return;
+    setCustomerName(inv.customerName || 'زبون نقدي');
     if (inv.customerId) setSelectedCustomerId(inv.customerId);
     if (inv.customCustomerText) setCustomCustomerText(inv.customCustomerText);
     if (inv.subCustomerId) setSubCustomerId(inv.subCustomerId);
@@ -2661,11 +2662,11 @@ const getInitialPosDraft = (): PosFullDraftData => {
     if (inv.paymentNotes) setPaymentNotes(inv.paymentNotes); else setPaymentNotes('');
     if (inv.workflowStatus) setInvoiceWorkflowStatus(inv.workflowStatus);
     
-    setInvoiceSeqNumber(inv.invoiceNumber.replace(/\D/g, '') || '1');
-    setInvoiceDate(inv.date);
+    setInvoiceSeqNumber((inv.invoiceNumber || '').replace(/\D/g, '') || '1');
+    if (inv.date) setInvoiceDate(inv.date);
     setAdditionalCharges(inv.additionalCharges || 0);
     setOverallDiscount(inv.discountTotal || 0);
-    setPaymentMethod(inv.paymentMethod);
+    if (inv.paymentMethod) setPaymentMethod(inv.paymentMethod);
     if (inv.cashPaidAmount !== undefined || inv.bankPaidAmount !== undefined) {
       setCashAmountInput(String(inv.cashPaidAmount || 0));
       setBankAmountInput(String(inv.bankPaidAmount || 0));
@@ -2688,7 +2689,33 @@ const getInitialPosDraft = (): PosFullDraftData => {
       setCustomExchangeRate(inv.exchangeRate);
     }
 
-    const loadedLines: PosTableLine[] = inv.items.map((it, idx) => {
+    const rawItems = Array.isArray(inv.items) ? inv.items : [];
+    if (rawItems.length === 0) {
+      setTableLines([
+        {
+          id: generateUniqueLineId(),
+          barcode: '',
+          itemName: '',
+          description: '',
+          notes: '',
+          hasDimensions: false,
+          length: 1,
+          width: 1,
+          count: 1,
+          quantity: 1,
+          unit: 'حبة',
+          unitPrice: 0,
+          discount: 0,
+          tax: 0,
+          total: 0,
+          attachments: []
+        }
+      ]);
+      setEditingPosInvoiceId(inv.id);
+      return;
+    }
+
+    const loadedLines: PosTableLine[] = rawItems.map((it, idx) => {
       const invItem = inventory.find(i => i.id === it.itemId || (it.itemCode && i.code === it.itemCode));
       const isSq = isSquareMeterUnit(it.unit);
       const hasDims = isSq && Boolean(it.hasDimensions || (it.length && it.width && (it.length > 0 && it.width > 0)));
