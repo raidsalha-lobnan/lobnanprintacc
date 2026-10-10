@@ -6308,7 +6308,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     if (extraOptions?.editingInvoiceId) {
       console.log('UPDATING INVOICE', extraOptions.editingInvoiceId);
-      setInvoices(prev => prev.map(inv => inv.id === extraOptions.editingInvoiceId ? newInvoice : inv));
+      setInvoices(prev => {
+        const next = prev.map(inv => inv.id === extraOptions.editingInvoiceId ? newInvoice : inv);
+        broadcastEntityChange('invoices', next);
+        pushToServerSync('invoices', newInvoice);
+        return next;
+      });
     } else {
       console.log('CREATING NEW INVOICE', newInvoice.id);
       setInvoices(prev => {
