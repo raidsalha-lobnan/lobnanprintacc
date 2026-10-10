@@ -146,8 +146,11 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
 
     return combined
       .filter(inv => {
-        const invDate = inv.date || (inv.createdAt ? inv.createdAt.split('T')[0] : '');
+        // Extract clean invoice date or default to current date if missing
+        const todayFallback = new Date().toISOString().split('T')[0];
+        const invDate = inv.date || (inv.createdAt ? inv.createdAt.split('T')[0] : todayFallback);
         const invCreatedDate = inv.createdAt ? inv.createdAt.split('T')[0] : invDate;
+
         if (startDate) {
           if (invDate < startDate && invCreatedDate < startDate) return false;
         }

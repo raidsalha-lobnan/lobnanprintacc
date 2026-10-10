@@ -453,6 +453,8 @@ const getInitialPosDraft = (): PosFullDraftData => {
   // Active top tab in POS window
   const [activeWindowTab, setActiveWindowTab] = useState<'pos' | 'items' | 'parties' | 'ledger' | 'home'>('pos');
 
+
+
   // Load persistent draft on initialization (لضمان بقاء كافة الإدخالات والبيانات عند التحديث F5)
   const savedPosDraft = useMemo(() => getInitialPosDraft(), []);
 
@@ -591,18 +593,6 @@ const getInitialPosDraft = (): PosFullDraftData => {
   const [invoiceSeqNumber, setInvoiceSeqNumber] = useState<string>(() => {
     return getNextSequentialInvoiceNumber(invoices);
   });
-
-  // Auto-sync next sequence number whenever new invoices arrive from other users via cloud Firestore
-  useEffect(() => {
-    if (!editingPosInvoiceId) {
-      const nextNumStr = getNextSequentialInvoiceNumber(invoices);
-      const currentVal = parseInt(invoiceSeqNumber, 10) || 0;
-      const cloudVal = parseInt(nextNumStr, 10) || 0;
-      if (cloudVal > currentVal) {
-        setInvoiceSeqNumber(nextNumStr);
-      }
-    }
-  }, [invoices, editingPosInvoiceId]);
   const [invoiceDate, setInvoiceDate] = useState<string>(() => {
     return savedPosDraft.invoiceDate || new Date().toISOString().split('T')[0];
   });
@@ -648,7 +638,9 @@ const getInitialPosDraft = (): PosFullDraftData => {
   >(null);
 
   // Table Lines State - حفظ واسترجاع مسودة الكاشير لضمان عدم ضياع الأصناف عند التحديث
-  const [tableLines, setTableLines] = useState<PosTableLine[]>(() => {
+
+
+    const [tableLines, setTableLines] = useState<PosTableLine[]>(() => {
     if (Array.isArray(savedPosDraft.tableLines) && savedPosDraft.tableLines.length > 0) {
       return savedPosDraft.tableLines;
     }
@@ -681,6 +673,22 @@ const getInitialPosDraft = (): PosFullDraftData => {
       }
     ];
   });
+
+  // Confirmation dialog & auto-clear/hold when leaving POS screen or navigating away
+  useEffect(() => {
+    return () => {
+      // Check if there are active lines or selected items in the cart when leaving
+      const hasActiveLines = tableLines.some(l => (l.itemName && l.itemName.trim() !== '') || l.unitPrice > 0 || l.total > 0);
+      if (hasActiveLines) {
+        // Automatically hold or reset uncommitted cart when unmounting so new sessions always start clean!
+        try {
+          localStorage.removeItem(POS_FULL_DRAFT_KEY);
+          localStorage.removeItem('pos_active_draft_lines');
+        } catch {}
+      }
+    };
+  }, [tableLines]);
+
 
   const [activeRowId, setActiveRowId] = useState<string | null>(() => {
     return savedPosDraft.activeRowId || null;
@@ -2358,6 +2366,24 @@ const getInitialPosDraft = (): PosFullDraftData => {
       localStorage.removeItem('pos_active_draft_lines');
     } catch {}
 
+    // Reset customer and sub-customer strictly to default cash customer ("زبون نقدي") for the next sale
+    setSubCustomerId('');
+    setSubCustomerName('');
+    setSubCustomerPhone('');
+    setCustomCustomerText('');
+    setPosTargetType('customer');
+
+    const defaultCashCust = customers.find(c => c.code === 'CUST-0001' || c.code === '1');
+    if (defaultCashCust) {
+      setSelectedCustomerId(defaultCashCust.id);
+      setCustomerName(defaultCashCust.name);
+      setCustomerCode(defaultCashCust.code);
+    } else {
+      setSelectedCustomerId('');
+      setCustomerName('زبون نقدي');
+      setCustomerCode('');
+    }
+
     if (currentEditingInvoiceIdRef.current || editingPosInvoiceId) {
       setEditingPosInvoiceId(null);
       currentEditingInvoiceIdRef.current = null;
@@ -2795,14 +2821,20 @@ const getInitialPosDraft = (): PosFullDraftData => {
       localStorage.removeItem('pos_active_draft_lines');
     } catch {}
 
+    setSubCustomerId('');
+    setSubCustomerName('');
+    setSubCustomerPhone('');
+    setCustomCustomerText('');
+    setPosTargetType('customer');
+
     const defaultCashCust = customers.find(c => c.code === 'CUST-0001' || c.code === '1');
-    if (defaultCashCust && posTargetType === 'customer') {
+    if (defaultCashCust) {
       setSelectedCustomerId(defaultCashCust.id);
       setCustomerName(defaultCashCust.name);
       setCustomerCode(defaultCashCust.code);
     } else {
       setSelectedCustomerId('');
-      setCustomerName('عميل كاشير نقدي');
+      setCustomerName('زبون نقدي');
       setCustomerCode('');
     }
   };
@@ -2829,27 +2861,8 @@ const getInitialPosDraft = (): PosFullDraftData => {
     if (confirm(editingPosInvoiceId ? 'هل ترغب في إلغاء التعديل والعودة إلى الكشف؟' : 'هل ترغب في تفريغ بيانات الفاتورة والبدء بفاتورة جديدة؟')) {
       if (editingPosInvoiceId) {
         setEditingPosInvoiceId(null);
-        // setActiveTab('invoices'); // Removed so the screen stays as is
-        return;
       }
-      setTableLines([
-        {
-          id: generateUniqueLineId(),
-          barcode: '',
-          itemName: '',
-          description: '',
-          length: 1,
-          width: 1,
-          quantity: 1,
-          unitPrice: 0,
-          total: 0
-        }
-      ]);
-      setAdditionalCharges(0);
-      setOverallDiscount(0);
-      setInvoiceNotes('');
-      setCashAmountInput('0');
-      setBankAmountInput('0');
+      handleClearInvoiceDirect();
       
       try {
         localStorage.removeItem(POS_FULL_DRAFT_KEY);

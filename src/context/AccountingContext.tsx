@@ -2068,11 +2068,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       const nowTime = new Date().toLocaleTimeString('en-US');
       localStorage.setItem(`${STORAGE_KEY}_last_local_save`, nowTime);
-      setLastLocalSaveTime(nowTime);
 
       if (!isInitialMount.current && isCloudHydratedRef.current) {
-        setHasUnsyncedChanges(true);
-        setPendingSyncCount(prev => prev + 1);
         localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'true');
 
         // Debounced automatic background sync to main database when online
@@ -2090,17 +2087,27 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [settings, accounts, treasuries, journalEntries, inventory, parties, employees, printOrders, invoices, purchases, purchaseReturns, salesReturns, vouchers, employeeAdvances, employeeDeductions, employeeIncentives, payrollSheets, stockMovements, companies, branches, warehouses, warehouseOperations, activeWarehouseId, roles, users, activeCompanyId, activeBranchId, currentUserId]);
 
-  // Keep treasury balances synchronized with their Chart of Accounts assets
+  // Keep treasury balances synchronized with their Chart of Accounts assets without trigger loops
   useEffect(() => {
-    setTreasuries(prev =>
-      prev.map(t => {
-        const acc = accounts.find(a => a.code === t.accountCode);
-        if (acc && acc.balance !== t.balance) {
-          return { ...t, balance: acc.balance };
-        }
-        return t;
-      })
-    );
+    let hasDifference = false;
+    for (const t of treasuries) {
+      const acc = accounts.find(a => a.code === t.accountCode);
+      if (acc && acc.balance !== t.balance) {
+        hasDifference = true;
+        break;
+      }
+    }
+    if (hasDifference) {
+      setTreasuries(prev =>
+        prev.map(t => {
+          const acc = accounts.find(a => a.code === t.accountCode);
+          if (acc && acc.balance !== t.balance) {
+            return { ...t, balance: acc.balance };
+          }
+          return t;
+        })
+      );
+    }
   }, [accounts]);
 
   // One-time data consistency and SKU migration (TEX-0001 for جاليه سيلكون)
