@@ -29479,13 +29479,6 @@
   ],
   "invoices": [
     {
-      "id": "inv-stream-test-1791656321935",
-      "invoiceNumber": "INV-9999",
-      "customerName": "عميل تجربة المزامنة السريعة",
-      "totalAmount": 1234,
-      "date": "2026-10-10"
-    },
-    {
       "id": "inv-pos-1791704577884-9bmbl",
       "invoiceNumber": "INV-0274",
       "date": "2026-10-01",
@@ -40079,28 +40072,6 @@
       "representative": "مندوب المبيعات الرئيسي"
     },
     {
-      "totalAmount": 500,
-      "customerName": "تجربة الفاتورة 140 الفورية",
-      "invoiceNumber": "INV-0140",
-      "type": "sales",
-      "subtotal": 500,
-      "date": "2026-10-10",
-      "id": "inv-140-sim",
-      "items": [
-        {
-          "unitPrice": 500,
-          "total": 500,
-          "itemId": "inv-1",
-          "quantity": 1,
-          "itemName": "مطبوعات فورية 140"
-        }
-      ],
-      "remainingAmount": 0,
-      "paidAmount": 500,
-      "discountTotal": 0,
-      "paymentMethod": "cash"
-    },
-    {
       "id": "inv-pos-1791664336956-k4zii",
       "invoiceNumber": "INV-0140",
       "date": "2026-10-03",
@@ -40542,28 +40513,6 @@
       "isAccountingPosted": true,
       "postedAt": "2026-10-10T20:12:12.332Z",
       "type": "pos"
-    },
-    {
-      "customerName": "فحص المزامنة الحية",
-      "discountTotal": 0,
-      "paymentMethod": "credit",
-      "items": [
-        {
-          "unitPrice": 150,
-          "itemId": "inv-2",
-          "total": 150,
-          "quantity": 1,
-          "itemName": "أمر مطبعة"
-        }
-      ],
-      "paidAmount": 0,
-      "remainingAmount": 150,
-      "id": "inv-135-master",
-      "date": "2026-10-10",
-      "invoiceNumber": "INV-0135",
-      "totalAmount": 150,
-      "type": "sales",
-      "subtotal": 150
     },
     {
       "id": "inv-pos-1791658845996-rbr9q",
@@ -51798,13 +51747,6 @@
       "paymentStatus": "credit",
       "branchId": "br-1",
       "status": "unpaid"
-    },
-    {
-      "totalAmount": 1000,
-      "invoiceNumber": "INV-AUDIT-001",
-      "date": "2026-10-10",
-      "customerName": "فحص الجودة والتدقيق الكامل",
-      "id": "test-inv-audit-1791658470253"
     },
     {
       "currency": "ILS",

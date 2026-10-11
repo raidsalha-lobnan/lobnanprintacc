@@ -827,15 +827,8 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         localStorage.removeItem(`${STORAGE_KEY}_purchases`);
 
         if (Array.isArray(data.invoices) && data.invoices.length > 0) {
-          // Filter out any test invoices
-          const cleanInvoices = data.invoices.filter((inv: any) => {
-            const numStr = (inv.invoiceNumber || '').replace(/\D/g, '');
-            const num = parseInt(numStr, 10);
-            const name = (inv.customerName || '').toLowerCase();
-            return inv.invoiceNumber !== 'INV-9999' && num !== 9999 && !name.includes('فحص المزامنة') && !name.includes('تجربة المزامنة');
-          });
-          setInvoices(cleanInvoices);
-          localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(cleanInvoices));
+          setInvoices(data.invoices);
+          localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data.invoices));
         }
         if (Array.isArray(data.parties) && data.parties.length > 0) {
           setParties(data.parties);

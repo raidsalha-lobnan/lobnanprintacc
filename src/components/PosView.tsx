@@ -152,8 +152,7 @@ const getNextSequentialInvoiceNumber = (allInvoices: Invoice[]): string => {
       if (match && match.length > 0) {
         for (const m of match) {
           const num = parseInt(m, 10);
-          // Strictly ignore test probe numbers >= 1000 (like 9999 or 10000)
-          if (!isNaN(num) && num > maxSeq && num < 1000) {
+          if (!isNaN(num) && num > maxSeq) {
             maxSeq = num;
           }
         }
@@ -164,7 +163,6 @@ const getNextSequentialInvoiceNumber = (allInvoices: Invoice[]): string => {
   let storedMax = 0;
   try {
     storedMax = parseInt(localStorage.getItem('pos_max_invoice_seq') || '0', 10);
-    if (storedMax >= 1000) storedMax = 0;
   } catch {
     storedMax = 0;
   }
@@ -2833,6 +2831,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
 
   const handleClearInvoiceDirect = (silent = false) => {
     setEditingPosInvoiceId(null);
+    currentEditingInvoiceIdRef.current = null;
     setTableLines([
       {
         id: generateUniqueLineId(),
@@ -2852,7 +2851,10 @@ const getInitialPosDraft = (): PosFullDraftData => {
     setCashAmountInput('0');
     setBankAmountInput('0');
 
+    const freshNextSeq = getNextSequentialInvoiceNumber(invoices);
+    setInvoiceSeqNumber(freshNextSeq);
     try {
+      localStorage.setItem('pos_max_invoice_seq', freshNextSeq);
       localStorage.removeItem(POS_FULL_DRAFT_KEY);
       localStorage.removeItem('pos_active_draft_lines');
     } catch {}
