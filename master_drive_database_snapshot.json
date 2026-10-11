@@ -15070,19 +15070,6 @@
   ],
   "inventory": [
     {
-      "id": "inv-probe-sync-1",
-      "sellingPrice": 20,
-      "category": "print",
-      "name": "صنف تجربة المزامنة"
-    },
-    {
-      "id": "inv-test-full-1",
-      "name": "صنف فحص المزامنة الشاملة",
-      "code": "ITEM-9999",
-      "category": "print",
-      "sellingPrice": 100
-    },
-    {
       "name": "ستاند خشب 60*160",
       "id": "inv-1791555668284-654on",
       "code": "ITM-7354",
@@ -26654,37 +26641,6 @@
       "address": ""
     },
     {
-      "id": "pt-probe-sync-1",
-      "code": "CUST-0033",
-      "name": "عميل تجربة المزامنة",
-      "type": "customer",
-      "balance": 0
-    },
-    {
-      "contactPerson": "",
-      "openingBalanceDate": "2026-10-10",
-      "isSubCustomer": false,
-      "specialPrices": {
-        "inv-1791053010826": 20
-      },
-      "creditLimit": 0,
-      "name": "مطبعة بكسل - أبو العبد مطر",
-      "address": "",
-      "commercialRegister": "",
-      "email": "",
-      "type": "customer",
-      "balance": 20,
-      "openingBalanceType": "debit",
-      "phone": "",
-      "taxNumber": "",
-      "openingBalance": 0,
-      "initialBalance": 0,
-      "notes": "",
-      "city": "",
-      "code": "CUST-0034",
-      "id": "pt-1791664778926"
-    },
-    {
       "taxNumber": "",
       "notes": "",
       "openingBalance": 0,
@@ -26955,13 +26911,6 @@
       }
     },
     {
-      "name": "عميل فحص المزامنة الشاملة",
-      "type": "customer",
-      "id": "pt-test-full-1",
-      "balance": 500,
-      "code": "CUST-9999"
-    },
-    {
       "id": "pt-sub-1790461499785",
       "parentPartyId": "pt-1790460764568",
       "isSubCustomer": true,
@@ -26974,6 +26923,13 @@
       "name": "رافع رمضان",
       "openingBalanceType": "debit",
       "openingBalanceDate": "2026-10-01"
+    },
+    {
+      "id": "pt-0034",
+      "code": "CUST-0034",
+      "name": "مطبعة بكسل - أبو العبد مطر",
+      "type": "customer",
+      "balance": 0.0
     }
   ],
   "employees": [
