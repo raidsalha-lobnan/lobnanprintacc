@@ -814,7 +814,9 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       try {
         const res = await fetch('/master_drive_database_snapshot.json');
         if (!res.ok) return;
-        const data = await res.json();
+        const text = await res.text();
+        if (!text || text.trim().startsWith('<')) return;
+        const data = JSON.parse(text);
         if (!data || typeof data !== 'object') return;
 
         // Purge old local cache to remove test invoices like INV-9999
@@ -3745,7 +3747,11 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       if (!res.ok) {
         throw new Error(`فشل تحميل ملف قاعدة البيانات الرئيسية (${res.status})`);
       }
-      const data = await res.json();
+      const text = await res.text();
+      if (!text || text.trim().startsWith('<')) {
+        throw new Error('استجابة غير صالحة من الخادم (ملف JSON مفقود أو تالف)');
+      }
+      const data = JSON.parse(text);
       if (!data || typeof data !== 'object') {
         throw new Error('ملف قاعدة البيانات غير صالح');
       }
