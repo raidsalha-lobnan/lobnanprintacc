@@ -805,10 +805,10 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   }, []);
 
-  // 100% Automatic Master Database Hydration on Startup (Clean v6)
+  // 100% Automatic Master Database Hydration on Startup (Clean v7)
   useEffect(() => {
     const autoHydrateMasterDb = async () => {
-      const syncKey = 'alnoor_press_master_sync_v6_clean';
+      const syncKey = 'alnoor_press_master_sync_v7_clean';
       if (localStorage.getItem(syncKey) === 'true') return;
 
       try {
