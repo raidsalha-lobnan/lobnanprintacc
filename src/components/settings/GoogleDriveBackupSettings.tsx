@@ -535,6 +535,22 @@ export const GoogleDriveBackupSettings: React.FC = () => {
             <Download className="w-3.5 h-3.5" />
             <span>تنزيل نسخة على الجهاز (JSON)</span>
           </button>
+
+          {/* Import Master Database Snapshot Button */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (window.confirm('هل تريد فعلاً استيراد واعتماد قاعدة البيانات الجديدة (Master Snapshot) وتطبيقها فوراً على الشاشة؟')) {
+                const res = await accounting.importMasterDatabaseSnapshot();
+                alert(res.message);
+              }
+            }}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
+            title="اعتماد قاعدة البيانات الجديدة وربط المزامنة الفورية"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>اعتماد وتحميل قاعدة البيانات الجديدة</span>
+          </button>
         </div>
 
         {/* Refresh Drive List Button */}

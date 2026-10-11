@@ -152,7 +152,8 @@ const getNextSequentialInvoiceNumber = (allInvoices: Invoice[]): string => {
       if (match && match.length > 0) {
         for (const m of match) {
           const num = parseInt(m, 10);
-          if (!isNaN(num) && num > maxSeq && num < 100000) {
+          // Strictly ignore test probe numbers >= 1000 (like 9999 or 10000)
+          if (!isNaN(num) && num > maxSeq && num < 1000) {
             maxSeq = num;
           }
         }
@@ -163,11 +164,12 @@ const getNextSequentialInvoiceNumber = (allInvoices: Invoice[]): string => {
   let storedMax = 0;
   try {
     storedMax = parseInt(localStorage.getItem('pos_max_invoice_seq') || '0', 10);
+    if (storedMax >= 1000) storedMax = 0;
   } catch {
     storedMax = 0;
   }
 
-  const nextSeq = Math.max(maxSeq, storedMax, (allInvoices || []).length) + 1;
+  const nextSeq = Math.max(maxSeq, storedMax) + 1;
   return String(nextSeq);
 };
 
@@ -2331,17 +2333,13 @@ const getInitialPosDraft = (): PosFullDraftData => {
       setLastSavedInvoiceNotice(savedInvoice);
     }
 
-    // Reset to a fresh blank invoice with sequential non-repeating sequence
-    if (currentEditingInvoiceIdRef.current || editingPosInvoiceId) {
-      setInvoiceSeqNumber(getNextSequentialInvoiceNumber(invoices));
-    } else {
-      const currentNum = parseInt(invoiceSeqNumber, 10) || 1;
-      try {
-        localStorage.setItem('pos_max_invoice_seq', String(currentNum));
-      } catch (e) {
-        console.error(e);
-      }
-      setInvoiceSeqNumber(String(currentNum + 1));
+    // Reset to a fresh blank invoice with strictly sequential non-repeating sequence
+    const freshNextSeq = getNextSequentialInvoiceNumber(invoices);
+    setInvoiceSeqNumber(freshNextSeq);
+    try {
+      localStorage.setItem('pos_max_invoice_seq', freshNextSeq);
+    } catch (e) {
+      console.error(e);
     }
 
     setTableLines([

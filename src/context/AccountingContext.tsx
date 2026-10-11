@@ -366,6 +366,7 @@ interface AccountingContextType {
   syncToFirebase: (force?: boolean) => Promise<boolean>;
   forceSyncNow: () => Promise<{ success: boolean; message: string }>;
   forcePushAndPullSync: () => Promise<{ success: boolean; message: string; invoicesCount: number }>;
+  importMasterDatabaseSnapshot: () => Promise<{ success: boolean; message: string }>;
 
   // SQL Server Export & Web Server Integration (التصدير والمزامنة مع خادم ويب خارجي)
   sqlServerConfig: SqlServerConfig;
@@ -802,6 +803,77 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
 
 
+  }, []);
+
+  // 100% Automatic Master Database Hydration on Startup (Forced)
+  useEffect(() => {
+    const autoHydrateMasterDb = async () => {
+      const syncKey = 'alnoor_press_master_sync_v5_force';
+      if (localStorage.getItem(syncKey) === 'true') return;
+
+      try {
+        const res = await fetch('/master_drive_database_snapshot.json');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || typeof data !== 'object') return;
+
+        if (Array.isArray(data.invoices) && data.invoices.length > 0) {
+          setInvoices(data.invoices);
+          localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data.invoices));
+        }
+        if (Array.isArray(data.parties) && data.parties.length > 0) {
+          setParties(data.parties);
+          localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(data.parties));
+        }
+        if (Array.isArray(data.inventory) && data.inventory.length > 0) {
+          setInventory(data.inventory);
+          localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(data.inventory));
+        }
+        if (Array.isArray(data.printOrders) && data.printOrders.length > 0) {
+          setPrintOrders(data.printOrders);
+          localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(data.printOrders));
+        }
+        if (Array.isArray(data.vouchers) && data.vouchers.length > 0) {
+          setVouchers(data.vouchers);
+          localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(data.vouchers));
+        }
+        if (Array.isArray(data.purchases) && data.purchases.length > 0) {
+          setPurchases(data.purchases);
+          localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(data.purchases));
+        }
+        if (Array.isArray(data.accounts) && data.accounts.length > 0) {
+          setAccounts(data.accounts);
+          localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(data.accounts));
+        }
+        if (Array.isArray(data.treasuries) && data.treasuries.length > 0) {
+          setTreasuries(data.treasuries);
+          localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(data.treasuries));
+        }
+        if (Array.isArray(data.employees) && data.employees.length > 0) {
+          setEmployees(data.employees);
+          localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(data.employees));
+        }
+        if (Array.isArray(data.branches) && data.branches.length > 0) {
+          setBranches(data.branches);
+          localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(data.branches));
+        }
+        if (Array.isArray(data.warehouses) && data.warehouses.length > 0) {
+          setWarehouses(data.warehouses);
+          localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(data.warehouses));
+        }
+        if (data.settings && typeof data.settings === 'object') {
+          setSettings(data.settings);
+          localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(data.settings));
+        }
+
+        localStorage.setItem(syncKey, 'true');
+        console.log('Master database snapshot forcefully hydrated on startup.');
+      } catch (err) {
+        console.warn('Auto master database hydration note:', err);
+      }
+    };
+
+    autoHydrateMasterDb();
   }, []);
 
   const [accounts, setAccounts] = useState<Account[]>(() => {
@@ -3651,6 +3723,81 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       updateSqlServerConfig({ ...sqlServerConfig, lastSyncTime: res.timestamp });
     }
     return res;
+  };
+
+  const importMasterDatabaseSnapshot = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await fetch('/master_drive_database_snapshot.json');
+      if (!res.ok) {
+        throw new Error(`فشل تحميل ملف قاعدة البيانات الرئيسية (${res.status})`);
+      }
+      const data = await res.json();
+      if (!data || typeof data !== 'object') {
+        throw new Error('ملف قاعدة البيانات غير صالح');
+      }
+
+      if (Array.isArray(data.invoices)) {
+        setInvoices(data.invoices);
+        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data.invoices));
+      }
+      if (Array.isArray(data.parties)) {
+        setParties(data.parties);
+        localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(data.parties));
+      }
+      if (Array.isArray(data.inventory)) {
+        setInventory(data.inventory);
+        localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(data.inventory));
+      }
+      if (Array.isArray(data.printOrders)) {
+        setPrintOrders(data.printOrders);
+        localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(data.printOrders));
+      }
+      if (Array.isArray(data.vouchers)) {
+        setVouchers(data.vouchers);
+        localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(data.vouchers));
+      }
+      if (Array.isArray(data.purchases)) {
+        setPurchases(data.purchases);
+        localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(data.purchases));
+      }
+      if (Array.isArray(data.accounts)) {
+        setAccounts(data.accounts);
+        localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(data.accounts));
+      }
+      if (Array.isArray(data.treasuries)) {
+        setTreasuries(data.treasuries);
+        localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(data.treasuries));
+      }
+      if (Array.isArray(data.employees)) {
+        setEmployees(data.employees);
+        localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(data.employees));
+      }
+      if (Array.isArray(data.branches)) {
+        setBranches(data.branches);
+        localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(data.branches));
+      }
+      if (Array.isArray(data.warehouses)) {
+        setWarehouses(data.warehouses);
+        localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(data.warehouses));
+      }
+      if (data.settings && typeof data.settings === 'object') {
+        setSettings(data.settings);
+        localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(data.settings));
+      }
+
+      localStorage.setItem(`${STORAGE_KEY}_last_sync`, new Date().toISOString());
+      localStorage.removeItem(`${STORAGE_KEY}_has_unsynced`);
+      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+
+      return { success: true, message: 'تم استيراد واعتماد قاعدة البيانات الرئيسية بنجاح، جاري إعادة تحميل التطبيق...' };
+    } catch (err: any) {
+      console.error('Failed to import master database snapshot:', err);
+      return { success: false, message: err?.message || 'فشل استيراد قاعدة البيانات' };
+    }
   };
 
   const addAccount = (accountData: Omit<Account, 'balance'> & { initialBalance?: number }) => {
@@ -8986,6 +9133,7 @@ return (
         syncToFirebase,
         forceSyncNow,
         forcePushAndPullSync,
+        importMasterDatabaseSnapshot,
         activeTab,
         setActiveTab,
         goBack,
