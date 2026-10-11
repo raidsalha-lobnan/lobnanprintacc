@@ -332,14 +332,15 @@ function liveSheetProxyPlugin() {
   };
 }
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
+  const isProd = command === 'build';
   return {
     plugins: [
       react(), 
       tailwindcss(),
       liveSheetProxyPlugin(),
       syncHubPlugin(),
-      VitePWA({
+      isProd ? VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['apple-touch-icon.png', 'icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
@@ -386,8 +387,8 @@ export default defineConfig(() => {
         devOptions: {
           enabled: false,
         },
-      })
-    ],
+      }) : null
+    ].filter(Boolean),
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
