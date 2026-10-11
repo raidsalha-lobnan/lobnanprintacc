@@ -152,7 +152,7 @@ const getNextSequentialInvoiceNumber = (allInvoices: Invoice[]): string => {
       if (match && match.length > 0) {
         for (const m of match) {
           const num = parseInt(m, 10);
-          if (!isNaN(num) && num > maxSeq) {
+          if (!isNaN(num) && num > maxSeq && num < 999999) {
             maxSeq = num;
           }
         }
@@ -160,14 +160,10 @@ const getNextSequentialInvoiceNumber = (allInvoices: Invoice[]): string => {
     }
   }
 
-  let storedMax = 0;
+  const nextSeq = maxSeq + 1;
   try {
-    storedMax = parseInt(localStorage.getItem('pos_max_invoice_seq') || '0', 10);
-  } catch {
-    storedMax = 0;
-  }
-
-  const nextSeq = Math.max(maxSeq, storedMax) + 1;
+    localStorage.setItem('pos_max_invoice_seq', String(maxSeq));
+  } catch {}
   return String(nextSeq);
 };
 
