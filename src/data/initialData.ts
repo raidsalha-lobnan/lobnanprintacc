@@ -1,4 +1,5 @@
 import { Account, InventoryItem, Party, PrintJobOrder, Invoice, PurchaseInvoice, PurchaseReturn, SalesReturn, JournalEntry, Employee, EmployeeAdvance, EmployeeDeduction, EmployeeIncentive, PayrollSheet, Treasury, Company, Branch, Warehouse, SystemUser, Role, DebtClearingRecord, ExpenseItem, BusinessSettings, StockMovement } from '../types';
+import masterSnapshot from '../../master_drive_database_snapshot.json';
 
 export const initialSettings: BusinessSettings = {
   businessName: 'مطبعة ومكتبة لبنان',

@@ -102,7 +102,8 @@ export const Navbar: React.FC = () => {
     pendingSyncCount,
     lastLocalSaveTime,
     forceSyncNow,
-    hasPermission
+    hasPermission,
+    importMasterDatabaseSnapshot
   } = useAccounting();
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -130,6 +131,13 @@ export const Navbar: React.FC = () => {
     const res = await forceSyncNow();
     setSyncFeedback(res);
     setTimeout(() => setSyncFeedback(null), 4500);
+  };
+
+  const handleImportMasterSnapshot = async () => {
+    if (window.confirm('هل تريد استيعاب واعتماد أحدث نسخة رئيسية لقاعدة البيانات فوراً؟ (سيتم تحميل كافة الفواتير والبيانات المحدثة)')) {
+      const res = await importMasterDatabaseSnapshot();
+      setSyncFeedback(res);
+    }
   };
 
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -1022,6 +1030,16 @@ export const Navbar: React.FC = () => {
           >
             <RefreshCw className={`w-3 h-3 text-white ${isFirebaseSyncing ? 'animate-spin' : ''}`} />
             <span>{isFirebaseSyncing ? 'جاري المزامنة...' : 'تحديث حركي فورى'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleImportMasterSnapshot}
+            className="px-2 py-0.5 flex items-center gap-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xs shadow-xs active:translate-y-px transition cursor-pointer border border-amber-800"
+            title="استيعاب واعتماد أحدث نسخة رئيسية لقاعدة البيانات (تحميل الفواتير الأخيرة فوراً)"
+          >
+            <Database className="w-3 h-3 text-white" />
+            <span>استيعاب قاعدة البيانات</span>
           </button>
 
           {/* Cloud Sync Tool */}
