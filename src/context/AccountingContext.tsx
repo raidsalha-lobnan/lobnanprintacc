@@ -805,10 +805,10 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   }, []);
 
-  // 100% Automatic Master Database Hydration on Startup (Forced)
+  // 100% Automatic Master Database Hydration on Startup (Clean v6)
   useEffect(() => {
     const autoHydrateMasterDb = async () => {
-      const syncKey = 'alnoor_press_master_sync_v5_force';
+      const syncKey = 'alnoor_press_master_sync_v6_clean';
       if (localStorage.getItem(syncKey) === 'true') return;
 
       try {
@@ -817,9 +817,23 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         const data = await res.json();
         if (!data || typeof data !== 'object') return;
 
+        // Purge old local cache to remove test invoices like INV-9999
+        localStorage.removeItem(`${STORAGE_KEY}_invoices`);
+        localStorage.removeItem(`${STORAGE_KEY}_parties`);
+        localStorage.removeItem(`${STORAGE_KEY}_inventory`);
+        localStorage.removeItem(`${STORAGE_KEY}_vouchers`);
+        localStorage.removeItem(`${STORAGE_KEY}_purchases`);
+
         if (Array.isArray(data.invoices) && data.invoices.length > 0) {
-          setInvoices(data.invoices);
-          localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data.invoices));
+          // Filter out any test invoices
+          const cleanInvoices = data.invoices.filter((inv: any) => {
+            const numStr = (inv.invoiceNumber || '').replace(/\D/g, '');
+            const num = parseInt(numStr, 10);
+            const name = (inv.customerName || '').toLowerCase();
+            return inv.invoiceNumber !== 'INV-9999' && num !== 9999 && !name.includes('فحص المزامنة') && !name.includes('تجربة المزامنة');
+          });
+          setInvoices(cleanInvoices);
+          localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(cleanInvoices));
         }
         if (Array.isArray(data.parties) && data.parties.length > 0) {
           setParties(data.parties);
@@ -867,7 +881,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         }
 
         localStorage.setItem(syncKey, 'true');
-        console.log('Master database snapshot forcefully hydrated on startup.');
+        console.log('Master database snapshot cleanly hydrated on startup.');
       } catch (err) {
         console.warn('Auto master database hydration note:', err);
       }

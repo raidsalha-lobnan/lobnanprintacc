@@ -5961,7 +5961,7 @@
       {
         "date": "2026-10-01",
         "userName": "م. رائد صالحة",
-        "notes": "إنشاء الفاتورة وتثبيتها ف����� النظام",
+        "notes": "إنشاء الفاتورة وتثبيته�� ف����� النظام",
         "id": "st-init-1791327589500",
         "createdAt": "2026-10-06T22:59:49.500Z",
         "userId": "usr-1",
@@ -10285,7 +10285,7 @@
       {
         "discount": 0,
         "attachments": [],
-        "unit": "حبة",
+        "unit": "ح��ة",
         "tax": 0,
         "width": 0,
         "description": "",
@@ -11134,28 +11134,6 @@
         "total": 287.5
       }
     ]
-  },
-  {
-    "paymentMethod": "credit",
-    "discountTotal": 0,
-    "invoiceNumber": "INV-0135",
-    "date": "2026-10-10",
-    "remainingAmount": 150,
-    "totalAmount": 150,
-    "items": [
-      {
-        "total": 150,
-        "quantity": 1,
-        "unitPrice": 150,
-        "itemId": "inv-2",
-        "itemName": "أمر مطبعة"
-      }
-    ],
-    "customerName": "فحص المزامنة الحية",
-    "type": "sales",
-    "id": "inv-135-master",
-    "paidAmount": 0,
-    "subtotal": 150
   },
   {
     "id": "inv-140-sim",
@@ -16619,7 +16597,7 @@
   },
   {
     "workflowStatus": "new",
-    "branch": "��لفرع الرئيسي  Main Branch",
+    "branch": "����لفرع الرئيسي  Main Branch",
     "warehouse": "المستودع الرئيسي",
     "totalAmount": 1,
     "status": "paid",
