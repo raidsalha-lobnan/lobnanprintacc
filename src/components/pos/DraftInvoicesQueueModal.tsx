@@ -271,7 +271,8 @@ export const DraftInvoicesQueueModal: React.FC<DraftInvoicesQueueModalProps> = (
     settings,
     currentUser,
     branches = [],
-    activeBranchId
+    activeBranchId,
+    getItemPriceForCustomer: getContextItemPrice
   } = useAccounting();
 
   // Full Screen State (بعرض الشاشة بالكامل)
@@ -300,15 +301,9 @@ export const DraftInvoicesQueueModal: React.FC<DraftInvoicesQueueModalProps> = (
   const [searchFilter, setSearchFilter] = useState<string>('');
   const getItemPriceForCustomer = useCallback(
     (invItem: InventoryItem, custId?: string): { price: number; isSpecialPrice: boolean } => {
-      if (custId) {
-        const cust = parties.find(p => p.id === custId);
-        if (cust && cust.specialPrices && cust.specialPrices[invItem.id] !== undefined) {
-          return { price: cust.specialPrices[invItem.id], isSpecialPrice: true };
-        }
-      }
-      return { price: invItem.sellingPrice || 0, isSpecialPrice: false };
+      return getContextItemPrice(invItem, custId);
     },
-    [parties]
+    [getContextItemPrice]
   );
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState<boolean>(false);
   const [activeItemAutocompleteIdx, setActiveItemAutocompleteIdx] = useState<number | null>(null);
@@ -615,6 +610,28 @@ export const DraftInvoicesQueueModal: React.FC<DraftInvoicesQueueModalProps> = (
         if (d.id !== draftId) return d;
         const updated = { ...d, ...updates };
 
+        // Re-evaluate item prices if customerId changed
+        if (updates.customerId && updates.customerId !== d.customerId) {
+          updated.items = (updated.items || []).map(it => {
+            const invItem = inventory.find(
+              i =>
+                (it.matchedInventoryId && i.id === it.matchedInventoryId) ||
+                (it.itemCode && i.code?.toLowerCase() === it.itemCode.toLowerCase()) ||
+                i.name.trim().toLowerCase() === it.itemName.trim().toLowerCase()
+            );
+            if (invItem) {
+              const { price } = getItemPriceForCustomer(invItem, updates.customerId);
+              const qty = it.quantity || 1;
+              return {
+                ...it,
+                unitPrice: price,
+                totalAmount: Number((qty * price).toFixed(2))
+              };
+            }
+            return it;
+          });
+        }
+
         const subtotal = (updated.items || []).reduce((sum, it) => sum + (Number(it.totalAmount) || 0), 0);
         let discountVal = 0;
         if (updated.discount && updated.discount > 0) {
@@ -816,12 +833,14 @@ export const DraftInvoicesQueueModal: React.FC<DraftInvoicesQueueModalProps> = (
     itemId: string,
     invItem: InventoryItem
   ) => {
+    const targetDraft = draftInvoices.find(d => d.id === draftId);
+    const { price } = getItemPriceForCustomer(invItem, targetDraft?.customerId);
     handleUpdateItem(draftId, itemId, {
       itemCode: invItem.code,
       itemName: invItem.name,
       matchedInventoryId: invItem.id,
       matchedInventoryName: invItem.name,
-      unitPrice: invItem.sellingPrice || 0
+      unitPrice: price
     });
     setActiveItemAutocompleteIdx(null);
   };

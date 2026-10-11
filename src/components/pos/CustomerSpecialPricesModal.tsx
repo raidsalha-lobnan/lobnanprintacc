@@ -23,13 +23,26 @@ export const CustomerSpecialPricesModal: React.FC<CustomerSpecialPricesModalProp
   const [tempPrices, setTempPrices] = useState<Record<string, number>>({});
   const [isSavedAlert, setIsSavedAlert] = useState(false);
 
-  // Sync state when modal opens
+  // Sync state when modal opens, loading special prices from both customer profile and item cards
   React.useEffect(() => {
     if (party && isOpen) {
-      setTempPrices(party.specialPrices || {});
+      const initial: Record<string, number> = { ...(party.specialPrices || {}) };
+      inventory.forEach(it => {
+        if (it.customerSpecialPrices && it.customerSpecialPrices.length > 0) {
+          const entry = it.customerSpecialPrices.find(sp =>
+            sp.customerId === party.id ||
+            (party.code && sp.customerCode && sp.customerCode.toLowerCase() === party.code.toLowerCase()) ||
+            (sp.customerName && sp.customerName.trim().toLowerCase() === party.name.trim().toLowerCase())
+          );
+          if (entry && typeof entry.price === 'number' && entry.price >= 0 && initial[it.id] === undefined) {
+            initial[it.id] = entry.price;
+          }
+        }
+      });
+      setTempPrices(initial);
       setIsSavedAlert(false);
     }
-  }, [party, isOpen]);
+  }, [party, isOpen, inventory]);
 
   const filteredItems = useMemo(() => {
     return inventory.filter(item => {

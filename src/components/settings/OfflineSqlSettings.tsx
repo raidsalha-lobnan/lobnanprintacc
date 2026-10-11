@@ -169,10 +169,10 @@ export const OfflineSqlSettings: React.FC = () => {
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">
-                قاعدة بيانات البرنامج الرئيسي (السحابية) والحفظ الفوري بالذاكرة المحلية
+                قاعدة البيانات السحابية (Google Drive & Central Server) والحفظ المحلي الفوري
               </h3>
               <p className="text-[10px] text-slate-400 font-light">
-                الذاكرة المحلية LocalStorage تعمل فورياً وتلقائياً لضمان عدم توقف العمل عند انقطاع الإنترنت والمزامنة التلقائية عند عودته
+                تُحفظ البيانات فورياً في الذاكرة المحلية وتتزامن تلقائياً مع السيرفر ومجلد Google Drive دون الحاجة لفايربيس
               </p>
             </div>
           </div>
@@ -191,7 +191,7 @@ export const OfflineSqlSettings: React.FC = () => {
             }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isFirebaseSyncing ? 'animate-spin' : ''}`} />
-            <span>{isFirebaseSyncing ? 'جاري المزامنة...' : 'مزامنة فورية مع قاعدة البيانات'}</span>
+            <span>{isFirebaseSyncing ? 'جاري المزامنة...' : 'مزامنة فورية مع قاعدة البيانات وGoogle Drive'}</span>
           </button>
         </div>
 
@@ -206,7 +206,7 @@ export const OfflineSqlSettings: React.FC = () => {
           </div>
 
           <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-            <span className="text-[10px] text-slate-400 font-light block">قاعدة بيانات البرنامج الرئيسي:</span>
+            <span className="text-[10px] text-slate-400 font-light block">قاعدة بيانات Google Drive والسيرفر:</span>
             <div className="flex items-center gap-1.5 mt-1">
               <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
               <strong className="text-slate-800 text-xs">

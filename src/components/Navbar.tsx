@@ -1016,22 +1016,24 @@ export const Navbar: React.FC = () => {
           <button
             type="button"
             onClick={handleManualSync}
-            className="px-2 py-0.5 flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-xs shadow-xs active:translate-y-px transition cursor-pointer border border-emerald-800 animate-pulse"
+            disabled={isFirebaseSyncing}
+            className="px-2 py-0.5 flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-xs shadow-xs active:translate-y-px transition cursor-pointer border border-emerald-800 disabled:opacity-75"
             title="إجبار المزامنة وتحديث الشاشة فوراً بأحدث الفواتير والبيانات"
           >
-            <RefreshCw className="w-3 h-3 text-white" />
-            <span>تحديث حركي فورى</span>
+            <RefreshCw className={`w-3 h-3 text-white ${isFirebaseSyncing ? 'animate-spin' : ''}`} />
+            <span>{isFirebaseSyncing ? 'جاري المزامنة...' : 'تحديث حركي فورى'}</span>
           </button>
 
           {/* Cloud Sync Tool */}
           {(isAdmin || hasPermission('view_settings')) && (
             <button
               onClick={handleManualSync}
-              className="px-2 py-0.5 flex items-center gap-1 bg-gradient-to-b from-white to-slate-100 hover:from-emerald-50 hover:to-emerald-100 text-slate-800 border border-slate-400 hover:border-emerald-600 font-bold text-[11px] rounded-xs shadow-2xs active:translate-y-px transition cursor-pointer"
+              disabled={isFirebaseSyncing}
+              className="px-2 py-0.5 flex items-center gap-1 bg-gradient-to-b from-white to-slate-100 hover:from-emerald-50 hover:to-emerald-100 text-slate-800 border border-slate-400 hover:border-emerald-600 font-bold text-[11px] rounded-xs shadow-2xs active:translate-y-px transition cursor-pointer disabled:opacity-75"
               title="إجراء مزامنة فورية مع قاعدة البيانات السحابية"
             >
               <RefreshCw className={`w-3 h-3 text-emerald-600 ${isFirebaseSyncing ? 'animate-spin' : ''}`} />
-              <span>مزامنة</span>
+              <span>{isFirebaseSyncing ? 'جاري المزامنة...' : 'مزامنة'}</span>
             </button>
           )}
 

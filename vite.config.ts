@@ -36,6 +36,15 @@ function putEntityData(entity: string, data: any[]) {
   } catch {}
 }
 
+const ALL_SYNC_ENTITIES = [
+  'invoices', 'parties', 'inventory', 'vouchers', 'printOrders',
+  'purchases', 'purchaseReturns', 'salesReturns', 'accounts', 'treasuries',
+  'employees', 'employeeAdvances', 'employeeDeductions', 'employeeIncentives',
+  'payrollSheets', 'stockMovements', 'companies', 'branches',
+  'warehouses', 'warehouseOperations', 'roles', 'users', 'debtClearings',
+  'expenses', 'journalEntries', 'settings', 'dailyEntrySheets'
+];
+
 function syncHubPlugin() {
   return {
     name: 'central-sync-hub',
@@ -43,13 +52,39 @@ function syncHubPlugin() {
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = req.url || '';
         
-        if (url.startsWith('/api/sync/state')) {
-          const entities = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders', 'purchases'];
+        if (url.startsWith('/api/sync/status') && req.method === 'GET') {
+          const summary: Record<string, { count: number; lastModified: number }> = {};
+          for (const ent of ALL_SYNC_ENTITIES) {
+            const items = getEntityData(ent);
+            summary[ent] = {
+              count: items.length,
+              lastModified: syncTimestamps[ent] || Date.now()
+            };
+          }
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 200;
+          return res.end(JSON.stringify({
+            success: true,
+            serverTime: Date.now(),
+            serverTimeString: new Date().toLocaleTimeString('ar-EG'),
+            entities: summary
+          }));
+        }
+
+        if (url.startsWith('/api/sync/state') && req.method === 'GET') {
+          const urlObj = new URL(url, 'http://localhost');
+          const requestedEntitiesParam = urlObj.searchParams.get('entities');
+          const requestedEntities = requestedEntitiesParam
+            ? requestedEntitiesParam.split(',')
+            : ALL_SYNC_ENTITIES;
+
           const result: Record<string, any> = {};
-          for (const ent of entities) {
-            result[ent] = {
-              items: getEntityData(ent),
-              version: syncTimestamps[ent] || Date.now()
+          for (const ent of requestedEntities) {
+            const safeEnt = ent.trim();
+            if (!safeEnt) continue;
+            result[safeEnt] = {
+              items: getEntityData(safeEnt),
+              version: syncTimestamps[safeEnt] || Date.now()
             };
           }
           res.setHeader('Content-Type', 'application/json');
@@ -62,7 +97,7 @@ function syncHubPlugin() {
           req.on('data', (chunk: any) => { body += chunk; });
           req.on('end', () => {
             try {
-              const { entity, item, items } = JSON.parse(body || '{}');
+              const { entity, item, items, op, deletedIds } = JSON.parse(body || '{}');
               if (!entity) {
                 res.statusCode = 400;
                 res.setHeader('Content-Type', 'application/json');
@@ -75,13 +110,29 @@ function syncHubPlugin() {
                 if (it && it.id) map.set(String(it.id), it);
               }
 
+              if (Array.isArray(deletedIds)) {
+                for (const dId of deletedIds) {
+                  if (dId) map.delete(String(dId));
+                }
+              }
+
               if (item && item.id) {
-                map.set(String(item.id), item);
+                if (item._deleted || op === 'delete') {
+                  map.delete(String(item.id));
+                } else {
+                  map.set(String(item.id), item);
+                }
               }
 
               if (Array.isArray(items)) {
                 for (const it of items) {
-                  if (it && it.id) map.set(String(it.id), it);
+                  if (it && it.id) {
+                    if (it._deleted) {
+                      map.delete(String(it.id));
+                    } else {
+                      map.set(String(it.id), it);
+                    }
+                  }
                 }
               }
 
@@ -93,7 +144,87 @@ function syncHubPlugin() {
               return res.end(JSON.stringify({
                 success: true,
                 count: updatedList.length,
-                version: syncTimestamps[entity]
+                version: syncTimestamps[entity],
+                items: updatedList
+              }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        if (url.startsWith('/api/sync/full-sync') && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const { entities, deletedDocs } = JSON.parse(body || '{}');
+              if (!entities || typeof entities !== 'object') {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'Missing entities map' }));
+              }
+
+              const delSet = new Set<string>();
+              if (Array.isArray(deletedDocs)) {
+                deletedDocs.forEach((d: any) => {
+                  if (d && d.col && d.id) delSet.add(`${d.col}_${d.id}`);
+                });
+              }
+
+              const resultMap: Record<string, { items: any[]; count: number; version: number }> = {};
+              const countsSummary: Record<string, number> = {};
+
+              for (const [entityName, incomingItems] of Object.entries(entities)) {
+                if (!Array.isArray(incomingItems)) continue;
+
+                const serverItems = getEntityData(entityName);
+                const mergedMap = new Map<string, any>();
+
+                for (const sIt of serverItems) {
+                  if (sIt && sIt.id && !delSet.has(`${entityName}_${sIt.id}`) && !sIt._deleted) {
+                    mergedMap.set(String(sIt.id), sIt);
+                  }
+                }
+
+                for (const cIt of incomingItems) {
+                  if (!cIt || !cIt.id) continue;
+                  const key = String(cIt.id);
+                  if (delSet.has(`${entityName}_${key}`) || cIt._deleted) {
+                    mergedMap.delete(key);
+                    continue;
+                  }
+
+                  if (!mergedMap.has(key)) {
+                    mergedMap.set(key, cIt);
+                  } else {
+                    const existing = mergedMap.get(key);
+                    mergedMap.set(key, { ...existing, ...cIt });
+                  }
+                }
+
+                const mergedList = Array.from(mergedMap.values());
+                putEntityData(entityName, mergedList);
+
+                resultMap[entityName] = {
+                  items: mergedList,
+                  count: mergedList.length,
+                  version: syncTimestamps[entityName] || Date.now()
+                };
+                countsSummary[entityName] = mergedList.length;
+              }
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({
+                success: true,
+                serverTime: Date.now(),
+                serverTimeString: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                data: resultMap,
+                counts: countsSummary
               }));
             } catch (err: any) {
               res.statusCode = 500;

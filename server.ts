@@ -7,7 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Proxy endpoint for live sheet fetching (OneDrive / Google Sheets / Live Excel)
 app.post('/api/fetch-live-sheet', async (req, res) => {
@@ -95,6 +96,15 @@ if (!fs.existsSync(SYNC_DATA_DIR)) {
   try { fs.mkdirSync(SYNC_DATA_DIR, { recursive: true }); } catch {}
 }
 
+const ALL_SYNC_ENTITIES = [
+  'invoices', 'parties', 'inventory', 'vouchers', 'printOrders',
+  'purchases', 'purchaseReturns', 'salesReturns', 'accounts', 'treasuries',
+  'employees', 'employeeAdvances', 'employeeDeductions', 'employeeIncentives',
+  'payrollSheets', 'stockMovements', 'companies', 'branches',
+  'warehouses', 'warehouseOperations', 'roles', 'users', 'debtClearings',
+  'expenses', 'journalEntries', 'settings', 'dailyEntrySheets'
+];
+
 const syncCache: Record<string, any[]> = {};
 const syncTimestamps: Record<string, number> = {};
 
@@ -127,26 +137,50 @@ function saveEntityData(entity: string, data: any[]) {
   }
 }
 
-
 app.get('/api/app-version', (_req, res) => {
   res.json({ version: '1791656836620', time: Date.now() });
 });
 
+// Summary status of all synced entities on the server
+app.get('/api/sync/status', (_req, res) => {
+  const summary: Record<string, { count: number; lastModified: number }> = {};
+  for (const ent of ALL_SYNC_ENTITIES) {
+    const items = loadEntityData(ent);
+    summary[ent] = {
+      count: items.length,
+      lastModified: syncTimestamps[ent] || Date.now()
+    };
+  }
+  res.json({
+    success: true,
+    serverTime: Date.now(),
+    serverTimeString: new Date().toLocaleTimeString('ar-EG'),
+    entities: summary
+  });
+});
+
+// Full state retrieval across all or requested entities
 app.get('/api/sync/state', (req, res) => {
-  const entities = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders', 'purchases'];
+  const requestedEntities = req.query.entities
+    ? String(req.query.entities).split(',')
+    : ALL_SYNC_ENTITIES;
+
   const result: Record<string, any> = {};
-  for (const ent of entities) {
-    result[ent] = {
-      items: loadEntityData(ent),
-      version: syncTimestamps[ent] || Date.now()
+  for (const ent of requestedEntities) {
+    const safeEnt = ent.trim();
+    if (!safeEnt) continue;
+    result[safeEnt] = {
+      items: loadEntityData(safeEnt),
+      version: syncTimestamps[safeEnt] || Date.now()
     };
   }
   res.json({ success: true, data: result, serverTime: Date.now() });
 });
 
+// Push single item, batch of items, or deletion
 app.post('/api/sync/push', (req, res) => {
   try {
-    const { entity, item, items, op } = req.body;
+    const { entity, item, items, op, deletedIds } = req.body;
     if (!entity || typeof entity !== 'string') {
       return res.status(400).json({ error: 'Missing entity' });
     }
@@ -157,13 +191,32 @@ app.post('/api/sync/push', (req, res) => {
       if (it && it.id) map.set(String(it.id), it);
     }
 
-    if (item && item.id) {
-      map.set(String(item.id), item);
+    // Process explicit deleted IDs
+    if (Array.isArray(deletedIds)) {
+      for (const dId of deletedIds) {
+        if (dId) map.delete(String(dId));
+      }
     }
 
+    // Process single item
+    if (item && item.id) {
+      if (item._deleted || op === 'delete') {
+        map.delete(String(item.id));
+      } else {
+        map.set(String(item.id), item);
+      }
+    }
+
+    // Process array of items
     if (Array.isArray(items)) {
       for (const it of items) {
-        if (it && it.id) map.set(String(it.id), it);
+        if (it && it.id) {
+          if (it._deleted) {
+            map.delete(String(it.id));
+          } else {
+            map.set(String(it.id), it);
+          }
+        }
       }
     }
 
@@ -178,6 +231,79 @@ app.post('/api/sync/push', (req, res) => {
     });
   } catch (err: any) {
     console.error('Sync push error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Master bidirectional full-sync endpoint: synchronizes all local data with server in one atomic call
+app.post('/api/sync/full-sync', (req, res) => {
+  try {
+    const { entities, deletedDocs } = req.body;
+    if (!entities || typeof entities !== 'object') {
+      return res.status(400).json({ error: 'Missing entities map' });
+    }
+
+    const delSet = new Set<string>();
+    if (Array.isArray(deletedDocs)) {
+      deletedDocs.forEach((d: any) => {
+        if (d && d.col && d.id) delSet.add(`${d.col}_${d.id}`);
+      });
+    }
+
+    const resultMap: Record<string, { items: any[]; count: number; version: number }> = {};
+    const countsSummary: Record<string, number> = {};
+
+    for (const [entityName, incomingItems] of Object.entries(entities)) {
+      if (!Array.isArray(incomingItems)) continue;
+
+      const serverItems = loadEntityData(entityName);
+      const mergedMap = new Map<string, any>();
+
+      // 1. Load server items (excluding deleted)
+      for (const sIt of serverItems) {
+        if (sIt && sIt.id && !delSet.has(`${entityName}_${sIt.id}`) && !sIt._deleted) {
+          mergedMap.set(String(sIt.id), sIt);
+        }
+      }
+
+      // 2. Merge incoming client items
+      for (const cIt of incomingItems) {
+        if (!cIt || !cIt.id) continue;
+        const key = String(cIt.id);
+        if (delSet.has(`${entityName}_${key}`) || cIt._deleted) {
+          mergedMap.delete(key);
+          continue;
+        }
+
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, cIt);
+        } else {
+          // Both have it: merge fields (client updates win)
+          const existing = mergedMap.get(key);
+          mergedMap.set(key, { ...existing, ...cIt });
+        }
+      }
+
+      const mergedList = Array.from(mergedMap.values());
+      saveEntityData(entityName, mergedList);
+
+      resultMap[entityName] = {
+        items: mergedList,
+        count: mergedList.length,
+        version: syncTimestamps[entityName] || Date.now()
+      };
+      countsSummary[entityName] = mergedList.length;
+    }
+
+    res.json({
+      success: true,
+      serverTime: Date.now(),
+      serverTimeString: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      data: resultMap,
+      counts: countsSummary
+    });
+  } catch (err: any) {
+    console.error('Master full-sync error:', err);
     res.status(500).json({ error: err.message });
   }
 });

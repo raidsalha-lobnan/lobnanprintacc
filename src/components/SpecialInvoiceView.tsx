@@ -11,7 +11,7 @@ export interface SpecialInvoiceViewProps {
 }
 
 export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose }) => {
-  const { invoices, settings, parties, inventory, addPosInvoice } = useAccounting();
+  const { invoices, settings, parties, inventory, addPosInvoice, getItemPriceForCustomer } = useAccounting();
 
   // Floating Window State
   const [position, setPosition] = useState(() => {
@@ -42,6 +42,13 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
   });
   
   // Customer Data
+  const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('special_inv_draft');
+      if (saved) return JSON.parse(saved).selectedCustomerId || '';
+    } catch {}
+    return '';
+  });
   const [customerName, setCustomerName] = useState(() => {
     try {
       const saved = localStorage.getItem('special_inv_draft');
@@ -154,10 +161,27 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
   const customers = parties.filter(p => p.type === 'customer' && p.name.includes(customerName) && customerName.trim() !== '');
   
   const handleSelectCustomer = (c: Party) => {
+    setSelectedCustomerId(c.id);
     setCustomerName(c.name);
     setCustomerPhone(c.phone || '');
     setCustomerAddress(c.address || '');
     setShowCustomerDropdown(false);
+
+    // Immediately adopt preferred prices for all rows in the invoice
+    setItems(prevItems => prevItems.map(row => {
+      if (!row.name || !row.name.trim()) return row;
+      const matchedInv = inventory.find(i => i.name.trim().toLowerCase() === row.name.trim().toLowerCase() || (i.code && i.code.toLowerCase() === row.name.trim().toLowerCase()));
+      if (matchedInv) {
+        const { price } = getItemPriceForCustomer(matchedInv, c.id);
+        const qty = parseFloat(row.quantity) || 0;
+        return {
+          ...row,
+          price: price.toString(),
+          total: qty > 0 ? (qty * price).toFixed(2) : row.total
+        };
+      }
+      return row;
+    }));
   };
 
   const handleItemChange = (index: number, field: string, value: string) => {
@@ -179,14 +203,15 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
 
   const selectInventoryItem = (index: number, invItem: InventoryItem) => {
     const newItems = [...items];
+    const { price } = getItemPriceForCustomer(invItem, selectedCustomerId);
     newItems[index].name = invItem.name;
-    newItems[index].price = invItem.sellingPrice.toString();
+    newItems[index].price = price.toString();
     setActiveItemIndex(null);
     
     // recalc total if qty exists
     const qty = parseFloat(newItems[index].quantity) || 0;
     if (qty > 0) {
-      newItems[index].total = (qty * invItem.sellingPrice).toFixed(2);
+      newItems[index].total = (qty * price).toFixed(2);
     }
     setItems(newItems);
   };
@@ -314,6 +339,7 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
     addPosInvoice({
       invoiceNumber,
       date,
+      customerId: selectedCustomerId || undefined,
       customerName: customerName || 'عميل نقدي',
       customerPhone,
       type: 'standard',
@@ -599,7 +625,15 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
                                   onClick={() => selectInventoryItem(idx, invItem)}
                                 >
                                   <span className="font-bold">{invItem.name}</span>
-                                  <span className="text-slate-500 tabular-nums">{invItem.sellingPrice} ر.س</span>
+                                  {(() => {
+                                    const pInfo = getItemPriceForCustomer(invItem, selectedCustomerId);
+                                    return (
+                                      <span className="text-slate-500 tabular-nums flex items-center gap-1 font-mono">
+                                        {pInfo.isSpecialPrice && <span className="text-[10px] text-amber-600 font-bold">★ خاص</span>}
+                                        <span>{pInfo.price} {settings.currency || 'ر.س'}</span>
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               ))}
                             </div>

@@ -1722,6 +1722,17 @@ const getInitialPosDraft = (): PosFullDraftData => {
     });
   }, [inventory, pricingTier, calculateLineValues, getItemPriceForCustomer]);
 
+  // Re-evaluate line prices automatically whenever customer changes across POS
+  const prevPricingCustIdRef = useRef(effectivePricingCustomerId);
+  useEffect(() => {
+    if (prevPricingCustIdRef.current !== effectivePricingCustomerId) {
+      prevPricingCustIdRef.current = effectivePricingCustomerId;
+      if (tableLines.length > 0) {
+        setTableLines(prev => applyCustomerPricingToLines(effectivePricingCustomerObj, prev));
+      }
+    }
+  }, [effectivePricingCustomerId, effectivePricingCustomerObj, applyCustomerPricingToLines, tableLines.length]);
+
   // 10-second Inactivity timer: automatically returns focus to barcode input when in Barcode Hand Mode
   const resetInactivityTimer = useCallback(() => {
     if (!isBarcodeHandMode) return;
@@ -3631,8 +3642,9 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   setSelectedCustomerId(opt.id);
                   setCustomerName(opt.name);
                   setCustomerCode(opt.code || opt.id);
-                  if (opt.raw && posTargetType === 'customer') {
-                    setTableLines(prev => applyCustomerPricingToLines(opt.raw, prev));
+                  const foundParty = opt.raw || parties.find(p => p.id === opt.id);
+                  if (posTargetType === 'customer') {
+                    setTableLines(prev => applyCustomerPricingToLines(foundParty, prev));
                   }
                   // Reset sub-customer
                   setSubCustomerId('');
@@ -4661,14 +4673,18 @@ const getInitialPosDraft = (): PosFullDraftData => {
                           (line.barcode && matchItemByBarcode(i, line.barcode)) || 
                           i.name === line.itemName
                         );
-                        const specialFromCustomer = effectivePricingCustomerObj?.specialPrices && line.inventoryItemId && effectivePricingCustomerObj.specialPrices[line.inventoryItemId] !== undefined;
-                        const specialFromItem = Boolean(matchedItem?.customerSpecialPrices && effectivePricingCustomerId && matchedItem.customerSpecialPrices.some(p => p.customerId === effectivePricingCustomerId));
-                        const isSpecialPrice = Boolean(specialFromCustomer || specialFromItem || pricingTier === 'special');
-                        const specialTooltip = specialFromItem ? "سعر خاص معتمد لهذا العميل في كارتة الصنف" : specialFromCustomer ? "سعر خاص مسجل في ملف العميل" : "سعر خاص";
+                        const priceInfo = matchedItem
+                          ? getItemPriceForCustomer(matchedItem, effectivePricingCustomerId, pricingTier as any)
+                          : { isSpecialPrice: false, price: line.unitPrice, specialPriceLabel: undefined };
+                        const isSpecialPrice = Boolean(priceInfo.isSpecialPrice || pricingTier === 'special');
+                        const specialTooltip = priceInfo.specialPriceLabel || (isSpecialPrice ? "سعر خاص معتمد لهذا العميل" : "سعر الصنف");
 
                         return (
-                          <td className={`p-0 border-l border-b border-slate-300 ${isSpecialPrice ? 'bg-amber-100/60' : ''}`}>
+                          <td className={`p-0 border-l border-b border-slate-300 ${isSpecialPrice ? 'bg-amber-100/70 font-bold' : ''}`} title={specialTooltip}>
                             <div className="flex items-center gap-1 px-1">
+                              {isSpecialPrice && (
+                                <span className="text-[10px] text-amber-700 select-none shrink-0 font-bold" title={specialTooltip}>★</span>
+                              )}
                               <input
                                 id={`price-input-${line.id}`}
                                 type="number"
@@ -5627,6 +5643,9 @@ const getInitialPosDraft = (): PosFullDraftData => {
           setSelectedCustomerId(created.id);
           setCustomerName(created.name);
           setCustomerCode(created.code);
+          if (posTargetType === 'customer') {
+            setTableLines(prev => applyCustomerPricingToLines(created, prev));
+          }
           // Reset sub-customer
           setSubCustomerId('');
           setSubCustomerName('');

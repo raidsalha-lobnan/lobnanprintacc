@@ -24,6 +24,7 @@ export const DesktopStatusBar: React.FC = () => {
     branches,
     stats,
     isOnline,
+    lastSyncTime,
     isFirebaseSyncing,
     pendingSyncCount,
     setActiveTab
@@ -119,13 +120,17 @@ export const DesktopStatusBar: React.FC = () => {
 
         {/* Panel 4: Database & Cloud Sync Status */}
         <div 
-          className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-300 rounded-xs shadow-inner shrink-0"
-          title={isOnline ? "قاعدة البيانات السحابية متصلة ومزامنة فورية" : "النظام في وضع غير متصل (Offline)"}
+          onClick={() => setActiveTab('settings_database')}
+          className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-300 rounded-xs shadow-inner cursor-pointer hover:bg-emerald-50 transition shrink-0"
+          title={isOnline ? "قاعدة البيانات السحابية (Google Drive & Server Hub) متصلة ومزامنة فورية" : "النظام في وضع غير متصل (Offline)"}
         >
           {isOnline ? (
             <div className="flex items-center gap-1 text-emerald-700">
               <Database className="w-3 h-3 text-emerald-600 shrink-0" />
-              <span className="font-bold text-[11px]">قاعدة البيانات: متصل</span>
+              <span className="font-bold text-[11px]">قاعدة بيانات Google Drive: متصل</span>
+              {lastSyncTime && (
+                <span className="text-[10px] text-slate-500 font-mono hidden xl:inline">({lastSyncTime})</span>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-1 text-amber-700">

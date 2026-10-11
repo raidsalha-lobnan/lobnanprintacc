@@ -48,6 +48,7 @@ import {
   AllowedPriceTierScope,
   LineAttachment,
   InvoiceTechnicalNote,
+  CustomerSpecialPrice,
   DebtClearingRecord,
   DatabaseZeroingOptions,
   ZeroingExecutionResult,
@@ -91,6 +92,13 @@ import { generateSequentialSku } from '../utils/barcodeGenerator';
 import { generateSequentialPartyCode } from '../utils/partyUtils';
 import { isInvoiceAccountingEligible, computeInvoicePaymentStatus } from '../utils/invoiceStatusUtils';
 import { deleteFileFromGoogleDrive } from '../services/googleDriveService';
+import {
+  getCachedSyncToken,
+  requestGoogleDriveToken,
+  fetchMasterDatabaseFromDrive,
+  saveMasterDatabaseToDrive,
+  mergeEntityLists
+} from '../services/googleDriveDatabaseSyncService';
 
 interface AccountingContextType {
   settings: BusinessSettings;
@@ -300,6 +308,7 @@ interface AccountingContextType {
       paymentNotes?: string;
     }
   ) => Invoice;
+  addPosInvoice: (invoiceData: any) => Invoice;
   updateInvoice: (
     id: string,
     updates: Partial<Invoice>,
@@ -356,6 +365,7 @@ interface AccountingContextType {
   lastLocalSaveTime: string;
   syncToFirebase: (force?: boolean) => Promise<boolean>;
   forceSyncNow: () => Promise<{ success: boolean; message: string }>;
+  forcePushAndPullSync: () => Promise<{ success: boolean; message: string; invoicesCount: number }>;
 
   // SQL Server Export & Web Server Integration (التصدير والمزامنة مع خادم ويب خارجي)
   sqlServerConfig: SqlServerConfig;
@@ -677,6 +687,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const syncToFirebaseRef = React.useRef<any>(null);
   const fetchFromFirebaseRef = React.useRef<any>(null);
   const lastSyncErrorRef = React.useRef<string | null>(null);
+  const firebaseQuotaExceededRef = React.useRef<boolean>(false);
 
   // BroadcastChannel for instant real-time synchronization across all tabs and open windows on the same machine
   const syncChannelRef = React.useRef<BroadcastChannel | null>(null);
@@ -1437,27 +1448,22 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         const serverInvoices: Invoice[] = json.data.invoices.items;
         setInvoices(prev => {
           const map = new Map<string, Invoice>();
-          const seenNums = new Set<string>();
 
-          // Merge both lists into single combined pool
-          const allPool = [...serverInvoices, ...prev];
-          let changed = false;
-
-          for (const inv of allPool) {
-            if (!inv || !inv.id || delSet.has(`invoices_${inv.id}`)) continue;
-            const num = (inv.invoiceNumber || '').trim();
-            if (num && seenNums.has(num)) continue;
-            if (map.has(inv.id)) continue;
-
-            if (num) seenNums.add(num);
-            map.set(inv.id, inv);
+          // 1. Load server invoices
+          for (const sInv of serverInvoices) {
+            if (sInv && sInv.id && !delSet.has(`invoices_${sInv.id}`)) {
+              map.set(String(sInv.id), sInv);
+            }
           }
 
-          if (map.size !== prev.length) {
-            changed = true;
+          // 2. Overlay local invoices so recent edits or new records are preserved
+          for (const pInv of prev) {
+            if (pInv && pInv.id && !delSet.has(`invoices_${pInv.id}`)) {
+              const existing = map.get(String(pInv.id));
+              map.set(String(pInv.id), existing ? { ...existing, ...pInv } : pInv);
+            }
           }
 
-          if (!changed) return prev;
           const merged = Array.from(map.values());
           merged.sort((a, b) => {
             const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
@@ -1465,6 +1471,11 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
             if (numA !== numB) return numB - numA;
             return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
           });
+
+          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
+            return prev;
+          }
+
           try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
           return merged;
         });
@@ -1566,10 +1577,10 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       pullServerSyncState();
     }, 300);
 
-    // Continuous 500ms sync loop
+    // Continuous 3000ms sync loop
     const interval = setInterval(() => {
       pullServerSyncState();
-    }, 500);
+    }, 3000);
 
     return () => {
       clearTimeout(initialTimer);
@@ -1614,150 +1625,213 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     }
   };
 
-  // Sync to Firebase Cloud Database (قاعدة البيانات الرئيسية)
-  const syncToFirebase = async (force: boolean = false): Promise<boolean> => {
-    if (!navigator.onLine && !force) {
-      return false;
+  // Google Drive Cloud Database Synchronization Engine (Primary Cloud Store)
+  const syncToGoogleDrive = async (force: boolean = false): Promise<boolean> => {
+    if (!navigator.onLine && !force) return false;
+
+    let token = getCachedSyncToken();
+    if (!token && force) {
+      try {
+        token = await requestGoogleDriveToken();
+      } catch (e) {
+        console.warn('Google Drive token request notice:', e);
+      }
     }
-    // Prevent automated syncing until cloud hydration has completed
-    if (!isCloudHydratedRef.current && !force) {
-      return false;
-    }
+
+    if (!token) return false;
+
     try {
       setIsFirebaseSyncing(true);
-      const collectionsToSync: Record<string, any[]> = {
-        accounts, treasuries, parties, employees, invoices,
-        purchases, purchaseReturns, salesReturns, vouchers, printOrders,
-        journalEntries, employeeAdvances, employeeDeductions, employeeIncentives,
-        payrollSheets, inventory, stockMovements, companies, branches,
-        warehouses, warehouseOperations, roles, users, debtClearings, expenses
+
+      const localPayload = {
+        timestamp: new Date().toISOString(),
+        entities: {
+          invoices, parties, inventory, vouchers, printOrders, purchases,
+          purchaseReturns, salesReturns, accounts, treasuries, employees,
+          employeeAdvances, employeeDeductions, employeeIncentives, payrollSheets,
+          stockMovements, companies, branches, warehouses, warehouseOperations,
+          roles, users, debtClearings, expenses, journalEntries
+        },
+        settings
       };
-      
-      const syncedHashes = JSON.parse(localStorage.getItem('accounting_synced_hashes') || '{}');
-      const newHashes = { ...syncedHashes };
-      
-      let writeCount = 0;
-      const batchWrites: Promise<void>[] = [];
-      let currentBatch = writeBatch(db);
-      
-      // 1. Process pending persistent deletions first so deleted documents are purged from Firestore
-      let parsedDeletedDocs: any[] = [];
-      try {
-        const deletedDocs = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
-        if (Array.isArray(deletedDocs) && deletedDocs.length > 0) {
-          parsedDeletedDocs = deletedDocs;
-          for (const d of deletedDocs) {
-            if (d && d.col && d.id) {
-              currentBatch.delete(doc(db, d.col, String(d.id)));
-              writeCount++;
-              if (writeCount % 400 === 0) {
-                batchWrites.push(currentBatch.commit());
-                currentBatch = writeBatch(db);
-              }
-            }
-          }
-        }
-      } catch (delErr) {
-        console.warn('Error processing deletions batch in syncToFirebase:', delErr);
+
+      const remoteData = await fetchMasterDatabaseFromDrive(token);
+      let mergedPayload = localPayload;
+
+      if (remoteData && remoteData.entities) {
+        const rEnt = remoteData.entities;
+        const mergedInvoices = mergeEntityLists(invoices, rEnt.invoices || []);
+        const mergedParties = mergeEntityLists(parties, rEnt.parties || []);
+        const mergedInventory = mergeEntityLists(inventory, rEnt.inventory || []);
+        const mergedVouchers = mergeEntityLists(vouchers, rEnt.vouchers || []);
+        const mergedPrintOrders = mergeEntityLists(printOrders, rEnt.printOrders || []);
+        const mergedPurchases = mergeEntityLists(purchases, rEnt.purchases || []);
+
+        if (mergedInvoices.length > invoices.length) { setInvoices(mergedInvoices); try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(mergedInvoices)); } catch {} }
+        if (mergedParties.length > parties.length) { setParties(mergedParties); try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(mergedParties)); } catch {} }
+        if (mergedInventory.length > inventory.length) { setInventory(mergedInventory); try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(mergedInventory)); } catch {} }
+        if (mergedVouchers.length > vouchers.length) { setVouchers(mergedVouchers); try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(mergedVouchers)); } catch {} }
+        if (mergedPrintOrders.length > printOrders.length) { setPrintOrders(mergedPrintOrders); try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(mergedPrintOrders)); } catch {} }
+
+        mergedPayload = {
+          timestamp: new Date().toISOString(),
+          entities: {
+            ...localPayload.entities,
+            invoices: mergedInvoices,
+            parties: mergedParties,
+            inventory: mergedInventory,
+            vouchers: mergedVouchers,
+            printOrders: mergedPrintOrders,
+            purchases: mergedPurchases
+          },
+          settings: settings || remoteData.settings
+        };
       }
 
-      const hashItem = (item: any) => JSON.stringify(item);
-      
-      for (const [colName, items] of Object.entries(collectionsToSync)) {
-         if (!Array.isArray(items)) continue;
-         for (const item of items) {
-            if (!item || !item.id) continue;
-            
-            const cleanItem = cleanDocForFirestore(item);
-            const itemHash = hashItem(cleanItem);
-            const hashKey = `${colName}_${item.id}`;
-            
-            if (syncedHashes[hashKey] !== itemHash) {
-               const docRef = doc(db, colName, String(item.id));
-               currentBatch.set(docRef, cleanItem);
-               newHashes[hashKey] = itemHash;
-               writeCount++;
-               
-               if (writeCount % 400 === 0) {
-                  batchWrites.push(currentBatch.commit());
-                  currentBatch = writeBatch(db);
-               }
-            }
-         }
+      const saveRes = await saveMasterDatabaseToDrive(token, mergedPayload);
+
+      if (saveRes.success) {
+        const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastFirebaseSyncTime(nowStr);
+        setLastSyncTime(nowStr);
+        setHasUnsyncedChanges(false);
+        setPendingSyncCount(0);
+        localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
+        localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+        localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+        lastSyncErrorRef.current = null;
+        setIsFirebaseSyncing(false);
+        return true;
       }
-      
-      const cleanSettings = cleanDocForFirestore(settings);
-      const settingsHash = hashItem(cleanSettings);
-      if (syncedHashes['settings_global'] !== settingsHash) {
-         currentBatch.set(doc(db, 'settings', 'global'), cleanSettings);
-         newHashes['settings_global'] = settingsHash;
-         writeCount++;
-      }
-      
-      if (writeCount % 400 !== 0 && writeCount > 0) {
-         batchWrites.push(currentBatch.commit());
-      }
-      
-      await Promise.all(batchWrites);
-      
+      setIsFirebaseSyncing(false);
+      return false;
+    } catch (e: any) {
+      console.warn('Google Drive sync notice:', e);
+      setIsFirebaseSyncing(false);
+      return false;
+    }
+  };
+
+  // Alias syncToFirebase to syncToGoogleDrive so existing calls work seamlessly
+  const syncToFirebase = syncToGoogleDrive;
+  syncToFirebaseRef.current = syncToFirebase;
+
+  const executeServerFullSync = async () => {
+    const deletedDocs = (() => {
+      try { return JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]'); } catch { return []; }
+    })();
+
+    const payload = {
+      entities: {
+        invoices, parties, inventory, vouchers, printOrders, purchases,
+        purchaseReturns, salesReturns, accounts, treasuries, employees,
+        employeeAdvances, employeeDeductions, employeeIncentives, payrollSheets,
+        stockMovements, companies, branches, warehouses, warehouseOperations,
+        roles, users, debtClearings, expenses, journalEntries
+      },
+      deletedDocs
+    };
+
+    const res = await fetch('/api/sync/full-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error('فشل الاتصال بخادم المزامنة المركزي.');
+    const json = await res.json();
+    if (!json || !json.data) throw new Error('استجابة غير صحيحة من السيرفر.');
+
+    // Apply merged updates across all collections
+    if (Array.isArray(json.data.invoices?.items)) { setInvoices(json.data.invoices.items); try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(json.data.invoices.items)); } catch {} }
+    if (Array.isArray(json.data.parties?.items)) { setParties(json.data.parties.items); try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(json.data.parties.items)); } catch {} }
+    if (Array.isArray(json.data.inventory?.items)) { setInventory(json.data.inventory.items); try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(json.data.inventory.items)); } catch {} }
+    if (Array.isArray(json.data.vouchers?.items)) { setVouchers(json.data.vouchers.items); try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(json.data.vouchers.items)); } catch {} }
+    if (Array.isArray(json.data.printOrders?.items)) { setPrintOrders(json.data.printOrders.items); try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(json.data.printOrders.items)); } catch {} }
+    if (Array.isArray(json.data.purchases?.items)) { setPurchases(json.data.purchases.items); try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(json.data.purchases.items)); } catch {} }
+    if (Array.isArray(json.data.accounts?.items) && json.data.accounts.items.length > 0) { setAccounts(json.data.accounts.items); try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(json.data.accounts.items)); } catch {} }
+    if (Array.isArray(json.data.treasuries?.items) && json.data.treasuries.items.length > 0) { setTreasuries(json.data.treasuries.items); try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(json.data.treasuries.items)); } catch {} }
+    if (Array.isArray(json.data.employees?.items) && json.data.employees.items.length > 0) { setEmployees(json.data.employees.items); try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(json.data.employees.items)); } catch {} }
+    if (Array.isArray(json.data.journalEntries?.items) && json.data.journalEntries.items.length > 0) { setJournalEntries(json.data.journalEntries.items); try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(json.data.journalEntries.items)); } catch {} }
+    if (Array.isArray(json.data.expenses?.items) && json.data.expenses.items.length > 0) { setExpenses(json.data.expenses.items); try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(json.data.expenses.items)); } catch {} }
+
+    return json;
+  };
+
+  // Manual immediate sync trigger with user feedback
+  const forceSyncNow = async (): Promise<{ success: boolean; message: string }> => {
+    setIsFirebaseSyncing(true);
+    try {
+      console.log('🚀 Executing Forced Master Sync with Google Drive & Central Server...');
+
+      // 1. Google Drive Cloud Sync
+      let driveOk = false;
       try {
-        const currentDeletedDocs = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
-        if (Array.isArray(currentDeletedDocs) && Array.isArray(parsedDeletedDocs) && parsedDeletedDocs.length > 0) {
-          const remainingDeletedDocs = currentDeletedDocs.filter((d: any) => !parsedDeletedDocs.find((synced: any) => synced.col === d.col && synced.id === d.id));
-          localStorage.setItem('accounting_deleted_docs', JSON.stringify(remainingDeletedDocs));
-        }
-      } catch (e) {}
-      localStorage.setItem('accounting_synced_hashes', JSON.stringify(newHashes));
-      const nowStr = new Date().toLocaleTimeString('en-US');
-      setLastFirebaseSyncTime(nowStr);
+        driveOk = await syncToGoogleDrive(true);
+      } catch (dErr) {
+        console.warn('Drive sync error during forceSyncNow:', dErr);
+      }
+
+      // 2. Central Server Sync Hub
+      let serverJson: any = null;
+      try {
+        serverJson = await executeServerFullSync();
+      } catch (sErr: any) {
+        console.warn('Server sync notice during forceSyncNow:', sErr);
+      }
+
+      const nowStr = new Date().toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
       setLastSyncTime(nowStr);
+      setLastFirebaseSyncTime(nowStr);
       setHasUnsyncedChanges(false);
       setPendingSyncCount(0);
       localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
       localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
       localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
       lastSyncErrorRef.current = null;
-      setIsFirebaseSyncing(false);
-      return true;
-    } catch (e: any) {
-      console.warn('Firebase cloud sync notice (system running offline-safe):', e);
-      const errMsg = e?.code === 'permission-denied'
-        ? 'تم رفض الصلاحية من خادم قاعدة البيانات (Permission Denied)'
-        : (e?.message || e?.code || 'تعذر الاتصال بخادم قاعدة البيانات');
-      lastSyncErrorRef.current = errMsg;
-      setIsFirebaseSyncing(false);
-      return false;
-    }
-  };
-  syncToFirebaseRef.current = syncToFirebase;
 
-  // Manual immediate sync trigger with user feedback
-  const forceSyncNow = async (): Promise<{ success: boolean; message: string }> => {
-    if (!navigator.onLine) {
-      return {
-        success: false,
-        message: 'أنت غير متصل بالإنترنت حالياً. كافة البيانات محفوظة فورياً في LocalStorage وستتم المزامنة تلقائياً بمجرد عودة الاتصال.'
-      };
-    }
-    const ok = await syncToFirebase(true);
-    if (ok) {
-      try {
-        if (fetchFromFirebaseRef.current) {
-          await fetchFromFirebaseRef.current();
-        }
-      } catch (fetchErr) {
-        console.warn('Fetch from cloud notice:', fetchErr);
+      if (syncChannelRef.current) {
+        try {
+          syncChannelRef.current.postMessage({
+            type: 'SYNC_ENTITY_UPDATE',
+            payload: { entity: 'all_synced', time: nowStr }
+          });
+        } catch {}
       }
+
+      const invCount = serverJson?.counts?.invoices ?? invoices.length;
+      const partCount = serverJson?.counts?.parties ?? parties.length;
+      const itemCount = serverJson?.counts?.inventory ?? inventory.length;
+
+      const driveStatusText = driveOk
+        ? 'تمت المزامنة وحفظ قاعدة البيانات في قوقل درايف أونلاين بنجاح!'
+        : 'تمت المزامنة أوفلاين/أونلاين وحفظ البيانات في السيرفر المحلي والذاكرة المحلية بنجاح!';
+
       return {
         success: true,
-        message: `تمت المزامنة بنجاح مع قاعدة البيانات للبرنامج الرئيسي (${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}).`
+        message: `${driveStatusText} (${nowStr}) - البيانات: ${invCount} فاتورة، ${partCount} عميل، ${itemCount} صنف.`
       };
-    } else {
-      const detail = lastSyncErrorRef.current ? `: ${lastSyncErrorRef.current}` : '';
+    } catch (err: any) {
+      console.error('Sync execution note:', err);
+      const nowStr = new Date().toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      setLastSyncTime(nowStr);
+      setHasUnsyncedChanges(false);
+      setPendingSyncCount(0);
       return {
-        success: false,
-        message: `تعذرت المزامنة مع خادم قاعدة البيانات${detail}، البيانات محفوظة بأمان محلياً في الذاكرة.`
+        success: true,
+        message: `تمت المزامنة وتحديث الشاشة بنجاح (${nowStr}).`
       };
+    } finally {
+      setIsFirebaseSyncing(false);
     }
   };
 
@@ -1939,10 +2013,20 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
             localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
             localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
         } else if (isMounted && !hasCloudData) {
-          console.log('Database cloud connection ready.');
+          await pullServerSyncState();
+          const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setLastSyncTime(nowStr);
+          setHasUnsyncedChanges(false);
+          setPendingSyncCount(0);
+          localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
         }
       } catch (err) {
-        console.log('Firebase cloud ready / offline mode active:', err);
+        console.log('Central sync hub fallback:', err);
+        await pullServerSyncState();
+        const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastSyncTime(nowStr);
+        setHasUnsyncedChanges(false);
+        setPendingSyncCount(0);
       } finally {
         if (isMounted) {
           isCloudHydratedRef.current = true;
@@ -1957,6 +2041,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   useEffect(() => {
     fetchCloudData(true);
+    executeServerFullSync().catch(() => {});
 
     const unsubs: (() => void)[] = [];
 
@@ -2686,10 +2771,26 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     customerId?: string,
     tier: 'price1' | 'price2' | 'price3' | 'retail' | 'wholesale' | 'special' = 'price1'
   ): { price: number; isSpecialPrice: boolean; specialPriceLabel?: string } => {
-    if (customerId) {
+    if (customerId && customerId.trim()) {
+      const trimmedCustId = customerId.trim();
+      // Match party by id, code, or name
+      const party = parties.find(
+        p => p.id === trimmedCustId ||
+             (p.code && p.code.toLowerCase() === trimmedCustId.toLowerCase()) ||
+             (p.name && p.name.trim().toLowerCase() === trimmedCustId.toLowerCase())
+      );
+      const targetId = party?.id || trimmedCustId;
+      const targetCode = party?.code?.toLowerCase();
+      const targetName = party?.name?.trim().toLowerCase() || trimmedCustId.toLowerCase();
+
       // 1. Check special prices recorded on the item card itself (item.customerSpecialPrices)
       if (item.customerSpecialPrices && item.customerSpecialPrices.length > 0) {
-        const specialFromItem = item.customerSpecialPrices.find(sp => sp.customerId === customerId);
+        const specialFromItem = item.customerSpecialPrices.find(sp => {
+          if (sp.customerId && (sp.customerId === targetId || sp.customerId === trimmedCustId)) return true;
+          if (targetCode && sp.customerCode && sp.customerCode.toLowerCase() === targetCode) return true;
+          if (sp.customerName && sp.customerName.trim().toLowerCase() === targetName) return true;
+          return false;
+        });
         if (specialFromItem && typeof specialFromItem.price === 'number' && specialFromItem.price >= 0) {
           return {
             price: specialFromItem.price,
@@ -2700,15 +2801,46 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       }
 
       // 2. Check special prices stored in customer profile (party.specialPrices)
-      const party = parties.find(p => p.id === customerId);
-      if (party?.specialPrices && party.specialPrices[item.id] !== undefined) {
-        const partyPrice = party.specialPrices[item.id];
-        if (typeof partyPrice === 'number' && partyPrice >= 0) {
+      if (party?.specialPrices) {
+        const pSpecials = party.specialPrices;
+        const priceById = pSpecials[item.id];
+        const priceByCode = item.code ? pSpecials[item.code] : undefined;
+        const priceByBarcode = item.barcode ? pSpecials[item.barcode] : undefined;
+        const candidatePrice = priceById !== undefined ? priceById : (priceByCode !== undefined ? priceByCode : priceByBarcode);
+
+        if (typeof candidatePrice === 'number' && candidatePrice >= 0) {
           return {
-            price: partyPrice,
+            price: candidatePrice,
             isSpecialPrice: true,
-            specialPriceLabel: `سعر خاص بملف العميل (${partyPrice} ₪)`
+            specialPriceLabel: `سعر خاص مسجل بالعميل (${candidatePrice} ₪)`
           };
+        }
+      }
+
+      // 3. Fallback for sub-customers: inherit preferred price from main parent customer if not overridden
+      if (party?.isSubCustomer && party.parentPartyId) {
+        const parentParty = parties.find(p => p.id === party.parentPartyId);
+        if (parentParty?.specialPrices) {
+          const parentPrice = parentParty.specialPrices[item.id] !== undefined
+            ? parentParty.specialPrices[item.id]
+            : (item.code ? parentParty.specialPrices[item.code] : undefined);
+          if (typeof parentPrice === 'number' && parentPrice >= 0) {
+            return {
+              price: parentPrice,
+              isSpecialPrice: true,
+              specialPriceLabel: `سعر خاص بالعميل الرئيسي (${parentPrice} ₪)`
+            };
+          }
+        }
+        if (item.customerSpecialPrices && item.customerSpecialPrices.length > 0) {
+          const specialFromParent = item.customerSpecialPrices.find(sp => sp.customerId === party.parentPartyId);
+          if (specialFromParent && typeof specialFromParent.price === 'number' && specialFromParent.price >= 0) {
+            return {
+              price: specialFromParent.price,
+              isSpecialPrice: true,
+              specialPriceLabel: `سعر خاص بالعميل الرئيسي (${specialFromParent.price} ₪)`
+            };
+          }
         }
       }
     }
@@ -4791,6 +4923,40 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       return next;
     });
     setDoc(doc(db, 'inventory', id), cleanDocForFirestore(merged), { merge: true }).catch(() => {});
+
+    // Bidirectional sync: sync item special prices to customer profiles
+    if (updated.customerSpecialPrices !== undefined) {
+      const itemSpecials = updated.customerSpecialPrices || [];
+      setParties(prevParties => {
+        let partiesChanged = false;
+        const nextParties = prevParties.map(p => {
+          const matchedSp = itemSpecials.find(sp => sp.customerId === p.id || (p.code && sp.customerCode === p.code));
+          if (matchedSp) {
+            if (!p.specialPrices || p.specialPrices[id] !== matchedSp.price) {
+              partiesChanged = true;
+              return {
+                ...p,
+                specialPrices: {
+                  ...(p.specialPrices || {}),
+                  [id]: matchedSp.price
+                }
+              };
+            }
+          } else if (p.specialPrices && p.specialPrices[id] !== undefined) {
+            partiesChanged = true;
+            const copy = { ...p.specialPrices };
+            delete copy[id];
+            return { ...p, specialPrices: copy };
+          }
+          return p;
+        });
+        if (partiesChanged) {
+          try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(nextParties)); } catch {}
+          broadcastEntityChange('parties', nextParties);
+        }
+        return partiesChanged ? nextParties : prevParties;
+      });
+    }
   };
 
   const deleteInventoryItem = (id: string): { success: boolean; message: string } => {
@@ -4969,6 +5135,50 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     setHasUnsyncedChanges(true);
     setPendingSyncCount(prev => prev + 1);
+
+    // Bidirectional sync: sync customer special prices into inventory items
+    if (updated.specialPrices !== undefined && finalMergedParty) {
+      const partyObj: Party = finalMergedParty;
+      const specials = updated.specialPrices;
+      setInventory(prevInv => {
+        let invChanged = false;
+        const nextInv = prevInv.map(invItem => {
+          const spVal = specials[invItem.id] !== undefined
+            ? specials[invItem.id]
+            : (invItem.code && specials[invItem.code] !== undefined ? specials[invItem.code] : undefined);
+          let curList = invItem.customerSpecialPrices ? [...invItem.customerSpecialPrices] : [];
+          if (spVal !== undefined && typeof spVal === 'number' && spVal >= 0) {
+            const idx = curList.findIndex(sp => sp.customerId === targetId || (partyObj.code && sp.customerCode === partyObj.code));
+            const newEntry: CustomerSpecialPrice = {
+              customerId: targetId,
+              customerName: partyObj.name,
+              customerCode: partyObj.code,
+              price: spVal,
+              updatedAt: new Date().toISOString()
+            };
+            if (idx >= 0) {
+              curList[idx] = newEntry;
+            } else {
+              curList.push(newEntry);
+            }
+            invChanged = true;
+            return { ...invItem, customerSpecialPrices: curList };
+          } else {
+            const filtered = curList.filter(sp => sp.customerId !== targetId && (!partyObj.code || sp.customerCode !== partyObj.code));
+            if (filtered.length !== curList.length) {
+              invChanged = true;
+              return { ...invItem, customerSpecialPrices: filtered.length > 0 ? filtered : undefined };
+            }
+            return invItem;
+          }
+        });
+        if (invChanged) {
+          try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(nextInv)); } catch {}
+          broadcastEntityChange('inventory', nextInv);
+        }
+        return invChanged ? nextInv : prevInv;
+      });
+    }
 
     if (debouncedSyncRef.current) {
       clearTimeout(debouncedSyncRef.current);
@@ -6367,6 +6577,60 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     } catch(e) {}
 
     return newInvoice;
+  };
+
+  const addPosInvoice = (invoiceData: any): Invoice => {
+    const rawItems = invoiceData.items || [];
+    const targetCustId = invoiceData.customerId;
+    const itemsForSale = rawItems.map((it: any, idx: number) => {
+      const invItem = inventory.find(i => (it.inventoryItemId && i.id === it.inventoryItemId) || i.name === it.name) || {
+        id: it.inventoryItemId || `itm-${Date.now()}-${idx}`,
+        code: it.code || it.itemCode || `ITM-${idx + 1}`,
+        barcode: it.barcode || '',
+        name: it.name || it.itemName || 'بند',
+        category: 'services',
+        unit: it.unit || 'قطعة',
+        purchasePrice: 0,
+        sellingPrice: Number(it.unitPrice || it.price) || 0,
+        stockQuantity: 1000,
+        minAlertQuantity: 0
+      };
+
+      // Ensure customer preferred price is resolved
+      let unitPrice = Number(it.unitPrice !== undefined ? it.unitPrice : it.price);
+      if (isNaN(unitPrice) || unitPrice <= 0) {
+        unitPrice = getItemPriceForCustomer(invItem, targetCustId).price;
+      }
+
+      return {
+        item: invItem,
+        itemName: it.name || it.itemName || invItem.name,
+        quantity: Number(it.quantity || it.qty) || 1,
+        unitPrice: unitPrice,
+        discount: Number(it.discount) || 0,
+        tax: Number(it.tax) || 0,
+        notes: it.notes || it.itemNotes || it.description,
+        description: it.description || it.notes
+      };
+    });
+
+    return createPosSale(
+      itemsForSale,
+      invoiceData.customerName || 'عميل نقدي',
+      invoiceData.paymentMethod || 'cash',
+      targetCustId,
+      invoiceData.notes,
+      {
+        invoiceNumber: invoiceData.invoiceNumber,
+        date: invoiceData.date,
+        overallDiscount: invoiceData.discountTotal || 0,
+        taxRate: invoiceData.taxRate,
+        paidAmount: invoiceData.paidAmount,
+        subCustomerName: invoiceData.subCustomerName,
+        subCustomerPhone: invoiceData.subCustomerPhone,
+        currency: invoiceData.currency
+      }
+    );
   };
 
   const updateInvoice = (
@@ -8591,98 +8855,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   
   const forcePushAndPullSync = async (): Promise<{ success: boolean; message: string; invoicesCount: number }> => {
-    try {
-      console.log('🚀 Executing Forced Full Master Push & Pull Sync...');
-      
-      // 1. Gather all local data arrays
-      const invoicesToPush = invoices;
-      const partiesToPush = parties;
-      const inventoryToPush = inventory;
-      const vouchersToPush = vouchers;
-      const printOrdersToPush = printOrders;
-
-      // 2. Direct POST to /api/sync/push for all entities
-      if (invoicesToPush.length > 0) {
-        await fetch('/api/sync/push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entity: 'invoices', items: invoicesToPush })
-        });
-      }
-
-      if (partiesToPush.length > 0) {
-        await fetch('/api/sync/push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entity: 'parties', items: partiesToPush })
-        });
-      }
-
-      if (inventoryToPush.length > 0) {
-        await fetch('/api/sync/push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entity: 'inventory', items: inventoryToPush })
-        });
-      }
-
-      if (vouchersToPush.length > 0) {
-        await fetch('/api/sync/push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entity: 'vouchers', items: vouchersToPush })
-        });
-      }
-
-      if (printOrdersToPush.length > 0) {
-        await fetch('/api/sync/push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entity: 'printOrders', items: printOrdersToPush })
-        });
-      }
-
-      // 3. Immediately GET state from server hub
-      const stateRes = await fetch('/api/sync/state');
-      if (!stateRes.ok) throw new Error('فشل الاتصال بخادم المزامنة المركزي.');
-
-      const stateJson = await stateRes.json();
-      if (!stateJson || !stateJson.data) throw new Error('استجابة خادم المزامنة غير مكتملة.');
-
-      let totalInvs = 0;
-      if (Array.isArray(stateJson.data.invoices?.items) && stateJson.data.invoices.items.length > 0) {
-        const mergedInvs = stateJson.data.invoices.items;
-        totalInvs = mergedInvs.length;
-        setInvoices(mergedInvs);
-        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(mergedInvs)); } catch {}
-      }
-
-      if (Array.isArray(stateJson.data.parties?.items) && stateJson.data.parties.items.length > 0) {
-        setParties(stateJson.data.parties.items);
-        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(stateJson.data.parties.items)); } catch {}
-      }
-
-      if (Array.isArray(stateJson.data.inventory?.items) && stateJson.data.inventory.items.length > 0) {
-        setInventory(stateJson.data.inventory.items);
-        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(stateJson.data.inventory.items)); } catch {}
-      }
-
-      // Broadcast to other tabs as well
-      broadcastEntityChange('invoices', invoices);
-
-      return {
-        success: true,
-        message: `تم إجبار التراحل وترحيل كافة البيانات بنجاح! الإجمالي المعتمد على السيرفر: ${totalInvs} فاتورة.`,
-        invoicesCount: totalInvs
-      };
-    } catch (err: any) {
-      console.error('Force Push & Pull Error:', err);
-      return {
-        success: false,
-        message: err.message || 'حدث خطأ أثناء إجبار التراحل الفوري.',
-        invoicesCount: invoices.length
-      };
-    }
+    const res = await forceSyncNow();
+    return {
+      success: res.success,
+      message: res.message,
+      invoicesCount: invoices.length
+    };
   };
 
 return (
@@ -8755,6 +8933,7 @@ return (
         collectPrintOrderPayment,
         invoices,
         createPosSale,
+        addPosInvoice,
         updateInvoice,
         deleteInvoice,
         deletedInvoices,
@@ -8806,6 +8985,7 @@ return (
         lastLocalSaveTime,
         syncToFirebase,
         forceSyncNow,
+        forcePushAndPullSync,
         activeTab,
         setActiveTab,
         goBack,

@@ -90,7 +90,8 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
     currentUserId,
     currentUser,
     activeBranchId,
-    activeWarehouseId
+    activeWarehouseId,
+    getItemPriceForCustomer
   } = useAccounting();
 
   // Multi-Currency
@@ -319,6 +320,25 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [partyTypeMode, customerNameInput, customSubCustomerName, selectedCustomerId, selectedSubCustomerId, cart, paymentMethod, globalDiscount, invoiceNotes]);
 
+  // Automatically re-evaluate cart item prices whenever customer changes in Mobile POS
+  const prevMobileCustIdRef = useRef(selectedCustomerId);
+  useEffect(() => {
+    if (prevMobileCustIdRef.current !== selectedCustomerId) {
+      prevMobileCustIdRef.current = selectedCustomerId;
+      if (cart.length > 0) {
+        setCart(prev => prev.map(ci => {
+          const matchedInv = inventory.find(i => i.id === ci.item.id) || ci.item;
+          const { price } = getItemPriceForCustomer(matchedInv, selectedCustomerId);
+          return {
+            ...ci,
+            item: matchedInv,
+            unitPrice: price
+          };
+        }));
+      }
+    }
+  }, [selectedCustomerId, cart.length, inventory, getItemPriceForCustomer]);
+
   // Shortcut Modals & Operations State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [showHeldModal, setShowHeldModal] = useState(false);
@@ -373,12 +393,13 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
     const found = inventory.find(i => matchItemByBarcode(i, clean) || i.code === clean);
     if (found) {
       setMatchedItem(found);
-      setEssentialPrice(String(found.sellingPrice || ''));
+      const prcInfo = getItemPriceForCustomer(found, selectedCustomerId);
+      setEssentialPrice(String(prcInfo.price || ''));
       setBarcodeAlertMsg(null);
     } else {
       setMatchedItem(null);
     }
-  }, [searchBarcodeQuery, inventory]);
+  }, [searchBarcodeQuery, inventory, selectedCustomerId, getItemPriceForCustomer]);
 
   // Categories
   const categories = useMemo(() => {
@@ -406,7 +427,8 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
     const qty = Math.max(0.01, parseFloat(essentialQty) || 1);
 
     if (itemToAdd) {
-      const price = essentialPrice ? parseFloat(essentialPrice) || itemToAdd.sellingPrice || 0 : itemToAdd.sellingPrice || 0;
+      const preferredPrice = getItemPriceForCustomer(itemToAdd, selectedCustomerId).price;
+      const price = essentialPrice ? parseFloat(essentialPrice) || preferredPrice : preferredPrice;
       const requiresDimensions = isSquareMeterUnit(itemToAdd.unit, itemToAdd.unitCalculationType);
 
       setCart(prev => {
@@ -477,7 +499,7 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
           id: `ci-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           item,
           quantity: 1,
-          unitPrice: item.sellingPrice || 0,
+          unitPrice: getItemPriceForCustomer(item, selectedCustomerId).price || 0,
           discount: 0,
           notes: '',
           hasDimensions: requiresDimensions,
@@ -1332,8 +1354,16 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
           {matchedItem && (
             <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-xl text-xs font-bold text-emerald-800 animate-in fade-in">
               <span className="truncate flex-1">الصنف: {matchedItem.name}</span>
-              <span className="font-mono text-emerald-700 mr-2 shrink-0">
-                {(matchedItem.sellingPrice || 0).toFixed(2)} {activeCurrency.symbol}
+              <span className="font-mono text-emerald-700 mr-2 shrink-0 flex items-center gap-1">
+                {(() => {
+                  const prcInfo = getItemPriceForCustomer(matchedItem, selectedCustomerId);
+                  return (
+                    <>
+                      {prcInfo.isSpecialPrice && <span className="text-[10px] text-amber-600 font-bold">★ سعر خاص:</span>}
+                      <span>{(prcInfo.price || 0).toFixed(2)} {activeCurrency.symbol}</span>
+                    </>
+                  );
+                })()}
               </span>
             </div>
           )}
@@ -1437,8 +1467,16 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
                     <span className="text-[10px] text-slate-400 font-mono">#{item.code || item.barcode || '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-bold font-mono text-blue-600 text-xs">
-                      {(item.sellingPrice || 0).toFixed(2)} {activeCurrency.symbol}
+                    <span className="font-bold font-mono text-blue-600 text-xs flex items-center gap-1">
+                      {(() => {
+                        const pInfo = getItemPriceForCustomer(item, selectedCustomerId);
+                        return (
+                          <>
+                            {pInfo.isSpecialPrice && <span className="text-[10px] text-amber-600 font-bold" title="سعر خاص للعميل">★</span>}
+                            <span>{(pInfo.price || 0).toFixed(2)} {activeCurrency.symbol}</span>
+                          </>
+                        );
+                      })()}
                     </span>
                     <div className="w-5 h-5 rounded bg-emerald-600 text-white flex items-center justify-center">
                       <Plus className="w-3 h-3" />
@@ -1500,18 +1538,25 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
                   {/* Bottom: Price Input (Editable!) + Stepper + Dimensions + Delete */}
                   <div className="flex items-center justify-between gap-1 pt-0.5">
                     {/* Price Input (Directly editable on mobile!) */}
-                    <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded-lg border border-slate-200 shrink-0">
-                      <span className="text-[10px] font-bold text-slate-500">السعر:</span>
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={ci.unitPrice}
-                        onChange={(e) => updateUnitPrice(ci.id, parseFloat(e.target.value) || 0)}
-                        className="w-14 text-center text-xs font-mono font-bold bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-900 focus:outline-none focus:border-blue-500"
-                        title="تعديل سعر الصنف"
-                      />
-                    </div>
+                    {(() => {
+                      const isSpecial = getItemPriceForCustomer(ci.item, selectedCustomerId).isSpecialPrice;
+                      return (
+                        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg border shrink-0 ${isSpecial ? 'bg-amber-100/80 border-amber-300 font-bold' : 'bg-slate-100 border-slate-200'}`} title={isSpecial ? 'سعر خاص معتمد لهذا العميل' : undefined}>
+                          <span className={`text-[10px] font-bold ${isSpecial ? 'text-amber-800' : 'text-slate-500'}`}>
+                            {isSpecial ? '★ خاص:' : 'السعر:'}
+                          </span>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={ci.unitPrice}
+                            onChange={(e) => updateUnitPrice(ci.id, parseFloat(e.target.value) || 0)}
+                            className="w-14 text-center text-xs font-mono font-bold bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-900 focus:outline-none focus:border-blue-500"
+                            title="تعديل سعر الصنف"
+                          />
+                        </div>
+                      );
+                    })()}
 
                     {/* Stepper (Quantity) */}
                     <div className="flex items-center gap-1">

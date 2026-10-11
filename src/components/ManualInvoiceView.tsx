@@ -6,7 +6,7 @@ import { OfficialStamp } from './common/OfficialStamp';
 
 
 export const ManualInvoiceView: React.FC = () => {
-    const { settings, addPosInvoice, invoices, inventory, parties } = useAccounting();
+    const { settings, addPosInvoice, invoices, inventory, parties, getItemPriceForCustomer } = useAccounting();
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -22,9 +22,11 @@ export const ManualInvoiceView: React.FC = () => {
 
   const [invoiceNumber, setInvoiceNumber] = useState(() => savedManualDraft.invoiceNumber || '');
   const [date, setDate] = useState(() => savedManualDraft.date || new Date().toISOString().split('T')[0]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(() => savedManualDraft.selectedCustomerId || '');
   const [customerName, setCustomerName] = useState(() => savedManualDraft.customerName || '');
   const [customerPhone, setCustomerPhone] = useState(() => savedManualDraft.customerPhone || '');
   const [customerAddress, setCustomerAddress] = useState(() => savedManualDraft.customerAddress || '');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [sellerName, setSellerName] = useState(() => savedManualDraft.sellerName || settings?.companyName || '');
   const [sellerPhone, setSellerPhone] = useState(() => savedManualDraft.sellerPhone || settings?.phone || '');
   const [sellerAddress, setSellerAddress] = useState(() => savedManualDraft.sellerAddress || settings?.address || '');
@@ -48,6 +50,7 @@ export const ManualInvoiceView: React.FC = () => {
         localStorage.setItem(MANUAL_INV_DRAFT_KEY, JSON.stringify({
           invoiceNumber,
           date,
+          selectedCustomerId,
           customerName,
           customerPhone,
           customerAddress,
@@ -63,7 +66,7 @@ export const ManualInvoiceView: React.FC = () => {
         localStorage.removeItem(MANUAL_INV_DRAFT_KEY);
       }
     } catch {}
-  }, [invoiceNumber, date, customerName, customerPhone, customerAddress, sellerName, sellerPhone, sellerAddress, items, notes, discount]);
+  }, [invoiceNumber, date, selectedCustomerId, customerName, customerPhone, customerAddress, sellerName, sellerPhone, sellerAddress, items, notes, discount]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -71,6 +74,7 @@ export const ManualInvoiceView: React.FC = () => {
         localStorage.setItem(MANUAL_INV_DRAFT_KEY, JSON.stringify({
           invoiceNumber,
           date,
+          selectedCustomerId,
           customerName,
           customerPhone,
           customerAddress,
@@ -86,7 +90,7 @@ export const ManualInvoiceView: React.FC = () => {
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [invoiceNumber, date, customerName, customerPhone, customerAddress, sellerName, sellerPhone, sellerAddress, items, notes, discount]);
+  }, [invoiceNumber, date, selectedCustomerId, customerName, customerPhone, customerAddress, sellerName, sellerPhone, sellerAddress, items, notes, discount]);
   
   useEffect(() => {
     if (!invoiceNumber) {
@@ -104,15 +108,51 @@ export const ManualInvoiceView: React.FC = () => {
     }
   }, [settings]);
 
+  // Filtered registered customers
+  const filteredCustomers = React.useMemo(() => {
+    const q = customerName.trim().toLowerCase();
+    if (!q) return [];
+    return parties.filter(p => !p.isSubCustomer && (p.type === 'customer' || p.type === 'both') && (
+      p.name.toLowerCase().includes(q) ||
+      (p.phone && p.phone.includes(q)) ||
+      (p.code && p.code.toLowerCase().includes(q))
+    )).slice(0, 8);
+  }, [parties, customerName]);
+
+  const handleSelectCustomer = (party: any) => {
+    setSelectedCustomerId(party.id);
+    setCustomerName(party.name);
+    setCustomerPhone(party.phone || '');
+    setCustomerAddress(party.address || '');
+    setShowCustomerDropdown(false);
+
+    // Immediately adopt preferred prices for all rows in the invoice
+    setItems(prevItems => prevItems.map(row => {
+      if (!row.name || !row.name.trim()) return row;
+      const matchedInv = inventory.find(i => i.name.trim().toLowerCase() === row.name.trim().toLowerCase() || (i.code && i.code.toLowerCase() === row.name.trim().toLowerCase()));
+      if (matchedInv) {
+        const { price } = getItemPriceForCustomer(matchedInv, party.id);
+        const qty = parseFloat(row.qty) || 0;
+        return {
+          ...row,
+          price: price.toString(),
+          total: qty > 0 ? Number((qty * price).toFixed(2)) : row.total
+        };
+      }
+      return row;
+    }));
+  };
+
   const selectInventoryItem = (index: number, invItem: any) => {
     const newItems = [...items];
+    const { price } = getItemPriceForCustomer(invItem, selectedCustomerId);
     newItems[index].name = invItem.name;
-    newItems[index].price = invItem.sellingPrice.toString();
+    newItems[index].price = price.toString();
     setActiveItemIndex(null);
     
     const qty = parseFloat(newItems[index].qty) || 0;
     if (qty > 0) {
-      newItems[index].total = qty * invItem.sellingPrice;
+      newItems[index].total = Number((qty * price).toFixed(2));
     }
     setItems(newItems);
   };
@@ -184,6 +224,7 @@ export const ManualInvoiceView: React.FC = () => {
     addPosInvoice({
       invoiceNumber,
       date,
+      customerId: selectedCustomerId || undefined,
       customerName: customerName || 'عميل نقدي',
       customerPhone,
       type: 'standard',
@@ -292,14 +333,44 @@ export const ManualInvoiceView: React.FC = () => {
         {/* Info Boxes */}
         <div className="grid grid-cols-2 gap-[4%] mb-[2%]">
           {/* Customer Box */}
-          <div className="border-[1.5px] border-[#1e3a8a] rounded-md overflow-hidden">
+          <div className="border-[1.5px] border-[#1e3a8a] rounded-md overflow-hidden relative">
             <div className="bg-[#dbeafe] py-[1%] text-center font-bold text-[#1e3a8a] border-b-[1.5px] border-[#1e3a8a]">
               بيانات العميل
             </div>
             <div className="p-3 space-y-3">
-              <div className="flex items-end gap-2">
+              <div className="flex items-end gap-2 relative">
                 <span className="font-bold text-sm shrink-0">اسم العميل :</span>
-                <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full border-b-[1.5px] border-dotted border-slate-400 focus:outline-none focus:border-blue-500 bg-transparent text-sm" />
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={e => {
+                    setCustomerName(e.target.value);
+                    setShowCustomerDropdown(true);
+                  }}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  placeholder="ابحث عن عميل مسجل أو اكتب اسماً..."
+                  className="w-full border-b-[1.5px] border-dotted border-slate-400 focus:outline-none focus:border-blue-500 bg-transparent text-sm"
+                />
+                {showCustomerDropdown && filteredCustomers.length > 0 && (
+                  <div className="absolute top-full right-20 left-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto no-print">
+                    <div className="text-[10px] bg-slate-100 px-2 py-1 font-bold text-slate-500 border-b">
+                      اختر العميل لاعتماد أسعاره المفضلة تلقائياً:
+                    </div>
+                    {filteredCustomers.map(c => (
+                      <div
+                        key={c.id}
+                        className="px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs border-b last:border-b-0 flex items-center justify-between"
+                        onClick={() => handleSelectCustomer(c)}
+                      >
+                        <span className="font-bold text-slate-900">{c.name}</span>
+                        <div className="flex items-center gap-2">
+                          {c.phone && <span className="text-[10px] text-slate-400 font-mono">{c.phone}</span>}
+                          {c.code && <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-1 rounded">{c.code}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex items-end gap-2">
                 <span className="font-bold text-sm shrink-0">رقم الهاتف :</span>

@@ -160,8 +160,20 @@ export const PartiesView: React.FC = () => {
     setOpeningBalance(manualOpeningBal);
     setOpeningBalanceType(party.openingBalanceType || (party.type === 'supplier' ? 'credit' : 'debit'));
     setOpeningBalanceDate(party.openingBalanceDate || new Date().toISOString().split('T')[0]);
-    setNotes(party.notes || '');
-    setSpecialPrices(party.specialPrices || {});
+    const initialSpecials: Record<string, number> = { ...(party.specialPrices || {}) };
+    inventory.forEach(it => {
+      if (it.customerSpecialPrices && it.customerSpecialPrices.length > 0) {
+        const entry = it.customerSpecialPrices.find(sp =>
+          sp.customerId === party.id ||
+          (party.code && sp.customerCode && sp.customerCode.toLowerCase() === party.code.toLowerCase()) ||
+          (sp.customerName && sp.customerName.trim().toLowerCase() === party.name.trim().toLowerCase())
+        );
+        if (entry && typeof entry.price === 'number' && entry.price >= 0 && initialSpecials[it.id] === undefined) {
+          initialSpecials[it.id] = entry.price;
+        }
+      }
+    });
+    setSpecialPrices(initialSpecials);
     setSelectedSpecialItemId('');
     setSpecialItemPriceInput('');
     setShowPartyModal(true);

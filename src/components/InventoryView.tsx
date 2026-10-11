@@ -464,8 +464,25 @@ export const InventoryView: React.FC = () => {
     setFormPurchasePrice(it.purchasePrice);
     setFormSellingPrice(it.sellingPrice);
     setFormSellingPrice2(it.sellingPrice2 !== undefined && it.sellingPrice2 > 0 ? it.sellingPrice2 : '');
-    setFormSellingPrice3(it.sellingPrice3 !== undefined && it.sellingPrice3 > 0 ? it.sellingPrice3 : '');
-    setFormCustomerSpecialPrices(it.customerSpecialPrices ? [...it.customerSpecialPrices] : []);
+    const initialItemSpecials: CustomerSpecialPrice[] = it.customerSpecialPrices ? [...it.customerSpecialPrices] : [];
+    customers.forEach(cust => {
+      if (cust.specialPrices) {
+        const pPrice = cust.specialPrices[it.id] !== undefined
+          ? cust.specialPrices[it.id]
+          : (it.code && cust.specialPrices[it.code] !== undefined ? cust.specialPrices[it.code] : undefined);
+        if (pPrice !== undefined && pPrice >= 0 && !initialItemSpecials.some(sp => sp.customerId === cust.id)) {
+          initialItemSpecials.push({
+            customerId: cust.id,
+            customerName: cust.name,
+            customerCode: cust.code,
+            price: pPrice,
+            notes: 'مسجل بملف العميل',
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+    });
+    setFormCustomerSpecialPrices(initialItemSpecials);
     setNewSpecialCustomerId('');
     setNewSpecialPrice('');
     setNewSpecialNotes('');
