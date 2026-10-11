@@ -5,7 +5,7 @@ import { auth } from '../firebase';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 export const DATABASE_DRIVE_FOLDER = 'Lobnan_Accounting_Cloud_Database';
-export const MASTER_DATABASE_FILENAME = 'Lobnan_Accounting_Master_Database.json';
+export const MASTER_DATABASE_FILENAME = 'The Start Data';
 
 const STORAGE_KEY_TOKEN = 'lobnan_drive_access_token';
 const STORAGE_KEY_TOKEN_EXP = 'lobnan_drive_token_expires_at';
@@ -29,9 +29,13 @@ export function saveSyncToken(token: string, expiresInSeconds: number = 3600) {
   localStorage.setItem(STORAGE_KEY_TOKEN_EXP, (Date.now() + expiresInSeconds * 1000).toString());
 }
 
-export async function requestGoogleDriveToken(): Promise<string> {
+export async function requestGoogleDriveToken(promptUser: boolean = false): Promise<string | null> {
   const existing = getCachedSyncToken();
   if (existing) return existing;
+
+  if (!promptUser) {
+    return null;
+  }
 
   try {
     const provider = new GoogleAuthProvider();
@@ -49,8 +53,8 @@ export async function requestGoogleDriveToken(): Promise<string> {
     saveSyncToken(token, 3600);
     return token;
   } catch (error: any) {
-    console.error('Failed to request Google Drive access token:', error);
-    throw error;
+    console.warn('Failed to request Google Drive access token (popup notice):', error?.message || error);
+    return null;
   }
 }
 
@@ -90,7 +94,7 @@ export async function getOrCreateCloudDatabaseFolder(token: string): Promise<str
 }
 
 export async function findMasterDatabaseFile(token: string, folderId: string): Promise<{ id: string; name: string } | null> {
-  const q = `'${folderId}' in parents and name='${MASTER_DATABASE_FILENAME}' and trashed=false`;
+  const q = `'${folderId}' in parents and (name='The Start Data' or name='The Start Data.json' or name='Lobnan_Accounting_Master_Database.json') and trashed=false`;
   const searchRes = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&orderBy=modifiedTime desc`,
     { headers: { Authorization: `Bearer ${token}` } }
