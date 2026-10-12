@@ -30,56 +30,9 @@ export async function requestGoogleDriveToken(promptUser: boolean = false): Prom
   const existing = getCachedSyncToken();
   if (existing) return existing;
 
-  if (!promptUser) {
-    return null;
-  }
-
-  try {
-    const clientId = '209948056563-6phejmgml54cu8rqoebpqd4a0nglosii.apps.googleusercontent.com';
-    const redirectUri = window.location.origin;
-    const scope = 'https://www.googleapis.com/auth/drive.file';
-    
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=select_account`;
-
-    return new Promise((resolve) => {
-      const width = 500;
-      const height = 600;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-      
-      const popup = window.open(authUrl, 'GoogleDriveOAuth', `width=${width},height=${height},top=${top},left=${left}`);
-      
-      if (!popup) {
-        resolve(null);
-        return;
-      }
-
-      const interval = setInterval(() => {
-        try {
-          if (popup.closed) {
-            clearInterval(interval);
-            resolve(getCachedSyncToken());
-            return;
-          }
-          const hash = popup.location.hash;
-          if (hash && hash.includes('access_token=')) {
-            const params = new URLSearchParams(hash.substring(1));
-            const token = params.get('access_token');
-            const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
-            if (token) {
-              saveSyncToken(token, expiresIn);
-              popup.close();
-              clearInterval(interval);
-              resolve(token);
-            }
-          }
-        } catch (e) {}
-      }, 500);
-    });
-  } catch (error: any) {
-    console.warn('Failed to request Google Drive access token:', error?.message || error);
-    return null;
-  }
+  // Never open raw popups with mismatched redirect URIs
+  // Automatic background synchronization relies directly on the Central Sync Server Hub
+  return null;
 }
 
 export async function getOrCreateCloudDatabaseFolder(token: string): Promise<string> {

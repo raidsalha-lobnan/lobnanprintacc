@@ -281,22 +281,12 @@ export const SyncAuditStatementView: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Action Commands */}
+          {/* Quick Action Commands & Auto Sync Status */}
           <div className="flex items-center gap-2 flex-wrap print:hidden">
-            <button
-              type="button"
-              onClick={handleConnectDrive}
-              disabled={isConnectingDrive}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition active:translate-y-px cursor-pointer ${
-                hasDriveToken
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-700'
-                  : 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 animate-pulse'
-              }`}
-              title="ربط وتسجيل الدخول بحساب قوقل درايف لمزامنة قاعدة البيانات السحابية"
-            >
-              <Cloud className="w-3.5 h-3.5" />
-              <span>{isConnectingDrive ? 'جارِ الاتصال بكوقل...' : hasDriveToken ? 'قوقل درايف متصل ✅' : 'تسجيل الدخول وربط Google Drive'}</span>
-            </button>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300">
+              <Cloud className="w-4 h-4 text-emerald-600 animate-pulse" />
+              <span>مزامنة سحابية أوتوماتيكية مباشرة (مفعلة 100% بدون تدخل) ✅</span>
+            </div>
 
             <button
               type="button"
