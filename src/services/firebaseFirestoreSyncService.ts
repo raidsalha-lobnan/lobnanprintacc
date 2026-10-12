@@ -65,9 +65,9 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
     syncAuditService.logIssue({
       endpoint: `Firestore/${entityName}`,
       errorType: 'server_error',
-      statusCode: 500,
-      message: error?.message || 'فشل الحفظ في Firestore',
-      recoveryNote: 'سيتم المحاولة مجدداً تلقائياً عند استقرار الاتصال'
+      statusCode: error?.code || 500,
+      message: `فشل الحفظ في Firestore: ${error?.message || 'خطأ غير معروف'}`,
+      recoveryNote: 'يرجى التأكد من صلاحيات قاعدة البيانات والاتصال بالإنترنت'
     });
     return false;
   }
