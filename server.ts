@@ -262,6 +262,17 @@ app.all('/api/sync/delta', (req, res) => {
   }
 });
 
+// Master snapshot view endpoint (JSON preview)
+app.get('/api/sync/master-snapshot', (_req, res) => {
+  const fullSnapshot: Record<string, any> = {};
+  for (const ent of ALL_SYNC_ENTITIES) {
+    fullSnapshot[ent] = loadEntityData(ent);
+  }
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.json(fullSnapshot);
+});
+
 // Summary status of all synced entities on the server
 app.get('/api/sync/status', (_req, res) => {
   const summary: Record<string, { count: number; lastModified: number }> = {};

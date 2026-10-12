@@ -98,7 +98,6 @@ export const SyncAuditStatementView: React.FC = () => {
       const res = await fetch('/api/sync/delta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           entity: 'settings',
           op: 'upsert',
@@ -175,7 +174,7 @@ export const SyncAuditStatementView: React.FC = () => {
     setConnectionState('checking');
     const start = performance.now();
     try {
-      const res = await fetch('/api/sync/status', { cache: 'no-store', credentials: 'include' });
+      const res = await fetch('/api/sync/status', { cache: 'no-store' });
       const ping = Math.round(performance.now() - start);
       setServerPingMs(ping);
 
@@ -493,7 +492,7 @@ export const SyncAuditStatementView: React.FC = () => {
               </button>
 
               <a
-                href="/master_drive_database_snapshot.json"
+                href="/api/sync/master-snapshot"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1 px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-blue-300 text-xs font-medium rounded-lg border border-slate-700 transition"

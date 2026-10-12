@@ -203,6 +203,17 @@ function syncHubPlugin() {
           return;
         }
 
+        if (pathname === '/api/sync/master-snapshot') {
+          const fullSnapshot: Record<string, any> = {};
+          for (const ent of ALL_SYNC_ENTITIES) {
+            fullSnapshot[ent] = getEntityData(ent);
+          }
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.statusCode = 200;
+          return res.end(JSON.stringify(fullSnapshot, null, 2));
+        }
+
         if (pathname === '/api/sync/status') {
           const summary: Record<string, { count: number; lastModified: number }> = {};
           for (const ent of ALL_SYNC_ENTITIES) {

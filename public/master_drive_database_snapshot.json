@@ -2,6 +2,9 @@
   "settings": [
     {
       "id": "test"
+    },
+    {
+      "id": "ping-123"
     }
   ],
   "accounts": [
@@ -58001,5 +58004,6 @@
   ],
   "expenses": [],
   "exportedAt": "2026-10-11T08:14:52.783Z",
-  "exportedBy": "مطبعة لبنان"
+  "exportedBy": "مطبعة لبنان",
+  "dailyEntrySheets": []
 }

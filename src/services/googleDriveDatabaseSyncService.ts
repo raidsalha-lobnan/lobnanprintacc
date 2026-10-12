@@ -26,52 +26,23 @@ export function saveSyncToken(token: string, expiresInSeconds: number = 3600) {
   localStorage.setItem(STORAGE_KEY_TOKEN_EXP, (Date.now() + expiresInSeconds * 1000).toString());
 }
 
+import { authenticateWithGoogleDrive } from './firebaseDriveAuth';
+
 export async function requestGoogleDriveToken(promptUser: boolean = false): Promise<string | null> {
   const existing = getCachedSyncToken();
   if (existing) return existing;
   if (!promptUser) return null;
 
-  return new Promise<string | null>((resolve) => {
-    try {
-      const clientId = '209948056563-6phejmgml54cu8rqoebpqd4a0nglosii.apps.googleusercontent.com';
-      const scope = 'https://www.googleapis.com/auth/drive.file';
-
-      const initTokenClient = () => {
-        if ((window as any).google?.accounts?.oauth2) {
-          const client = (window as any).google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: scope,
-            callback: (response: any) => {
-              if (response && response.access_token) {
-                saveSyncToken(response.access_token, response.expires_in || 3600);
-                resolve(response.access_token);
-              } else {
-                resolve(null);
-              }
-            },
-            error_callback: () => resolve(null)
-          });
-          client.requestAccessToken();
-        } else {
-          resolve(null);
-        }
-      };
-
-      if ((window as any).google?.accounts?.oauth2) {
-        initTokenClient();
-      } else {
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => initTokenClient();
-        script.onerror = () => resolve(null);
-        document.head.appendChild(script);
-      }
-    } catch {
-      resolve(null);
+  try {
+    const authRes = await authenticateWithGoogleDrive();
+    if (authRes && authRes.token) {
+      saveSyncToken(authRes.token, 3600);
+      return authRes.token;
     }
-  });
+  } catch (err) {
+    console.error('Failed to request Google Drive token:', err);
+  }
+  return null;
 }
 
 export async function getOrCreateCloudDatabaseFolder(token: string): Promise<string> {

@@ -1562,7 +1562,6 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: payloadStr
         });
         if (!res.ok) throw new Error(`Server response ${res.status}`);
@@ -1717,7 +1716,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
       const fetchAndMergeFullServerState = async () => {
         const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
-        const sRes = await fetch(stateEndpoint, { credentials: 'include' }).catch(() => null);
+        const sRes = await fetch(stateEndpoint).catch(() => null);
         if (sRes && sRes.ok) {
           const sJson = await sRes.json().catch(() => null);
           if (sJson && sJson.data) {
@@ -1787,9 +1786,9 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         deltasEndpoint = `${baseUrl}/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`;
       }
 
-      let res = await fetch(deltasEndpoint, { credentials: 'include' }).catch(() => null);
+      let res = await fetch(deltasEndpoint).catch(() => null);
       if ((!res || !res.ok) && baseUrl) {
-        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`, { credentials: 'include' }).catch(() => null);
+        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`).catch(() => null);
       }
       if (!res || !res.ok) return;
       const json = await res.json().catch(() => null);
@@ -1845,7 +1844,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       try {
         const baseUrl = getSyncBaseUrl();
         const statusEndpoint = baseUrl ? `${baseUrl}/api/sync/status` : '/api/sync/status';
-        const res = await fetch(statusEndpoint, { credentials: 'include' }).catch(() => null);
+        const res = await fetch(statusEndpoint).catch(() => null);
         if (!res || !res.ok) return;
         const json = await res.json().catch(() => null);
         if (json && json.success && json.entities) {
@@ -2025,7 +2024,6 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       res = await fetch('/api/sync/full-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(payload)
       });
     } catch (e) {
@@ -2038,7 +2036,6 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         const extRes = await fetch(`${baseUrl}/api/sync/full-sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(payload)
         });
         if (extRes.ok) {
@@ -2052,7 +2049,6 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         res = await fetch('/api/sync/full-sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(payload)
         });
       } catch (e) {}

@@ -59,56 +59,21 @@ export function initDriveAuthListener(
   return () => {};
 }
 
+import { authenticateWithGoogleDrive } from './firebaseDriveAuth';
+
 export async function connectGoogleDrive(): Promise<{ user: { email: string; displayName: string }; accessToken: string }> {
   try {
     isSigningIn = true;
-    const clientId = '209948056563-6phejmgml54cu8rqoebpqd4a0nglosii.apps.googleusercontent.com';
-    const redirectUri = window.location.origin;
-    const scope = 'https://www.googleapis.com/auth/drive.file';
-    
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=select_account`;
-
-    const token = await new Promise<string>((resolve, reject) => {
-      const width = 500;
-      const height = 600;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-      
-      const popup = window.open(authUrl, 'GoogleDriveOAuth', `width=${width},height=${height},top=${top},left=${left}`);
-      
-      if (!popup) {
-        reject(new Error('فشل فتح نافذة تسجيل دخول قوقل'));
-        return;
-      }
-
-      const interval = setInterval(() => {
-        try {
-          if (popup.closed) {
-            clearInterval(interval);
-            reject(new Error('تم إغلاق نافذة تسجيل الدخول'));
-            return;
-          }
-          const hash = popup.location.hash;
-          if (hash && hash.includes('access_token=')) {
-            const params = new URLSearchParams(hash.substring(1));
-            const accessToken = params.get('access_token');
-            if (accessToken) {
-              popup.close();
-              clearInterval(interval);
-              resolve(accessToken);
-            }
-          }
-        } catch (e) {}
-      }, 500);
-    });
-
-    if (!token) {
+    const authRes = await authenticateWithGoogleDrive();
+    if (!authRes.token) {
       throw new Error('لم يتم استلام رمز صلاحية الوصول إلى Google Drive من جوجل.');
     }
 
-    setCachedDriveToken(token);
-    const user = { email: 'raid.salha@gmail.com', displayName: 'رائد صالحة' };
-    return { user, accessToken: token };
+    setCachedDriveToken(authRes.token);
+    return {
+      user: authRes.user,
+      accessToken: authRes.token
+    };
   } catch (err: any) {
     console.error('Google Drive sign-in error:', err);
     throw err;
