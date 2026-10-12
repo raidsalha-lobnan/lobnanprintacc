@@ -1842,6 +1842,16 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     return () => clearInterval(interval);
   }, []);
 
+  // Live Firebase Firestore Real-Time Listener Effect across all devices
+  useEffect(() => {
+    const unsub = subscribeToFirestoreLiveSync((entityName, items) => {
+      if (Array.isArray(items)) {
+        applyDeltaToState(entityName, 'sync', null, items);
+      }
+    });
+    return () => unsub();
+  }, []);
+
   // Periodic 6000ms Count Auto-Reconciler to guarantee 100% exact match across all devices
   useEffect(() => {
     const autoCheckMismatches = async () => {

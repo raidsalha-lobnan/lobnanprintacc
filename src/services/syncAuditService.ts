@@ -1,5 +1,5 @@
 // Sync Audit and Transfer Tracking Service
-// سجل وتدقيق تفاصيل المزامنة والربط مع السيرفر الرئيسي
+// سجل وتدقيق تفاصيل المزامنة والربط مع السيرفر الرئيسي وقاعدة بيانات Firebase Firestore
 
 export interface SyncAuditItem {
   id: string;
@@ -10,7 +10,7 @@ export interface SyncAuditItem {
   directionLabel: string;
   entity: string;
   entityLabel: string;
-  op: 'upsert' | 'delete' | 'sync' | 'ping';
+  op: 'upsert' | 'delete' | 'sync' | 'ping' | 'live_snapshot';
   opLabel: string;
   status: 'success' | 'failed' | 'pending';
   documentId?: string;
@@ -63,7 +63,8 @@ export const ENTITY_ARABIC_NAMES: Record<string, string> = {
   expenses: 'المصروفات',
   journalEntries: 'قيود اليومية',
   settings: 'إعدادات النظام',
-  dailyEntrySheets: 'كشف الإدخال اليومي'
+  dailyEntrySheets: 'كشف الإدخال اليومي',
+  master_db: 'قاعدة البيانات الشاملة'
 };
 
 export const syncAuditService = {
@@ -84,7 +85,7 @@ export const syncAuditService = {
                 return {
                   ...item,
                   status: 'success',
-                  details: 'تمت المزامنة والمطابقة بنجاح مع السيرفر الرئيسي 🟢'
+                  details: 'تمت المزامنة والمطابقة بنجاح مع السيرفر السحابي والرئيسي 🟢'
                 };
               }
               return item;
@@ -123,6 +124,8 @@ export const syncAuditService = {
           ? 'حذف'
           : item.op === 'sync'
           ? 'مطابقة بيانات'
+          : item.op === 'live_snapshot'
+          ? 'تحديث سحابي حي'
           : 'فحص استجابة';
 
       const entityLabel = ENTITY_ARABIC_NAMES[item.entity] || item.entity;
@@ -141,6 +144,11 @@ export const syncAuditService = {
       const existing = syncAuditService.getAuditLogs();
       const updated = [newEntry, ...existing].slice(0, MAX_LOG_COUNT);
       localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(updated));
+
+      // Asynchronously persist to Firebase Firestore
+      import('./firebaseFirestoreSyncService').then(({ saveAuditLogToFirestore }) => {
+        saveAuditLogToFirestore(newEntry).catch(() => {});
+      }).catch(() => {});
     } catch {}
   },
 
@@ -150,7 +158,6 @@ export const syncAuditService = {
       const hasUnsynced = localStorage.getItem('alnoor_press_accounting_v1_has_unsynced') === 'true';
       const pendingCount = parseInt(localStorage.getItem('alnoor_press_accounting_v1_pending_sync_count') || '0', 10) || 0;
       if (!hasUnsynced && pendingCount === 0) {
-        // Auto-purge historical issues when live connection and database are fully matched
         localStorage.removeItem(STORAGE_KEY_ISSUES);
         return [];
       }
@@ -202,13 +209,40 @@ export const syncAuditService = {
       const existing = syncAuditService.getConnectionIssues();
       const updated = [newIssue, ...existing].slice(0, MAX_LOG_COUNT);
       localStorage.setItem(STORAGE_KEY_ISSUES, JSON.stringify(updated));
+
+      // Asynchronously persist to Firebase Firestore
+      import('./firebaseFirestoreSyncService').then(({ saveConnectionIssueToFirestore }) => {
+        saveConnectionIssueToFirestore(newIssue).catch(() => {});
+      }).catch(() => {});
     } catch {}
+  },
+
+  // Alias for logIssue (backwards compatibility)
+  logConnectionIssue: (issue: {
+    endpoint: string;
+    errorType?: 'network_offline' | 'connection_refused' | 'server_error' | 'timeout' | 'other';
+    errorMessage?: string;
+    message?: string;
+    statusCode?: number;
+    recoveryNote?: string;
+    contextInfo?: string;
+  }) => {
+    syncAuditService.logIssue({
+      endpoint: issue.endpoint,
+      errorType: issue.errorType || 'server_error',
+      message: issue.errorMessage || issue.message || 'خطأ في الربط والمزامنة',
+      statusCode: issue.statusCode,
+      recoveryNote: issue.recoveryNote || (issue.contextInfo ? `سياق: ${issue.contextInfo}` : undefined)
+    });
   },
 
   // Clear audit log
   clearAuditLogs: () => {
     try {
       localStorage.removeItem(STORAGE_KEY_AUDIT);
+      import('./firebaseFirestoreSyncService').then(({ clearAuditLogsFromFirestore }) => {
+        clearAuditLogsFromFirestore().catch(() => {});
+      }).catch(() => {});
     } catch {}
   },
 
@@ -216,6 +250,9 @@ export const syncAuditService = {
   clearConnectionIssues: () => {
     try {
       localStorage.removeItem(STORAGE_KEY_ISSUES);
+      import('./firebaseFirestoreSyncService').then(({ clearConnectionIssuesFromFirestore }) => {
+        clearConnectionIssuesFromFirestore().catch(() => {});
+      }).catch(() => {});
     } catch {}
   },
 
@@ -231,7 +268,7 @@ export const syncAuditService = {
           return {
             ...item,
             status: 'success' as const,
-            details: 'تمت المزامنة بنجاح واستقرار الحركة في قاعدة بيانات السيرفر الرئيسي 🟢'
+            details: 'تمت المزامنة بنجاح واستقرار الحركة في قاعدة بيانات السيرفر والقاعدة السحابية 🟢'
           };
         }
         return item;
@@ -253,7 +290,7 @@ export const syncAuditService = {
           return {
             ...item,
             status: 'success' as const,
-            details: 'تمت المزامنة والمطابقة بنجاح مع السيرفر الرئيسي 🟢'
+            details: 'تمت المزامنة والمطابقة بنجاح مع السيرفر الرئيسي والقاعدة السحابية 🟢'
           };
         }
         return item;

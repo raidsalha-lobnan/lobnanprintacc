@@ -1,12 +1,24 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection } from 'firebase/firestore';
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  deleteDoc,
+  onSnapshot,
+  collection,
+  getDocs
+} from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { syncAuditService } from './syncAuditService';
+import { syncAuditService, SyncAuditItem, SyncConnectionIssue } from './syncAuditService';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
 const DB_COLLECTION = 'lobnan_accounting_db';
+const AUDIT_COLLECTION = 'lobnan_accounting_sync_audit_logs';
+const ISSUES_COLLECTION = 'lobnan_accounting_sync_connection_issues';
+const TESTS_COLLECTION = 'lobnan_accounting_sync_tests';
 
 export const ALL_ENTITIES = [
   'invoices',
@@ -50,11 +62,12 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
     return true;
   } catch (error: any) {
     console.error(`Error saving ${entityName} to Firestore:`, error);
-    syncAuditService.logConnectionIssue({
+    syncAuditService.logIssue({
       endpoint: `Firestore/${entityName}`,
+      errorType: 'server_error',
       statusCode: 500,
-      errorMessage: error?.message || 'فشل الحفظ في Firestore',
-      contextInfo: `حفظ ${entityName}`
+      message: error?.message || 'فشل الحفظ في Firestore',
+      recoveryNote: 'سيتم المحاولة مجدداً تلقائياً عند استقرار الاتصال'
     });
     return false;
   }
@@ -132,13 +145,6 @@ export function subscribeToFirestoreLiveSync(
         const data = snap.data();
         if (data && Array.isArray(data.items)) {
           onEntityUpdated(ent, data.items);
-          syncAuditService.logEvent({
-            direction: 'pull',
-            entity: ent,
-            op: 'live_snapshot',
-            status: 'success',
-            details: `استقبال تحديث حي لمجموعة ${ent} (${data.items.length} عنصر) من Firebase Firestore ⚡`
-          });
         }
       }
     }, (err) => {
@@ -150,4 +156,151 @@ export function subscribeToFirestoreLiveSync(
   return () => {
     unsubscribes.forEach((fn) => fn());
   };
+}
+
+/**
+ * Saves a sync audit log item directly to Firestore
+ */
+export async function saveAuditLogToFirestore(item: SyncAuditItem): Promise<boolean> {
+  try {
+    const docRef = doc(db, AUDIT_COLLECTION, item.id);
+    await setDoc(docRef, item, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('Error saving audit log to Firestore:', err);
+    return false;
+  }
+}
+
+/**
+ * Saves a sync connection issue item directly to Firestore
+ */
+export async function saveConnectionIssueToFirestore(issue: SyncConnectionIssue): Promise<boolean> {
+  try {
+    const docRef = doc(db, ISSUES_COLLECTION, issue.id);
+    await setDoc(docRef, issue, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('Error saving connection issue to Firestore:', err);
+    return false;
+  }
+}
+
+/**
+ * Subscribes to live audit logs from Firestore across all devices
+ */
+export function subscribeToSyncAuditLogsFromFirestore(
+  callback: (logs: SyncAuditItem[]) => void
+): () => void {
+  const colRef = collection(db, AUDIT_COLLECTION);
+  return onSnapshot(colRef, (snapshot) => {
+    const logs: SyncAuditItem[] = [];
+    snapshot.forEach((d) => {
+      logs.push(d.data() as SyncAuditItem);
+    });
+    logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    callback(logs);
+  }, (err) => {
+    console.warn('Audit logs snapshot listener error:', err);
+  });
+}
+
+/**
+ * Subscribes to live connection issues from Firestore across all devices
+ */
+export function subscribeToConnectionIssuesFromFirestore(
+  callback: (issues: SyncConnectionIssue[]) => void
+): () => void {
+  const colRef = collection(db, ISSUES_COLLECTION);
+  return onSnapshot(colRef, (snapshot) => {
+    const issues: SyncConnectionIssue[] = [];
+    snapshot.forEach((d) => {
+      issues.push(d.data() as SyncConnectionIssue);
+    });
+    issues.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    callback(issues);
+  }, (err) => {
+    console.warn('Connection issues snapshot listener error:', err);
+  });
+}
+
+/**
+ * Clears audit logs from Firestore
+ */
+export async function clearAuditLogsFromFirestore(): Promise<boolean> {
+  try {
+    const colRef = collection(db, AUDIT_COLLECTION);
+    const snap = await getDocs(colRef);
+    const promises = snap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(promises);
+    return true;
+  } catch (err) {
+    console.warn('Error clearing audit logs in Firestore:', err);
+    return false;
+  }
+}
+
+/**
+ * Clears connection issues from Firestore
+ */
+export async function clearConnectionIssuesFromFirestore(): Promise<boolean> {
+  try {
+    const colRef = collection(db, ISSUES_COLLECTION);
+    const snap = await getDocs(colRef);
+    const promises = snap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(promises);
+    return true;
+  } catch (err) {
+    console.warn('Error clearing connection issues in Firestore:', err);
+    return false;
+  }
+}
+
+/**
+ * Tests direct live send and receive (ping test) with Firebase Firestore
+ */
+export async function runLiveFirestorePingTest(): Promise<{
+  success: boolean;
+  ms: number;
+  message: string;
+  docId: string;
+}> {
+  const start = performance.now();
+  const testId = 'firestore-ping-' + Date.now();
+  try {
+    const testDocRef = doc(db, TESTS_COLLECTION, testId);
+    const testPayload = {
+      id: testId,
+      createdAt: new Date().toISOString(),
+      pingTest: true,
+      status: 'success',
+      details: 'اختبار إرسال واستقبال مباشر وسريع في قاعدة بيانات Firebase Firestore السحابية'
+    };
+
+    // 1. Send/Write to Firestore
+    await setDoc(testDocRef, testPayload);
+
+    // 2. Read/Receive back from Firestore
+    const readSnap = await getDoc(testDocRef);
+    const ms = Math.round(performance.now() - start);
+
+    if (readSnap.exists()) {
+      return {
+        success: true,
+        ms,
+        docId: testId,
+        message: `تم إرسال واستقبال الحركة بنجاح في قاعدة بيانات Firebase Firestore خلال ${ms}ms ⚡`
+      };
+    } else {
+      throw new Error('لم يتم العثور على القيد المسجل بعد الإرسال');
+    }
+  } catch (err: any) {
+    const ms = Math.round(performance.now() - start);
+    return {
+      success: false,
+      ms,
+      docId: testId,
+      message: `فشل اختبار المزامنة في Firebase Firestore: ${err?.message || err}`
+    };
+  }
 }

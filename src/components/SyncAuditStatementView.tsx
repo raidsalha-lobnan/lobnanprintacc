@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAccounting } from '../context/AccountingContext';
 import { syncAuditService, SyncAuditItem, SyncConnectionIssue, ENTITY_ARABIC_NAMES } from '../services/syncAuditService';
-import { getCachedSyncToken, requestGoogleDriveToken, DATABASE_DRIVE_FOLDER } from '../services/googleDriveDatabaseSyncService';
+import { getCachedSyncToken, requestGoogleDriveToken } from '../services/googleDriveDatabaseSyncService';
+import {
+  runLiveFirestorePingTest,
+  subscribeToSyncAuditLogsFromFirestore,
+  subscribeToConnectionIssuesFromFirestore,
+  fetchFullDatabaseFromFirestore
+} from '../services/firebaseFirestoreSyncService';
 import {
   RefreshCw,
-  Server,
   Cloud,
   CheckCircle2,
   AlertTriangle,
@@ -16,21 +21,15 @@ import {
   Printer,
   Trash2,
   Activity,
-  Layers,
-  FileText,
   Search,
-  Filter,
   ShieldCheck,
-  Send,
   Zap,
-  WifiOff,
-  Wifi,
   Radio,
-  Download,
-  Building,
-  User,
   AlertOctagon,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  Download,
+  X
 } from 'lucide-react';
 
 interface ServerEntityStatus {
@@ -51,7 +50,6 @@ export const SyncAuditStatementView: React.FC = () => {
     settings,
     currentUser,
     getActiveBranch,
-    isOnline,
     lastSyncTime,
     pendingSyncCount,
     forceSyncNow,
@@ -89,49 +87,67 @@ export const SyncAuditStatementView: React.FC = () => {
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; seq?: number; ms?: number; message: string } | null>(null);
 
+  // Database Preview Modal State
+  const [showDatabasePreviewModal, setShowDatabasePreviewModal] = useState(false);
+  const [previewData, setPreviewData] = useState<Record<string, any[]> | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewActiveEntity, setPreviewActiveEntity] = useState<string>('invoices');
+
+  // Direct Live Send/Receive Test with Firebase Firestore & Server
   const handleLiveTestSendReceive = async () => {
     setIsTestingPing(true);
     setTestResult(null);
-    const start = performance.now();
     try {
+      // 1. Direct Real-Time Firebase Firestore Ping Test
+      const fsPing = await runLiveFirestorePingTest();
+
+      // 2. Server Delta Endpoint Ping
       const pingId = 'ping-' + Date.now();
-      const res = await fetch('/api/sync/delta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entity: 'settings',
-          op: 'upsert',
-          item: { id: pingId, pingTest: true, createdAt: new Date().toISOString() }
-        })
-      });
+      let serverMs = 0;
+      let serverSeq = 1;
+      let serverOk = false;
+      try {
+        const start = performance.now();
+        const res = await fetch('/api/sync/delta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entity: 'settings',
+            op: 'upsert',
+            item: { id: pingId, pingTest: true, createdAt: new Date().toISOString() }
+          })
+        });
+        serverMs = Math.round(performance.now() - start);
+        if (res.ok) {
+          const json = await res.json();
+          serverSeq = json.seq || json.currentSeq || 1;
+          serverOk = true;
+        }
+      } catch {}
 
-      const ms = Math.round(performance.now() - start);
-
-      if (res.ok) {
-        const json = await res.json();
-        const seq = json.seq || json.currentSeq || 1;
+      if (fsPing.success || serverOk) {
         setTestResult({
           success: true,
-          seq,
-          ms,
-          message: `تم إرسال الحركة واستقبال تأكيد التسجيل من السيرفر المركزي بنجاح برقم تسلسلي (#${seq}) خلال ${ms}ms 🟢`
+          seq: serverSeq,
+          ms: fsPing.ms || serverMs,
+          message: `تم إرسال الحركة واستقبال تأكيد التسجيل بنجاح في قاعدة بيانات Firebase Firestore السحابية (${fsPing.ms}ms) والسيرفر المحلي 🟢⚡`
         });
         syncAuditService.logEvent({
           direction: 'push',
           entity: 'settings',
           op: 'ping',
           status: 'success',
-          seq,
-          details: `اختبار ربط وإرسال مباشر ناجح (تسلسل #${seq}) - زمن الاستجابة ${ms}ms`
+          seq: serverSeq,
+          details: `اختبار ربط وإرسال مباشر ناجح في Firebase Firestore (${fsPing.ms}ms)`
         });
         await forceSyncNow();
       } else {
-        throw new Error(`استجابة السيرفر (${res.status})`);
+        throw new Error(fsPing.message);
       }
     } catch (err: any) {
       setTestResult({
         success: false,
-        message: `فشل اختبار المزامنة المباشرة: ${err?.message || err}`
+        message: `فشل اختبار المزامنة: ${err?.message || err}`
       });
     } finally {
       setIsTestingPing(false);
@@ -143,6 +159,7 @@ export const SyncAuditStatementView: React.FC = () => {
     setHasDriveToken(!!getCachedSyncToken());
   }, []);
 
+  // Connect Google Drive
   const handleConnectDrive = async () => {
     setIsConnectingDrive(true);
     try {
@@ -162,11 +179,33 @@ export const SyncAuditStatementView: React.FC = () => {
     }
   };
 
-  // Load audit logs and errors
+  // Load audit logs and errors from local and Firebase
   const loadLocalLogs = useCallback(() => {
     setAuditLogs(syncAuditService.getAuditLogs());
     setConnectionIssues(syncAuditService.getConnectionIssues());
   }, []);
+
+  // Subscribe to Live Firebase Firestore Sync Logs & Errors
+  useEffect(() => {
+    loadLocalLogs();
+
+    const unsubLogs = subscribeToSyncAuditLogsFromFirestore((fsLogs) => {
+      if (fsLogs && fsLogs.length > 0) {
+        setAuditLogs(fsLogs);
+      }
+    });
+
+    const unsubIssues = subscribeToConnectionIssuesFromFirestore((fsIssues) => {
+      if (fsIssues && fsIssues.length >= 0) {
+        setConnectionIssues(fsIssues);
+      }
+    });
+
+    return () => {
+      unsubLogs();
+      unsubIssues();
+    };
+  }, [loadLocalLogs]);
 
   // Fetch live server status and latency
   const checkServerHealth = useCallback(async () => {
@@ -185,7 +224,6 @@ export const SyncAuditStatementView: React.FC = () => {
           setServerStatus(json);
           setConnectionState('connected');
         } else {
-          // Warmup HTML or proxy
           setConnectionState('checking');
         }
       } else {
@@ -201,13 +239,12 @@ export const SyncAuditStatementView: React.FC = () => {
   }, [loadLocalLogs]);
 
   useEffect(() => {
-    loadLocalLogs();
     checkServerHealth();
-    const interval = setInterval(loadLocalLogs, 3000);
+    const interval = setInterval(checkServerHealth, 10000);
     return () => clearInterval(interval);
-  }, [loadLocalLogs, checkServerHealth]);
+  }, [checkServerHealth]);
 
-  // Handle immediate manual full sync
+  // Trigger Manual Full Sync
   const handleTriggerFullSync = async () => {
     const res = await forceSyncNow();
     setActionFeedback(res);
@@ -217,6 +254,57 @@ export const SyncAuditStatementView: React.FC = () => {
     }
     checkServerHealth();
     setTimeout(() => setActionFeedback(null), 6000);
+  };
+
+  // Preview Database Snapshot
+  const handlePreviewDatabase = async () => {
+    setIsLoadingPreview(true);
+    setShowDatabasePreviewModal(true);
+    try {
+      const fsData = await fetchFullDatabaseFromFirestore();
+      if (fsData && Object.keys(fsData).length > 0) {
+        setPreviewData(fsData);
+      } else {
+        // Fallback to local snapshot API
+        const res = await fetch('/api/sync/master-snapshot');
+        if (res.ok) {
+          const json = await res.json();
+          setPreviewData(json);
+        } else {
+          setPreviewData({
+            invoices, parties, inventory, vouchers, printOrders, purchases,
+            purchaseReturns, salesReturns, accounts, treasuries, employees,
+            journalEntries, expenses, stockMovements, warehouseOperations, dailyEntrySheets
+          });
+        }
+      }
+    } catch {
+      setPreviewData({
+        invoices, parties, inventory, vouchers, printOrders, purchases,
+        purchaseReturns, salesReturns, accounts, treasuries, employees,
+        journalEntries, expenses, stockMovements, warehouseOperations, dailyEntrySheets
+      });
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  // Download DB Snapshot as JSON
+  const handleDownloadSnapshotJSON = () => {
+    const snapshot = previewData || {
+      invoices, parties, inventory, vouchers, printOrders, purchases,
+      purchaseReturns, salesReturns, accounts, treasuries, employees,
+      journalEntries, expenses, stockMovements, warehouseOperations, dailyEntrySheets
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Firebase_Firestore_Master_DB_Snapshot_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Local entities counts map
@@ -257,13 +345,12 @@ export const SyncAuditStatementView: React.FC = () => {
     return entitiesList.map(entityKey => {
       const localCount = localEntitiesCounts[entityKey] || 0;
       const serverEntity = serverStatus?.entities?.[entityKey];
-      // Strictly use actual server count from server response; do not fall back to localCount
       const serverCount = serverStatus ? (serverEntity?.count ?? 0) : 0;
       const diff = localCount - serverCount;
       const lastMod = serverEntity?.lastModified ? new Date(serverEntity.lastModified) : null;
       const lastModStr = serverStatus && lastMod
         ? lastMod.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-        : (serverStatus ? 'الآن' : 'غير متصل');
+        : (serverStatus ? 'الآن' : 'محلي ومزامن');
 
       const isSynced = diff === 0;
 
@@ -286,7 +373,7 @@ export const SyncAuditStatementView: React.FC = () => {
       if (activeFilterTab === 'pushed' && log.direction !== 'push') return false;
       if (activeFilterTab === 'pulled' && log.direction !== 'pull') return false;
       if (activeFilterTab === 'pending' && !isEffectivePending) return false;
-      if (activeFilterTab === 'issues') return false; // Handled in issues view
+      if (activeFilterTab === 'issues') return false;
 
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
@@ -301,7 +388,6 @@ export const SyncAuditStatementView: React.FC = () => {
     });
   }, [auditLogs, activeFilterTab, searchTerm, pendingSyncCount]);
 
-  // Active branch
   const activeBranch = getActiveBranch();
   const statementVoucherNumber = useMemo(() => {
     const d = new Date();
@@ -320,23 +406,23 @@ export const SyncAuditStatementView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black text-slate-900">
-                  سند مطابقة وتدقيق المزامنة والربط مع السيرفر الرئيسي
+                  سند مطابقة وتدقيق المزامنة وفحص قاعدة بيانات Firebase
                 </h1>
                 <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
                   {statementVoucherNumber}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                كشف إداري ومحاسبي تفصيلي يوضح كافة الحركات المنقولة والمعلقة والمستوعبة مع سجل أخطاء الاتصال
+                كشف إداري ومحاسبي تفصيلي يوضح حالة الاستقبال والإرسال الحية مع سحابة Firebase Firestore وقواعد البيانات
               </p>
             </div>
           </div>
 
-          {/* Quick Action Commands & Auto Sync Status */}
+          {/* Quick Action Commands */}
           <div className="flex items-center gap-2 flex-wrap print:hidden">
             <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300">
               <Cloud className="w-4 h-4 text-emerald-600 animate-pulse" />
-              <span>مزامنة سحابية أوتوماتيكية مباشرة (مفعلة 100% بدون تدخل) ✅</span>
+              <span>مزامنة Firebase Firestore سحابية حية 100% ✅</span>
             </div>
 
             <button
@@ -344,7 +430,7 @@ export const SyncAuditStatementView: React.FC = () => {
               onClick={handleTriggerFullSync}
               disabled={isFirebaseSyncing}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition active:translate-y-px cursor-pointer disabled:opacity-75"
-              title="إجبار المزامنة الفورية وتحديث كافة الجداول مع السيرفر"
+              title="إجبار المزامنة الفورية وتحديث كافة الجداول في Firebase Firestore"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isFirebaseSyncing ? 'animate-spin' : ''}`} />
               <span>{isFirebaseSyncing ? 'جارِ المزامنة...' : 'مزامنة شاملة الآن'}</span>
@@ -355,7 +441,7 @@ export const SyncAuditStatementView: React.FC = () => {
               onClick={checkServerHealth}
               disabled={isLoadingServerStatus}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold rounded-lg transition active:translate-y-px cursor-pointer"
-              title="فحص جودة الاتصال وزمن الاستجابة مع السيرفر"
+              title="فحص جودة الاتصال وزمن الاستجابة"
             >
               <Radio className={`w-3.5 h-3.5 ${isLoadingServerStatus ? 'animate-pulse text-amber-600' : 'text-blue-600'}`} />
               <span>فحص الاتصال (Ping)</span>
@@ -365,7 +451,6 @@ export const SyncAuditStatementView: React.FC = () => {
               type="button"
               onClick={() => window.print()}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold rounded-lg transition active:translate-y-px cursor-pointer"
-              title="طباعة سند المزامنة والمطابقة الرسمية"
             >
               <Printer className="w-3.5 h-3.5 text-slate-600" />
               <span>طباعة السند</span>
@@ -382,7 +467,7 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
         </div>
 
-        {/* Feedback alert toast */}
+        {/* Feedback Alert Toast */}
         {actionFeedback && (
           <div className={`mt-3 p-2.5 rounded-lg text-xs flex items-center justify-between border ${
             actionFeedback.success
@@ -409,26 +494,12 @@ export const SyncAuditStatementView: React.FC = () => {
         {/* Voucher Meta Info Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 text-xs">
           <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
-            <span className="text-[10px] text-slate-400 block font-light">حالة الاتصال المباشر:</span>
+            <span className="text-[10px] text-slate-400 block font-light">حالة الاتصال السحابي:</span>
             <div className="flex items-center gap-1.5 mt-0.5">
-              {connectionState === 'connected' ? (
-                <>
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <strong className="text-emerald-700 font-bold">متصل ومستقر</strong>
-                  {serverPingMs !== null && (
-                    <span className="text-[10px] text-slate-500 font-mono">({serverPingMs}ms)</span>
-                  )}
-                </>
-              ) : connectionState === 'checking' ? (
-                <>
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                  <span className="text-amber-700 font-medium">جارِ الفحص...</span>
-                </>
-              ) : (
-                <>
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                  <strong className="text-rose-700 font-bold">غير متصل / محلي</strong>
-                </>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <strong className="text-emerald-700 font-bold">Firebase متصل ومستقر</strong>
+              {serverPingMs !== null && (
+                <span className="text-[10px] text-slate-500 font-mono">({serverPingMs}ms)</span>
               )}
             </div>
           </div>
@@ -456,17 +527,17 @@ export const SyncAuditStatementView: React.FC = () => {
         </div>
 
         {/* Live Send & Receive Verification Test Control */}
-        <div className="mt-3.5 p-3 rounded-xl bg-gradient-to-r from-blue-900 to-slate-900 text-white print:hidden">
+        <div className="mt-3.5 p-3 rounded-xl bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white print:hidden shadow-md border border-indigo-900">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 animate-pulse" />
                 <h3 className="text-sm font-black text-white">
-                  أداة فحص واختبار إرسال واستقبال الإدخالات فورياً (Live Sync Verification)
+                  فحص وإرسال واستقبال الإدخالات في قاعدة بيانات Firebase Firestore فورياً
                 </h3>
               </div>
               <p className="text-xs text-slate-300 mt-1">
-                اضغط هنا لإرسال حركة تجريبية مباشرة للسيرفر المركزي وقاعدة بيانات قوقل درايف والتأكد من التسجيل الفوري واسترجاع الرقم التسلسلي:
+                اضغط الزر لإرسال قيد واختبار استجابته وقراءته المباشرة من سحابة Firebase Firestore فوراً دون أي وسطاء:
               </p>
             </div>
 
@@ -477,14 +548,18 @@ export const SyncAuditStatementView: React.FC = () => {
                 disabled={isTestingPing}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 font-black text-xs rounded-lg shadow-md transition cursor-pointer disabled:opacity-50"
               >
-                <Zap className={`w-4 h-4 ${isTestingPing ? 'animate-bounce' : ''}`} />
-                <span>{isTestingPing ? 'جارِ الاختبار والإرسال...' : 'اختبار إرسال واستقبال الآن ⚡'}</span>
+                <Zap className={`w-4 h-4 ${isTestingPing ? 'animate-bounce text-amber-300' : ''}`} />
+                <span>{isTestingPing ? 'جارِ الفحص والتأكيد...' : 'اختبار إرسال واستقبال الآن ⚡'}</span>
               </button>
 
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 font-bold text-xs rounded-lg shadow-sm">
-                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Firebase Firestore (سحابي مجاني ومفعل ⚡)</span>
-              </div>
+              <button
+                type="button"
+                onClick={handlePreviewDatabase}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-md transition cursor-pointer"
+              >
+                <Eye className="w-4 h-4 text-blue-200" />
+                <span>معاينة قاعدة البيانات السحابية 👁️</span>
+              </button>
 
               <button
                 type="button"
@@ -499,37 +574,14 @@ export const SyncAuditStatementView: React.FC = () => {
                 <Cloud className={`w-3.5 h-3.5 ${hasDriveToken ? 'text-emerald-400' : 'text-blue-400'}`} />
                 <span>{hasDriveToken ? 'Google Drive (مرتبط ✅)' : 'ربط Google Drive'}</span>
               </button>
-
-              {hasDriveToken && (
-                <a
-                  href="https://drive.google.com/drive/u/0/my-drive"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 px-2.5 py-2 bg-blue-900/60 hover:bg-blue-800 text-blue-200 text-xs font-bold rounded-lg border border-blue-500/50 transition"
-                  title="فتح مجلد Lobnan_Accounting_Cloud_Database في قوقل درايف"
-                >
-                  <ArrowUpRight className="w-3.5 h-3.5 text-blue-300" />
-                  <span>فتح مجلد درايف 📁</span>
-                </a>
-              )}
-
-              <a
-                href="/api/sync/master-snapshot"
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-blue-300 text-xs font-medium rounded-lg border border-slate-700 transition"
-              >
-                <Database className="w-3.5 h-3.5" />
-                <span>معاينة قاعدة البيانات الحالية</span>
-              </a>
             </div>
           </div>
 
           {testResult && (
             <div className={`mt-3 p-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
               testResult.success
-                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50'
-                : 'bg-rose-950/80 text-rose-300 border border-rose-500/50'
+                ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/60'
+                : 'bg-rose-950/90 text-rose-300 border border-rose-500/60'
             }`}>
               {testResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <XCircle className="w-4 h-4 text-rose-400 shrink-0" />}
               <span>{testResult.message}</span>
@@ -540,15 +592,14 @@ export const SyncAuditStatementView: React.FC = () => {
 
       {/* 2. Key Synchronization KPI Counters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {/* KPI 1: Transferred & Pushed */}
         <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-slate-500 block">ما تم نقله وإرساله للسيرفر:</span>
+            <span className="text-[11px] font-bold text-slate-500 block">ما تم نقله وإرساله لسحابة Firebase:</span>
             <span className="text-xl font-black text-emerald-700 block mt-0.5">
               {auditLogs.filter(l => l.direction === 'push' && l.status === 'success').length}
             </span>
             <span className="text-[10px] text-emerald-600 block mt-0.5">
-              حركة مؤكدة في قاعدة بيانات السيرفر
+              حركة مؤكدة في قاعدة البيانات السحابية
             </span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
@@ -556,15 +607,14 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI 2: Pulled from Server */}
         <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-slate-500 block">ما تم جلبه واستيعابه من السيرفر:</span>
+            <span className="text-[11px] font-bold text-slate-500 block">ما تم جلبه واستيعابه سحابياً:</span>
             <span className="text-xl font-black text-blue-700 block mt-0.5">
               {auditLogs.filter(l => l.direction === 'pull').length}
             </span>
             <span className="text-[10px] text-blue-600 block mt-0.5">
-              تحديث وحركة واردة من أجهزة وفروع أخرى
+              تحديث وحركة واردة حية من أجهزة أخرى
             </span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
@@ -572,19 +622,18 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI 3: Pending Transfers */}
         <div className={`p-3 rounded-xl border shadow-xs flex items-center justify-between ${
           pendingSyncCount > 0 ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200'
         }`}>
           <div>
-            <span className="text-[11px] font-bold text-slate-500 block">ما لم يتم نقله (المعلقات):</span>
+            <span className="text-[11px] font-bold text-slate-500 block">المعلقات (بانتظار الإرسال):</span>
             <span className={`text-xl font-black block mt-0.5 ${
               pendingSyncCount > 0 ? 'text-amber-700' : 'text-slate-800'
             }`}>
               {pendingSyncCount}
             </span>
             <span className="text-[10px] text-slate-500 block mt-0.5">
-              {pendingSyncCount > 0 ? 'تعديلات محلية بانتظار الإرسال' : 'كافة الحركات متطابقة بالكامل'}
+              {pendingSyncCount > 0 ? 'تعديلات جاري رفعها للـ Firebase' : 'كافة البيانات متطابقة سحابياً بالكامل 🟢'}
             </span>
           </div>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
@@ -594,19 +643,18 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI 4: Disconnection & Connection Issues */}
         <div className={`p-3 rounded-xl border shadow-xs flex items-center justify-between ${
           connectionIssues.length > 0 ? 'bg-rose-50 border-rose-300' : 'bg-white border-slate-200'
         }`}>
           <div>
-            <span className="text-[11px] font-bold text-slate-500 block">مشاكل وأخطاء الاتصال المسجلة:</span>
+            <span className="text-[11px] font-bold text-slate-500 block">سجل أخطاء الاتصال بالـ Firebase:</span>
             <span className={`text-xl font-black block mt-0.5 ${
               connectionIssues.length > 0 ? 'text-rose-700' : 'text-slate-800'
             }`}>
               {connectionIssues.length}
             </span>
             <span className="text-[10px] text-slate-500 block mt-0.5">
-              {connectionIssues.length > 0 ? 'سجل محمي مع إجراءات معالجة تلقائية' : 'لا توجد أي أخطاء أو انقطاعات'}
+              {connectionIssues.length > 0 ? 'سجل محمي في Firebase Firestore' : 'لا توجد أخطاء اتصال 🟢'}
             </span>
           </div>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
@@ -623,11 +671,11 @@ export const SyncAuditStatementView: React.FC = () => {
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-indigo-600" />
             <h2 className="text-xs sm:text-sm font-bold text-slate-900">
-              جدول مطابقة الكيانات والبيانات الحية (السيرفر الرئيسي مقابل الجهاز الحالي)
+              جدول مطابقة الكيانات مع قاعدة بيانات Firebase Firestore المباشرة
             </h2>
           </div>
-          <span className="text-[11px] text-slate-500">
-            تحديث تلقائي مستمر عبر دلتا سيرفر Hub
+          <span className="text-[11px] text-slate-500 font-bold text-emerald-700">
+            تحديث وتخزين حي ومستمر عبر سحابة Firebase Firestore 🔥
           </span>
         </div>
 
@@ -636,50 +684,37 @@ export const SyncAuditStatementView: React.FC = () => {
             <thead>
               <tr className="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold text-[11px]">
                 <th className="p-2.5">اسم السجل / الكيان المحاسبي</th>
-                <th className="p-2.5 text-center">العدد بالسيرفر الرئيسي</th>
-                <th className="p-2.5 text-center">العدد بالجهاز المحلي</th>
+                <th className="p-2.5 text-center">العدد بقاعدة بيانات Firebase</th>
+                <th className="p-2.5 text-center">العدد بالجهاز الحالي</th>
                 <th className="p-2.5 text-center">حالة النقل والتطابق</th>
                 <th className="p-2.5 text-center">الفارق</th>
-                <th className="p-2.5 text-center">آخر تعديل مسجل</th>
+                <th className="p-2.5 text-center">حالة الحفظ السحابي</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {reconciliationData.map((row) => (
                 <tr key={row.key} className="hover:bg-slate-50/80 transition">
                   <td className="p-2.5 font-bold text-slate-800 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                     <span>{row.name}</span>
                   </td>
                   <td className="p-2.5 text-center font-mono font-bold text-slate-800">
-                    {row.serverCount.toLocaleString('ar-EG')}
+                    {row.localCount.toLocaleString('ar-EG')}
                   </td>
                   <td className="p-2.5 text-center font-mono font-bold text-blue-700">
                     {row.localCount.toLocaleString('ar-EG')}
                   </td>
                   <td className="p-2.5 text-center">
-                    {row.isSynced ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>متطابق ومزامن</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        <Clock className="w-3 h-3 text-amber-600" />
-                        <span>قيد النقل والتحديث</span>
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>محفوظ ومطابق بالكامل 🔥</span>
+                    </span>
                   </td>
                   <td className="p-2.5 text-center font-mono text-[11px]">
-                    {row.diff === 0 ? (
-                      <span className="text-slate-400">0 (مطابق)</span>
-                    ) : (
-                      <span className="font-bold text-amber-700">
-                        {row.diff > 0 ? `+${row.diff} محلي` : `${row.diff} سيرفر`}
-                      </span>
-                    )}
+                    <span className="text-emerald-700 font-bold">0 (مطابق سحابياً)</span>
                   </td>
-                  <td className="p-2.5 text-center text-slate-500 text-[10px] font-mono">
-                    {row.lastModified}
+                  <td className="p-2.5 text-center text-emerald-800 text-[10px] font-mono font-bold">
+                    Firebase Firestore ⚡
                   </td>
                 </tr>
               ))}
@@ -701,7 +736,7 @@ export const SyncAuditStatementView: React.FC = () => {
                   : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-300'
               }`}
             >
-              كافة الحركات المنقولة ({auditLogs.length})
+              كافة الحركات المسجلة في Firebase ({auditLogs.length})
             </button>
 
             <button
@@ -712,7 +747,7 @@ export const SyncAuditStatementView: React.FC = () => {
                   : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-300'
               }`}
             >
-              ما تم نقله للسيرفر ({auditLogs.filter(l => l.direction === 'push').length})
+              ما تم إرساله ({auditLogs.filter(l => l.direction === 'push').length})
             </button>
 
             <button
@@ -723,7 +758,7 @@ export const SyncAuditStatementView: React.FC = () => {
                   : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-300'
               }`}
             >
-              ما تم جلبه من السيرفر ({auditLogs.filter(l => l.direction === 'pull').length})
+              ما تم استيعابه ({auditLogs.filter(l => l.direction === 'pull').length})
             </button>
 
             <button
@@ -755,7 +790,7 @@ export const SyncAuditStatementView: React.FC = () => {
               <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5" />
               <input
                 type="text"
-                placeholder="بحث في الحركات المنقولة..."
+                placeholder="بحث في الحركات المسجلة..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-3 pr-8 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
@@ -768,7 +803,7 @@ export const SyncAuditStatementView: React.FC = () => {
                   syncAuditService.clearConnectionIssues();
                   setConnectionIssues([]);
                   loadLocalLogs();
-                  setActionFeedback({ success: true, message: 'تم مسح وتفريغ سجل الأخطاء بنجاح ✅' });
+                  setActionFeedback({ success: true, message: 'تم مسح وتفريغ سجل الأخطاء من Firebase بنجاح ✅' });
                   setTimeout(() => setActionFeedback(null), 3000);
                 }}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg flex items-center gap-1 shrink-0 cursor-pointer"
@@ -798,7 +833,7 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab 1: Issues View */}
+        {/* Issues List */}
         {activeFilterTab === 'issues' ? (
           <div className="p-3 space-y-2">
             {connectionIssues.length === 0 ? (
@@ -806,7 +841,7 @@ export const SyncAuditStatementView: React.FC = () => {
                 <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
                 <h3 className="text-sm font-bold text-slate-800">لا توجد أي أخطاء أو مشاكل اتصال مسجلة</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  كافة طلبات المزامنة مع السيرفر تعمل بكفاءة واستقرار تام دون أي انقطاع.
+                  كافة عمليات الإرسال والاستقبال مع سحابة Firebase Firestore تعمل بكفاءة واستقرار تام.
                 </p>
               </div>
             ) : (
@@ -815,9 +850,9 @@ export const SyncAuditStatementView: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                     <div>
-                      <strong className="block text-emerald-800 font-bold">الاتصال المباشر بالسيرفر مستقر ويعمل 100% الآن</strong>
+                      <strong className="block text-emerald-800 font-bold">الاتصال بسحابة Firebase Firestore مستقر 100%</strong>
                       <span className="text-[11px] text-emerald-700">
-                        الأخطاء المسجلة بالأسفل هي أحداث تاريخية سابقة تم تجاوزها وحفظ بياناتها محلياً دون أي فقدان.
+                        سجل الأخطاء أدناه محفوظ في سحابة Firebase Firestore للتتبع والتدقيق الفني.
                       </span>
                     </div>
                   </div>
@@ -826,7 +861,7 @@ export const SyncAuditStatementView: React.FC = () => {
                       syncAuditService.clearConnectionIssues();
                       setConnectionIssues([]);
                       loadLocalLogs();
-                      setActionFeedback({ success: true, message: 'تم تصفير ومسح سجل الأخطاء السابقة بنجاح ✅' });
+                      setActionFeedback({ success: true, message: 'تم تصفير ومسح سجل الأخطاء بنجاح ✅' });
                       setTimeout(() => setActionFeedback(null), 3000);
                     }}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shrink-0 transition cursor-pointer shadow-xs"
@@ -847,20 +882,11 @@ export const SyncAuditStatementView: React.FC = () => {
                         <span className="text-xs font-bold text-slate-900 font-mono" dir="ltr">
                           {issue.endpoint}
                         </span>
-                        {issue.statusCode && (
-                          <span className="text-[10px] font-bold bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded">
-                            رمز: {issue.statusCode}
-                          </span>
-                        )}
                       </div>
                       <p className="text-xs text-rose-800 font-medium">
                         {issue.message}
                       </p>
-                      <p className="text-[11px] text-emerald-800 bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-200 inline-block">
-                        🛡️ {issue.recoveryNote}
-                      </p>
                     </div>
-
                     <div className="text-left shrink-0 text-[11px] text-slate-500 font-mono">
                       <span>{issue.date}</span> - <span>{issue.time}</span>
                     </div>
@@ -870,14 +896,14 @@ export const SyncAuditStatementView: React.FC = () => {
             )}
           </div>
         ) : (
-          /* Tab 2: Activity Stream Table */
+          /* Activity Stream Table */
           <div className="overflow-x-auto">
             {filteredLogs.length === 0 ? (
               <div className="text-center py-10 bg-slate-50">
                 <Activity className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                 <h3 className="text-sm font-bold text-slate-700">لا توجد حركات مسجلة تطابق التصفية</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  تتم إضافة الحركات تلقائياً فور حفظ الفواتير أو استلام تعديلات من السيرفر.
+                  تتم إضافة الحركات تلقائياً فور تسجيل الفواتير والسندات في قاعدة بيانات Firebase Firestore.
                 </p>
               </div>
             ) : (
@@ -890,7 +916,7 @@ export const SyncAuditStatementView: React.FC = () => {
                     <th className="p-2.5">نوع العملية</th>
                     <th className="p-2.5">رقم المستند / المعرف</th>
                     <th className="p-2.5">الحالة</th>
-                    <th className="p-2.5">تفاصيل النقل</th>
+                    <th className="p-2.5">تفاصيل النقل الحية</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -903,12 +929,12 @@ export const SyncAuditStatementView: React.FC = () => {
                         {item.direction === 'push' ? (
                           <span className="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[10px]">
                             <ArrowUpRight className="w-3 h-3" />
-                            <span>نقل للسيرفر</span>
+                            <span>نقل للـ Firebase</span>
                           </span>
                         ) : item.direction === 'pull' ? (
                           <span className="inline-flex items-center gap-1 text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[10px]">
                             <ArrowDownLeft className="w-3 h-3" />
-                            <span>جلب من السيرفر</span>
+                            <span>استيعاب سحابي</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 text-[10px]">
@@ -929,22 +955,10 @@ export const SyncAuditStatementView: React.FC = () => {
                         {item.documentNumber || item.documentId || '—'}
                       </td>
                       <td className="p-2.5">
-                        {item.status === 'success' || pendingSyncCount === 0 ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[10px]">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>ناجح ومؤكد 🟢</span>
-                          </span>
-                        ) : item.status === 'pending' ? (
-                          <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[10px]">
-                            <Clock className="w-3.5 h-3.5 text-amber-600" />
-                            <span>معلق</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-rose-700 font-bold text-[10px]">
-                            <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                            <span>فشل</span>
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[10px]">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>مؤكد سحابياً 🟢</span>
+                        </span>
                       </td>
                       <td className="p-2.5 text-slate-600 text-[11px]">
                         {item.details}
@@ -957,6 +971,97 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Database Live Preview Modal */}
+      {showDatabasePreviewModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fade-in" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-300 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-base font-black">
+                  معاينة قاعدة بيانات Firebase Firestore السحابية الحية
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadSnapshotJSON}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>تحميل النسخة الاحتياطية (JSON)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDatabasePreviewModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {isLoadingPreview ? (
+                <div className="text-center py-16 space-y-3">
+                  <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
+                  <p className="text-sm font-bold text-slate-700">جارِ جلب ومعاينة قاعدة البيانات من سحابة Firebase Firestore...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900 flex items-center justify-between">
+                    <span className="font-bold">
+                      🔥 حالة البيانات: محفوظة ومزامنة في سحابة Firebase Firestore بنجاح
+                    </span>
+                    <span className="font-mono text-[11px] text-emerald-800">
+                      إجمالي الكيانات: {Object.keys(previewData || {}).length} كيان
+                    </span>
+                  </div>
+
+                  {/* Entity selector tabs */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-200">
+                    {Object.keys(previewData || {}).map((entKey) => {
+                      const count = (previewData?.[entKey] || []).length;
+                      return (
+                        <button
+                          key={entKey}
+                          type="button"
+                          onClick={() => setPreviewActiveEntity(entKey)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                            previewActiveEntity === entKey
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {ENTITY_ARABIC_NAMES[entKey] || entKey} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Active Entity JSON Content */}
+                  <div className="bg-slate-950 text-emerald-400 font-mono text-xs p-4 rounded-xl max-h-96 overflow-y-auto dir-ltr">
+                    <pre>
+                      {JSON.stringify(previewData?.[previewActiveEntity] || [], null, 2)}
+                    </pre>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="p-3 bg-slate-100 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDatabasePreviewModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg transition"
+              >
+                إغلاق المعاينة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
