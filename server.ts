@@ -2,6 +2,46 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import localtunnel from 'localtunnel';
+
+let activeTunnelUrl = '';
+
+function getStoredTunnelUrl(): string {
+  if (activeTunnelUrl) return activeTunnelUrl;
+  try {
+    const tunnelPath = path.join(__dirname, '.sync_data', 'tunnel_url.json');
+    if (fs.existsSync(tunnelPath)) {
+      const parsed = JSON.parse(fs.readFileSync(tunnelPath, 'utf8'));
+      if (parsed && parsed.url) {
+        activeTunnelUrl = parsed.url;
+        return parsed.url;
+      }
+    }
+  } catch {}
+  return '';
+}
+
+async function startLiveTunnel() {
+  try {
+    const tunnel = await localtunnel({ port: 3000 });
+    if (tunnel && tunnel.url) {
+      activeTunnelUrl = tunnel.url;
+      console.log('🌐 LIVE HTTPS TUNNEL CREATED FOR MASTER PC:', activeTunnelUrl);
+      const tunnelPath = path.join(__dirname, '.sync_data', 'tunnel_url.json');
+      try {
+        fs.writeFileSync(tunnelPath, JSON.stringify({ url: activeTunnelUrl, time: Date.now() }), 'utf8');
+      } catch {}
+
+      tunnel.on('close', () => {
+        setTimeout(startLiveTunnel, 3000);
+      });
+    }
+  } catch (err: any) {
+    setTimeout(startLiveTunnel, 5000);
+  }
+}
+
+startLiveTunnel();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -270,6 +310,7 @@ app.get('/api/sync/status', (_req, res) => {
     success: true,
     serverTime: Date.now(),
     serverTimeString: new Date().toLocaleTimeString('ar-EG'),
+    tunnelUrl: getStoredTunnelUrl(),
     entities: summary
   });
 });

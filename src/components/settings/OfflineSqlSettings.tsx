@@ -160,6 +160,93 @@ export const OfflineSqlSettings: React.FC = () => {
         </div>
       </div>
 
+      {/* 2. Central Master PC Host & Mediator Settings */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+            <Server className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">إعدادات الخادم المركزي (Master PC Host & Mediator)</h3>
+            <p className="text-[11px] text-slate-500">
+              اعتماد جهازك الشخصي كـ "خادم رئيسي متكامل" أو ربط الشاشات والأجهزة الفرعية برابط السيرفر المباشر
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
+            <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
+              <HardDrive className="w-4 h-4 text-indigo-600" />
+              <span>إذا كان هذا الجهاز هو (السيرفر الرئيسي / Master PC):</span>
+            </h4>
+            <p className="text-slate-600 leading-relaxed text-[11px]">
+              هذا الجهاز يحفظ البيانات مباشرة في القرص الصلب المباشر `.sync_data/`. يمكنك ربط الأجهزة والجوالات ببدائل الشبكة المحلية:
+            </p>
+            <div className="bg-slate-900 text-emerald-400 p-2 rounded-lg font-mono text-[11px] select-all">
+              http://&lt;IP_ADDRESS&gt;:3000
+            </div>
+            <span className="text-[10px] text-slate-500 block">مثال بداخل المحل عبر الواي فاي: http://192.168.1.100:3000</span>
+          </div>
+
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
+            <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
+              <Wifi className="w-4 h-4 text-emerald-600" />
+              <span>إذا كان هذا جهاز فرعي / جوال (Client Device):</span>
+            </h4>
+            <p className="text-slate-600 leading-relaxed text-[11px]">
+              ضع رابط جهازك المضيف الرئيسي (سواء IP المحلي أو رابط الوسيط مثل Ngrok / LocalTunnel / Tailscale):
+            </p>
+            <input
+              type="text"
+              placeholder="مثال: http://192.168.1.100:3000 أو https://my-store.loca.lt"
+              defaultValue={localStorage.getItem('master_server_host_url') || ''}
+              onChange={(e) => {
+                localStorage.setItem('master_server_host_url', e.target.value);
+              }}
+              className="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white font-mono"
+            />
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = localStorage.getItem('master_server_host_url');
+                  if (!url) {
+                    alert('يرجى كتابة رابط السيرفر المضيف أولاً');
+                    return;
+                  }
+                  try {
+                    const host = url.trim().replace(/\/+$/, '');
+                    const res = await fetch(`${host}/api/sync/status`);
+                    if (res.ok) {
+                      const json = await res.json();
+                      alert(`تم الاتصال بالسيرفر الرئيسي بنجاح! 🟢\nعدد فواتير المبيعات بالسيرفر: ${json?.entities?.invoices?.count || 0}`);
+                    } else {
+                      alert(`فشل الاتصال بالسيرفر: رمز الخطأ ${res.status}`);
+                    }
+                  } catch (e: any) {
+                    alert(`فشل الوصول للسيرفر الرئيسي: ${e.message}`);
+                  }
+                }}
+                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors"
+              >
+                اختبار الاتصال المباشر
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('master_server_host_url');
+                  window.location.reload();
+                }}
+                className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
+              >
+                إلغاء واعتماد الوضع المحلي
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Primary Cloud Database & Instant LocalStorage Engine */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">

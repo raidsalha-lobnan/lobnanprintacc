@@ -1502,6 +1502,37 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   const lastSeenSeqRef = React.useRef<number>(
     parseInt(localStorage.getItem('accounting_last_seen_seq') || '0', 10) || 0
   );
+  const activeMasterHostRef = React.useRef<string>('');
+
+  const getSyncBaseUrl = (): string => {
+    if (activeMasterHostRef.current) return activeMasterHostRef.current;
+    try {
+      const saved = localStorage.getItem('master_server_host_url');
+      if (saved && saved.trim()) return saved.trim().replace(/\/+$/, '');
+    } catch {}
+    return '';
+  };
+
+  // Zero-Human-Intervention Automatic Auto-Discovery on Boot
+  useEffect(() => {
+    const autoDiscoverMasterServer = async () => {
+      try {
+        const baseUrl = getSyncBaseUrl();
+        const testEndpoint = baseUrl ? `${baseUrl}/api/sync/status` : '/api/sync/status';
+        const res = await fetch(testEndpoint);
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.tunnelUrl) {
+            const host = json.tunnelUrl.trim().replace(/\/+$/, '');
+            activeMasterHostRef.current = host;
+            localStorage.setItem('master_server_host_url', host);
+            console.log('⚡ Zero-Human-Intervention: Auto-discovered Master Server:', host);
+          }
+        }
+      } catch (e) {}
+    };
+    autoDiscoverMasterServer();
+  }, []);
 
   // Send single operation delta to server (Fire-and-forget + sequence tracking)
   const pushDeltaToServer = (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]) => {
@@ -1517,7 +1548,10 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       }
 
       // 2. Post single delta record to server endpoint /api/sync/delta
-      fetch('/api/sync/delta', {
+      const baseUrl = getSyncBaseUrl();
+      const targetUrl = baseUrl ? `${baseUrl}/api/sync/delta` : '/api/sync/delta';
+
+      fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
@@ -1617,9 +1651,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   // Poll server for new deltas since lastSeenSeq
   const pullDeltasFromServer = async () => {
     try {
+      const baseUrl = getSyncBaseUrl();
+
       // First boot: fetch state once to establish lastSeenSeq
       if (lastSeenSeqRef.current === 0) {
-        const sRes = await fetch('/api/sync/state');
+        const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
+        const sRes = await fetch(stateEndpoint);
         if (sRes.ok) {
           const sJson = await sRes.json();
           if (sJson && sJson.data) {
@@ -1648,7 +1685,11 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         }
       }
 
-      const res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`);
+      const deltasEndpoint = baseUrl
+        ? `${baseUrl}/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`
+        : `/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`;
+
+      const res = await fetch(deltasEndpoint);
       if (!res.ok) return;
       const json = await res.json();
       if (!json || !json.success) return;
