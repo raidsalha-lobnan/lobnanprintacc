@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAccounting } from '../context/AccountingContext';
 import { syncAuditService, SyncAuditItem, SyncConnectionIssue, ENTITY_ARABIC_NAMES } from '../services/syncAuditService';
+import { getCachedSyncToken, requestGoogleDriveToken, DATABASE_DRIVE_FOLDER } from '../services/googleDriveDatabaseSyncService';
 import {
   RefreshCw,
   Server,
@@ -83,6 +84,32 @@ export const SyncAuditStatementView: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<SyncAuditItem[]>([]);
   const [connectionIssues, setConnectionIssues] = useState<SyncConnectionIssue[]>([]);
   const [actionFeedback, setActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [hasDriveToken, setHasDriveToken] = useState<boolean>(() => !!getCachedSyncToken());
+  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
+
+  // Check Drive token status
+  useEffect(() => {
+    setHasDriveToken(!!getCachedSyncToken());
+  }, []);
+
+  const handleConnectDrive = async () => {
+    setIsConnectingDrive(true);
+    try {
+      const token = await requestGoogleDriveToken(true);
+      if (token) {
+        setHasDriveToken(true);
+        setActionFeedback({ success: true, message: 'تم ربط وتسجيل الدخول لحساب قوقل درايف بنجاح! يتم رفع وتحديث قاعدة البيانات السحابية الآن ✅' });
+        await forceSyncNow();
+      } else {
+        setActionFeedback({ success: false, message: 'تعذر الحصول على توكن الوصول لحساب قوقل درايف. يرجى إعطاء الصلاحية في النافذة المنبثقة.' });
+      }
+    } catch (err: any) {
+      setActionFeedback({ success: false, message: `خطأ في ربط قوقل درايف: ${err?.message || err}` });
+    } finally {
+      setIsConnectingDrive(false);
+      setTimeout(() => setActionFeedback(null), 6000);
+    }
+  };
 
   // Load audit logs and errors
   const loadLocalLogs = useCallback(() => {
@@ -256,6 +283,21 @@ export const SyncAuditStatementView: React.FC = () => {
 
           {/* Quick Action Commands */}
           <div className="flex items-center gap-2 flex-wrap print:hidden">
+            <button
+              type="button"
+              onClick={handleConnectDrive}
+              disabled={isConnectingDrive}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition active:translate-y-px cursor-pointer ${
+                hasDriveToken
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-700'
+                  : 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 animate-pulse'
+              }`}
+              title="ربط وتسجيل الدخول بحساب قوقل درايف لمزامنة قاعدة البيانات السحابية"
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span>{isConnectingDrive ? 'جارِ الاتصال بكوقل...' : hasDriveToken ? 'قوقل درايف متصل ✅' : 'تسجيل الدخول وربط Google Drive'}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleTriggerFullSync}
