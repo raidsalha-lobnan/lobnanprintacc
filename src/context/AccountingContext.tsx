@@ -1564,16 +1564,14 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         credentials: 'include',
         body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
       }).then(async res => {
-        if (!res.ok && baseUrl) {
-          const fb = await fetch('/api/sync/delta', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
-          });
-          return fb.json();
+        if (!res.ok) {
+          throw new Error(`Server status ${res.status}`);
         }
-        return res.json();
+        const text = await res.text();
+        if (!text || !text.trim().startsWith('{')) {
+          throw new Error('Invalid JSON response');
+        }
+        return JSON.parse(text);
       }).then(data => {
         if (data && typeof data.seq === 'number') {
           lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, data.seq);
