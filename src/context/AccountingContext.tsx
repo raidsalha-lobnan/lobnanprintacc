@@ -1,7 +1,17 @@
 import { TelegramService } from '../services/TelegramService';
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db } from '../firebase';
-import { doc, getDoc, setDoc, deleteDoc, writeBatch, collection, getDocs, onSnapshot } from 'firebase/firestore';
+import {
+  auth,
+  db,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  writeBatch,
+  collection,
+  getDocs,
+  onSnapshot
+} from '../firebase';
 import {
   Account,
   InventoryItem,
@@ -529,7 +539,7 @@ function safeLoadObject<T>(key: string, fallback: T): T {
   }
 }
 
-function deduplicateById<T extends { id?: string; invoiceNumber?: string }>(items: T[], prefix = 'item'): T[] {
+function deduplicateById<T extends { id?: string }>(items: T[], prefix = 'item'): T[] {
   const seenIds = new Set<string>();
   const result: T[] = [];
 
@@ -2329,7 +2339,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           return (b.createdAt || '').localeCompare(a.createdAt || '');
         });
         // Deduplicate strictly by ID first, then by invoiceNumber to eliminate ghost duplicates
-        const dedupedById = deduplicateById(docs, 'inv');
+        const dedupedById = deduplicateById<Invoice>(docs, 'inv');
         const seenNumbers = new Set<string>();
         const dedupedInvoices: Invoice[] = [];
 
@@ -2414,7 +2424,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           });
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || (b.id || '').localeCompare(a.id || ''));
-        const dedupedPrn = deduplicateById(docs, 'prn');
+        const dedupedPrn = deduplicateById<PrintJobOrder>(docs, 'prn');
         setPrintOrders(prevLocal => {
           const map = new Map<string, PrintJobOrder>();
           for (const item of dedupedPrn) {
@@ -2442,7 +2452,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           .filter(p => p && p.id && p.name && p.name.trim() && !p.id.startsWith('emp-') && !delSet.has(`parties_${p.id}`));
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (a.code || '').localeCompare(b.code || '') || (a.name || '').localeCompare(b.name || ''));
-        const dedupedParties = deduplicateById(docs, 'party');
+        const dedupedParties = deduplicateById<Party>(docs, 'party');
         setParties(prevLocal => {
           const map = new Map<string, Party>();
           for (const p of dedupedParties) {
@@ -2484,7 +2494,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           });
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (a.code || '').localeCompare(b.code || '') || (a.name || '').localeCompare(b.name || ''));
-        const dedupedInventory = deduplicateById(docs, 'inv');
+        const dedupedInventory = deduplicateById<InventoryItem>(docs, 'inv');
         setInventory(prevLocal => {
           const map = new Map<string, InventoryItem>();
           for (const it of dedupedInventory) {
@@ -2512,7 +2522,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           .filter(v => v && v.id && !delSet.has(`vouchers_${v.id}`));
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
-        const dedupedVch = deduplicateById(docs, 'vch');
+        const dedupedVch = deduplicateById<PaymentVoucher>(docs, 'vch');
         setVouchers(prevLocal => {
           const map = new Map<string, PaymentVoucher>();
           for (const item of dedupedVch) {

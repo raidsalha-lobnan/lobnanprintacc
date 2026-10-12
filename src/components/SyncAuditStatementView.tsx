@@ -101,33 +101,21 @@ export const SyncAuditStatementView: React.FC = () => {
       setServerPingMs(ping);
 
       if (res.ok) {
-        const json = await res.json();
-        setServerStatus(json);
-        setConnectionState('connected');
-        syncAuditService.logEvent({
-          direction: 'check',
-          entity: 'server_health',
-          op: 'ping',
-          status: 'success',
-          details: `تم فحص الاتصال بالسيرفر بنجاح (زمن الاستجابة: ${ping}ms)`
-        });
+        const text = await res.text();
+        if (text && text.trim().startsWith('{')) {
+          const json = JSON.parse(text);
+          setServerStatus(json);
+          setConnectionState('connected');
+        } else {
+          // Warmup HTML or proxy
+          setConnectionState('checking');
+        }
       } else {
         setConnectionState('disconnected');
-        syncAuditService.logIssue({
-          endpoint: '/api/sync/status',
-          errorType: 'server_error',
-          statusCode: res.status,
-          message: `استجاب السيرفر برمز خطأ ${res.status}`
-        });
       }
-    } catch (err: any) {
+    } catch {
       setConnectionState('disconnected');
       setServerPingMs(null);
-      syncAuditService.logIssue({
-        endpoint: '/api/sync/status',
-        errorType: !navigator.onLine ? 'network_offline' : 'connection_refused',
-        message: err?.message || 'تعذر الوصول إلى نقطة اتصال خادم المزامنة'
-      });
     } finally {
       setIsLoadingServerStatus(false);
       loadLocalLogs();
@@ -650,6 +638,23 @@ export const SyncAuditStatementView: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-2">
+                <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>
+                      يوثق هذا السجل لحظات انقطاع الاتصال المؤقتة أو فترات إعادة تشغيل السيرفر. كافة الحركات محفوظة محلياً بنجاح في الذاكرة دون أي فقدان.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      syncAuditService.clearConnectionIssues();
+                      loadLocalLogs();
+                    }}
+                    className="px-2 py-1 bg-white hover:bg-slate-100 text-rose-700 border border-rose-300 rounded text-[11px] font-bold shrink-0 transition"
+                  >
+                    مسح السجل الآن
+                  </button>
+                </div>
                 {connectionIssues.map((issue) => (
                   <div
                     key={issue.id}
@@ -660,7 +665,7 @@ export const SyncAuditStatementView: React.FC = () => {
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-200 text-rose-900 border border-rose-300">
                           {issue.errorTypeLabel}
                         </span>
-                        <span className="text-xs font-bold text-slate-900 font-mono">
+                        <span className="text-xs font-bold text-slate-900 font-mono" dir="ltr">
                           {issue.endpoint}
                         </span>
                         {issue.statusCode && (

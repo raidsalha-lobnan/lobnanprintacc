@@ -1,7 +1,6 @@
 import { DailyEntryRow, DailyEntrySheet, Party, InventoryItem, Treasury, PaymentMethod } from '../types';
 import { DraftInvoiceItem, MultiItemDraftInvoice, autoMatchDraftEntities } from './liveSheetService';
-import { db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { db, doc, setDoc } from '../firebase';
 
 export const DAILY_ENTRY_STORAGE_KEY = 'accounting_daily_entry_sheets_v1';
 
