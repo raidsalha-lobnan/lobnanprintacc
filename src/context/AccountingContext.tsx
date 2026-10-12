@@ -889,7 +889,10 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       if (localStorage.getItem(syncKey) === 'true') return;
 
       try {
-        const res = await fetch('/master_drive_database_snapshot.json');
+        let res = await fetch('/api/sync/master-snapshot');
+        if (!res.ok) {
+          res = await fetch('/master_drive_database_snapshot.json');
+        }
         if (!res.ok) return;
         const text = await res.text();
         if (!text || text.trim().startsWith('<')) return;
@@ -4018,7 +4021,10 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       // 2. Fetch master snapshot file
       let snapshotData: any = {};
       try {
-        const res = await fetch('/master_drive_database_snapshot.json');
+        let res = await fetch('/api/sync/master-snapshot');
+        if (!res.ok) {
+          res = await fetch('/master_drive_database_snapshot.json');
+        }
         if (res.ok) {
           const text = await res.text();
           if (text && !text.trim().startsWith('<')) {
