@@ -189,5 +189,50 @@ export const syncAuditService = {
     try {
       localStorage.removeItem(STORAGE_KEY_ISSUES);
     } catch {}
+  },
+
+  // Mark pending logs as success once document is confirmed on server
+  markDocumentAsSynced: (documentId: string) => {
+    try {
+      if (!documentId) return;
+      const existing = syncAuditService.getAuditLogs();
+      let updated = false;
+      const newLogs = existing.map(item => {
+        if (item.documentId === documentId && item.status === 'pending') {
+          updated = true;
+          return {
+            ...item,
+            status: 'success' as const,
+            details: 'تمت المزامنة بنجاح واستقرار الحركة في قاعدة بيانات السيرفر الرئيسي 🟢'
+          };
+        }
+        return item;
+      });
+      if (updated) {
+        localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(newLogs));
+      }
+    } catch {}
+  },
+
+  // Mark all pending logs as success when full sync confirms 0 pending items
+  resolveAllPendingLogs: () => {
+    try {
+      const existing = syncAuditService.getAuditLogs();
+      let updated = false;
+      const newLogs = existing.map(item => {
+        if (item.status === 'pending') {
+          updated = true;
+          return {
+            ...item,
+            status: 'success' as const,
+            details: 'تمت المزامنة والمطابقة بنجاح مع السيرفر الرئيسي 🟢'
+          };
+        }
+        return item;
+      });
+      if (updated) {
+        localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(newLogs));
+      }
+    } catch {}
   }
 };

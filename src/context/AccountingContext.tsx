@@ -1576,13 +1576,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         if (data && typeof data.seq === 'number') {
           lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, data.seq);
           localStorage.setItem('accounting_last_seen_seq', String(lastSeenSeqRef.current));
+          const docId = item?.id || items?.[0]?.id;
+          if (docId) syncAuditService.markDocumentAsSynced(docId);
           syncAuditService.logEvent({
             direction: 'push',
             entity,
             op,
             status: 'success',
             seq: data.seq,
-            documentId: item?.id || items?.[0]?.id,
+            documentId: docId,
             documentNumber: item?.invoiceNumber || item?.code || item?.voucherNumber || item?.itemNumber,
             details: `تم إرسال وحفظ التعديل بنجاح في السيرفر (تسلسل #${data.seq})`
           });
@@ -1982,6 +1984,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     if (Array.isArray(json.data.journalEntries?.items) && json.data.journalEntries.items.length > 0) { setJournalEntries(json.data.journalEntries.items); try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(json.data.journalEntries.items)); } catch {} }
     if (Array.isArray(json.data.expenses?.items) && json.data.expenses.items.length > 0) { setExpenses(json.data.expenses.items); try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(json.data.expenses.items)); } catch {} }
 
+    syncAuditService.resolveAllPendingLogs();
     syncAuditService.logEvent({
       direction: 'full_sync',
       entity: 'all_tables',
