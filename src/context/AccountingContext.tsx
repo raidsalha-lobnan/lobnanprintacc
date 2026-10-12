@@ -753,6 +753,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const debouncedSyncRef = React.useRef<any>(null);
   const syncToFirebaseRef = React.useRef<any>(null);
   const fetchFromFirebaseRef = React.useRef<any>(null);
+  const flushOfflineQueueRef = React.useRef<any>(null);
+  const executeServerFullSyncRef = React.useRef<any>(null);
+  const applyDeltaToStateRef = React.useRef<any>(null);
+  const pullDeltasFromServerRef = React.useRef<any>(null);
+  const pushToServerSyncRef = React.useRef<any>(null);
   const lastSyncErrorRef = React.useRef<string | null>(null);
   const firebaseQuotaExceededRef = React.useRef<boolean>(false);
 
@@ -770,6 +775,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (!event.data || typeof event.data !== 'object') return;
           const { type, payload } = event.data;
 
+          if (type === 'SYNC_DELTA_EVENT') {
+            const { entity, op, item, items, clientId } = payload || {};
+            if (entity && clientId !== myClientIdRef.current) {
+              if (applyDeltaToStateRef.current) {
+                applyDeltaToStateRef.current(entity, op || 'upsert', item, items);
+              }
+            }
+          }
+
           if (type === 'SYNC_ENTITY_UPDATE') {
             const { entity, data } = payload || {};
             if (!entity || !data) return;
@@ -784,7 +798,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
                   const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
                   if (numA !== numB) return numB - numA;
-return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+                  return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
                 });
                 return merged;
               });
@@ -842,25 +856,53 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     const handleOnline = async () => {
       setIsOnline(true);
-      console.log('Online event: internet connection restored. Triggering auto-sync with main database...');
-      if (syncToFirebaseRef.current) {
-        await syncToFirebaseRef.current(true);
-      }
-      if (fetchFromFirebaseRef.current) {
-        await fetchFromFirebaseRef.current();
+      console.log('Online event: network connection restored. Triggering immediate offline flush and bidirectional sync...');
+      try {
+        if (flushOfflineQueueRef.current) {
+          await flushOfflineQueueRef.current();
+        }
+        if (executeServerFullSyncRef.current) {
+          await executeServerFullSyncRef.current();
+        }
+        if (syncToFirebaseRef.current) {
+          await syncToFirebaseRef.current(true);
+        }
+      } catch (err) {
+        console.warn('Auto-sync on reconnection notice:', err);
       }
     };
     const handleOffline = () => {
       setIsOnline(false);
-      console.log('Offline event: internet connection lost.');
+      console.log('Offline event: network connection lost. Switched to Offline-First local storage mode.');
     };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Active heartbeat ping every 8s to test real backend server reachability
+    const pingInterval = setInterval(async () => {
+      try {
+        const savedHost = localStorage.getItem('master_server_host_url');
+        const baseUrl = (savedHost && savedHost.trim()) ? savedHost.trim().replace(/\/+$/, '') : '';
+        const statusEndpoint = baseUrl ? `${baseUrl}/api/sync/status` : '/api/sync/status';
+        const res = await fetch(statusEndpoint, { signal: AbortSignal.timeout(3500) });
+        if (res.ok) {
+          setIsOnline(true);
+          if (flushOfflineQueueRef.current) {
+            await flushOfflineQueueRef.current();
+          }
+        } else {
+          setIsOnline(false);
+        }
+      } catch {
+        setIsOnline(false);
+      }
+    }, 8000);
 
     return () => {
       if (syncChannelRef.current) {
         try { syncChannelRef.current.close(); } catch {}
       }
+      clearInterval(pingInterval);
       window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -1203,6 +1245,10 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       return updated;
     });
 
+    if (pushToServerSyncRef.current) {
+      pushToServerSyncRef.current('dailyEntrySheets', sheetData);
+    }
+
     // مزامنة سحابية فورية لكشف الإدخال اليومي عبر Firestore ليعمل متزامناً لدى كافة المستخدمين
     try {
       setDoc(doc(db, 'dailyEntrySheets', date), cleanDocForFirestore(sheetData), { merge: true }).catch(err => {
@@ -1534,10 +1580,132 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     autoDiscoverMasterServer();
   }, []);
 
-  // Send single operation delta to server (Fire-and-forget + sequence tracking)
+  const OFFLINE_QUEUE_KEY = 'accounting_offline_delta_queue_v1';
+
+  function mergeDeltaList<T extends { id?: string | number }>(prev: T[], list: any[], op: 'upsert' | 'delete'): T[] {
+    const map = new Map<string, T>();
+    for (const it of prev) {
+      if (it && it.id !== undefined) map.set(String(it.id), it);
+    }
+    for (const it of list) {
+      if (!it || it.id === undefined) continue;
+      const key = String(it.id);
+      if (op === 'delete' || it._deleted) {
+        map.delete(key);
+      } else {
+        const existing = map.get(key);
+        map.set(key, existing ? { ...existing, ...it } : it);
+      }
+    }
+    return Array.from(map.values());
+  }
+
+  const getOfflineQueue = (): any[] => {
+    try {
+      const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveOfflineQueue = (queue: any[]) => {
+    try {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+      setPendingSyncCount(queue.length);
+      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, String(queue.length));
+      const hasUnsynced = queue.length > 0;
+      setHasUnsyncedChanges(hasUnsynced);
+      localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, String(hasUnsynced));
+    } catch {}
+  };
+
+  const enqueueOfflineDelta = (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]) => {
+    const queue = getOfflineQueue();
+    const entry = {
+      queueId: 'q_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      entity,
+      op,
+      item,
+      items,
+      timestamp: Date.now()
+    };
+    queue.push(entry);
+    saveOfflineQueue(queue);
+    return entry;
+  };
+
+  const isFlushingQueueRef = React.useRef(false);
+
+  const flushOfflineQueue = async (): Promise<boolean> => {
+    if (isFlushingQueueRef.current) return false;
+    const queue = getOfflineQueue();
+    if (queue.length === 0) {
+      setPendingSyncCount(0);
+      setHasUnsyncedChanges(false);
+      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+      localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+      return true;
+    }
+
+    isFlushingQueueRef.current = true;
+    const baseUrl = getSyncBaseUrl();
+    const targetUrl = baseUrl ? `${baseUrl}/api/sync/delta` : '/api/sync/delta';
+
+    let remainingQueue = [...queue];
+
+    try {
+      for (const delta of queue) {
+        try {
+          const res = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entity: delta.entity,
+              op: delta.op,
+              item: delta.item,
+              items: delta.items,
+              clientId: myClientIdRef.current
+            }),
+            signal: AbortSignal.timeout(6000)
+          });
+
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data && typeof data.seq === 'number') {
+              lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, data.seq);
+              localStorage.setItem('accounting_last_seen_seq', String(lastSeenSeqRef.current));
+            }
+            remainingQueue = remainingQueue.filter((q: any) => q.queueId !== delta.queueId);
+            saveOfflineQueue(remainingQueue);
+          } else {
+            break;
+          }
+        } catch {
+          setIsOnline(false);
+          break;
+        }
+      }
+    } finally {
+      isFlushingQueueRef.current = false;
+    }
+
+    const allFlushed = remainingQueue.length === 0;
+    if (allFlushed) {
+      const nowStr = new Date().toLocaleTimeString('ar-EG', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      setLastSyncTime(nowStr);
+      localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
+    }
+    return allFlushed;
+  };
+  flushOfflineQueueRef.current = flushOfflineQueue;
+
+  // Send operation delta to server (Instantly Broadcasts + Enqueues locally + Flushes when online)
   const pushDeltaToServer = (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]) => {
     try {
-      // 1. Instant local BroadcastChannel notification for all open tabs in same browser
+      // 1. Instant local BroadcastChannel notification for all open tabs in same browser (0ms latency)
       if (syncChannelRef.current) {
         try {
           syncChannelRef.current.postMessage({
@@ -1547,20 +1715,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         } catch {}
       }
 
-      // 2. Post single delta record to server endpoint /api/sync/delta
-      const baseUrl = getSyncBaseUrl();
-      const targetUrl = baseUrl ? `${baseUrl}/api/sync/delta` : '/api/sync/delta';
+      // 2. Persistently record delta into offline queue
+      enqueueOfflineDelta(entity, op, item, items);
 
-      fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
-      }).then(res => res.json()).then(data => {
-        if (data && typeof data.seq === 'number') {
-          lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, data.seq);
-          localStorage.setItem('accounting_last_seen_seq', String(lastSeenSeqRef.current));
-        }
-      }).catch(() => {});
+      // 3. If online, trigger queue flush
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        flushOfflineQueue().catch(() => {});
+      }
     } catch {}
   };
 
@@ -1568,22 +1729,16 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   const pushToServerSync = (entity: string, item?: any, items?: any[]) => {
     pushDeltaToServer(entity, 'upsert', item, items);
   };
+  pushToServerSyncRef.current = pushToServerSync;
 
-  // Apply single or batch deltas to React state & localStorage
+  // Apply single or batch deltas to React state & localStorage for all entities
   const applyDeltaToState = (entity: string, op: 'upsert' | 'delete', item?: any, items?: any[]) => {
     const list: any[] = items || (item ? [item] : []);
     if (list.length === 0) return;
 
     if (entity === 'invoices') {
       setInvoices(prev => {
-        const map = new Map<string, Invoice>();
-        for (const inv of prev) if (inv && inv.id) map.set(String(inv.id), inv);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
+        const merged = mergeDeltaList<Invoice>(prev, list, op);
         merged.sort((a, b) => {
           const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
           const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
@@ -1595,91 +1750,180 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       });
     } else if (entity === 'parties') {
       setParties(prev => {
-        const map = new Map<string, Party>();
-        for (const p of prev) if (p && p.id) map.set(String(p.id), p);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
+        const merged = mergeDeltaList(prev, list, op);
         try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
         return merged;
       });
     } else if (entity === 'inventory') {
       setInventory(prev => {
-        const map = new Map<string, InventoryItem>();
-        for (const it of prev) if (it && it.id) map.set(String(it.id), it);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
+        const merged = mergeDeltaList(prev, list, op);
         try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
         return merged;
       });
     } else if (entity === 'vouchers') {
       setVouchers(prev => {
-        const map = new Map<string, PaymentVoucher>();
-        for (const v of prev) if (v && v.id) map.set(String(v.id), v);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
+        const merged = mergeDeltaList(prev, list, op);
         try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
         return merged;
       });
     } else if (entity === 'printOrders') {
       setPrintOrders(prev => {
-        const map = new Map<string, PrintJobOrder>();
-        for (const po of prev) if (po && po.id) map.set(String(po.id), po);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
+        const merged = mergeDeltaList(prev, list, op);
         try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
         return merged;
       });
+    } else if (entity === 'purchases') {
+      setPurchases(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'purchaseReturns') {
+      setPurchaseReturns(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'salesReturns') {
+      setSalesReturns(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'accounts') {
+      setAccounts(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'treasuries') {
+      setTreasuries(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'employees') {
+      setEmployees(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'employeeAdvances') {
+      setEmployeeAdvances(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_advances`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'employeeDeductions') {
+      setEmployeeDeductions(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_deductions`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'employeeIncentives') {
+      setEmployeeIncentives(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_incentives`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'payrollSheets') {
+      setPayrollSheets(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_payrollSheets`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'stockMovements') {
+      setStockMovements(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'companies') {
+      setCompanies(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'branches') {
+      setBranches(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'warehouses') {
+      setWarehouses(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'warehouseOperations') {
+      setWarehouseOperations(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'roles') {
+      setRoles(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_roles`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'users') {
+      setUsers(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'debtClearings') {
+      setDebtClearings(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'expenses') {
+      setExpenses(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'journalEntries') {
+      setJournalEntries(prev => {
+        const merged = mergeDeltaList(prev, list, op);
+        try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'dailyEntrySheets') {
+      setDailyEntrySheets(prev => {
+        const updated = { ...prev };
+        for (const it of list) {
+          if (it && it.date) {
+            if (op === 'delete' || it._deleted) delete updated[it.date];
+            else updated[it.date] = it;
+          }
+        }
+        try { localStorage.setItem('accounting_daily_entry_sheets_v1', JSON.stringify(updated)); } catch {}
+        return updated;
+      });
     }
   };
+  applyDeltaToStateRef.current = applyDeltaToState;
 
-  // Poll server for new deltas since lastSeenSeq
+  // Poll server for new deltas since lastSeenSeq & flush pending offline queue
   const pullDeltasFromServer = async () => {
     try {
       const baseUrl = getSyncBaseUrl();
 
-      // First boot: fetch state once to establish lastSeenSeq
+      // First boot: fetch state once to establish lastSeenSeq across all collections
       if (lastSeenSeqRef.current === 0) {
         const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
         const sRes = await fetch(stateEndpoint);
         if (sRes.ok) {
           const sJson = await sRes.json();
           if (sJson && sJson.data) {
-            const delSet = new Set<string>();
-            if (sJson.data.invoices?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('invoices', invoices, sJson.data.invoices.items, delSet);
-              setInvoices(merged);
-            }
-            if (sJson.data.parties?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('parties', parties, sJson.data.parties.items, delSet);
-              setParties(merged);
-            }
-            if (sJson.data.inventory?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('inventory', inventory, sJson.data.inventory.items, delSet);
-              setInventory(merged);
-            }
-            if (sJson.data.vouchers?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('vouchers', vouchers, sJson.data.vouchers.items, delSet);
-              setVouchers(merged);
-            }
-            if (sJson.data.printOrders?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('printOrders', printOrders, sJson.data.printOrders.items, delSet);
-              setPrintOrders(merged);
+            for (const [entityName, entityObj] of Object.entries(sJson.data)) {
+              if (entityObj && Array.isArray((entityObj as any).items) && (entityObj as any).items.length > 0) {
+                applyDeltaToState(entityName, 'upsert', undefined, (entityObj as any).items);
+              }
             }
           }
         }
@@ -1709,8 +1953,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         lastSeenSeqRef.current = currentSeq;
         localStorage.setItem('accounting_last_seen_seq', String(currentSeq));
       }
+
+      // If there are pending movements in offline queue, attempt flush
+      const queue = getOfflineQueue();
+      if (queue.length > 0) {
+        flushOfflineQueue().catch(() => {});
+      }
     } catch {}
   };
+  pullDeltasFromServerRef.current = pullDeltasFromServer;
 
   const pullServerSyncState = pullDeltasFromServer;
 
@@ -1867,10 +2118,14 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       deletedDocs
     };
 
-    const res = await fetch('/api/sync/full-sync', {
+    const baseUrl = getSyncBaseUrl();
+    const targetUrl = baseUrl ? `${baseUrl}/api/sync/full-sync` : '/api/sync/full-sync';
+
+    const res = await fetch(targetUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12000)
     });
 
     if (!res.ok) throw new Error('فشل الاتصال بخادم المزامنة المركزي.');
@@ -1884,14 +2139,33 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     if (Array.isArray(json.data.vouchers?.items)) { setVouchers(json.data.vouchers.items); try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(json.data.vouchers.items)); } catch {} }
     if (Array.isArray(json.data.printOrders?.items)) { setPrintOrders(json.data.printOrders.items); try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(json.data.printOrders.items)); } catch {} }
     if (Array.isArray(json.data.purchases?.items)) { setPurchases(json.data.purchases.items); try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(json.data.purchases.items)); } catch {} }
+    if (Array.isArray(json.data.purchaseReturns?.items)) { setPurchaseReturns(json.data.purchaseReturns.items); try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(json.data.purchaseReturns.items)); } catch {} }
+    if (Array.isArray(json.data.salesReturns?.items)) { setSalesReturns(json.data.salesReturns.items); try { localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(json.data.salesReturns.items)); } catch {} }
     if (Array.isArray(json.data.accounts?.items) && json.data.accounts.items.length > 0) { setAccounts(json.data.accounts.items); try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(json.data.accounts.items)); } catch {} }
     if (Array.isArray(json.data.treasuries?.items) && json.data.treasuries.items.length > 0) { setTreasuries(json.data.treasuries.items); try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(json.data.treasuries.items)); } catch {} }
     if (Array.isArray(json.data.employees?.items) && json.data.employees.items.length > 0) { setEmployees(json.data.employees.items); try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(json.data.employees.items)); } catch {} }
+    if (Array.isArray(json.data.employeeAdvances?.items)) { setEmployeeAdvances(json.data.employeeAdvances.items); try { localStorage.setItem(`${STORAGE_KEY}_advances`, JSON.stringify(json.data.employeeAdvances.items)); } catch {} }
+    if (Array.isArray(json.data.employeeDeductions?.items)) { setEmployeeDeductions(json.data.employeeDeductions.items); try { localStorage.setItem(`${STORAGE_KEY}_deductions`, JSON.stringify(json.data.employeeDeductions.items)); } catch {} }
+    if (Array.isArray(json.data.employeeIncentives?.items)) { setEmployeeIncentives(json.data.employeeIncentives.items); try { localStorage.setItem(`${STORAGE_KEY}_incentives`, JSON.stringify(json.data.employeeIncentives.items)); } catch {} }
+    if (Array.isArray(json.data.payrollSheets?.items)) { setPayrollSheets(json.data.payrollSheets.items); try { localStorage.setItem(`${STORAGE_KEY}_payrollSheets`, JSON.stringify(json.data.payrollSheets.items)); } catch {} }
+    if (Array.isArray(json.data.stockMovements?.items)) { setStockMovements(json.data.stockMovements.items); try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(json.data.stockMovements.items)); } catch {} }
+    if (Array.isArray(json.data.companies?.items) && json.data.companies.items.length > 0) { setCompanies(json.data.companies.items); try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(json.data.companies.items)); } catch {} }
+    if (Array.isArray(json.data.branches?.items) && json.data.branches.items.length > 0) { setBranches(json.data.branches.items); try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(json.data.branches.items)); } catch {} }
+    if (Array.isArray(json.data.warehouses?.items) && json.data.warehouses.items.length > 0) { setWarehouses(json.data.warehouses.items); try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(json.data.warehouses.items)); } catch {} }
+    if (Array.isArray(json.data.warehouseOperations?.items)) { setWarehouseOperations(json.data.warehouseOperations.items); try { localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(json.data.warehouseOperations.items)); } catch {} }
+    if (Array.isArray(json.data.roles?.items) && json.data.roles.items.length > 0) { setRoles(json.data.roles.items); try { localStorage.setItem(`${STORAGE_KEY}_roles`, JSON.stringify(json.data.roles.items)); } catch {} }
+    if (Array.isArray(json.data.users?.items) && json.data.users.items.length > 0) { setUsers(json.data.users.items); try { localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(json.data.users.items)); } catch {} }
+    if (Array.isArray(json.data.debtClearings?.items)) { setDebtClearings(json.data.debtClearings.items); try { localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(json.data.debtClearings.items)); } catch {} }
     if (Array.isArray(json.data.journalEntries?.items) && json.data.journalEntries.items.length > 0) { setJournalEntries(json.data.journalEntries.items); try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(json.data.journalEntries.items)); } catch {} }
     if (Array.isArray(json.data.expenses?.items) && json.data.expenses.items.length > 0) { setExpenses(json.data.expenses.items); try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(json.data.expenses.items)); } catch {} }
 
+    // Flush any pending deltas in queue
+    await flushOfflineQueue();
+    setIsOnline(true);
+
     return json;
   };
+  executeServerFullSyncRef.current = executeServerFullSync;
 
   // Manual immediate sync trigger with user feedback
   const forceSyncNow = async (): Promise<{ success: boolean; message: string }> => {
@@ -4922,6 +5196,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     };
 
     setJournalEntries(prev => [newEntry, ...prev]);
+    pushToServerSync('journalEntries', newEntry);
 
     // Direct cloud save
     setDoc(doc(db, 'journals', newEntry.id), cleanDocForFirestore(newEntry)).catch(err => {
@@ -4997,6 +5272,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     };
 
     setExpenses(prev => [newExpense, ...prev]);
+    pushToServerSync('expenses', newExpense);
 
     // Direct cloud save
     setDoc(doc(db, 'expenses', newExpense.id), cleanDocForFirestore(newExpense)).catch(err => {
@@ -5070,6 +5346,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     // 3. Remove expense item from state & cloud
     setExpenses(prev => prev.filter(e => e.id !== id));
+    pushDeltaToServer('expenses', 'delete', { id, _deleted: true });
     registerDeletedDoc('expenses', id);
     deleteDoc(doc(db, 'expenses', id)).catch(() => {});
   };
@@ -5082,6 +5359,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       time: movement.time || new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
     };
     setStockMovements(prev => [newMovement, ...prev]);
+    pushToServerSync('stockMovements', newMovement);
     setDoc(doc(db, 'stockMovements', newMovement.id), cleanDocForFirestore(newMovement)).catch(() => {});
   };
 
@@ -7604,6 +7882,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     };
 
     setPurchases(prev => [newPur, ...prev]);
+    pushToServerSync('purchases', newPur);
 
     // Direct cloud save
     setDoc(doc(db, 'purchases', newPur.id), cleanDocForFirestore(newPur)).catch(err => {
@@ -7917,12 +8196,14 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   const deletePaymentVoucher = (id: string) => {
     setVouchers(prev => prev.filter(v => v.id !== id));
+    pushDeltaToServer('vouchers', 'delete', { id, _deleted: true });
     registerDeletedDoc('vouchers', id);
     deleteDoc(doc(db, 'vouchers', id)).catch(() => {});
   };
 
   const deletePurchaseInvoice = (id: string) => {
     setPurchases(prev => prev.filter(p => p.id !== id));
+    pushDeltaToServer('purchases', 'delete', { id, _deleted: true });
     registerDeletedDoc('purchases', id);
     deleteDoc(doc(db, 'purchases', id)).catch(() => {});
   };
@@ -7948,6 +8229,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     };
 
     setPurchaseReturns(prev => [newReturn, ...prev]);
+    pushToServerSync('purchaseReturns', newReturn);
 
     // Direct cloud save
     setDoc(doc(db, 'purchaseReturns', newReturn.id), cleanDocForFirestore(newReturn)).catch(err => {
@@ -8080,6 +8362,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     };
 
     setSalesReturns(prev => [newReturn, ...prev]);
+    pushToServerSync('salesReturns', newReturn);
 
     // Direct cloud save
     setDoc(doc(db, 'salesReturns', newReturn.id), cleanDocForFirestore(newReturn)).catch(err => {
@@ -8184,6 +8467,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   const deleteSalesReturn = (id: string) => {
     setSalesReturns(prev => prev.filter(r => r.id !== id));
+    pushDeltaToServer('salesReturns', 'delete', { id, _deleted: true });
     registerDeletedDoc('salesReturns', id);
     deleteDoc(doc(db, 'salesReturns', id)).catch(() => {});
   };

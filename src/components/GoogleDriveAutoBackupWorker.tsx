@@ -13,7 +13,12 @@ const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hour
 
 export const GoogleDriveAutoBackupWorker: React.FC = () => {
   const accounting = useAccounting();
+  const accountingRef = useRef(accounting);
   const isRunningRef = useRef(false);
+
+  useEffect(() => {
+    accountingRef.current = accounting;
+  }, [accounting]);
 
   useEffect(() => {
     const checkAndRunHourlyBackup = async () => {
@@ -39,6 +44,7 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
 
       try {
         isRunningRef.current = true;
+        const currentData = accountingRef.current;
         const retentionConfirmed = true; // MANDATORY 7-DAY RETENTION ENFORCED
 
         // Prepare full backup snapshot
@@ -46,33 +52,33 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
           version: '2.0',
           systemName: 'برنامج الأيهم المحاسبي - مطبعة ومكتبة لبنان',
           exportedAt: new Date().toISOString(),
-          exportedBy: accounting.currentUser?.fullName || accounting.currentUser?.username || 'النسخ الاحتياطي التلقائي الدوري (كل ساعة)',
-          settings: accounting.settings,
-          companies: accounting.companies,
-          branches: accounting.branches,
-          warehouses: accounting.warehouses,
-          warehouseOperations: accounting.warehouseOperations,
-          users: accounting.users,
-          roles: accounting.roles,
-          accounts: accounting.accounts,
-          journalEntries: accounting.journalEntries,
-          inventory: accounting.inventory,
-          stockMovements: accounting.stockMovements,
-          parties: accounting.parties,
-          employees: accounting.employees,
-          employeeAdvances: accounting.employeeAdvances,
-          employeeDeductions: accounting.employeeDeductions,
-          employeeIncentives: accounting.employeeIncentives,
-          payrollSheets: accounting.payrollSheets,
-          printOrders: accounting.printOrders,
-          invoices: accounting.invoices,
-          purchases: accounting.purchases,
-          purchaseReturns: accounting.purchaseReturns,
-          salesReturns: accounting.salesReturns,
-          vouchers: accounting.vouchers,
-          treasuries: accounting.treasuries,
-          debtClearings: accounting.debtClearings,
-          expenses: accounting.expenses
+          exportedBy: currentData.currentUser?.fullName || currentData.currentUser?.username || 'النسخ الاحتياطي التلقائي الدوري (كل ساعة)',
+          settings: currentData.settings,
+          companies: currentData.companies,
+          branches: currentData.branches,
+          warehouses: currentData.warehouses,
+          warehouseOperations: currentData.warehouseOperations,
+          users: currentData.users,
+          roles: currentData.roles,
+          accounts: currentData.accounts,
+          journalEntries: currentData.journalEntries,
+          inventory: currentData.inventory,
+          stockMovements: currentData.stockMovements,
+          parties: currentData.parties,
+          employees: currentData.employees,
+          employeeAdvances: currentData.employeeAdvances,
+          employeeDeductions: currentData.employeeDeductions,
+          employeeIncentives: currentData.employeeIncentives,
+          payrollSheets: currentData.payrollSheets,
+          printOrders: currentData.printOrders,
+          invoices: currentData.invoices,
+          purchases: currentData.purchases,
+          purchaseReturns: currentData.purchaseReturns,
+          salesReturns: currentData.salesReturns,
+          vouchers: currentData.vouchers,
+          treasuries: currentData.treasuries,
+          debtClearings: currentData.debtClearings,
+          expenses: currentData.expenses
         };
 
         const result = await executeHourlyDriveBackupFlow(token, fullBackup, {
@@ -104,7 +110,7 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [accounting]);
+  }, []);
 
   return null;
 };
