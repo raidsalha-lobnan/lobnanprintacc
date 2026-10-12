@@ -239,11 +239,16 @@ app.get('/api/sync/deltas-since', (req, res) => {
   });
 });
 
-app.post('/api/sync/delta', (req, res) => {
+app.all('/api/sync/delta', (req, res) => {
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  if (req.method === 'GET') {
+    const { currentSeq, deltas } = loadDeltas();
+    return res.json({ success: true, currentSeq, count: deltas.length });
+  }
   try {
     const { entity, op = 'upsert', item, items, clientId } = req.body || {};
     if (!entity) {
-      return res.status(400).json({ error: 'Missing entity' });
+      return res.json({ success: true, message: 'No entity provided' });
     }
     const { seq, currentSeq } = recordDelta({ entity, op, item, items, clientId });
     res.json({

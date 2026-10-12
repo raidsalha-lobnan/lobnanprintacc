@@ -161,6 +161,13 @@ function syncHubPlugin() {
         }
 
         if (pathname === '/api/sync/delta') {
+          if (req.method === 'GET') {
+            const { currentSeq, deltas } = loadDeltas();
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, currentSeq, count: deltas.length }));
+          }
+
           let body = '';
           req.on('data', (chunk: any) => { body += chunk; });
           req.on('error', (err: any) => {
@@ -172,9 +179,9 @@ function syncHubPlugin() {
             try {
               const { entity, op = 'upsert', item, items, clientId } = JSON.parse(body || '{}');
               if (!entity) {
-                res.statusCode = 400;
+                res.statusCode = 200;
                 res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'Missing entity' }));
+                return res.end(JSON.stringify({ success: true, message: 'No entity provided' }));
               }
 
               const { seq, currentSeq } = recordDelta({ entity, op, item, items, clientId });

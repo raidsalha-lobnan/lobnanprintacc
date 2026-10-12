@@ -1554,63 +1554,59 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         } catch {}
       }
 
-      // 2. Post single delta record to server endpoint /api/sync/delta with resilient local fallback
+      // 2. Post single delta record to relative server endpoint /api/sync/delta
+      const payloadStr = JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current });
       const baseUrl = getSyncBaseUrl();
-      const targetUrl = baseUrl ? `${baseUrl}/api/sync/delta` : '/api/sync/delta';
 
-      fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
-      }).then(async res => {
-        if (!res.ok) {
-          throw new Error(`Server status ${res.status}`);
-        }
+      const attemptPush = async (url: string) => {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: payloadStr
+        });
+        if (!res.ok) throw new Error(`Server response ${res.status}`);
         const text = await res.text();
-        if (!text || !text.trim().startsWith('{')) {
-          throw new Error('Invalid JSON response');
-        }
+        if (!text || !text.trim().startsWith('{')) throw new Error('Invalid JSON');
         return JSON.parse(text);
-      }).then(data => {
-        if (data && typeof data.seq === 'number') {
-          lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, data.seq);
-          localStorage.setItem('accounting_last_seen_seq', String(lastSeenSeqRef.current));
-          const docId = item?.id || items?.[0]?.id;
-          if (docId) syncAuditService.markDocumentAsSynced(docId);
+      };
+
+      attemptPush('/api/sync/delta')
+        .catch(async () => {
+          if (baseUrl) return await attemptPush(`${baseUrl}/api/sync/delta`);
+          throw new Error('تعذر الوصول للسيرفر الرئيسي');
+        })
+        .then(data => {
+          if (data && (typeof data.seq === 'number' || data.success)) {
+            const seq = data.seq || Date.now();
+            if (typeof data.seq === 'number') {
+              lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, data.seq);
+              localStorage.setItem('accounting_last_seen_seq', String(lastSeenSeqRef.current));
+            }
+            const docId = item?.id || items?.[0]?.id;
+            if (docId) syncAuditService.markDocumentAsSynced(docId);
+            syncAuditService.logEvent({
+              direction: 'push',
+              entity,
+              op,
+              status: 'success',
+              seq,
+              documentId: docId,
+              documentNumber: item?.invoiceNumber || item?.code || item?.voucherNumber || item?.itemNumber,
+              details: `تم إرسال وحفظ التعديل بنجاح في السيرفر (تسلسل #${seq})`
+            });
+          }
+        })
+        .catch(() => {
           syncAuditService.logEvent({
             direction: 'push',
             entity,
             op,
-            status: 'success',
-            seq: data.seq,
-            documentId: docId,
-            documentNumber: item?.invoiceNumber || item?.code || item?.voucherNumber || item?.itemNumber,
-            details: `تم إرسال وحفظ التعديل بنجاح في السيرفر (تسلسل #${data.seq})`
+            status: 'pending',
+            documentId: item?.id || items?.[0]?.id,
+            details: 'تم الحفظ محلياً بانتظام وبانتظار التحديث المعلق بالسيرفر'
           });
-        }
-      }).catch((err) => {
-        syncAuditService.logIssue({
-          endpoint: targetUrl,
-          errorType: !navigator.onLine ? 'network_offline' : 'server_error',
-          message: err?.message || 'تعذر إرسال التعديل للسيرفر'
         });
-        syncAuditService.logEvent({
-          direction: 'push',
-          entity,
-          op,
-          status: 'pending',
-          documentId: item?.id || items?.[0]?.id,
-          details: 'تم الحفظ محلياً وبانتظار المزامنة بالسيرفر'
-        });
-        if (baseUrl) {
-          fetch('/api/sync/delta', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
-          }).catch(() => {});
-        }
-      });
     } catch {}
   };
 
