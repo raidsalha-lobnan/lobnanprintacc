@@ -51,6 +51,16 @@ function syncHubPlugin() {
     configureServer(server: any) {
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = req.url || '';
+
+        // Add permissive CORS headers for cross-origin multi-device sync
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          return res.end();
+        }
         
         if (url.startsWith('/api/app-version') && req.method === 'GET') {
           res.setHeader('Content-Type', 'application/json');
