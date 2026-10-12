@@ -2088,6 +2088,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     if (Array.isArray(json.data.journalEntries?.items) && json.data.journalEntries.items.length > 0) { setJournalEntries(json.data.journalEntries.items); try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(json.data.journalEntries.items)); } catch {} }
     if (Array.isArray(json.data.expenses?.items) && json.data.expenses.items.length > 0) { setExpenses(json.data.expenses.items); try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(json.data.expenses.items)); } catch {} }
 
+    syncAuditService.clearConnectionIssues();
     syncAuditService.resolveAllPendingLogs();
     syncAuditService.logEvent({
       direction: 'full_sync',

@@ -1,15 +1,1 @@
-[
-  {
-    "date": "2026-09-01",
-    "employeeName": "محمد عبد الله الشمري",
-    "id": "adv-1",
-    "employeeId": "emp-1",
-    "treasuryName": "الصندوق النقدي (الكاشير)",
-    "amount": 500,
-    "voucherNumber": "PV-ADV-2026-0001",
-    "status": "pending",
-    "disbursedImmediately": true,
-    "treasuryAccountCode": "1101",
-    "reason": "سلفة طارئة لشراء مستلزمات شخصية"
-  }
-]
+[{"date":"2026-09-01","employeeName":"محمد عبد الله الشمري","id":"adv-1","employeeId":"emp-1","treasuryName":"الصندوق النقدي (الكاشير)","amount":500,"voucherNumber":"PV-ADV-2026-0001","status":"pending","disbursedImmediately":true,"treasuryAccountCode":"1101","reason":"سلفة طارئة لشراء مستلزمات شخصية"}]
