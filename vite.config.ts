@@ -1,48 +1,9 @@
 
 import fs from 'fs';
 
-import localtunnel from 'localtunnel';
-
 const SYNC_DATA_DIR = path.resolve(__dirname, '.sync_data');
 if (!fs.existsSync(SYNC_DATA_DIR)) {
   try { fs.mkdirSync(SYNC_DATA_DIR, { recursive: true }); } catch {}
-}
-
-let activeTunnelUrl = '';
-
-function getStoredTunnelUrl(): string {
-  if (activeTunnelUrl) return activeTunnelUrl;
-  try {
-    const tunnelPath = path.join(SYNC_DATA_DIR, 'tunnel_url.json');
-    if (fs.existsSync(tunnelPath)) {
-      const parsed = JSON.parse(fs.readFileSync(tunnelPath, 'utf8'));
-      if (parsed && parsed.url) {
-        activeTunnelUrl = parsed.url;
-        return parsed.url;
-      }
-    }
-  } catch {}
-  return '';
-}
-
-async function startLiveTunnel() {
-  try {
-    const tunnel = await localtunnel({ port: 3000 });
-    if (tunnel && tunnel.url) {
-      activeTunnelUrl = tunnel.url;
-      console.log('🌐 LIVE HTTPS TUNNEL CREATED FOR MASTER PC:', activeTunnelUrl);
-      const tunnelPath = path.join(SYNC_DATA_DIR, 'tunnel_url.json');
-      try {
-        fs.writeFileSync(tunnelPath, JSON.stringify({ url: activeTunnelUrl, time: Date.now() }), 'utf8');
-      } catch {}
-
-      tunnel.on('close', () => {
-        setTimeout(startLiveTunnel, 3000);
-      });
-    }
-  } catch (err: any) {
-    setTimeout(startLiveTunnel, 5000);
-  }
 }
 
 const syncCache: Record<string, any[]> = {};
@@ -157,7 +118,6 @@ function syncHubPlugin() {
   return {
     name: 'central-sync-hub',
     configureServer(server: any) {
-      startLiveTunnel();
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = req.url || '';
 
@@ -240,7 +200,7 @@ function syncHubPlugin() {
             success: true,
             serverTime: Date.now(),
             serverTimeString: new Date().toLocaleTimeString('ar-EG'),
-            tunnelUrl: getStoredTunnelUrl(),
+            tunnelUrl: '',
             entities: summary
           }));
         }

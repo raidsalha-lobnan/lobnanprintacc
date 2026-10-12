@@ -1,1 +1,1 @@
-{"currentSeq":0,"deltas":[]}
+{"currentSeq":1,"deltas":[{"entity":"settings","op":"upsert","item":{"id":"test"},"clientId":"test-agent","seq":1,"timestamp":1791816631346}]}

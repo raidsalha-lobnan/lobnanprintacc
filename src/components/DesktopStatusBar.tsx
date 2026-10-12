@@ -118,16 +118,16 @@ export const DesktopStatusBar: React.FC = () => {
           </span>
         </div>
 
-        {/* Panel 4: Database & Central Sync Status */}
+        {/* Panel 4: Database & Cloud Sync Status */}
         <div 
           onClick={() => setActiveTab('settings_database')}
           className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-300 rounded-xs shadow-inner cursor-pointer hover:bg-emerald-50 transition shrink-0"
-          title={isOnline ? "المزامنة المركزية متصلة ولحظية - انقر للإعدادات" : "النظام في وضع محلي غير متصل (Offline) - يتم حفظ الحركات محلياً"}
+          title={isOnline ? "قاعدة البيانات السحابية (Google Drive & Server Hub) متصلة ومزامنة فورية" : "النظام في وضع غير متصل (Offline)"}
         >
           {isOnline ? (
             <div className="flex items-center gap-1 text-emerald-700">
               <Database className="w-3 h-3 text-emerald-600 shrink-0" />
-              <span className="font-bold text-[11px]">المزامنة: متصل (Online)</span>
+              <span className="font-bold text-[11px]">مزامنة السيرفر وقاعدة البيانات: متصل</span>
               {lastSyncTime && (
                 <span className="text-[10px] text-slate-500 font-mono hidden xl:inline">({lastSyncTime})</span>
               )}
@@ -137,8 +137,8 @@ export const DesktopStatusBar: React.FC = () => {
               <WifiOff className="w-3 h-3 text-amber-600 shrink-0" />
               <span className="font-bold text-[11px]">محلي (Offline)</span>
               {pendingSyncCount > 0 && (
-                <span className="bg-amber-100 text-amber-900 px-1 rounded text-[10px] font-bold">
-                  ({pendingSyncCount} معلقة)
+                <span className="bg-amber-100 text-amber-900 px-1 rounded text-[10px]">
+                  ({pendingSyncCount})
                 </span>
               )}
             </div>

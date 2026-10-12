@@ -195,11 +195,11 @@ export const OfflineSqlSettings: React.FC = () => {
               <span>إذا كان هذا جهاز فرعي / جوال (Client Device):</span>
             </h4>
             <p className="text-slate-600 leading-relaxed text-[11px]">
-              ضع رابط جهازك المضيف الرئيسي (سواء IP المحلي أو رابط الوسيط مثل Ngrok / LocalTunnel / Tailscale):
+              إذا كنت تستخدم البرنامج عبر رابط الويب المباشر أو نفس الجهاز، اتركه فارغاً. إذا كان لديك جهاز كمبيوتر رئيسي بداخل المحل، ضع عنوان IP الخاص به:
             </p>
             <input
               type="text"
-              placeholder="مثال: http://192.168.1.100:3000 أو https://my-store.loca.lt"
+              placeholder="اتركه فارغاً للاتصال المباشر التلقائي أو ضع: http://192.168.1.100:3000"
               defaultValue={localStorage.getItem('master_server_host_url') || ''}
               onChange={(e) => {
                 localStorage.setItem('master_server_host_url', e.target.value);
