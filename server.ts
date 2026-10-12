@@ -111,19 +111,44 @@ const syncTimestamps: Record<string, number> = {};
 function loadEntityData(entity: string): any[] {
   if (syncCache[entity]) return syncCache[entity];
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
+  let existingData: any[] = [];
   if (fs.existsSync(filePath)) {
     try {
       const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      if (Array.isArray(data)) {
-        syncCache[entity] = data;
-        syncTimestamps[entity] = Date.now();
-        return data;
+      if (Array.isArray(data)) existingData = data;
+    } catch {}
+  }
+
+  // Fallback / merge seed from public/master_drive_database_snapshot.json
+  const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
+  if (fs.existsSync(snapshotPath)) {
+    try {
+      const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+      if (snap && Array.isArray(snap[entity]) && snap[entity].length > 0) {
+        if (existingData.length === 0) {
+          existingData = snap[entity];
+          try { fs.writeFileSync(filePath, JSON.stringify(existingData), 'utf8'); } catch {}
+        } else {
+          // Merge snapshot items if any are missing in existingData
+          const itemMap = new Map<string, any>();
+          for (const it of snap[entity]) {
+            if (it && it.id) itemMap.set(String(it.id), it);
+          }
+          for (const it of existingData) {
+            if (it && it.id) {
+              const existing = itemMap.get(String(it.id));
+              itemMap.set(String(it.id), existing ? { ...existing, ...it } : it);
+            }
+          }
+          existingData = Array.from(itemMap.values());
+        }
       }
     } catch {}
   }
-  syncCache[entity] = [];
+
+  syncCache[entity] = existingData;
   syncTimestamps[entity] = Date.now();
-  return [];
+  return existingData;
 }
 
 function saveEntityData(entity: string, data: any[]) {

@@ -1626,31 +1626,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   // Immediate and continuous multi-device live sync with server database
   useEffect(() => {
-    // Force immediate unconditional fetch from server
-    const forceInitialSync = async () => {
-      try {
-        const res = await fetch('/api/sync/state');
-        if (res.ok) {
-          const json = await res.json();
-          if (json && json.data) {
-            if (Array.isArray(json.data.invoices?.items) && json.data.invoices.items.length > 0) {
-              setInvoices(json.data.invoices.items);
-              try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(json.data.invoices.items)); } catch {}
-            }
-            if (Array.isArray(json.data.parties?.items) && json.data.parties.items.length > 0) {
-              setParties(json.data.parties.items);
-              try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(json.data.parties.items)); } catch {}
-            }
-            if (Array.isArray(json.data.inventory?.items) && json.data.inventory.items.length > 0) {
-              setInventory(json.data.inventory.items);
-              try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(json.data.inventory.items)); } catch {}
-            }
-          }
-        }
-      } catch (e) {}
-    };
-
-    forceInitialSync();
+    // Initial safe sync pull that merges without deleting local or snapshot invoices
     pullServerSyncState();
 
     // Secondary immediate kick after 300ms

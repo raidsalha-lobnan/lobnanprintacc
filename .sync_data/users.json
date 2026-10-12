@@ -1,0 +1,120 @@
+[
+  {
+    "password": "Aa@12345678",
+    "customPermissions": {
+      "edit_prices": true
+    },
+    "allowedBranchIds": [
+      "*"
+    ],
+    "defaultBranchId": "br-1",
+    "createdAt": "2026-09-11T23:54:43.526Z",
+    "status": "active",
+    "email": "lobnanprint@gmail.com",
+    "allowedPriceTier": "all",
+    "roleName": "مدير النظام",
+    "companyId": "comp-1",
+    "roleId": "role-admin",
+    "shareDriveAttachments": true,
+    "fullName": "مطبعة لبنان",
+    "avatarColor": "bg-indigo-600",
+    "username": "lobnanprint@gmail.com",
+    "id": "user-1789170883526",
+    "driveSharedAt": "2026-09-27T21:20:15.238Z"
+  },
+  {
+    "allowedPriceTier": "all",
+    "password": "Aa@12345678",
+    "driveSharedAt": "2026-09-28T18:47:50.053Z",
+    "customPermissions": {
+      "edit_prices": true
+    },
+    "createdAt": "2026-09-14T15:47:10.470Z",
+    "companyId": "comp-1",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "roleName": "مدير الفرع",
+    "status": "active",
+    "shareDriveAttachments": true,
+    "roleId": "role-branch-mgr",
+    "email": "imohsa.salha10@gmail.com",
+    "defaultBranchId": "br-1",
+    "username": "imohsa.salha10@gmail.com",
+    "avatarColor": "bg-indigo-600",
+    "fullName": "محمد صالحة",
+    "id": "user-1789400830470"
+  },
+  {
+    "id": "user-1790535831510",
+    "password": "Aa@12345678",
+    "driveSharedAt": "2026-09-27T21:20:29.892Z",
+    "companyId": "comp-1",
+    "roleId": "role-print-tech",
+    "avatarColor": "bg-indigo-600",
+    "status": "active",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "shareDriveAttachments": true,
+    "roleName": "فني الطباعة",
+    "customPermissions": {
+      "edit_prices": false
+    },
+    "createdAt": "2026-09-27T19:03:51.510Z",
+    "email": "ana.mostafa.issaissa@gmail.com",
+    "username": "مصطفى عيسى",
+    "defaultBranchId": "br-1",
+    "allowedPriceTier": "all",
+    "fullName": "مصطفى عيسى",
+    "phone": "0592777307"
+  },
+  {
+    "fullName": "إسماعيل عيسى",
+    "username": "سمعة عيسى",
+    "createdAt": "2026-09-27T19:51:40.789Z",
+    "id": "user-1790538700789",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "roleName": "المصمم",
+    "status": "active",
+    "email": "som3a.9.10.2020@gmail.com",
+    "roleId": "role-designer",
+    "shareDriveAttachments": true,
+    "customPermissions": {
+      "edit_prices": false
+    },
+    "password": "Aa@12345678",
+    "companyId": "comp-1",
+    "allowedPriceTier": "all",
+    "defaultBranchId": "br-1",
+    "driveSharedAt": "2026-09-27T21:11:25.802Z",
+    "avatarColor": "bg-indigo-600"
+  },
+  {
+    "lastLogin": "2026-09-10 09:15",
+    "roleId": "role-admin",
+    "id": "usr-1",
+    "defaultBranchId": "br-1",
+    "status": "active",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "companyId": "comp-1",
+    "email": "raid.salha@gmail.com",
+    "password": "Aa@12345678",
+    "avatarColor": "bg-blue-600",
+    "phone": "0592840352",
+    "fullName": "م. رائد صالحة",
+    "shareDriveAttachments": true,
+    "customPermissions": {
+      "edit_prices": true
+    },
+    "username": "raid.salha@gmail.com",
+    "createdAt": "2024-01-01",
+    "allowedPriceTier": "all",
+    "roleName": "مدير النظام",
+    "driveSharedAt": "2026-09-28T18:47:00.135Z"
+  }
+]

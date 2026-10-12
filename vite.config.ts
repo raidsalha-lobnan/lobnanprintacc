@@ -52,6 +52,12 @@ function syncHubPlugin() {
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = req.url || '';
         
+        if (url.startsWith('/api/app-version') && req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 200;
+          return res.end(JSON.stringify({ version: '1791656836620', time: Date.now() }));
+        }
+
         if (url.startsWith('/api/sync/status') && req.method === 'GET') {
           const summary: Record<string, { count: number; lastModified: number }> = {};
           for (const ent of ALL_SYNC_ENTITIES) {
@@ -334,8 +340,11 @@ function liveSheetProxyPlugin() {
 
 export default defineConfig(() => {
   return {
+    server: {
+      hmr: false,
+    },
     plugins: [
-      react(), 
+      react({ jsxRuntime: 'automatic' }), 
       tailwindcss(),
       liveSheetProxyPlugin(),
       syncHubPlugin(),
@@ -392,9 +401,6 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
-    },
-    server: {
-      hmr: false,
     },
   };
 });

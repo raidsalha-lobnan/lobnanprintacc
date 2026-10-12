@@ -320,7 +320,6 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
         }
         case 'unpaid_or_credit':
           return inv.remainingAmount > 0 || inv.paidAmount === 0;
-        case 'all':
         default:
           return true;
       }

@@ -34,56 +34,6 @@
           }
         } catch (e) {}
 
-        // Safely prevent Vite HMR "send was called before connect" when socket is not yet open
-        if (typeof window !== 'undefined' && window.WebSocket) {
-          var origWebSocketSend = WebSocket.prototype.send;
-          WebSocket.prototype.send = function() {
-            if (this.readyState !== WebSocket.OPEN) {
-              return;
-            }
-            return origWebSocketSend.apply(this, arguments);
-          };
-        }
-
-        var isViteWsNotice = function(args) {
-          var joined = args.map(function(a) { return String(a || ''); }).join(' ');
-          return (
-            joined.includes('send was called before connect') ||
-            joined.includes('WebSocket is closed') ||
-            (joined.includes('[vite]') && joined.includes('connect'))
-          );
-        };
-
-        var safeErr = (typeof console !== 'undefined' && console.error) ? console.error.bind(console) : function() {};
-        var safeWarn = (typeof console !== 'undefined' && console.warn) ? console.warn.bind(console) : function() {};
-        var safeLog = (typeof console !== 'undefined' && console.log) ? console.log.bind(console) : function() {};
-        try {
-          window.origConsoleError = safeErr;
-          window.origConsoleWarn = safeWarn;
-          window.origConsoleLog = safeLog;
-        } catch (e) {}
-        var origConsoleError = safeErr;
-        var origConsoleWarn = safeWarn;
-        var origConsoleLog = safeLog;
-
-        console.error = function() {
-          var args = Array.prototype.slice.call(arguments);
-          if (isViteWsNotice(args)) return;
-          (window.origConsoleError || origConsoleError || safeErr).apply(console, arguments);
-        };
-
-        console.warn = function() {
-          var args = Array.prototype.slice.call(arguments);
-          if (isViteWsNotice(args)) return;
-          origConsoleWarn.apply(console, arguments);
-        };
-
-        console.log = function() {
-          var args = Array.prototype.slice.call(arguments);
-          if (isViteWsNotice(args)) return;
-          origConsoleLog.apply(console, arguments);
-        };
-
         window.addEventListener('error', function(event) {
           if (!event || !event.message) {
             event?.preventDefault?.();

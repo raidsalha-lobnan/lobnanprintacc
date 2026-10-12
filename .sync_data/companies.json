@@ -1,0 +1,19 @@
+[
+  {
+    "address": "",
+    "id": "comp-1",
+    "password": "123456",
+    "isDefault": true,
+    "tradeName": "طلة لبنان للتجارة العامة",
+    "taxNumber": "",
+    "email": "",
+    "code": "COMP-01",
+    "status": "active",
+    "createdAt": "2024-01-01",
+    "name": "مطبعة ومكتبة لبنان",
+    "notes": "الشركة الأم والمقر الإداري والمطبعة الرئيسية",
+    "phone": "",
+    "crNumber": "",
+    "currency": "ILS"
+  }
+]

@@ -93,6 +93,8 @@ const MainLayout: React.FC = () => {
       try {
         const res = await fetch('/api/app-version');
         if (!res.ok) return;
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) return;
         const data = await res.json();
         if (data && data.version) {
           if (currentServerVersion === null) {

@@ -1,0 +1,18 @@
+[
+  {
+    "warehouseType": "finished_goods",
+    "notes": "يحتوي على كافة المطبوعات النهائية والكتب الجاهزة للتسليم للعملاء",
+    "isDefault": true,
+    "companyId": "comp-1",
+    "manager": "",
+    "code": "WH-01",
+    "phone": "",
+    "location": "",
+    "branchId": "br-1",
+    "branchName": "الفرع الرئيسي",
+    "name": "المستودع الرئيسي",
+    "status": "active",
+    "capacity": "1,500 م³",
+    "id": "wh-1"
+  }
+]
