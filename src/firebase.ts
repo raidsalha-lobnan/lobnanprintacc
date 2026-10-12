@@ -1,60 +1,53 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { setLogLevel, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+// Firebase completely disconnected per user request.
+// Database & Auth are now 100% local + Google Drive cloud sync exclusively.
+// Providing mock implementations for auth and firestore functions to prevent runtime errors.
 
-const fileConfig = (firebaseConfig as any) || {};
+export const db = {} as any;
 
-// الدمج الذكي بين متغيرات بيئة Vercel وملف الإعدادات الافتراضي
-const resolvedFirebaseConfig = {
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || fileConfig.projectId || 'gen-lang-client-0984774155',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || fileConfig.appId || '',
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || fileConfig.apiKey || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || fileConfig.authDomain || `${fileConfig.projectId || 'gen-lang-client-0984774155'}.firebaseapp.com`,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || fileConfig.storageBucket || `${fileConfig.projectId || 'gen-lang-client-0984774155'}.firebasestorage.app`,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || fileConfig.messagingSenderId || '',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || fileConfig.measurementId || '',
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || fileConfig.firestoreDatabaseId || 'ai-studio-remixcopyofcopyo-917f7ef2-bd2e-44c7-b6f8-f5661310c7a9'
+export const auth = {
+  currentUser: null,
+  signOut: async () => {
+    localStorage.removeItem('alnoor_press_accounting_v1_current_user_id');
+    localStorage.removeItem('active_session_id');
+    localStorage.removeItem('auth_type');
+  }
+} as any;
+
+export class GoogleAuthProvider {
+  addScope() { return this; }
+  setCustomParameters() { return this; }
+  static credentialFromResult(result: any) {
+    return { accessToken: result?.accessToken };
+  }
+}
+
+export const signInWithPopup = async () => ({ user: { email: 'raid.salha@gmail.com' } });
+export const signInWithEmailAndPassword = async () => ({ user: { email: 'raid.salha@gmail.com' } });
+export const createUserWithEmailAndPassword = async () => ({ user: { email: 'raid.salha@gmail.com' } });
+export const sendPasswordResetEmail = async () => {};
+
+export const onAuthStateChanged = (authObj: any, callback: (user: any) => void) => {
+  const localId = localStorage.getItem('alnoor_press_accounting_v1_current_user_id');
+  if (localId) {
+    callback({ email: 'raid.salha@gmail.com', uid: localId });
+  } else {
+    callback(null);
+  }
+  return () => {};
 };
 
-const app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
-
-const config = resolvedFirebaseConfig as any;
-
-// تفعيل العمل بدون إنترنت (Offline Persistence) مع دعم فتح البرنامج في أكثر من تبويب
-let firestoreDb;
-setLogLevel('silent'); // Suppress verbose connection warnings in console
-try {
-  firestoreDb = initializeFirestore(app, {
-    ignoreUndefinedProperties: true
-  }, config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)' ? config.firestoreDatabaseId : undefined);
-} catch (e) {
-  try {
-    firestoreDb = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)'
-      ? getFirestore(app, config.firestoreDatabaseId)
-      : getFirestore(app);
-  } catch (err) {
-    firestoreDb = getFirestore(app);
-  }
-}
-
-export const db = firestoreDb;
-export const auth = getAuth(app);
-
-// فحص الاتصال بقاعدة بيانات Firestore للتحقق من الاتصال السحابي الحي
-import { doc, getDocFromServer } from 'firebase/firestore';
-
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(firestoreDb, 'test', 'connection'));
-    console.log('Firebase Cloud Firestore connection active and verified.');
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn("Please check your Firebase configuration: client is operating in offline mode.");
-    }
-  }
-}
-testConnection();
-
-
-
+export const doc = (...args: any[]) => ({}) as any;
+export const getDoc = async (...args: any[]) => ({ exists: () => false, data: () => null }) as any;
+export const setDoc = async (...args: any[]) => {};
+export const deleteDoc = async (...args: any[]) => {};
+export const writeBatch = (...args: any[]) => ({
+  set: () => {},
+  delete: () => {},
+  commit: async () => {}
+}) as any;
+export const collection = (...args: any[]) => ({}) as any;
+export const getDocs = async (...args: any[]) => ({ docs: [] }) as any;
+export const onSnapshot = (docRef: any, callback: (snap: any) => void) => {
+  callback({ exists: () => false, data: () => null });
+  return () => {};
+};

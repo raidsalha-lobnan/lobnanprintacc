@@ -1,8 +1,5 @@
 // Google Drive Database Sync Engine for Lobnan Press Accounting App
-// Replaces Firebase database with Google Drive for 100% cloud database sync online and offline.
-
-import { auth } from '../firebase';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+// Exclusively syncs the database with the user's Google Drive (Firebase completely disconnected).
 
 export const DATABASE_DRIVE_FOLDER = 'Lobnan_Accounting_Cloud_Database';
 export const MASTER_DATABASE_FILENAME = 'The Start Data';
@@ -38,22 +35,49 @@ export async function requestGoogleDriveToken(promptUser: boolean = false): Prom
   }
 
   try {
-    const provider = new GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/drive.file');
-    provider.setCustomParameters({ prompt: 'select_account' });
+    const clientId = '209948056563-6phejmgml54cu8rqoebpqd4a0nglosii.apps.googleusercontent.com';
+    const redirectUri = window.location.origin;
+    const scope = 'https://www.googleapis.com/auth/drive.file';
+    
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=select_account`;
 
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const token = credential?.accessToken;
+    return new Promise((resolve) => {
+      const width = 500;
+      const height = 600;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      
+      const popup = window.open(authUrl, 'GoogleDriveOAuth', `width=${width},height=${height},top=${top},left=${left}`);
+      
+      if (!popup) {
+        resolve(null);
+        return;
+      }
 
-    if (!token) {
-      throw new Error('لم يتم الحصول على رمز صلاحية قوقل درايف');
-    }
-
-    saveSyncToken(token, 3600);
-    return token;
+      const interval = setInterval(() => {
+        try {
+          if (popup.closed) {
+            clearInterval(interval);
+            resolve(getCachedSyncToken());
+            return;
+          }
+          const hash = popup.location.hash;
+          if (hash && hash.includes('access_token=')) {
+            const params = new URLSearchParams(hash.substring(1));
+            const token = params.get('access_token');
+            const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
+            if (token) {
+              saveSyncToken(token, expiresIn);
+              popup.close();
+              clearInterval(interval);
+              resolve(token);
+            }
+          }
+        } catch (e) {}
+      }, 500);
+    });
   } catch (error: any) {
-    console.warn('Failed to request Google Drive access token (popup notice):', error?.message || error);
+    console.warn('Failed to request Google Drive access token:', error?.message || error);
     return null;
   }
 }
@@ -145,7 +169,6 @@ export async function saveMasterDatabaseToDrive(token: string, payload: any): Pr
     const arrayBuffer = await blob.arrayBuffer();
 
     if (existingFile) {
-      // Overwrite existing database file via PATCH multipart upload
       const updateUrl = `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`;
       const updateRes = await fetch(updateUrl, {
         method: 'PATCH',
@@ -166,7 +189,6 @@ export async function saveMasterDatabaseToDrive(token: string, payload: any): Pr
 
       return { success: true, fileId: existingFile.id };
     } else {
-      // Create new database file
       const metadata = {
         name: MASTER_DATABASE_FILENAME,
         description: 'قاعدة البيانات المركزية الموحدة لبرنامج الأيهم المحاسبي',
@@ -206,41 +228,43 @@ export async function saveMasterDatabaseToDrive(token: string, payload: any): Pr
           cachedAccessToken = null;
           localStorage.removeItem(STORAGE_KEY_TOKEN);
         }
-        throw new Error(`فشل إنشاء ملف قاعدة البيانات في قوقل درايف (${uploadRes.status})`);
+        throw new Error(`فشل رفع قاعدة البيانات إلى قوقل درايف (${uploadRes.status})`);
       }
 
-      const data = await uploadRes.json();
-      return { success: true, fileId: data.id };
+      const resJson = await uploadRes.json();
+      return { success: true, fileId: resJson.id };
     }
-  } catch (err: any) {
-    console.error('Error saving master database to Drive:', err);
-    return { success: false, error: err?.message || 'خطأ في حفظ قاعدة البيانات' };
+  } catch (error: any) {
+    console.error('Error saving master database to Google Drive:', error);
+    return { success: false, error: error?.message || 'Unknown error' };
   }
 }
 
-// Merge entity lists by ID without duplicates
-export function mergeEntityLists<T extends { id: string | number }>(localList: T[] = [], remoteList: T[] = []): T[] {
-  const map = new Map<string | number, T>();
-  
-  // 1. Add remote items
-  for (const item of remoteList) {
-    if (item && item.id !== undefined && item.id !== null) {
-      map.set(item.id, item);
-    }
-  }
-  
-  // 2. Add local items (overwriting or complementing remote)
-  for (const item of localList) {
-    if (item && item.id !== undefined && item.id !== null) {
-      const existing = map.get(item.id);
-      if (!existing) {
-        map.set(item.id, item);
-      } else {
-        // Merge fields, local priority if same timestamp
-        map.set(item.id, { ...existing, ...item });
+export function mergeEntityLists(localList: any[], remoteList: any[]): any[] {
+  const map = new Map<string, any>();
+  if (Array.isArray(localList)) {
+    for (const item of localList) {
+      if (item && item.id) {
+        map.set(String(item.id), item);
       }
     }
   }
-  
+  if (Array.isArray(remoteList)) {
+    for (const item of remoteList) {
+      if (item && item.id) {
+        const key = String(item.id);
+        const existing = map.get(key);
+        if (!existing) {
+          map.set(key, item);
+        } else {
+          const tExist = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+          const tRemote = new Date(item.updatedAt || item.createdAt || 0).getTime();
+          if (tRemote >= tExist) {
+            map.set(key, item);
+          }
+        }
+      }
+    }
+  }
   return Array.from(map.values());
 }

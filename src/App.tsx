@@ -41,10 +41,6 @@ import { VoucherPrintModal } from './components/VoucherPrintModal';
 import { TransactionLifecycleModal } from './components/TransactionLifecycleModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginView } from './components/LoginView';
-import { auth } from './firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from './firebase';
 
 const MainLayout: React.FC = () => {
   const {
@@ -503,52 +499,11 @@ const MainLayout: React.FC = () => {
 };
 
 export default function App() {
-  const [firebaseUser, setFirebaseUser] = React.useState<User | null>(null);
   const [localUserId, setLocalUserId] = React.useState<string | null>(() => {
     return localStorage.getItem('alnoor_press_accounting_v1_current_user_id');
   });
-  const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    let unsubs: (() => void) | undefined;
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setFirebaseUser(u);
-      setLoading(false);
-
-      const authType = localStorage.getItem('auth_type');
-      if (u && u.email && authType === 'firebase') {
-        unsubs = onSnapshot(doc(db, 'userSessions', u.email.toLowerCase()), (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            const currentSession = localStorage.getItem('active_session_id');
-            if (data.sessionId && currentSession && data.sessionId !== currentSession) {
-              // Forced logout: another device logged in
-              auth.signOut();
-              localStorage.removeItem('alnoor_press_accounting_v1_current_user_id');
-              localStorage.removeItem('active_session_id');
-              window.location.reload();
-            }
-          }
-        });
-      } else {
-        if (unsubs) unsubs();
-      }
-    });
-    return () => {
-      unsubscribe();
-      if (unsubs) unsubs();
-    };
-  }, []);
-
-  const isAuth = !!firebaseUser || !!localUserId;
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100" dir="rtl">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  const isAuth = !!localUserId;
 
   if (!isAuth) {
     return <LoginView onLocalLogin={(id) => setLocalUserId(id)} />;
