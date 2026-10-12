@@ -536,7 +536,6 @@ function deduplicateById<T extends { id?: string; invoiceNumber?: string }>(item
     if (!item) continue;
     const id = item.id;
     
-    // If item has no ID, assign one
     if (!id) {
       const generatedId = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       seenIds.add(generatedId);
@@ -544,7 +543,6 @@ function deduplicateById<T extends { id?: string; invoiceNumber?: string }>(item
       continue;
     }
 
-    // If ID was already seen in this array, IGNORE duplicate copy instead of re-keying and creating shadow documents!
     if (seenIds.has(id)) {
       continue;
     }
@@ -554,6 +552,74 @@ function deduplicateById<T extends { id?: string; invoiceNumber?: string }>(item
   }
 
   return result;
+}
+
+function getEntityRecordTimestamp(item: any): number {
+  if (!item) return 0;
+  if (typeof item.updatedAt === 'number') return item.updatedAt;
+  if (typeof item.updatedAt === 'string') {
+    const t = new Date(item.updatedAt).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (typeof item.createdAt === 'number') return item.createdAt;
+  if (typeof item.createdAt === 'string') {
+    const t = new Date(item.createdAt).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (typeof item.date === 'string') {
+    const t = new Date(item.date).getTime();
+    if (!isNaN(t)) return t;
+  }
+  return 0;
+}
+
+function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
+  entityName: string,
+  localItems: T[],
+  serverItems: T[],
+  delSet: Set<string>
+): { merged: T[]; unpushedDeltas: T[] } {
+  const map = new Map<string, T>();
+  const unpushedDeltas: T[] = [];
+
+  // 1. Load server items
+  for (const sItem of serverItems) {
+    if (!sItem || !sItem.id) continue;
+    if (delSet.has(`${entityName}_${sItem.id}`)) continue;
+    map.set(String(sItem.id), sItem);
+  }
+
+  // 2. Differential sync comparison with local items
+  for (const lItem of localItems) {
+    if (!lItem || !lItem.id) continue;
+    if (delSet.has(`${entityName}_${lItem.id}`)) continue;
+
+    const idStr = String(lItem.id);
+    const sItem = map.get(idStr);
+
+    if (!sItem) {
+      // Local item exists, server does NOT have it -> New local operation!
+      map.set(idStr, lItem);
+      unpushedDeltas.push(lItem);
+    } else {
+      // Both exist -> compare timestamps to resolve delta
+      const localTime = getEntityRecordTimestamp(lItem);
+      const serverTime = getEntityRecordTimestamp(sItem);
+
+      if (localTime > serverTime) {
+        // Local modification is newer -> local wins and auto-push to server
+        const mergedObj = { ...sItem, ...lItem };
+        map.set(idStr, mergedObj);
+        unpushedDeltas.push(mergedObj);
+      } else {
+        // Server version is newer or equal -> server wins
+        map.set(idStr, { ...lItem, ...sItem });
+      }
+    }
+  }
+
+  const merged = Array.from(map.values());
+  return { merged, unpushedDeltas };
 }
 
 // One-time self-purging of old mock demo entries from browser localStorage
@@ -1432,13 +1498,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   // Multi-Device Central Sync Engine
   const lastServerSyncTimeRef = React.useRef<number>(0);
 
-  const pushToServerSync = (entity: string, item: any) => {
+  const pushToServerSync = (entity: string, item: any, items?: any[]) => {
     try {
-      // Use direct fetch with fire-and-forget for instant push to server database
       fetch('/api/sync/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity, item })
+        body: JSON.stringify({ entity, item, items })
       }).then(res => res.json()).then(data => {
         console.log('✓ Instant Server Push Succeeded for', entity, ':', data?.count);
       }).catch(e => {
@@ -1453,29 +1518,30 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   const pullServerSyncState = async () => {
     try {
       // First boot: push whatever this client has locally to the server hub so every device shares its records!
-      const entitiesToSeed = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders'];
-      for (const ent of entitiesToSeed) {
-        try {
-          const raw = localStorage.getItem(`${STORAGE_KEY}_${ent}`);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              fetch('/api/sync/push', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entity: ent, items: parsed })
-              }).catch(() => {});
+      if (!hasUploadedLocalSeedRef.current) {
+        hasUploadedLocalSeedRef.current = true;
+        const entitiesToSeed = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders'];
+        for (const ent of entitiesToSeed) {
+          try {
+            const raw = localStorage.getItem(`${STORAGE_KEY}_${ent}`);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                fetch('/api/sync/push', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ entity: ent, items: parsed })
+                }).catch(() => {});
+              }
             }
-          }
-        } catch {}
+          } catch {}
+        }
       }
 
       const res = await fetch('/api/sync/state');
       if (!res.ok) return;
       const json = await res.json();
       if (!json || !json.data) return;
-
-      // Make sure Firestore snapshot and server sync hub update local state even when local storage is brand new/empty!
 
       const delSet = (() => {
         const s = new Set<string>();
@@ -1487,65 +1553,46 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       })();
 
       // Print Orders
-      if (json.data.printOrders && Array.isArray(json.data.printOrders.items) && json.data.printOrders.items.length > 0) {
+      if (json.data.printOrders && Array.isArray(json.data.printOrders.items)) {
         const serverOrders: PrintJobOrder[] = json.data.printOrders.items;
         setPrintOrders(prev => {
-          const map = new Map<string, PrintJobOrder>();
-          for (const ord of prev) if (ord && ord.id && !delSet.has(`printOrders_${ord.id}`)) map.set(ord.id, ord);
-          let changed = false;
-          for (const sOrd of serverOrders) {
-            if (sOrd && sOrd.id && !delSet.has(`printOrders_${sOrd.id}`)) {
-              if (!map.has(sOrd.id)) { map.set(sOrd.id, sOrd); changed = true; }
-            }
+          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('printOrders', prev, serverOrders, delSet);
+          if (unpushedDeltas.length > 0) {
+            pushToServerSync('printOrders', null, unpushedDeltas);
           }
-          if (!changed) return prev;
-          const merged = Array.from(map.values());
+          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
+            return prev;
+          }
           try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
           return merged;
         });
       }
 
       // Vouchers
-      if (json.data.vouchers && Array.isArray(json.data.vouchers.items) && json.data.vouchers.items.length > 0) {
+      if (json.data.vouchers && Array.isArray(json.data.vouchers.items)) {
         const serverVouchers: PaymentVoucher[] = json.data.vouchers.items;
         setVouchers(prev => {
-          const map = new Map<string, PaymentVoucher>();
-          for (const v of prev) if (v && v.id && !delSet.has(`vouchers_${v.id}`)) map.set(v.id, v);
-          let changed = false;
-          for (const sv of serverVouchers) {
-            if (sv && sv.id && !delSet.has(`vouchers_${sv.id}`)) {
-              if (!map.has(sv.id)) { map.set(sv.id, sv); changed = true; }
-            }
+          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('vouchers', prev, serverVouchers, delSet);
+          if (unpushedDeltas.length > 0) {
+            pushToServerSync('vouchers', null, unpushedDeltas);
           }
-          if (!changed) return prev;
-          const merged = Array.from(map.values());
+          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
+            return prev;
+          }
           try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
           return merged;
         });
       }
 
-      // Invoices
-      if (json.data.invoices && Array.isArray(json.data.invoices.items) && json.data.invoices.items.length > 0) {
+      // Invoices (Sales, POS, Manual, Special, Returns)
+      if (json.data.invoices && Array.isArray(json.data.invoices.items)) {
         const serverInvoices: Invoice[] = json.data.invoices.items;
         setInvoices(prev => {
-          const map = new Map<string, Invoice>();
-
-          // 1. Load server invoices
-          for (const sInv of serverInvoices) {
-            if (sInv && sInv.id && !delSet.has(`invoices_${sInv.id}`)) {
-              map.set(String(sInv.id), sInv);
-            }
+          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('invoices', prev, serverInvoices, delSet);
+          if (unpushedDeltas.length > 0) {
+            pushToServerSync('invoices', null, unpushedDeltas);
           }
 
-          // 2. Overlay local invoices so recent edits or new records are preserved
-          for (const pInv of prev) {
-            if (pInv && pInv.id && !delSet.has(`invoices_${pInv.id}`)) {
-              const existing = map.get(String(pInv.id));
-              map.set(String(pInv.id), existing ? { ...existing, ...pInv } : pInv);
-            }
-          }
-
-          const merged = Array.from(map.values());
           merged.sort((a, b) => {
             const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
             const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
@@ -1562,27 +1609,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         });
       }
 
-      // Parties
-      if (json.data.parties && Array.isArray(json.data.parties.items) && json.data.parties.items.length > 0) {
+      // Parties (Customers & Suppliers)
+      if (json.data.parties && Array.isArray(json.data.parties.items)) {
         const serverParties: Party[] = json.data.parties.items;
         setParties(prev => {
-          const map = new Map<string, Party>();
-          // Combine server + local
-          const pool = [...serverParties, ...prev];
-          for (const p of pool) {
-            if (p && p.id && !delSet.has(`parties_${p.id}`)) {
-              if (!map.has(p.id)) map.set(p.id, p);
-              else {
-                // If server has updated fields, prefer server item or merged
-                const existing = map.get(p.id)!;
-                map.set(p.id, { ...existing, ...p });
-              }
-            }
-          }
-          const merged = Array.from(map.values());
-          if (prev.length === 0 && merged.length > 0) {
-            try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
-            return merged;
+          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('parties', prev, serverParties, delSet);
+          if (unpushedDeltas.length > 0) {
+            pushToServerSync('parties', null, unpushedDeltas);
           }
           if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
             return prev;
@@ -1593,24 +1626,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       }
 
       // Inventory
-      if (json.data.inventory && Array.isArray(json.data.inventory.items) && json.data.inventory.items.length > 0) {
+      if (json.data.inventory && Array.isArray(json.data.inventory.items)) {
         const serverItems: InventoryItem[] = json.data.inventory.items;
         setInventory(prev => {
-          const map = new Map<string, InventoryItem>();
-          const pool = [...serverItems, ...prev];
-          for (const it of pool) {
-            if (it && it.id && !delSet.has(`inventory_${it.id}`)) {
-              if (!map.has(it.id)) map.set(it.id, it);
-              else {
-                const existing = map.get(it.id)!;
-                map.set(it.id, { ...existing, ...it });
-              }
-            }
-          }
-          const merged = Array.from(map.values());
-          if (prev.length === 0 && merged.length > 0) {
-            try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
-            return merged;
+          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('inventory', prev, serverItems, delSet);
+          if (unpushedDeltas.length > 0) {
+            pushToServerSync('inventory', null, unpushedDeltas);
           }
           if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
             return prev;
