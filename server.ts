@@ -353,12 +353,11 @@ app.post('/api/sync/push', (req, res) => {
 });
 
 // Master bidirectional full-sync endpoint: synchronizes all local data with server in one atomic call
-app.post('/api/sync/full-sync', (req, res) => {
+app.all('/api/sync/full-sync', (req, res) => {
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   try {
-    const { entities, deletedDocs } = req.body;
-    if (!entities || typeof entities !== 'object') {
-      return res.status(400).json({ error: 'Missing entities map' });
-    }
+    const isGet = req.method === 'GET';
+    const { entities, deletedDocs } = isGet ? { entities: {}, deletedDocs: [] } : (req.body || {});
 
     const delSet = new Set<string>();
     if (Array.isArray(deletedDocs)) {
@@ -369,10 +368,10 @@ app.post('/api/sync/full-sync', (req, res) => {
 
     const resultMap: Record<string, { items: any[]; count: number; version: number }> = {};
     const countsSummary: Record<string, number> = {};
+    const incomingEntities = (entities && typeof entities === 'object') ? entities : {};
 
-    for (const [entityName, incomingItems] of Object.entries(entities)) {
-      if (!Array.isArray(incomingItems)) continue;
-
+    for (const entityName of ALL_SYNC_ENTITIES) {
+      const incomingItems = incomingEntities[entityName] || [];
       const serverItems = loadEntityData(entityName);
       const mergedMap = new Map<string, any>();
 
@@ -384,25 +383,27 @@ app.post('/api/sync/full-sync', (req, res) => {
       }
 
       // 2. Merge incoming client items
-      for (const cIt of incomingItems) {
-        if (!cIt || !cIt.id) continue;
-        const key = String(cIt.id);
-        if (delSet.has(`${entityName}_${key}`) || cIt._deleted) {
-          mergedMap.delete(key);
-          continue;
-        }
+      if (Array.isArray(incomingItems)) {
+        for (const cIt of incomingItems) {
+          if (!cIt || !cIt.id) continue;
+          const key = String(cIt.id);
+          if (delSet.has(`${entityName}_${key}`) || cIt._deleted) {
+            mergedMap.delete(key);
+            continue;
+          }
 
-        if (!mergedMap.has(key)) {
-          mergedMap.set(key, cIt);
-        } else {
-          // Both have it: merge fields (client updates win)
-          const existing = mergedMap.get(key);
-          mergedMap.set(key, { ...existing, ...cIt });
+          if (!mergedMap.has(key)) {
+            mergedMap.set(key, cIt);
+          } else {
+            // Both have it: merge fields (client updates win)
+            const existing = mergedMap.get(key);
+            mergedMap.set(key, { ...existing, ...cIt });
+          }
         }
       }
 
       const mergedList = Array.from(mergedMap.values());
-      saveEntityData(entityName, mergedList);
+      if (!isGet) saveEntityData(entityName, mergedList);
 
       resultMap[entityName] = {
         items: mergedList,

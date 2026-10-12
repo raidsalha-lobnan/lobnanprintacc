@@ -1962,6 +1962,17 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     }
 
     if (!res || !res.ok) {
+      try {
+        res = await fetch('/api/sync/full-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {}
+    }
+
+    if (!res || !res.ok) {
       syncAuditService.logIssue({
         endpoint: '/api/sync/full-sync',
         errorType: !navigator.onLine ? 'network_offline' : 'server_error',
@@ -1970,7 +1981,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       });
       throw new Error('فشل الاتصال بخادم المزامنة المركزي.');
     }
-    const json = await res.json();
+
+    const text = await res.text();
+    if (!text || !text.trim().startsWith('{')) {
+      throw new Error('استجابة غير صحيحة من السيرفر.');
+    }
+    const json = JSON.parse(text);
     if (!json || !json.data) throw new Error('استجابة غير صحيحة من السيرفر.');
 
     // Apply merged updates across all collections

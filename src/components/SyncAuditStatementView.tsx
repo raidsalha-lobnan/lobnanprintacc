@@ -203,9 +203,10 @@ export const SyncAuditStatementView: React.FC = () => {
   // Filtered audit logs
   const filteredLogs = useMemo(() => {
     return auditLogs.filter(log => {
+      const isEffectivePending = pendingSyncCount > 0 && log.status === 'pending';
       if (activeFilterTab === 'pushed' && log.direction !== 'push') return false;
       if (activeFilterTab === 'pulled' && log.direction !== 'pull') return false;
-      if (activeFilterTab === 'pending' && log.status !== 'pending') return false;
+      if (activeFilterTab === 'pending' && !isEffectivePending) return false;
       if (activeFilterTab === 'issues') return false; // Handled in issues view
 
       if (searchTerm.trim()) {
@@ -219,7 +220,7 @@ export const SyncAuditStatementView: React.FC = () => {
       }
       return true;
     });
-  }, [auditLogs, activeFilterTab, searchTerm]);
+  }, [auditLogs, activeFilterTab, searchTerm, pendingSyncCount]);
 
   // Active branch
   const activeBranch = getActiveBranch();
@@ -567,7 +568,7 @@ export const SyncAuditStatementView: React.FC = () => {
                   : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-300'
               }`}
             >
-              المعلقات ({auditLogs.filter(l => l.status === 'pending').length})
+              المعلقات ({pendingSyncCount > 0 ? auditLogs.filter(l => l.status === 'pending').length : 0})
             </button>
 
             <button
@@ -762,10 +763,10 @@ export const SyncAuditStatementView: React.FC = () => {
                         {item.documentNumber || item.documentId || '—'}
                       </td>
                       <td className="p-2.5">
-                        {item.status === 'success' ? (
+                        {item.status === 'success' || pendingSyncCount === 0 ? (
                           <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[10px]">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>ناجح ومؤكد</span>
+                            <span>ناجح ومؤكد 🟢</span>
                           </span>
                         ) : item.status === 'pending' ? (
                           <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[10px]">

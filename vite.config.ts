@@ -119,7 +119,13 @@ function syncHubPlugin() {
     name: 'central-sync-hub',
     configureServer(server: any) {
       server.middlewares.use((req: any, res: any, next: any) => {
-        const url = req.url || '';
+        const rawUrl = req.url || '';
+        let pathname = '';
+        try {
+          pathname = new URL(rawUrl, 'http://localhost').pathname.replace(/\/+$/, '');
+        } catch {
+          pathname = rawUrl.split('?')[0].replace(/\/+$/, '');
+        }
 
         // Add permissive CORS headers for cross-origin multi-device sync
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -130,15 +136,15 @@ function syncHubPlugin() {
           res.statusCode = 204;
           return res.end();
         }
-        
-        if (url.startsWith('/api/app-version') && req.method === 'GET') {
+
+        if (pathname === '/api/app-version') {
           res.setHeader('Content-Type', 'application/json');
           res.statusCode = 200;
           return res.end(JSON.stringify({ version: '1791656836620', time: Date.now() }));
         }
 
-        if (url.startsWith('/api/sync/deltas-since') && req.method === 'GET') {
-          const urlObj = new URL(url, 'http://localhost');
+        if (pathname === '/api/sync/deltas-since') {
+          const urlObj = new URL(rawUrl, 'http://localhost');
           const sinceSeq = parseInt(urlObj.searchParams.get('sinceSeq') || '0', 10) || 0;
           const { currentSeq, deltas } = loadDeltas();
           const newDeltas = deltas.filter(d => d && typeof d.seq === 'number' && d.seq > sinceSeq);
@@ -154,9 +160,14 @@ function syncHubPlugin() {
           }));
         }
 
-        if (url.startsWith('/api/sync/delta') && req.method === 'POST') {
+        if (pathname === '/api/sync/delta') {
           let body = '';
           req.on('data', (chunk: any) => { body += chunk; });
+          req.on('error', (err: any) => {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err?.message || 'Stream error' }));
+          });
           req.on('end', () => {
             try {
               const { entity, op = 'upsert', item, items, clientId } = JSON.parse(body || '{}');
@@ -185,7 +196,7 @@ function syncHubPlugin() {
           return;
         }
 
-        if (url.startsWith('/api/sync/status') && req.method === 'GET') {
+        if (pathname === '/api/sync/status') {
           const summary: Record<string, { count: number; lastModified: number }> = {};
           for (const ent of ALL_SYNC_ENTITIES) {
             const items = getEntityData(ent);
@@ -205,8 +216,8 @@ function syncHubPlugin() {
           }));
         }
 
-        if (url.startsWith('/api/sync/state') && req.method === 'GET') {
-          const urlObj = new URL(url, 'http://localhost');
+        if (pathname === '/api/sync/state') {
+          const urlObj = new URL(rawUrl, 'http://localhost');
           const requestedEntitiesParam = urlObj.searchParams.get('entities');
           const requestedEntities = requestedEntitiesParam
             ? requestedEntitiesParam.split(',')
@@ -226,9 +237,14 @@ function syncHubPlugin() {
           return res.end(JSON.stringify({ success: true, data: result, serverTime: Date.now() }));
         }
 
-        if (url.startsWith('/api/sync/push') && req.method === 'POST') {
+        if (pathname === '/api/sync/push') {
           let body = '';
           req.on('data', (chunk: any) => { body += chunk; });
+          req.on('error', (err: any) => {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err?.message || 'Stream error' }));
+          });
           req.on('end', () => {
             try {
               const { entity, item, items, op, deletedIds } = JSON.parse(body || '{}');
@@ -290,18 +306,36 @@ function syncHubPlugin() {
           return;
         }
 
-        if (url.startsWith('/api/sync/full-sync') && req.method === 'POST') {
+        if (pathname === '/api/sync/full-sync') {
+          if (req.method === 'GET') {
+            const resultMap: Record<string, { items: any[]; count: number; version: number }> = {};
+            const countsSummary: Record<string, number> = {};
+            for (const ent of ALL_SYNC_ENTITIES) {
+              const items = getEntityData(ent);
+              resultMap[ent] = { items, count: items.length, version: syncTimestamps[ent] || Date.now() };
+              countsSummary[ent] = items.length;
+            }
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: true,
+              serverTime: Date.now(),
+              serverTimeString: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              data: resultMap,
+              counts: countsSummary
+            }));
+          }
+
           let body = '';
           req.on('data', (chunk: any) => { body += chunk; });
+          req.on('error', (err: any) => {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err?.message || 'Stream error' }));
+          });
           req.on('end', () => {
             try {
               const { entities, deletedDocs } = JSON.parse(body || '{}');
-              if (!entities || typeof entities !== 'object') {
-                res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'Missing entities map' }));
-              }
-
               const delSet = new Set<string>();
               if (Array.isArray(deletedDocs)) {
                 deletedDocs.forEach((d: any) => {
@@ -312,43 +346,46 @@ function syncHubPlugin() {
               const resultMap: Record<string, { items: any[]; count: number; version: number }> = {};
               const countsSummary: Record<string, number> = {};
 
-              for (const [entityName, incomingItems] of Object.entries(entities)) {
-                if (!Array.isArray(incomingItems)) continue;
+              const incomingEntities = (entities && typeof entities === 'object') ? entities : {};
 
-                const serverItems = getEntityData(entityName);
+              for (const ent of ALL_SYNC_ENTITIES) {
+                const incomingItems = incomingEntities[ent] || [];
+                const serverItems = getEntityData(ent);
                 const mergedMap = new Map<string, any>();
 
                 for (const sIt of serverItems) {
-                  if (sIt && sIt.id && !delSet.has(`${entityName}_${sIt.id}`) && !sIt._deleted) {
+                  if (sIt && sIt.id && !delSet.has(`${ent}_${sIt.id}`) && !sIt._deleted) {
                     mergedMap.set(String(sIt.id), sIt);
                   }
                 }
 
-                for (const cIt of incomingItems) {
-                  if (!cIt || !cIt.id) continue;
-                  const key = String(cIt.id);
-                  if (delSet.has(`${entityName}_${key}`) || cIt._deleted) {
-                    mergedMap.delete(key);
-                    continue;
-                  }
+                if (Array.isArray(incomingItems)) {
+                  for (const cIt of incomingItems) {
+                    if (!cIt || !cIt.id) continue;
+                    const key = String(cIt.id);
+                    if (delSet.has(`${ent}_${key}`) || cIt._deleted) {
+                      mergedMap.delete(key);
+                      continue;
+                    }
 
-                  if (!mergedMap.has(key)) {
-                    mergedMap.set(key, cIt);
-                  } else {
-                    const existing = mergedMap.get(key);
-                    mergedMap.set(key, { ...existing, ...cIt });
+                    if (!mergedMap.has(key)) {
+                      mergedMap.set(key, cIt);
+                    } else {
+                      const existing = mergedMap.get(key);
+                      mergedMap.set(key, { ...existing, ...cIt });
+                    }
                   }
                 }
 
                 const mergedList = Array.from(mergedMap.values());
-                putEntityData(entityName, mergedList);
+                putEntityData(ent, mergedList);
 
-                resultMap[entityName] = {
+                resultMap[ent] = {
                   items: mergedList,
                   count: mergedList.length,
-                  version: syncTimestamps[entityName] || Date.now()
+                  version: syncTimestamps[ent] || Date.now()
                 };
-                countsSummary[entityName] = mergedList.length;
+                countsSummary[ent] = mergedList.length;
               }
 
               res.statusCode = 200;
@@ -367,6 +404,13 @@ function syncHubPlugin() {
             }
           });
           return;
+        }
+
+        // Intercept any unhandled /api/ routes to prevent fallthrough to Vite static asset server (which throws 405 Method Not Allowed)
+        if (pathname.startsWith('/api/')) {
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify({ error: `API route ${pathname} not found` }));
         }
 
         next();
