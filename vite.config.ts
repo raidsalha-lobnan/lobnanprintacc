@@ -10,21 +10,39 @@ const syncCache: Record<string, any[]> = {};
 const syncTimestamps: Record<string, number> = {};
 
 function getEntityData(entity: string): any[] {
-  if (syncCache[entity]) return syncCache[entity];
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
+  let existingData: any[] = [];
   if (fs.existsSync(filePath)) {
     try {
       const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      if (Array.isArray(data)) {
-        syncCache[entity] = data;
-        syncTimestamps[entity] = Date.now();
-        return data;
+      if (Array.isArray(data)) existingData = data;
+    } catch {}
+  }
+
+  // Fallback / merge seed from public/master_drive_database_snapshot.json
+  const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
+  if (fs.existsSync(snapshotPath)) {
+    try {
+      const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+      if (snap && Array.isArray(snap[entity]) && snap[entity].length > 0) {
+        const itemMap = new Map<string, any>();
+        for (const it of snap[entity]) {
+          if (it && it.id) itemMap.set(String(it.id), it);
+        }
+        for (const it of existingData) {
+          if (it && it.id) {
+            const existing = itemMap.get(String(it.id));
+            itemMap.set(String(it.id), existing ? { ...existing, ...it } : it);
+          }
+        }
+        existingData = Array.from(itemMap.values());
       }
     } catch {}
   }
-  syncCache[entity] = [];
-  syncTimestamps[entity] = Date.now();
-  return [];
+
+  syncCache[entity] = existingData;
+  syncTimestamps[entity] = fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : Date.now();
+  return existingData;
 }
 
 function putEntityData(entity: string, data: any[]) {
@@ -33,6 +51,16 @@ function putEntityData(entity: string, data: any[]) {
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
   try {
     fs.writeFileSync(filePath, JSON.stringify(data), 'utf8');
+  } catch {}
+
+  // Also sync public/master_drive_database_snapshot.json
+  try {
+    const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
+    if (fs.existsSync(snapshotPath)) {
+      const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) || {};
+      snap[entity] = data;
+      fs.writeFileSync(snapshotPath, JSON.stringify(snap, null, 2), 'utf8');
+    }
   } catch {}
 }
 

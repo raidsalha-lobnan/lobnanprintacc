@@ -118,7 +118,6 @@ const syncCache: Record<string, any[]> = {};
 const syncTimestamps: Record<string, number> = {};
 
 function loadEntityData(entity: string): any[] {
-  if (syncCache[entity]) return syncCache[entity];
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
   let existingData: any[] = [];
   if (fs.existsSync(filePath)) {
@@ -156,7 +155,7 @@ function loadEntityData(entity: string): any[] {
   }
 
   syncCache[entity] = existingData;
-  syncTimestamps[entity] = Date.now();
+  syncTimestamps[entity] = fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : Date.now();
   return existingData;
 }
 
@@ -169,6 +168,16 @@ function saveEntityData(entity: string, data: any[]) {
   } catch (err) {
     console.error(`Failed to save sync entity ${entity}:`, err);
   }
+
+  // Also sync public/master_drive_database_snapshot.json
+  try {
+    const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
+    if (fs.existsSync(snapshotPath)) {
+      const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) || {};
+      snap[entity] = data;
+      fs.writeFileSync(snapshotPath, JSON.stringify(snap, null, 2), 'utf8');
+    }
+  } catch {}
 }
 
 app.get('/api/app-version', (_req, res) => {
