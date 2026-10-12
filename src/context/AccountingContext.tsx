@@ -1931,37 +1931,39 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       deletedDocs
     };
 
-    let res: Response;
+    let res: Response | null = null;
     const baseUrl = getSyncBaseUrl();
-    const endpoint = baseUrl ? `${baseUrl}/api/sync/full-sync` : '/api/sync/full-sync';
 
+    // 1. Try relative endpoint /api/sync/full-sync first (always cleanest direct route)
     try {
-      res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok && baseUrl) {
-        res = await fetch('/api/sync/full-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload)
-        });
-      }
-    } catch (netErr) {
       res = await fetch('/api/sync/full-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(payload)
       });
+    } catch (e) {
+      res = null;
     }
 
-    if (!res.ok) {
+    // 2. Fallback to external master host URL if relative route failed and baseUrl exists
+    if ((!res || !res.ok) && baseUrl) {
+      try {
+        const extRes = await fetch(`${baseUrl}/api/sync/full-sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        if (extRes.ok) {
+          res = extRes;
+        }
+      } catch (e) {}
+    }
+
+    if (!res || !res.ok) {
       syncAuditService.logIssue({
-        endpoint: endpoint,
+        endpoint: '/api/sync/full-sync',
         errorType: !navigator.onLine ? 'network_offline' : 'server_error',
         statusCode: res?.status,
         message: 'فشل الاتصال بخادم المزامنة المركزي أثناء المزامنة الشاملة'
