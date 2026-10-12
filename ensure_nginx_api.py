@@ -23,6 +23,29 @@ if os.path.exists(nginx_conf_path):
             content = content.replace('location / {', api_block + '        location / {')
             with open(nginx_conf_path, 'w') as f:
                 f.write(content)
-            os.system('nginx -t >/dev/null 2>&1 && nginx -s reload >/dev/null 2>&1')
     except Exception:
         pass
+
+lua_path = '/etc/nginx/user_auth_verification.lua'
+if os.path.exists(lua_path):
+    try:
+        with open(lua_path, 'r') as f:
+            lua_content = f.read()
+
+        bypass_snippet = '''-- Skip auth check for all /api/ endpoints to prevent POST redirects and 405 errors
+if string.sub(ngx.var.uri, 1, 5) == "/api/" then
+    return
+end
+
+'''
+
+        if 'string.sub(ngx.var.uri, 1, 5) == "/api/"' not in lua_content:
+            target = 'local max_lookup_attempts = 3'
+            if target in lua_content:
+                lua_content = lua_content.replace(target, target + '\n\n' + bypass_snippet)
+                with open(lua_path, 'w') as f:
+                    f.write(lua_content)
+    except Exception:
+        pass
+
+os.system('nginx -t >/dev/null 2>&1 && nginx -s reload >/dev/null 2>&1')

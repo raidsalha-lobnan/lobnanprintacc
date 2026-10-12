@@ -51591,6 +51591,9 @@
       "bankTreasuryCode": "1105",
       "isAccountingPosted": true,
       "postedAt": "2026-10-12T15:52:32.017Z"
+    },
+    {
+      "id": "test-1"
     }
   ],
   "purchases": [],
