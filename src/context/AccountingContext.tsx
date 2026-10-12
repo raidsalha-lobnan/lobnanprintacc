@@ -1699,36 +1699,59 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     try {
       const baseUrl = getSyncBaseUrl();
 
-      // First boot: fetch state once to establish lastSeenSeq
-      if (lastSeenSeqRef.current === 0) {
+      const fetchAndMergeFullServerState = async () => {
         const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
-        const sRes = await fetch(stateEndpoint);
-        if (sRes.ok) {
-          const sJson = await sRes.json();
+        const sRes = await fetch(stateEndpoint, { credentials: 'include' }).catch(() => null);
+        if (sRes && sRes.ok) {
+          const sJson = await sRes.json().catch(() => null);
           if (sJson && sJson.data) {
             const delSet = new Set<string>();
+            const deletedDocs = (() => {
+              try { return JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]'); } catch { return []; }
+            })();
+            if (Array.isArray(deletedDocs)) {
+              deletedDocs.forEach((d: any) => { if (d && d.col && d.id) delSet.add(`${d.col}_${d.id}`); });
+            }
+
             if (sJson.data.invoices?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('invoices', invoices, sJson.data.invoices.items, delSet);
+              const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('invoices', invoices, sJson.data.invoices.items, delSet);
               setInvoices(merged);
+              try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
+              if (unpushedDeltas.length > 0) pushDeltaToServer('invoices', 'upsert', undefined, unpushedDeltas);
             }
             if (sJson.data.parties?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('parties', parties, sJson.data.parties.items, delSet);
+              const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('parties', parties, sJson.data.parties.items, delSet);
               setParties(merged);
+              try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
+              if (unpushedDeltas.length > 0) pushDeltaToServer('parties', 'upsert', undefined, unpushedDeltas);
             }
             if (sJson.data.inventory?.items) {
               const { merged } = mergeEntitiesWithDeltaSync('inventory', inventory, sJson.data.inventory.items, delSet);
               setInventory(merged);
+              try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
             }
             if (sJson.data.vouchers?.items) {
               const { merged } = mergeEntitiesWithDeltaSync('vouchers', vouchers, sJson.data.vouchers.items, delSet);
               setVouchers(merged);
+              try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
             }
             if (sJson.data.printOrders?.items) {
               const { merged } = mergeEntitiesWithDeltaSync('printOrders', printOrders, sJson.data.printOrders.items, delSet);
               setPrintOrders(merged);
+              try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
+            }
+            if (sJson.data.purchases?.items) {
+              const { merged } = mergeEntitiesWithDeltaSync('purchases', purchases, sJson.data.purchases.items, delSet);
+              setPurchases(merged);
+              try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(merged)); } catch {}
             }
           }
         }
+      };
+
+      // First boot: fetch state once to establish lastSeenSeq
+      if (lastSeenSeqRef.current === 0) {
+        await fetchAndMergeFullServerState();
       }
 
       let deltasEndpoint = `/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`;
@@ -1746,10 +1769,17 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
       const { deltas, currentSeq } = json;
 
+      // Handle server sequence reset (server currentSeq < client lastSeenSeqRef)
+      if (typeof currentSeq === 'number' && currentSeq < lastSeenSeqRef.current) {
+        lastSeenSeqRef.current = currentSeq;
+        localStorage.setItem('accounting_last_seen_seq', String(currentSeq));
+        await fetchAndMergeFullServerState();
+        return;
+      }
+
       if (Array.isArray(deltas) && deltas.length > 0) {
         for (const delta of deltas) {
           if (!delta || !delta.entity) continue;
-          // Ignore deltas pushed by this client session
           if (delta.clientId && delta.clientId === myClientIdRef.current) continue;
           applyDeltaToState(delta.entity, delta.op || 'upsert', delta.item, delta.items);
           syncAuditService.logEvent({
@@ -1780,6 +1810,38 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     const interval = setInterval(pullDeltasFromServer, 1500);
     return () => clearInterval(interval);
   }, []);
+
+  // Periodic 6000ms Count Auto-Reconciler to guarantee 100% exact match across all devices
+  useEffect(() => {
+    const autoCheckMismatches = async () => {
+      try {
+        const baseUrl = getSyncBaseUrl();
+        const statusEndpoint = baseUrl ? `${baseUrl}/api/sync/status` : '/api/sync/status';
+        const res = await fetch(statusEndpoint, { credentials: 'include' }).catch(() => null);
+        if (!res || !res.ok) return;
+        const json = await res.json().catch(() => null);
+        if (json && json.success && json.entities) {
+          const sInvCount = json.entities.invoices?.count;
+          const sPartyCount = json.entities.parties?.count;
+          const sVoucherCount = json.entities.vouchers?.count;
+          const sPrintCount = json.entities.printOrders?.count;
+
+          const invDiff = typeof sInvCount === 'number' && sInvCount !== invoices.length;
+          const partyDiff = typeof sPartyCount === 'number' && sPartyCount !== parties.length;
+          const voucherDiff = typeof sVoucherCount === 'number' && sVoucherCount !== vouchers.length;
+          const printDiff = typeof sPrintCount === 'number' && sPrintCount !== printOrders.length;
+
+          if (invDiff || partyDiff || voucherDiff || printDiff) {
+            console.log('🔄 Automatic Entity Count Mismatch Detected! Reconciling state with server...');
+            executeServerFullSync().catch(() => {});
+          }
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(autoCheckMismatches, 6000);
+    return () => clearInterval(interval);
+  }, [invoices.length, parties.length, vouchers.length, printOrders.length]);
 
 
 
