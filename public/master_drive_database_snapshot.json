@@ -8,7 +8,7 @@
     {
       "description": "السيولة النقدية في الخزينة والكاشير",
       "code": "1101",
-      "balance": 1678,
+      "balance": 1738,
       "type": "asset",
       "name": "الصندوق النقدي (الكاشير الرئيسي)",
       "id": "1101",
@@ -57,7 +57,7 @@
       "description": "قيمة مخزون البضائع والأدوات المكتبية المتاحة",
       "name": "مخزون المواد الخام والقرطاسية",
       "type": "asset",
-      "balance": -69842.8
+      "balance": -69850.8
     },
     {
       "id": "1302",
@@ -133,7 +133,7 @@
     },
     {
       "code": "4101",
-      "balance": 92802.72,
+      "balance": 92842.72,
       "description": "مبيعات الكاشير من الأدوات المكتبية والقرطاسية",
       "id": "4101",
       "type": "revenue",
@@ -168,7 +168,7 @@
       "balance": 0
     },
     {
-      "balance": 69842.8,
+      "balance": 69850.8,
       "description": "تكلفة شراء الأصناف المباعة",
       "isSystem": true,
       "code": "5101",
@@ -1708,7 +1708,7 @@
       "referenceType": "print_order"
     },
     {
-      "description": "عربون أمر طباعة JOB-2026-0043 - العميل: زبون نقدي",
+      "description": "عربون أمر طباعة JOB-2026-0043 - العميل: زبون نق��ي",
       "entryNumber": "JE-2026-0224",
       "date": "2026-10-05",
       "lines": [
@@ -3822,7 +3822,7 @@
         }
       ],
       "createdAt": "2026-10-09T12:26:18.262Z",
-      "description": "فاتورة مبيعات رقم INV-0108 - زبون نقدي",
+      "description": "فاتورة مبيعات رقم INV-0108 - ��بون نقدي",
       "entryNumber": "JE-2026-0468"
     },
     {
@@ -4367,7 +4367,7 @@
           "debit": 0,
           "credit": 459,
           "accountName": "مخزون الكتب والقرطاسية",
-          "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-2026-0004"
+          "description": "صرف مخزني لقيمة البضاع�� المباعة بفاتورة INV-2026-0004"
         }
       ],
       "createdAt": "2026-10-03T18:54:49.491Z",
@@ -6029,7 +6029,7 @@
         },
         {
           "accountName": "مخزون الكتب والقرطاسية",
-          "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0024",
+          "description": "صرف مخزني لقيمة البضاعة المباعة بفاتور�� INV-0024",
           "debit": 0,
           "credit": 1,
           "accountCode": "1301"
@@ -6057,8 +6057,8 @@
         {
           "debit": 0,
           "credit": 10,
-          "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
-          "description": "صافي مبيعات البضاعة وال��ط��وعات (مح��ل للشيكل)",
+          "accountName": "إيرادات مبيعات المكتب�� والقرطاسية",
+          "description": "��افي مبيعات البضاعة وال��ط��وعات (مح��ل للشيكل)",
           "accountCode": "4101"
         }
       ]
@@ -6295,7 +6295,7 @@
       "lines": [
         {
           "accountCode": "5101",
-          "description": "تكلفة مبيعات أصناف فاتورة INV-0027",
+          "description": "تكلفة مبيعات أ����اف فاتورة INV-0027",
           "accountName": "تكلفة مبي��ات ا��قرطاسية والكتب",
           "credit": 0,
           "debit": 1
@@ -10683,7 +10683,7 @@
     {
       "lines": [
         {
-          "accountName": "العملاء والذمم المدينة",
+          "accountName": "الع��لاء والذمم المدينة",
           "description": "المتبقي آجل / ذمم لفاتورة INV-0124",
           "credit": 0,
           "debit": 4,
@@ -12927,7 +12927,7 @@
           "accountCode": "1301"
         }
       ],
-      "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0005 وتخفيض المخزون",
+      "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة م��يعات رقم INV-0005 وتخفيض المخزون",
       "entryNumber": "JE-2026-0149",
       "createdAt": "2026-10-04T20:54:13.007Z"
     },
@@ -12949,7 +12949,7 @@
         },
         {
           "debit": 0,
-          "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)",
+          "description": "صافي مبيعات البضاعة والمطبوعات (محول ��لشيكل)",
           "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
           "credit": 75,
           "accountCode": "4101"
@@ -13165,7 +13165,7 @@
           "accountCode": "1105",
           "debit": 10,
           "credit": 0,
-          "description": "تحصيل بنكي / شبكة لفا��ورة INV-0008",
+          "description": "تح��يل بنكي / شبكة لفا��ورة INV-0008",
           "accountName": "البنك / الش��كة"
         },
         {
@@ -14173,6 +14173,56 @@
       "referenceId": "inv-pos-1791704577884-9bmbl",
       "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0274 وتخفيض المخزون",
       "date": "2026-10-01"
+    },
+    {
+      "date": "2026-10-12",
+      "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-10001 وتخفيض المخزون",
+      "referenceType": "cogs",
+      "referenceId": "inv-pos-1791820352014-pqyox",
+      "lines": [
+        {
+          "accountCode": "5101",
+          "accountName": "تكلفة مبيعات القرطاسية والكتب",
+          "debit": 4,
+          "credit": 0,
+          "description": "تكلفة مبيعات أصناف فاتورة INV-10001"
+        },
+        {
+          "accountCode": "1301",
+          "accountName": "مخزون الكتب والقرطاسية",
+          "debit": 0,
+          "credit": 4,
+          "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-10001"
+        }
+      ],
+      "id": "je-1791820352019-cyrk0w-872",
+      "entryNumber": "JE-2026-0557",
+      "createdAt": "2026-10-12T15:52:32.019Z"
+    },
+    {
+      "date": "2026-10-12",
+      "description": "فاتورة مبيعات رقم INV-10001 - زبون نقدي",
+      "referenceType": "pos_invoice",
+      "referenceId": "inv-pos-1791820352014-pqyox",
+      "lines": [
+        {
+          "accountCode": "1101",
+          "accountName": "الصندوق النقدي (الكاشير الرئيسي)",
+          "debit": 20,
+          "credit": 0,
+          "description": "تحصيل نقدي لفاتورة INV-10001"
+        },
+        {
+          "accountCode": "4101",
+          "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+          "debit": 0,
+          "credit": 20,
+          "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+        }
+      ],
+      "id": "je-1791820352019-l7yvo8-85",
+      "entryNumber": "JE-2026-0557",
+      "createdAt": "2026-10-12T15:52:32.019Z"
     }
   ],
   "inventory": [
@@ -14281,7 +14331,7 @@
       "stockQuantity": 0,
       "barcodeEntries": [],
       "unit": "حبة",
-      "lastMovementDate": "2026-10-03",
+      "lastMovementDate": "2026-10-12",
       "additionalBarcodes": []
     },
     {
@@ -21900,7 +21950,7 @@
       "referenceType": "pos_invoice",
       "referenceNumber": "INV-0097",
       "unitPrice": 1,
-      "time": "٠٩:٤٠ م",
+      "time": "٠��:٤٠ م",
       "id": "sm-1791398454372-409",
       "quantity": 1,
       "date": "2026-10-01",
@@ -24722,7 +24772,7 @@
     {
       "itemId": "inv-1791053010826",
       "type": "out_sale",
-      "reason": "مبيعات كاشير (جمعية قوافل ال��ير - غزة)",
+      "reason": "مبيعات كاشير (جمعية قوافل الخير - غزة)",
       "totalValue": 45,
       "performedBy": "مندوب المبيعات الرئيسي",
       "itemName": "بوستر ورقي مطبوع",
@@ -25231,6 +25281,82 @@
       "type": "out_sale",
       "quantity": 13,
       "date": "2026-10-01"
+    },
+    {
+      "itemId": "inv-1790637265942",
+      "itemCode": "PRI-0002",
+      "itemName": "مقوى A4  مطبوع",
+      "category": "print_raw",
+      "date": "2026-10-12",
+      "time": "٠٦:٥١ م",
+      "type": "out_sale",
+      "quantity": 1,
+      "balanceBefore": 0,
+      "balanceAfter": 0,
+      "unitPrice": 1,
+      "totalValue": 1,
+      "referenceType": "pos_invoice",
+      "referenceNumber": "INV-10000",
+      "reason": "مبيعات كاشير (الجمعية الإسلامية - مدينة بيت لاهيا)",
+      "performedBy": "مندوب المبيعات الرئيسي",
+      "id": "sm-1791820305907-143"
+    },
+    {
+      "itemId": "inv-1790637265942",
+      "itemCode": "PRI-0002",
+      "itemName": "مقوى A4  مطبوع",
+      "category": "print_raw",
+      "date": "2026-10-12",
+      "time": "٠٦:٥١ م",
+      "type": "out_sale",
+      "quantity": 1,
+      "balanceBefore": 0,
+      "balanceAfter": 0,
+      "unitPrice": 1,
+      "totalValue": 1,
+      "referenceType": "pos_invoice",
+      "referenceNumber": "INV-10000",
+      "reason": "مبيعات كاشير (الجمعية الإسلامية - مدينة بيت لاهيا)",
+      "performedBy": "مندوب المبيعات الرئيسي",
+      "id": "sm-1791820305904-859"
+    },
+    {
+      "itemId": "inv-1790637265942",
+      "itemCode": "PRI-0002",
+      "itemName": "مقوى A4  مطبوع",
+      "category": "print_raw",
+      "date": "2026-10-12",
+      "time": "٠٦:٥٢ م",
+      "type": "out_sale",
+      "quantity": 4,
+      "balanceBefore": 0,
+      "balanceAfter": 0,
+      "unitPrice": 1,
+      "totalValue": 4,
+      "referenceType": "pos_invoice",
+      "referenceNumber": "INV-10001",
+      "reason": "مبيعات كاشير (زبون نقدي)",
+      "performedBy": "مندوب المبيعات الرئيسي",
+      "id": "sm-1791820352021-139"
+    },
+    {
+      "itemId": "inv-1790637265942",
+      "itemCode": "PRI-0002",
+      "itemName": "مقوى A4  مطبوع",
+      "category": "print_raw",
+      "date": "2026-10-12",
+      "time": "٠٦:٥٢ م",
+      "type": "out_sale",
+      "quantity": 4,
+      "balanceBefore": 0,
+      "balanceAfter": 0,
+      "unitPrice": 1,
+      "totalValue": 4,
+      "referenceType": "pos_invoice",
+      "referenceNumber": "INV-10001",
+      "reason": "مبيعات كاشير (زبون نقدي)",
+      "performedBy": "مندوب المبيعات الرئيسي",
+      "id": "sm-1791820352018-737"
     }
   ],
   "parties": [
@@ -27810,7 +27936,7 @@
       "remainingBalance": 0,
       "totalPrice": 52,
       "orderNumber": "JOB-2026-0040",
-      "dimensions": "0 × 0 سم",
+      "dimensions": "0 × 0 س��",
       "createdAt": "2026-10-05",
       "id": "job-1791227355741",
       "colorType": "ألوان كاملة",
@@ -31735,7 +31861,7 @@
           "discount": 0,
           "notes": "",
           "count": 1,
-          "itemName": "�����طبوعات جلدية - جلد"
+          "itemName": "����������������طبوعات جلدية - جلد"
         },
         {
           "itemId": "inv-1790461128067",
@@ -37002,7 +37128,7 @@
           "userId": "usr-1",
           "id": "st-init-1791666442449",
           "date": "2026-10-03",
-          "notes": "إنشاء الفاتورة وتثبيتها في النظام",
+          "notes": "إنشاء الفاتور�� وتثبيتها في النظام",
           "userName": "م. رائد صالحة",
           "previousStatus": "new",
           "newStatus": "new",
@@ -40541,7 +40667,7 @@
           "hasDimensions": false,
           "notes": "",
           "taxRate": 0,
-          "itemName": "جاليه سي�����كون ��ون بيج",
+          "itemName": "ج��ليه ��ي�����كون ��ون بيج",
           "imageThumbnail": "",
           "barcode": "",
           "width": 0,
@@ -47571,7 +47697,7 @@
       "notes": "",
       "taxRate": 0,
       "isAccountingPosted": true,
-      "representative": "مندوب المبيعات الرئيسي",
+      "representative": "مندوب المبيع��ت الرئيسي",
       "customerId": "pt-1790460764568",
       "baseTotalAmount": 16,
       "bankTreasuryCode": "1105",
@@ -49917,7 +50043,7 @@
       "notes": "",
       "isAccountingPosted": true,
       "bankPaidAmount": 0,
-      "branch": "الفرع الرئيسي  Main Branch"
+      "branch": "الفرع ال��ئيسي  Main Branch"
     },
     {
       "postedAt": "2026-10-06T22:56:56.026Z",
@@ -51315,6 +51441,156 @@
       "userId": "usr-1",
       "id": "inv-pos-1791788179253-781z5",
       "paymentStatus": "credit"
+    },
+    {
+      "id": "inv-pos-1791820305903-5vif3",
+      "invoiceNumber": "INV-10000",
+      "date": "2026-10-12",
+      "customerId": "pt-1790461003689",
+      "customerName": "الجمعية الإسلامية - مدينة بيت لاهيا",
+      "type": "pos",
+      "items": [
+        {
+          "itemId": "inv-1790637265942",
+          "itemCode": "PRI-0002",
+          "itemName": "مقوى A4  مطبوع",
+          "category": "print_raw",
+          "quantity": 1,
+          "unitPrice": 5,
+          "discount": 0,
+          "tax": 0,
+          "taxRate": 0,
+          "total": 5,
+          "description": "",
+          "notes": "",
+          "hasDimensions": false,
+          "length": 0,
+          "width": 0,
+          "count": 1,
+          "unit": "حبة",
+          "attachments": [],
+          "barcode": "",
+          "imageThumbnail": ""
+        }
+      ],
+      "subtotal": 5,
+      "discountTotal": 0,
+      "taxRate": 0,
+      "taxAmount": 0,
+      "totalAmount": 5,
+      "paidAmount": 0,
+      "remainingAmount": 5,
+      "paymentMethod": "credit",
+      "status": "unpaid",
+      "paymentStatus": "credit",
+      "workflowStatus": "new",
+      "statusHistory": [
+        {
+          "id": "st-init-1791820305904",
+          "userName": "م. رائد صالحة",
+          "userId": "usr-1",
+          "date": "2026-10-12",
+          "time": "٠٦:٥١:٤٥ م",
+          "previousStatus": "new",
+          "newStatus": "new",
+          "notes": "إنشاء الفاتورة وتثبيتها في النظام",
+          "createdAt": "2026-10-12T15:51:45.904Z"
+        }
+      ],
+      "notes": "",
+      "additionalCharges": 0,
+      "representative": "مندوب المبيعات الرئيسي",
+      "branch": "الفرع الرئيسي  Main Branch",
+      "branchId": "br-1",
+      "userId": "usr-1",
+      "userName": "م. رائد صالحة",
+      "warehouse": "المستودع الرئيسي",
+      "currency": "ILS",
+      "currencySymbol": "₪",
+      "exchangeRate": 1,
+      "baseTotalAmount": 5,
+      "basePaidAmount": 0,
+      "cashPaidAmount": 0,
+      "bankPaidAmount": 0,
+      "cashTreasuryCode": "1101",
+      "bankTreasuryCode": "1105",
+      "isAccountingPosted": true,
+      "postedAt": "2026-10-12T15:51:45.904Z"
+    },
+    {
+      "id": "inv-pos-1791820352014-pqyox",
+      "invoiceNumber": "INV-10001",
+      "date": "2026-10-12",
+      "customerId": "pt-1790460764568",
+      "customerName": "زبون نقدي",
+      "type": "pos",
+      "items": [
+        {
+          "itemId": "inv-1790637265942",
+          "itemCode": "PRI-0002",
+          "itemName": "مقوى A4  مطبوع",
+          "category": "print_raw",
+          "quantity": 4,
+          "unitPrice": 5,
+          "discount": 0,
+          "tax": 0,
+          "taxRate": 0,
+          "total": 20,
+          "description": "",
+          "notes": "",
+          "hasDimensions": false,
+          "length": 0,
+          "width": 0,
+          "count": 1,
+          "unit": "حبة",
+          "attachments": [],
+          "barcode": "",
+          "imageThumbnail": ""
+        }
+      ],
+      "subtotal": 20,
+      "discountTotal": 0,
+      "taxRate": 0,
+      "taxAmount": 0,
+      "totalAmount": 20,
+      "paidAmount": 20,
+      "remainingAmount": 0,
+      "paymentMethod": "cash",
+      "status": "paid",
+      "paymentStatus": "paid_cash",
+      "workflowStatus": "new",
+      "statusHistory": [
+        {
+          "id": "st-init-1791820352016",
+          "userName": "م. رائد صالحة",
+          "userId": "usr-1",
+          "date": "2026-10-12",
+          "time": "٠٦:٥٢:٣٢ م",
+          "previousStatus": "new",
+          "newStatus": "new",
+          "notes": "إنشاء الفاتورة وتثبيتها في النظام",
+          "createdAt": "2026-10-12T15:52:32.017Z"
+        }
+      ],
+      "notes": "",
+      "additionalCharges": 0,
+      "representative": "مندوب المبيعات الرئيسي",
+      "branch": "الفرع الرئيسي  Main Branch",
+      "branchId": "br-1",
+      "userId": "usr-1",
+      "userName": "م. رائد صالحة",
+      "warehouse": "المستودع الرئيسي",
+      "currency": "ILS",
+      "currencySymbol": "₪",
+      "exchangeRate": 1,
+      "baseTotalAmount": 20,
+      "basePaidAmount": 20,
+      "cashPaidAmount": 20,
+      "bankPaidAmount": 0,
+      "cashTreasuryCode": "1101",
+      "bankTreasuryCode": "1105",
+      "isAccountingPosted": true,
+      "postedAt": "2026-10-12T15:52:32.017Z"
     }
   ],
   "purchases": [],
@@ -51563,7 +51839,7 @@
     },
     {
       "voucherNumber": "RCT-INV-0208",
-      "description": "سند تحصيل فوري لفاتورة مبيعات رقم INV-0208",
+      "description": "سند تحصيل فوري لفاتورة مبيعات ��قم INV-0208",
       "type": "receipt",
       "amount": 58,
       "id": "vch-inv-inv-pos-1791668621509-kvnmj",
@@ -53012,6 +53288,18 @@
       "type": "receipt",
       "accountCode": "1201",
       "paymentMethod": "card"
+    },
+    {
+      "id": "vch-inv-inv-pos-1791820352014-pqyox",
+      "voucherNumber": "RCT-INV-10001",
+      "type": "receipt",
+      "date": "2026-10-12",
+      "partyId": "pt-1790460764568",
+      "partyName": "زبون نقدي",
+      "amount": 20,
+      "paymentMethod": "cash",
+      "accountCode": "1201",
+      "description": "سند تحصيل فوري لفاتورة مبيعات رقم INV-10001"
     }
   ],
   "treasuries": [
@@ -53025,6 +53313,26 @@
       "name": "الصندوق النقدي (الخزينة الرئيسية)",
       "notes": "الخزينة النقدية الرئيسية لمكتب المبيعات والكاشير والسيولة متعددة العملات (شيكل، دولار، دينار)",
       "transactions": [
+        {
+          "id": "tx-1791820352027-wlbq",
+          "treasuryId": "treasury-cash-main",
+          "treasuryName": "الصندوق النقدي (الخزينة الرئيسية)",
+          "date": "2026-10-12",
+          "type": "deposit",
+          "amount": 20,
+          "currency": "ILS",
+          "currencySymbol": "₪",
+          "exchangeRate": 1,
+          "baseCurrency": "ILS",
+          "baseAmount": 20,
+          "balanceAfter": 278,
+          "balanceAfterCurrency": 278,
+          "voucherNumber": "INV-10001",
+          "partyName": "زبون نقدي",
+          "description": "تحصيل نقدي - فاتورة مبيعات رقم INV-10001 (زبون نقدي)",
+          "referenceType": "pos_sale",
+          "referenceId": "inv-pos-1791820352014-pqyox"
+        },
         {
           "treasuryId": "treasury-cash-main",
           "currencySymbol": "₪",
@@ -53510,10 +53818,10 @@
           "referenceId": "inv-pos-1791150061699"
         }
       ],
-      "balance": 1678,
+      "balance": 1738,
       "currencyBalances": {
         "USD": 0,
-        "ILS": 258,
+        "ILS": 278,
         "JOD": 0
       }
     },
