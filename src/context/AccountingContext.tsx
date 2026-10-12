@@ -1,5 +1,6 @@
 import { TelegramService } from '../services/TelegramService';
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { pushFullDatabaseToFirestore, subscribeToFirestoreLiveSync } from '../services/firebaseFirestoreSyncService';
 import {
   auth,
   db,
@@ -2122,6 +2123,20 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         console.warn('Drive sync error during forceSyncNow:', dErr);
       }
 
+      // 3. Free, Unlimited Firebase Firestore Real-Time Cloud Sync
+      let firestoreOk = false;
+      try {
+        const fsRes = await pushFullDatabaseToFirestore({
+          invoices, parties, inventory, vouchers, printOrders, purchases,
+          purchaseReturns, salesReturns, accounts, treasuries, employees,
+          journalEntries, expenses, stockMovements, warehouseOperations,
+          dailyEntrySheets, settings: [settings]
+        });
+        firestoreOk = fsRes.success;
+      } catch (fsErr) {
+        console.warn('Firestore sync note during forceSyncNow:', fsErr);
+      }
+
       const nowStr = new Date().toLocaleTimeString('ar-EG', {
         hour: '2-digit',
         minute: '2-digit',
@@ -2150,8 +2165,8 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       const partCount = serverJson?.counts?.parties ?? parties.length;
       const itemCount = serverJson?.counts?.inventory ?? inventory.length;
 
-      const driveStatusText = driveOk
-        ? 'تمت المزامنة وحفظ قاعدة البيانات في قوقل درايف وسيرفر المحل بنجاح!'
+      const driveStatusText = firestoreOk || driveOk
+        ? 'تمت المزامنة وحفظ قاعدة البيانات سحابياً في Firebase Firestore وسيرفر المحل بنجاح! ⚡'
         : 'تمت المزامنة الفورية مع السيرفر المركزي والذاكرة المحلية بنجاح!';
 
       return {

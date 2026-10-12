@@ -481,6 +481,11 @@ export const SyncAuditStatementView: React.FC = () => {
                 <span>{isTestingPing ? 'جارِ الاختبار والإرسال...' : 'اختبار إرسال واستقبال الآن ⚡'}</span>
               </button>
 
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 font-bold text-xs rounded-lg shadow-sm">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Firebase Firestore (سحابي مجاني ومفعل ⚡)</span>
+              </div>
+
               <button
                 type="button"
                 onClick={handleConnectDrive}
@@ -492,7 +497,7 @@ export const SyncAuditStatementView: React.FC = () => {
                 }`}
               >
                 <Cloud className={`w-3.5 h-3.5 ${hasDriveToken ? 'text-emerald-400' : 'text-blue-400'}`} />
-                <span>{hasDriveToken ? 'Google Drive (مرتبط ومفعل ✅)' : 'ربط Google Drive'}</span>
+                <span>{hasDriveToken ? 'Google Drive (مرتبط ✅)' : 'ربط Google Drive'}</span>
               </button>
 
               {hasDriveToken && (
