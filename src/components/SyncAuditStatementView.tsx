@@ -179,12 +179,13 @@ export const SyncAuditStatementView: React.FC = () => {
     return entitiesList.map(entityKey => {
       const localCount = localEntitiesCounts[entityKey] || 0;
       const serverEntity = serverStatus?.entities?.[entityKey];
-      const serverCount = serverEntity?.count ?? localCount;
+      // Strictly use actual server count from server response; do not fall back to localCount
+      const serverCount = serverStatus ? (serverEntity?.count ?? 0) : 0;
       const diff = localCount - serverCount;
       const lastMod = serverEntity?.lastModified ? new Date(serverEntity.lastModified) : null;
-      const lastModStr = lastMod
+      const lastModStr = serverStatus && lastMod
         ? lastMod.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-        : 'الآن';
+        : (serverStatus ? 'الآن' : 'غير متصل');
 
       const isSynced = diff === 0;
 
