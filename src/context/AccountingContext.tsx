@@ -3733,77 +3733,106 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   const importMasterDatabaseSnapshot = async (): Promise<{ success: boolean; message: string }> => {
     try {
-      const res = await fetch('/master_drive_database_snapshot.json');
-      if (!res.ok) {
-        throw new Error(`فشل تحميل ملف قاعدة البيانات الرئيسية (${res.status})`);
-      }
-      const text = await res.text();
-      if (!text || text.trim().startsWith('<')) {
-        throw new Error('استجابة غير صالحة من الخادم (ملف JSON مفقود أو تالف)');
-      }
-      const data = JSON.parse(text);
-      if (!data || typeof data !== 'object') {
-        throw new Error('ملف قاعدة البيانات غير صالح');
-      }
+      // 1. Fetch live server database state
+      let serverData: any = {};
+      try {
+        const sRes = await fetch('/api/sync/state');
+        if (sRes.ok) {
+          const sJson = await sRes.json();
+          if (sJson && sJson.data) serverData = sJson.data;
+        }
+      } catch (e) {}
 
-      if (Array.isArray(data.invoices)) {
-        setInvoices(data.invoices);
-        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data.invoices));
+      // 2. Fetch master snapshot file
+      let snapshotData: any = {};
+      try {
+        const res = await fetch('/master_drive_database_snapshot.json');
+        if (res.ok) {
+          const text = await res.text();
+          if (text && !text.trim().startsWith('<')) {
+            snapshotData = JSON.parse(text) || {};
+          }
+        }
+      } catch (e) {}
+
+      const mergeArray = (ent: string): any[] => {
+        const serverList = (serverData[ent] && Array.isArray(serverData[ent].items)) ? serverData[ent].items : [];
+        const snapshotList = Array.isArray(snapshotData[ent]) ? snapshotData[ent] : [];
+        const map = new Map<string, any>();
+        for (const item of snapshotList) if (item && item.id) map.set(String(item.id), item);
+        for (const item of serverList) if (item && item.id) map.set(String(item.id), item);
+        return Array.from(map.values());
+      };
+
+      const finalInvoices = mergeArray('invoices');
+      const finalParties = mergeArray('parties');
+      const finalInventory = mergeArray('inventory');
+      const finalPrintOrders = mergeArray('printOrders');
+      const finalVouchers = mergeArray('vouchers');
+      const finalPurchases = mergeArray('purchases');
+      const finalAccounts = mergeArray('accounts');
+      const finalTreasuries = mergeArray('treasuries');
+      const finalEmployees = mergeArray('employees');
+      const finalBranches = mergeArray('branches');
+      const finalWarehouses = mergeArray('warehouses');
+
+      if (finalInvoices.length > 0) {
+        setInvoices(finalInvoices);
+        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(finalInvoices));
       }
-      if (Array.isArray(data.parties)) {
-        setParties(data.parties);
-        localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(data.parties));
+      if (finalParties.length > 0) {
+        setParties(finalParties);
+        localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(finalParties));
       }
-      if (Array.isArray(data.inventory)) {
-        setInventory(data.inventory);
-        localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(data.inventory));
+      if (finalInventory.length > 0) {
+        setInventory(finalInventory);
+        localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(finalInventory));
       }
-      if (Array.isArray(data.printOrders)) {
-        setPrintOrders(data.printOrders);
-        localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(data.printOrders));
+      if (finalPrintOrders.length > 0) {
+        setPrintOrders(finalPrintOrders);
+        localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(finalPrintOrders));
       }
-      if (Array.isArray(data.vouchers)) {
-        setVouchers(data.vouchers);
-        localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(data.vouchers));
+      if (finalVouchers.length > 0) {
+        setVouchers(finalVouchers);
+        localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(finalVouchers));
       }
-      if (Array.isArray(data.purchases)) {
-        setPurchases(data.purchases);
-        localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(data.purchases));
+      if (finalPurchases.length > 0) {
+        setPurchases(finalPurchases);
+        localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(finalPurchases));
       }
-      if (Array.isArray(data.accounts)) {
-        setAccounts(data.accounts);
-        localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(data.accounts));
+      if (finalAccounts.length > 0) {
+        setAccounts(finalAccounts);
+        localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(finalAccounts));
       }
-      if (Array.isArray(data.treasuries)) {
-        setTreasuries(data.treasuries);
-        localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(data.treasuries));
+      if (finalTreasuries.length > 0) {
+        setTreasuries(finalTreasuries);
+        localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(finalTreasuries));
       }
-      if (Array.isArray(data.employees)) {
-        setEmployees(data.employees);
-        localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(data.employees));
+      if (finalEmployees.length > 0) {
+        setEmployees(finalEmployees);
+        localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(finalEmployees));
       }
-      if (Array.isArray(data.branches)) {
-        setBranches(data.branches);
-        localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(data.branches));
+      if (finalBranches.length > 0) {
+        setBranches(finalBranches);
+        localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(finalBranches));
       }
-      if (Array.isArray(data.warehouses)) {
-        setWarehouses(data.warehouses);
-        localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(data.warehouses));
+      if (finalWarehouses.length > 0) {
+        setWarehouses(finalWarehouses);
+        localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(finalWarehouses));
       }
-      if (data.settings && typeof data.settings === 'object') {
-        setSettings(data.settings);
-        localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(data.settings));
+      if (snapshotData.settings && typeof snapshotData.settings === 'object') {
+        setSettings(snapshotData.settings);
+        localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(snapshotData.settings));
       }
 
       localStorage.setItem(`${STORAGE_KEY}_last_sync`, new Date().toISOString());
       localStorage.removeItem(`${STORAGE_KEY}_has_unsynced`);
       localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
 
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-
-      return { success: true, message: 'تم استيراد واعتماد قاعدة البيانات الرئيسية بنجاح، جاري إعادة تحميل التطبيق...' };
+      return {
+        success: true,
+        message: `تم استيعاب واعتماد أحدث نسخة رئيسية بنجاح (${finalInvoices.length} فاتورة).`
+      };
     } catch (err: any) {
       console.error('Failed to import master database snapshot:', err);
       return { success: false, message: err?.message || 'فشل استيراد قاعدة البيانات' };
