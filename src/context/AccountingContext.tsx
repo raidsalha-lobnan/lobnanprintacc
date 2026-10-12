@@ -1495,176 +1495,192 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   const canGoBack = tabHistory.length > 1 || activeTab !== 'home';
   const [editingPosInvoiceId, setEditingPosInvoiceId] = useState<string | null>(null);
 
-  // Multi-Device Central Sync Engine
-  const lastServerSyncTimeRef = React.useRef<number>(0);
+  // Multi-Device Incremental Delta Sync Engine
+  const myClientIdRef = React.useRef<string>(
+    'client-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7)
+  );
+  const lastSeenSeqRef = React.useRef<number>(
+    parseInt(localStorage.getItem('accounting_last_seen_seq') || '0', 10) || 0
+  );
 
-  const pushToServerSync = (entity: string, item: any, items?: any[]) => {
+  // Send single operation delta to server (Fire-and-forget + sequence tracking)
+  const pushDeltaToServer = (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]) => {
     try {
-      fetch('/api/sync/push', {
+      // 1. Instant local BroadcastChannel notification for all open tabs in same browser
+      if (syncChannelRef.current) {
+        try {
+          syncChannelRef.current.postMessage({
+            type: 'SYNC_DELTA_EVENT',
+            payload: { entity, op, item, items, clientId: myClientIdRef.current }
+          });
+        } catch {}
+      }
+
+      // 2. Post single delta record to server endpoint /api/sync/delta
+      fetch('/api/sync/delta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity, item, items })
+        body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
       }).then(res => res.json()).then(data => {
-        console.log('✓ Instant Server Push Succeeded for', entity, ':', data?.count);
-      }).catch(e => {
-        console.warn('Push sync retry notice:', e);
-      });
-    } catch (e) {}
+        if (data && typeof data.seq === 'number') {
+          lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, data.seq);
+          localStorage.setItem('accounting_last_seen_seq', String(lastSeenSeqRef.current));
+        }
+      }).catch(() => {});
+    } catch {}
   };
 
-  // Flag to push local existing records to sync hub on boot
-  const hasUploadedLocalSeedRef = React.useRef<boolean>(false);
+  // Backward-compatible alias for existing entity calls
+  const pushToServerSync = (entity: string, item?: any, items?: any[]) => {
+    pushDeltaToServer(entity, 'upsert', item, items);
+  };
 
-  const pullServerSyncState = async () => {
-    try {
-      // First boot: push whatever this client has locally to the server hub so every device shares its records!
-      if (!hasUploadedLocalSeedRef.current) {
-        hasUploadedLocalSeedRef.current = true;
-        const entitiesToSeed = ['invoices', 'parties', 'inventory', 'vouchers', 'printOrders'];
-        for (const ent of entitiesToSeed) {
-          try {
-            const raw = localStorage.getItem(`${STORAGE_KEY}_${ent}`);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                fetch('/api/sync/push', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ entity: ent, items: parsed })
-                }).catch(() => {});
-              }
-            }
-          } catch {}
+  // Apply single or batch deltas to React state & localStorage
+  const applyDeltaToState = (entity: string, op: 'upsert' | 'delete', item?: any, items?: any[]) => {
+    const list: any[] = items || (item ? [item] : []);
+    if (list.length === 0) return;
+
+    if (entity === 'invoices') {
+      setInvoices(prev => {
+        const map = new Map<string, Invoice>();
+        for (const inv of prev) if (inv && inv.id) map.set(String(inv.id), inv);
+        for (const it of list) {
+          if (!it || !it.id) continue;
+          if (op === 'delete' || it._deleted) map.delete(String(it.id));
+          else map.set(String(it.id), it);
         }
-      }
-
-      const res = await fetch('/api/sync/state');
-      if (!res.ok) return;
-      const json = await res.json();
-      if (!json || !json.data) return;
-
-      const delSet = (() => {
-        const s = new Set<string>();
-        try {
-          const l = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
-          if (Array.isArray(l)) l.forEach((d: any) => { if (d && d.col && d.id) s.add(`${d.col}_${d.id}`); });
-        } catch {}
-        return s;
-      })();
-
-      // Print Orders
-      if (json.data.printOrders && Array.isArray(json.data.printOrders.items)) {
-        const serverOrders: PrintJobOrder[] = json.data.printOrders.items;
-        setPrintOrders(prev => {
-          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('printOrders', prev, serverOrders, delSet);
-          if (unpushedDeltas.length > 0) {
-            pushToServerSync('printOrders', null, unpushedDeltas);
-          }
-          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
-            return prev;
-          }
-          try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
-          return merged;
+        const merged = Array.from(map.values());
+        merged.sort((a, b) => {
+          const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+          const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+          if (numA !== numB) return numB - numA;
+          return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
         });
-      }
-
-      // Vouchers
-      if (json.data.vouchers && Array.isArray(json.data.vouchers.items)) {
-        const serverVouchers: PaymentVoucher[] = json.data.vouchers.items;
-        setVouchers(prev => {
-          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('vouchers', prev, serverVouchers, delSet);
-          if (unpushedDeltas.length > 0) {
-            pushToServerSync('vouchers', null, unpushedDeltas);
-          }
-          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
-            return prev;
-          }
-          try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
-          return merged;
-        });
-      }
-
-      // Invoices (Sales, POS, Manual, Special, Returns)
-      if (json.data.invoices && Array.isArray(json.data.invoices.items)) {
-        const serverInvoices: Invoice[] = json.data.invoices.items;
-        setInvoices(prev => {
-          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('invoices', prev, serverInvoices, delSet);
-          if (unpushedDeltas.length > 0) {
-            pushToServerSync('invoices', null, unpushedDeltas);
-          }
-
-          merged.sort((a, b) => {
-            const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-            const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-            if (numA !== numB) return numB - numA;
-            return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
-          });
-
-          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
-            return prev;
-          }
-
-          try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
-          return merged;
-        });
-      }
-
-      // Parties (Customers & Suppliers)
-      if (json.data.parties && Array.isArray(json.data.parties.items)) {
-        const serverParties: Party[] = json.data.parties.items;
-        setParties(prev => {
-          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('parties', prev, serverParties, delSet);
-          if (unpushedDeltas.length > 0) {
-            pushToServerSync('parties', null, unpushedDeltas);
-          }
-          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
-            return prev;
-          }
-          try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
-          return merged;
-        });
-      }
-
-      // Inventory
-      if (json.data.inventory && Array.isArray(json.data.inventory.items)) {
-        const serverItems: InventoryItem[] = json.data.inventory.items;
-        setInventory(prev => {
-          const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('inventory', prev, serverItems, delSet);
-          if (unpushedDeltas.length > 0) {
-            pushToServerSync('inventory', null, unpushedDeltas);
-          }
-          if (merged.length === prev.length && JSON.stringify(merged) === JSON.stringify(prev)) {
-            return prev;
-          }
-          try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
-          return merged;
-        });
-      }
-    } catch (e) {
-      // offline or network hiccup
+        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'parties') {
+      setParties(prev => {
+        const map = new Map<string, Party>();
+        for (const p of prev) if (p && p.id) map.set(String(p.id), p);
+        for (const it of list) {
+          if (!it || !it.id) continue;
+          if (op === 'delete' || it._deleted) map.delete(String(it.id));
+          else map.set(String(it.id), it);
+        }
+        const merged = Array.from(map.values());
+        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'inventory') {
+      setInventory(prev => {
+        const map = new Map<string, InventoryItem>();
+        for (const it of prev) if (it && it.id) map.set(String(it.id), it);
+        for (const it of list) {
+          if (!it || !it.id) continue;
+          if (op === 'delete' || it._deleted) map.delete(String(it.id));
+          else map.set(String(it.id), it);
+        }
+        const merged = Array.from(map.values());
+        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'vouchers') {
+      setVouchers(prev => {
+        const map = new Map<string, PaymentVoucher>();
+        for (const v of prev) if (v && v.id) map.set(String(v.id), v);
+        for (const it of list) {
+          if (!it || !it.id) continue;
+          if (op === 'delete' || it._deleted) map.delete(String(it.id));
+          else map.set(String(it.id), it);
+        }
+        const merged = Array.from(map.values());
+        try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } else if (entity === 'printOrders') {
+      setPrintOrders(prev => {
+        const map = new Map<string, PrintJobOrder>();
+        for (const po of prev) if (po && po.id) map.set(String(po.id), po);
+        for (const it of list) {
+          if (!it || !it.id) continue;
+          if (op === 'delete' || it._deleted) map.delete(String(it.id));
+          else map.set(String(it.id), it);
+        }
+        const merged = Array.from(map.values());
+        try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
+        return merged;
+      });
     }
   };
 
-  // Immediate and continuous multi-device live sync with server database
+  // Poll server for new deltas since lastSeenSeq
+  const pullDeltasFromServer = async () => {
+    try {
+      // First boot: fetch state once to establish lastSeenSeq
+      if (lastSeenSeqRef.current === 0) {
+        const sRes = await fetch('/api/sync/state');
+        if (sRes.ok) {
+          const sJson = await sRes.json();
+          if (sJson && sJson.data) {
+            const delSet = new Set<string>();
+            if (sJson.data.invoices?.items) {
+              const { merged } = mergeEntitiesWithDeltaSync('invoices', invoices, sJson.data.invoices.items, delSet);
+              setInvoices(merged);
+            }
+            if (sJson.data.parties?.items) {
+              const { merged } = mergeEntitiesWithDeltaSync('parties', parties, sJson.data.parties.items, delSet);
+              setParties(merged);
+            }
+            if (sJson.data.inventory?.items) {
+              const { merged } = mergeEntitiesWithDeltaSync('inventory', inventory, sJson.data.inventory.items, delSet);
+              setInventory(merged);
+            }
+            if (sJson.data.vouchers?.items) {
+              const { merged } = mergeEntitiesWithDeltaSync('vouchers', vouchers, sJson.data.vouchers.items, delSet);
+              setVouchers(merged);
+            }
+            if (sJson.data.printOrders?.items) {
+              const { merged } = mergeEntitiesWithDeltaSync('printOrders', printOrders, sJson.data.printOrders.items, delSet);
+              setPrintOrders(merged);
+            }
+          }
+        }
+      }
+
+      const res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (!json || !json.success) return;
+
+      const { deltas, currentSeq } = json;
+
+      if (Array.isArray(deltas) && deltas.length > 0) {
+        for (const delta of deltas) {
+          if (!delta || !delta.entity) continue;
+          // Ignore deltas pushed by this client session
+          if (delta.clientId && delta.clientId === myClientIdRef.current) continue;
+          applyDeltaToState(delta.entity, delta.op || 'upsert', delta.item, delta.items);
+        }
+      }
+
+      if (typeof currentSeq === 'number' && currentSeq > lastSeenSeqRef.current) {
+        lastSeenSeqRef.current = currentSeq;
+        localStorage.setItem('accounting_last_seen_seq', String(currentSeq));
+      }
+    } catch {}
+  };
+
+  const pullServerSyncState = pullDeltasFromServer;
+
+  // Lightweight 1500ms delta polling loop
   useEffect(() => {
-    // Initial safe sync pull that merges without deleting local or snapshot invoices
-    pullServerSyncState();
-
-    // Secondary immediate kick after 300ms
-    const initialTimer = setTimeout(() => {
-      pullServerSyncState();
-    }, 300);
-
-    // Continuous 3000ms sync loop
-    const interval = setInterval(() => {
-      pullServerSyncState();
-    }, 3000);
-
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
+    pullDeltasFromServer();
+    const interval = setInterval(pullDeltasFromServer, 1500);
+    return () => clearInterval(interval);
   }, []);
+
+
 
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<Invoice | null>(null);
   const [directPrintOptions, setDirectPrintOptions] = useState<{ format: 'thermal' | 'a4' | 'a4-custom', autoPrint: boolean } | null>(null);

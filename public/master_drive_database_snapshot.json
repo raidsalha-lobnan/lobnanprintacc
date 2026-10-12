@@ -35733,7 +35733,7 @@
       "userName": "م. رائد صالحة",
       "postedAt": "2026-10-10T21:32:47.140Z",
       "bankTreasuryCode": "1105",
-      "warehouse": "������ل��ستودع الرئيسي",
+      "warehouse": "�������ل��ستودع الرئيسي",
       "status": "unpaid",
       "cashTreasuryCode": "1101",
       "currency": "ILS",
@@ -41440,7 +41440,7 @@
       "subtotal": 4,
       "customerName": "مطبعة السراج - أبو مؤمن هاشم",
       "status": "unpaid",
-      "representative": "مندوب المبيعات الرئ��سي",
+      "representative": "مندوب المبيعات الرئيسي",
       "notes": "",
       "postedAt": "2026-10-09T16:30:29.289Z",
       "totalAmount": 4,
@@ -51916,6 +51916,14 @@
           "total": 150
         }
       ]
+    },
+    {
+      "id": "test-inv-1",
+      "invoiceNumber": "TEST-001"
+    },
+    {
+      "id": "inv-delta-test",
+      "invoiceNumber": "INV-DELTA-001"
     }
   ],
   "purchases": [],

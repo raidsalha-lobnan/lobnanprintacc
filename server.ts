@@ -180,8 +180,80 @@ function saveEntityData(entity: string, data: any[]) {
   } catch {}
 }
 
+const DELTAS_FILE = path.join(SYNC_DATA_DIR, 'deltas.json');
+
+function loadDeltas(): { currentSeq: number; deltas: any[] } {
+  if (fs.existsSync(DELTAS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(DELTAS_FILE, 'utf8'));
+      if (data && typeof data === 'object' && Array.isArray(data.deltas)) {
+        return { currentSeq: data.currentSeq || 0, deltas: data.deltas };
+      }
+    } catch {}
+  }
+  return { currentSeq: 0, deltas: [] };
+}
+
+function recordDelta(delta: { entity: string; op: 'upsert' | 'delete'; item?: any; items?: any[]; clientId?: string }): { seq: number; currentSeq: number } {
+  const { currentSeq, deltas } = loadDeltas();
+  const nextSeq = currentSeq + 1;
+  const newDelta = { ...delta, seq: nextSeq, timestamp: Date.now() };
+
+  const updatedDeltas = [...deltas, newDelta].slice(-5000);
+  try {
+    fs.writeFileSync(DELTAS_FILE, JSON.stringify({ currentSeq: nextSeq, deltas: updatedDeltas }), 'utf8');
+  } catch {}
+
+  // Apply delta to entity file
+  const current = loadEntityData(delta.entity);
+  const map = new Map<string, any>();
+  for (const it of current) if (it && it.id) map.set(String(it.id), it);
+
+  if (delta.op === 'delete') {
+    if (delta.item && delta.item.id) map.delete(String(delta.item.id));
+    if (Array.isArray(delta.items)) for (const it of delta.items) if (it && it.id) map.delete(String(it.id));
+  } else {
+    if (delta.item && delta.item.id) map.set(String(delta.item.id), delta.item);
+    if (Array.isArray(delta.items)) for (const it of delta.items) if (it && it.id) map.set(String(it.id), it);
+  }
+
+  saveEntityData(delta.entity, Array.from(map.values()));
+  return { seq: nextSeq, currentSeq: nextSeq };
+}
+
 app.get('/api/app-version', (_req, res) => {
   res.json({ version: '1791656836620', time: Date.now() });
+});
+
+app.get('/api/sync/deltas-since', (req, res) => {
+  const sinceSeq = parseInt(String(req.query.sinceSeq || '0'), 10) || 0;
+  const { currentSeq, deltas } = loadDeltas();
+  const newDeltas = deltas.filter(d => d && typeof d.seq === 'number' && d.seq > sinceSeq);
+  res.json({
+    success: true,
+    currentSeq,
+    deltas: newDeltas,
+    count: newDeltas.length,
+    serverTime: Date.now()
+  });
+});
+
+app.post('/api/sync/delta', (req, res) => {
+  try {
+    const { entity, op = 'upsert', item, items, clientId } = req.body || {};
+    if (!entity) {
+      return res.status(400).json({ error: 'Missing entity' });
+    }
+    const { seq, currentSeq } = recordDelta({ entity, op, item, items, clientId });
+    res.json({
+      success: true,
+      seq,
+      currentSeq,
+      serverTime: Date.now()
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Delta push failed' });
+  }
 });
 
 // Summary status of all synced entities on the server

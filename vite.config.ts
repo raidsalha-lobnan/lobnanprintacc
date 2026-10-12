@@ -73,6 +73,47 @@ const ALL_SYNC_ENTITIES = [
   'expenses', 'journalEntries', 'settings', 'dailyEntrySheets'
 ];
 
+const DELTAS_FILE = path.join(SYNC_DATA_DIR, 'deltas.json');
+
+function loadDeltas(): { currentSeq: number; deltas: any[] } {
+  if (fs.existsSync(DELTAS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(DELTAS_FILE, 'utf8'));
+      if (data && typeof data === 'object' && Array.isArray(data.deltas)) {
+        return { currentSeq: data.currentSeq || 0, deltas: data.deltas };
+      }
+    } catch {}
+  }
+  return { currentSeq: 0, deltas: [] };
+}
+
+function recordDelta(delta: { entity: string; op: 'upsert' | 'delete'; item?: any; items?: any[]; clientId?: string }): { seq: number; currentSeq: number } {
+  const { currentSeq, deltas } = loadDeltas();
+  const nextSeq = currentSeq + 1;
+  const newDelta = { ...delta, seq: nextSeq, timestamp: Date.now() };
+
+  const updatedDeltas = [...deltas, newDelta].slice(-5000);
+  try {
+    fs.writeFileSync(DELTAS_FILE, JSON.stringify({ currentSeq: nextSeq, deltas: updatedDeltas }), 'utf8');
+  } catch {}
+
+  // Apply delta to entity file
+  const current = getEntityData(delta.entity);
+  const map = new Map<string, any>();
+  for (const it of current) if (it && it.id) map.set(String(it.id), it);
+
+  if (delta.op === 'delete') {
+    if (delta.item && delta.item.id) map.delete(String(delta.item.id));
+    if (Array.isArray(delta.items)) for (const it of delta.items) if (it && it.id) map.delete(String(it.id));
+  } else {
+    if (delta.item && delta.item.id) map.set(String(delta.item.id), delta.item);
+    if (Array.isArray(delta.items)) for (const it of delta.items) if (it && it.id) map.set(String(it.id), it);
+  }
+
+  putEntityData(delta.entity, Array.from(map.values()));
+  return { seq: nextSeq, currentSeq: nextSeq };
+}
+
 function syncHubPlugin() {
   return {
     name: 'central-sync-hub',
@@ -94,6 +135,54 @@ function syncHubPlugin() {
           res.setHeader('Content-Type', 'application/json');
           res.statusCode = 200;
           return res.end(JSON.stringify({ version: '1791656836620', time: Date.now() }));
+        }
+
+        if (url.startsWith('/api/sync/deltas-since') && req.method === 'GET') {
+          const urlObj = new URL(url, 'http://localhost');
+          const sinceSeq = parseInt(urlObj.searchParams.get('sinceSeq') || '0', 10) || 0;
+          const { currentSeq, deltas } = loadDeltas();
+          const newDeltas = deltas.filter(d => d && typeof d.seq === 'number' && d.seq > sinceSeq);
+
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 200;
+          return res.end(JSON.stringify({
+            success: true,
+            currentSeq,
+            deltas: newDeltas,
+            count: newDeltas.length,
+            serverTime: Date.now()
+          }));
+        }
+
+        if (url.startsWith('/api/sync/delta') && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const { entity, op = 'upsert', item, items, clientId } = JSON.parse(body || '{}');
+              if (!entity) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'Missing entity' }));
+              }
+
+              const { seq, currentSeq } = recordDelta({ entity, op, item, items, clientId });
+
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 200;
+              return res.end(JSON.stringify({
+                success: true,
+                seq,
+                currentSeq,
+                serverTime: Date.now()
+              }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: err?.message || 'Delta push failed' }));
+            }
+          });
+          return;
         }
 
         if (url.startsWith('/api/sync/status') && req.method === 'GET') {
