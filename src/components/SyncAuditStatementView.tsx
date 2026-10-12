@@ -485,11 +485,28 @@ export const SyncAuditStatementView: React.FC = () => {
                 type="button"
                 onClick={handleConnectDrive}
                 disabled={isConnectingDrive}
-                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 font-bold text-xs rounded-lg transition cursor-pointer"
+                className={`flex items-center gap-1.5 px-3 py-2 font-bold text-xs rounded-lg border transition cursor-pointer ${
+                  hasDriveToken
+                    ? 'bg-emerald-950/80 text-emerald-200 border-emerald-600/80 hover:bg-emerald-900'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-600'
+                }`}
               >
-                <Cloud className="w-3.5 h-3.5 text-blue-400" />
-                <span>{hasDriveToken ? 'قوقل درايف (مرتبط ✅)' : 'ربط Google Drive'}</span>
+                <Cloud className={`w-3.5 h-3.5 ${hasDriveToken ? 'text-emerald-400' : 'text-blue-400'}`} />
+                <span>{hasDriveToken ? 'Google Drive (مرتبط ومفعل ✅)' : 'ربط Google Drive'}</span>
               </button>
+
+              {hasDriveToken && (
+                <a
+                  href="https://drive.google.com/drive/u/0/my-drive"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 px-2.5 py-2 bg-blue-900/60 hover:bg-blue-800 text-blue-200 text-xs font-bold rounded-lg border border-blue-500/50 transition"
+                  title="فتح مجلد Lobnan_Accounting_Cloud_Database في قوقل درايف"
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5 text-blue-300" />
+                  <span>فتح مجلد درايف 📁</span>
+                </a>
+              )}
 
               <a
                 href="/api/sync/master-snapshot"

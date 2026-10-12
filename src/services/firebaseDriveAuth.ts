@@ -28,6 +28,12 @@ export async function authenticateWithGoogleDrive(): Promise<{ token: string; us
     };
   } catch (error: any) {
     console.error('Error during Google Drive OAuth via Firebase:', error);
+    if (error?.code === 'auth/popup-closed-by-user') {
+      throw new Error('تم إغلاق نافذة ربط Google Drive قبل إكمال منح الصلاحية.');
+    }
+    if (error?.code === 'auth/popup-blocked') {
+      throw new Error('تم حجب النافذة المنبثقة من قبل المتصفح. يرجى السماح بالنوافذ المنبثقة للتطبيق.');
+    }
     throw error;
   }
 }
