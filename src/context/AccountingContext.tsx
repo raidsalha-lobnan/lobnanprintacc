@@ -1554,7 +1554,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         } catch {}
       }
 
-      // 2. Post single delta record to relative server endpoint /api/sync/delta
+      // 2. Post single delta record to server endpoint /api/sync/delta
       const payloadStr = JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current });
       const baseUrl = getSyncBaseUrl();
 
@@ -1571,11 +1571,22 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         return JSON.parse(text);
       };
 
-      attemptPush('/api/sync/delta')
-        .catch(async () => {
-          if (baseUrl) return await attemptPush(`${baseUrl}/api/sync/delta`);
-          throw new Error('تعذر الوصول للسيرفر الرئيسي');
-        })
+      const executePush = async () => {
+        let primaryUrl = '/api/sync/delta';
+        if (baseUrl && baseUrl.trim() && !baseUrl.includes(window.location.host)) {
+          primaryUrl = `${baseUrl}/api/sync/delta`;
+        }
+        let data = await attemptPush(primaryUrl).catch(() => null);
+        if (!data && primaryUrl !== '/api/sync/delta') {
+          data = await attemptPush('/api/sync/delta').catch(() => null);
+        }
+        if (baseUrl && baseUrl.trim() && primaryUrl === '/api/sync/delta') {
+          attemptPush(`${baseUrl}/api/sync/delta`).catch(() => {});
+        }
+        return data;
+      };
+
+      executePush()
         .then(data => {
           if (data && (typeof data.seq === 'number' || data.success)) {
             const seq = data.seq || Date.now();
@@ -1620,77 +1631,82 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     const list: any[] = items || (item ? [item] : []);
     if (list.length === 0) return;
 
-    if (entity === 'invoices') {
-      setInvoices(prev => {
-        const map = new Map<string, Invoice>();
-        for (const inv of prev) if (inv && inv.id) map.set(String(inv.id), inv);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
-        merged.sort((a, b) => {
-          const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-          const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-          if (numA !== numB) return numB - numA;
-          return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
-        });
-        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
-        return merged;
-      });
-    } else if (entity === 'parties') {
-      setParties(prev => {
-        const map = new Map<string, Party>();
-        for (const p of prev) if (p && p.id) map.set(String(p.id), p);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
-        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
-        return merged;
-      });
-    } else if (entity === 'inventory') {
-      setInventory(prev => {
-        const map = new Map<string, InventoryItem>();
+    const applyToGenericState = <T extends { id?: string }>(
+      setter: React.Dispatch<React.SetStateAction<T[]>>,
+      storageKeySuffix: string,
+      sortFn?: (a: T, b: T) => number
+    ) => {
+      setter(prev => {
+        const map = new Map<string, T>();
         for (const it of prev) if (it && it.id) map.set(String(it.id), it);
         for (const it of list) {
           if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
+          if (op === 'delete' || (it as any)._deleted) map.delete(String(it.id));
           else map.set(String(it.id), it);
         }
         const merged = Array.from(map.values());
-        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
+        if (sortFn) merged.sort(sortFn);
+        try { localStorage.setItem(`${STORAGE_KEY}_${storageKeySuffix}`, JSON.stringify(merged)); } catch {}
         return merged;
       });
+    };
+
+    if (entity === 'invoices') {
+      applyToGenericState<Invoice>(setInvoices, 'invoices', (a, b) => {
+        const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+        if (numA !== numB) return numB - numA;
+        return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+      });
+    } else if (entity === 'parties') {
+      applyToGenericState<Party>(setParties, 'parties');
+    } else if (entity === 'inventory') {
+      applyToGenericState<InventoryItem>(setInventory, 'inventory');
     } else if (entity === 'vouchers') {
-      setVouchers(prev => {
-        const map = new Map<string, PaymentVoucher>();
-        for (const v of prev) if (v && v.id) map.set(String(v.id), v);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
-        try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
-        return merged;
-      });
+      applyToGenericState<PaymentVoucher>(setVouchers, 'vouchers');
     } else if (entity === 'printOrders') {
-      setPrintOrders(prev => {
-        const map = new Map<string, PrintJobOrder>();
-        for (const po of prev) if (po && po.id) map.set(String(po.id), po);
-        for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || it._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
-        }
-        const merged = Array.from(map.values());
-        try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
-        return merged;
-      });
+      applyToGenericState<PrintJobOrder>(setPrintOrders, 'printOrders');
+    } else if (entity === 'purchases') {
+      applyToGenericState<PurchaseInvoice>(setPurchases, 'purchases');
+    } else if (entity === 'journalEntries') {
+      applyToGenericState<JournalEntry>(setJournalEntries, 'journals');
+    } else if (entity === 'expenses') {
+      applyToGenericState<ExpenseItem>(setExpenses, 'expenses');
+    } else if (entity === 'accounts') {
+      applyToGenericState<Account>(setAccounts, 'accounts');
+    } else if (entity === 'treasuries') {
+      applyToGenericState<Treasury>(setTreasuries, 'treasuries');
+    } else if (entity === 'stockMovements') {
+      applyToGenericState<StockMovement>(setStockMovements, 'stockMovements');
+    } else if (entity === 'employees') {
+      applyToGenericState<Employee>(setEmployees, 'employees');
+    } else if (entity === 'employeeAdvances') {
+      applyToGenericState<EmployeeAdvance>(setEmployeeAdvances, 'advances');
+    } else if (entity === 'employeeDeductions') {
+      applyToGenericState<EmployeeDeduction>(setEmployeeDeductions, 'deductions');
+    } else if (entity === 'employeeIncentives') {
+      applyToGenericState<EmployeeIncentive>(setEmployeeIncentives, 'incentives');
+    } else if (entity === 'payrollSheets') {
+      applyToGenericState<PayrollSheet>(setPayrollSheets, 'payrollSheets');
+    } else if (entity === 'companies') {
+      applyToGenericState<Company>(setCompanies, 'companies');
+    } else if (entity === 'branches') {
+      applyToGenericState<Branch>(setBranches, 'branches');
+    } else if (entity === 'warehouses') {
+      applyToGenericState<Warehouse>(setWarehouses, 'warehouses');
+    } else if (entity === 'warehouseOperations') {
+      applyToGenericState<WarehouseOperation>(setWarehouseOperations, 'warehouse_operations');
+    } else if (entity === 'roles') {
+      applyToGenericState<Role>(setRoles, 'roles');
+    } else if (entity === 'users') {
+      applyToGenericState<SystemUser>(setUsers, 'users');
+    } else if (entity === 'debtClearings') {
+      applyToGenericState<DebtClearingRecord>(setDebtClearings, 'debt_clearings');
+    } else if (entity === 'settings') {
+      if (item && typeof item === 'object') {
+        setSettings(prev => ({ ...prev, ...item }));
+        try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(item)); } catch {}
+      }
     }
   };
 
@@ -1713,37 +1729,49 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
               deletedDocs.forEach((d: any) => { if (d && d.col && d.id) delSet.add(`${d.col}_${d.id}`); });
             }
 
-            if (sJson.data.invoices?.items) {
-              const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('invoices', invoices, sJson.data.invoices.items, delSet);
-              setInvoices(merged);
-              try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
-              if (unpushedDeltas.length > 0) pushDeltaToServer('invoices', 'upsert', undefined, unpushedDeltas);
-            }
-            if (sJson.data.parties?.items) {
-              const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync('parties', parties, sJson.data.parties.items, delSet);
-              setParties(merged);
-              try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(merged)); } catch {}
-              if (unpushedDeltas.length > 0) pushDeltaToServer('parties', 'upsert', undefined, unpushedDeltas);
-            }
-            if (sJson.data.inventory?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('inventory', inventory, sJson.data.inventory.items, delSet);
-              setInventory(merged);
-              try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(merged)); } catch {}
-            }
-            if (sJson.data.vouchers?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('vouchers', vouchers, sJson.data.vouchers.items, delSet);
-              setVouchers(merged);
-              try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(merged)); } catch {}
-            }
-            if (sJson.data.printOrders?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('printOrders', printOrders, sJson.data.printOrders.items, delSet);
-              setPrintOrders(merged);
-              try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(merged)); } catch {}
-            }
-            if (sJson.data.purchases?.items) {
-              const { merged } = mergeEntitiesWithDeltaSync('purchases', purchases, sJson.data.purchases.items, delSet);
-              setPurchases(merged);
-              try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(merged)); } catch {}
+            const mergeAndSet = <T extends { id?: string }>(
+              entityName: string,
+              localState: T[],
+              setter: React.Dispatch<React.SetStateAction<T[]>>,
+              storageKeySuffix: string
+            ) => {
+              if (sJson.data[entityName]?.items) {
+                const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync(entityName, localState, sJson.data[entityName].items, delSet);
+                setter(merged);
+                try { localStorage.setItem(`${STORAGE_KEY}_${storageKeySuffix}`, JSON.stringify(merged)); } catch {}
+                if (unpushedDeltas.length > 0) pushDeltaToServer(entityName, 'upsert', undefined, unpushedDeltas);
+              }
+            };
+
+            mergeAndSet('invoices', invoices, setInvoices, 'invoices');
+            mergeAndSet('parties', parties, setParties, 'parties');
+            mergeAndSet('inventory', inventory, setInventory, 'inventory');
+            mergeAndSet('vouchers', vouchers, setVouchers, 'vouchers');
+            mergeAndSet('printOrders', printOrders, setPrintOrders, 'printOrders');
+            mergeAndSet('purchases', purchases, setPurchases, 'purchases');
+            mergeAndSet('journalEntries', journalEntries, setJournalEntries, 'journals');
+            mergeAndSet('expenses', expenses, setExpenses, 'expenses');
+            mergeAndSet('accounts', accounts, setAccounts, 'accounts');
+            mergeAndSet('treasuries', treasuries, setTreasuries, 'treasuries');
+            mergeAndSet('stockMovements', stockMovements, setStockMovements, 'stockMovements');
+            mergeAndSet('employees', employees, setEmployees, 'employees');
+            mergeAndSet('employeeAdvances', employeeAdvances, setEmployeeAdvances, 'advances');
+            mergeAndSet('employeeDeductions', employeeDeductions, setEmployeeDeductions, 'deductions');
+            mergeAndSet('employeeIncentives', employeeIncentives, setEmployeeIncentives, 'incentives');
+            mergeAndSet('payrollSheets', payrollSheets, setPayrollSheets, 'payrollSheets');
+            mergeAndSet('companies', companies, setCompanies, 'companies');
+            mergeAndSet('branches', branches, setBranches, 'branches');
+            mergeAndSet('warehouses', warehouses, setWarehouses, 'warehouses');
+            mergeAndSet('warehouseOperations', warehouseOperations, setWarehouseOperations, 'warehouse_operations');
+            mergeAndSet('roles', roles, setRoles, 'roles');
+            mergeAndSet('users', users, setUsers, 'users');
+            mergeAndSet('debtClearings', debtClearings, setDebtClearings, 'debt_clearings');
+            if (sJson.data.settings?.items?.[0] || sJson.data.settings?.global) {
+              const cloudSet = sJson.data.settings.global || sJson.data.settings.items[0];
+              if (cloudSet) {
+                setSettings(prev => ({ ...prev, ...cloudSet }));
+                try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(cloudSet)); } catch {}
+              }
             }
           }
         }
