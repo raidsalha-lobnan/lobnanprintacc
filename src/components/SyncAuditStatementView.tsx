@@ -85,6 +85,7 @@ export const SyncAuditStatementView: React.FC = () => {
   const [connectionIssues, setConnectionIssues] = useState<SyncConnectionIssue[]>([]);
   const [actionFeedback, setActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [hasDriveToken, setHasDriveToken] = useState<boolean>(() => !!getCachedSyncToken());
+  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; seq?: number; ms?: number; message: string } | null>(null);
 
