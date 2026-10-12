@@ -3,10 +3,64 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import localtunnel from "localtunnel";
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
+var SYNC_DATA_DIR = path.join(__dirname, ".sync_data");
+if (!fs.existsSync(SYNC_DATA_DIR)) {
+  try {
+    fs.mkdirSync(SYNC_DATA_DIR, { recursive: true });
+  } catch {
+  }
+}
+var activeTunnelUrl = "";
+function getStoredTunnelUrl() {
+  if (activeTunnelUrl) return activeTunnelUrl;
+  try {
+    const tunnelPath = path.join(SYNC_DATA_DIR, "tunnel_url.json");
+    if (fs.existsSync(tunnelPath)) {
+      const parsed = JSON.parse(fs.readFileSync(tunnelPath, "utf8"));
+      if (parsed && parsed.url) {
+        activeTunnelUrl = parsed.url;
+        return parsed.url;
+      }
+    }
+  } catch {
+  }
+  return "";
+}
+async function startLiveTunnel() {
+  try {
+    const tunnel = await localtunnel({ port: 3e3 });
+    if (tunnel && tunnel.url) {
+      activeTunnelUrl = tunnel.url;
+      console.log("\u{1F310} LIVE HTTPS TUNNEL CREATED FOR MASTER PC:", activeTunnelUrl);
+      const tunnelPath = path.join(SYNC_DATA_DIR, "tunnel_url.json");
+      try {
+        fs.writeFileSync(tunnelPath, JSON.stringify({ url: activeTunnelUrl, time: Date.now() }), "utf8");
+      } catch {
+      }
+      tunnel.on("close", () => {
+        setTimeout(startLiveTunnel, 3e3);
+      });
+    }
+  } catch (err) {
+    setTimeout(startLiveTunnel, 5e3);
+  }
+}
+startLiveTunnel();
 var app = express();
-app.use(express.json());
+app.use((_req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  if (_req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.post("/api/fetch-live-sheet", async (req, res) => {
   try {
     const { url } = req.body;
@@ -65,32 +119,78 @@ var PORT = process.env.PORT ? Number(process.env.PORT) : 3e3;
 app.get("/health", (_req, res) => {
   res.status(200).send("OK");
 });
-var SYNC_DATA_DIR = path.join(__dirname, ".sync_data");
-if (!fs.existsSync(SYNC_DATA_DIR)) {
-  try {
-    fs.mkdirSync(SYNC_DATA_DIR, { recursive: true });
-  } catch {
-  }
-}
+var ALL_SYNC_ENTITIES = [
+  "invoices",
+  "parties",
+  "inventory",
+  "vouchers",
+  "printOrders",
+  "purchases",
+  "purchaseReturns",
+  "salesReturns",
+  "accounts",
+  "treasuries",
+  "employees",
+  "employeeAdvances",
+  "employeeDeductions",
+  "employeeIncentives",
+  "payrollSheets",
+  "stockMovements",
+  "companies",
+  "branches",
+  "warehouses",
+  "warehouseOperations",
+  "roles",
+  "users",
+  "debtClearings",
+  "expenses",
+  "journalEntries",
+  "settings",
+  "dailyEntrySheets"
+];
 var syncCache = {};
 var syncTimestamps = {};
 function loadEntityData(entity) {
-  if (syncCache[entity]) return syncCache[entity];
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
+  let existingData = [];
   if (fs.existsSync(filePath)) {
     try {
       const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
-      if (Array.isArray(data)) {
-        syncCache[entity] = data;
-        syncTimestamps[entity] = Date.now();
-        return data;
+      if (Array.isArray(data)) existingData = data;
+    } catch {
+    }
+  }
+  const snapshotPath = path.join(__dirname, "public", "master_drive_database_snapshot.json");
+  if (fs.existsSync(snapshotPath)) {
+    try {
+      const snap = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+      if (snap && Array.isArray(snap[entity]) && snap[entity].length > 0) {
+        if (existingData.length === 0) {
+          existingData = snap[entity];
+          try {
+            fs.writeFileSync(filePath, JSON.stringify(existingData), "utf8");
+          } catch {
+          }
+        } else {
+          const itemMap = /* @__PURE__ */ new Map();
+          for (const it of snap[entity]) {
+            if (it && it.id) itemMap.set(String(it.id), it);
+          }
+          for (const it of existingData) {
+            if (it && it.id) {
+              const existing = itemMap.get(String(it.id));
+              itemMap.set(String(it.id), existing ? { ...existing, ...it } : it);
+            }
+          }
+          existingData = Array.from(itemMap.values());
+        }
       }
     } catch {
     }
   }
-  syncCache[entity] = [];
-  syncTimestamps[entity] = Date.now();
-  return [];
+  syncCache[entity] = existingData;
+  syncTimestamps[entity] = fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : Date.now();
+  return existingData;
 }
 function saveEntityData(entity, data) {
   syncCache[entity] = data;
@@ -101,24 +201,120 @@ function saveEntityData(entity, data) {
   } catch (err) {
     console.error(`Failed to save sync entity ${entity}:`, err);
   }
+  try {
+    const snapshotPath = path.join(__dirname, "public", "master_drive_database_snapshot.json");
+    if (fs.existsSync(snapshotPath)) {
+      const snap = JSON.parse(fs.readFileSync(snapshotPath, "utf8")) || {};
+      snap[entity] = data;
+      fs.writeFileSync(snapshotPath, JSON.stringify(snap, null, 2), "utf8");
+    }
+  } catch {
+  }
+}
+var DELTAS_FILE = path.join(SYNC_DATA_DIR, "deltas.json");
+function loadDeltas() {
+  if (fs.existsSync(DELTAS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(DELTAS_FILE, "utf8"));
+      if (data && typeof data === "object" && Array.isArray(data.deltas)) {
+        return { currentSeq: data.currentSeq || 0, deltas: data.deltas };
+      }
+    } catch {
+    }
+  }
+  return { currentSeq: 0, deltas: [] };
+}
+function recordDelta(delta) {
+  const { currentSeq, deltas } = loadDeltas();
+  const nextSeq = currentSeq + 1;
+  const newDelta = { ...delta, seq: nextSeq, timestamp: Date.now() };
+  const updatedDeltas = [...deltas, newDelta].slice(-5e3);
+  try {
+    fs.writeFileSync(DELTAS_FILE, JSON.stringify({ currentSeq: nextSeq, deltas: updatedDeltas }), "utf8");
+  } catch {
+  }
+  const current = loadEntityData(delta.entity);
+  const map = /* @__PURE__ */ new Map();
+  for (const it of current) if (it && it.id) map.set(String(it.id), it);
+  if (delta.op === "delete") {
+    if (delta.item && delta.item.id) map.delete(String(delta.item.id));
+    if (Array.isArray(delta.items)) {
+      for (const it of delta.items) if (it && it.id) map.delete(String(it.id));
+    }
+  } else {
+    if (delta.item && delta.item.id) map.set(String(delta.item.id), delta.item);
+    if (Array.isArray(delta.items)) {
+      for (const it of delta.items) if (it && it.id) map.set(String(it.id), it);
+    }
+  }
+  saveEntityData(delta.entity, Array.from(map.values()));
+  return { seq: nextSeq, currentSeq: nextSeq };
 }
 app.get("/api/app-version", (_req, res) => {
   res.json({ version: "1791656836620", time: Date.now() });
 });
+app.get("/api/sync/deltas-since", (req, res) => {
+  const sinceSeq = parseInt(String(req.query.sinceSeq || "0"), 10) || 0;
+  const { currentSeq, deltas } = loadDeltas();
+  const newDeltas = deltas.filter((d) => d && typeof d.seq === "number" && d.seq > sinceSeq);
+  res.json({
+    success: true,
+    currentSeq,
+    deltas: newDeltas,
+    count: newDeltas.length,
+    serverTime: Date.now()
+  });
+});
+app.post("/api/sync/delta", (req, res) => {
+  try {
+    const { entity, op = "upsert", item, items, clientId } = req.body || {};
+    if (!entity) {
+      return res.status(400).json({ error: "Missing entity" });
+    }
+    const { seq, currentSeq } = recordDelta({ entity, op, item, items, clientId });
+    res.json({
+      success: true,
+      seq,
+      currentSeq,
+      serverTime: Date.now()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || "Delta push failed" });
+  }
+});
+app.get("/api/sync/status", (_req, res) => {
+  const summary = {};
+  for (const ent of ALL_SYNC_ENTITIES) {
+    const items = loadEntityData(ent);
+    summary[ent] = {
+      count: items.length,
+      lastModified: syncTimestamps[ent] || Date.now()
+    };
+  }
+  res.json({
+    success: true,
+    serverTime: Date.now(),
+    serverTimeString: (/* @__PURE__ */ new Date()).toLocaleTimeString("ar-EG"),
+    tunnelUrl: getStoredTunnelUrl(),
+    entities: summary
+  });
+});
 app.get("/api/sync/state", (req, res) => {
-  const entities = ["invoices", "parties", "inventory", "vouchers", "printOrders", "purchases"];
+  const requestedEntities = req.query.entities ? String(req.query.entities).split(",") : ALL_SYNC_ENTITIES;
   const result = {};
-  for (const ent of entities) {
-    result[ent] = {
-      items: loadEntityData(ent),
-      version: syncTimestamps[ent] || Date.now()
+  for (const ent of requestedEntities) {
+    const safeEnt = ent.trim();
+    if (!safeEnt) continue;
+    result[safeEnt] = {
+      items: loadEntityData(safeEnt),
+      version: syncTimestamps[safeEnt] || Date.now()
     };
   }
   res.json({ success: true, data: result, serverTime: Date.now() });
 });
 app.post("/api/sync/push", (req, res) => {
   try {
-    const { entity, item, items, op } = req.body;
+    const { entity, item, items, op, deletedIds } = req.body;
     if (!entity || typeof entity !== "string") {
       return res.status(400).json({ error: "Missing entity" });
     }
@@ -127,12 +323,27 @@ app.post("/api/sync/push", (req, res) => {
     for (const it of current) {
       if (it && it.id) map.set(String(it.id), it);
     }
+    if (Array.isArray(deletedIds)) {
+      for (const dId of deletedIds) {
+        if (dId) map.delete(String(dId));
+      }
+    }
     if (item && item.id) {
-      map.set(String(item.id), item);
+      if (item._deleted || op === "delete") {
+        map.delete(String(item.id));
+      } else {
+        map.set(String(item.id), item);
+      }
     }
     if (Array.isArray(items)) {
       for (const it of items) {
-        if (it && it.id) map.set(String(it.id), it);
+        if (it && it.id) {
+          if (it._deleted) {
+            map.delete(String(it.id));
+          } else {
+            map.set(String(it.id), it);
+          }
+        }
       }
     }
     const updatedList = Array.from(map.values());
@@ -145,6 +356,64 @@ app.post("/api/sync/push", (req, res) => {
     });
   } catch (err) {
     console.error("Sync push error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/sync/full-sync", (req, res) => {
+  try {
+    const { entities, deletedDocs } = req.body;
+    if (!entities || typeof entities !== "object") {
+      return res.status(400).json({ error: "Missing entities map" });
+    }
+    const delSet = /* @__PURE__ */ new Set();
+    if (Array.isArray(deletedDocs)) {
+      deletedDocs.forEach((d) => {
+        if (d && d.col && d.id) delSet.add(`${d.col}_${d.id}`);
+      });
+    }
+    const resultMap = {};
+    const countsSummary = {};
+    for (const [entityName, incomingItems] of Object.entries(entities)) {
+      if (!Array.isArray(incomingItems)) continue;
+      const serverItems = loadEntityData(entityName);
+      const mergedMap = /* @__PURE__ */ new Map();
+      for (const sIt of serverItems) {
+        if (sIt && sIt.id && !delSet.has(`${entityName}_${sIt.id}`) && !sIt._deleted) {
+          mergedMap.set(String(sIt.id), sIt);
+        }
+      }
+      for (const cIt of incomingItems) {
+        if (!cIt || !cIt.id) continue;
+        const key = String(cIt.id);
+        if (delSet.has(`${entityName}_${key}`) || cIt._deleted) {
+          mergedMap.delete(key);
+          continue;
+        }
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, cIt);
+        } else {
+          const existing = mergedMap.get(key);
+          mergedMap.set(key, { ...existing, ...cIt });
+        }
+      }
+      const mergedList = Array.from(mergedMap.values());
+      saveEntityData(entityName, mergedList);
+      resultMap[entityName] = {
+        items: mergedList,
+        count: mergedList.length,
+        version: syncTimestamps[entityName] || Date.now()
+      };
+      countsSummary[entityName] = mergedList.length;
+    }
+    res.json({
+      success: true,
+      serverTime: Date.now(),
+      serverTimeString: (/* @__PURE__ */ new Date()).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      data: resultMap,
+      counts: countsSummary
+    });
+  } catch (err) {
+    console.error("Master full-sync error:", err);
     res.status(500).json({ error: err.message });
   }
 });

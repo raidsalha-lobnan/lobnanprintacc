@@ -45,9 +45,6 @@ async function startLiveTunnel() {
   }
 }
 
-// Start tunnel on server spin up
-startLiveTunnel();
-
 const syncCache: Record<string, any[]> = {};
 const syncTimestamps: Record<string, number> = {};
 
@@ -160,6 +157,7 @@ function syncHubPlugin() {
   return {
     name: 'central-sync-hub',
     configureServer(server: any) {
+      startLiveTunnel();
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = req.url || '';
 

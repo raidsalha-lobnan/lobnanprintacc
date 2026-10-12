@@ -4,12 +4,20 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import localtunnel from 'localtunnel';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const SYNC_DATA_DIR = path.join(__dirname, '.sync_data');
+if (!fs.existsSync(SYNC_DATA_DIR)) {
+  try { fs.mkdirSync(SYNC_DATA_DIR, { recursive: true }); } catch {}
+}
+
 let activeTunnelUrl = '';
 
 function getStoredTunnelUrl(): string {
   if (activeTunnelUrl) return activeTunnelUrl;
   try {
-    const tunnelPath = path.join(__dirname, '.sync_data', 'tunnel_url.json');
+    const tunnelPath = path.join(SYNC_DATA_DIR, 'tunnel_url.json');
     if (fs.existsSync(tunnelPath)) {
       const parsed = JSON.parse(fs.readFileSync(tunnelPath, 'utf8'));
       if (parsed && parsed.url) {
@@ -27,7 +35,7 @@ async function startLiveTunnel() {
     if (tunnel && tunnel.url) {
       activeTunnelUrl = tunnel.url;
       console.log('🌐 LIVE HTTPS TUNNEL CREATED FOR MASTER PC:', activeTunnelUrl);
-      const tunnelPath = path.join(__dirname, '.sync_data', 'tunnel_url.json');
+      const tunnelPath = path.join(SYNC_DATA_DIR, 'tunnel_url.json');
       try {
         fs.writeFileSync(tunnelPath, JSON.stringify({ url: activeTunnelUrl, time: Date.now() }), 'utf8');
       } catch {}
@@ -42,9 +50,6 @@ async function startLiveTunnel() {
 }
 
 startLiveTunnel();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use((_req, res, next) => {
@@ -140,10 +145,6 @@ app.get('/health', (_req, res) => {
 // Central Real-Time Synchronization Hub
 // Works across all devices, browsers, and networks instantly
 // ==========================================
-const SYNC_DATA_DIR = path.join(__dirname, '.sync_data');
-if (!fs.existsSync(SYNC_DATA_DIR)) {
-  try { fs.mkdirSync(SYNC_DATA_DIR, { recursive: true }); } catch {}
-}
 
 const ALL_SYNC_ENTITIES = [
   'invoices', 'parties', 'inventory', 'vouchers', 'printOrders',
