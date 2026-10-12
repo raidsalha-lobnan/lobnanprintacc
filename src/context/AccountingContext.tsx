@@ -1561,12 +1561,14 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
       }).then(async res => {
         if (!res.ok && baseUrl) {
           const fb = await fetch('/api/sync/delta', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current })
           });
           return fb.json();
@@ -1738,9 +1740,9 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         deltasEndpoint = `${baseUrl}/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`;
       }
 
-      let res = await fetch(deltasEndpoint).catch(() => null);
+      let res = await fetch(deltasEndpoint, { credentials: 'include' }).catch(() => null);
       if ((!res || !res.ok) && baseUrl) {
-        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`).catch(() => null);
+        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`, { credentials: 'include' }).catch(() => null);
       }
       if (!res || !res.ok) return;
       const json = await res.json().catch(() => null);
@@ -1937,12 +1939,14 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload)
       });
       if (!res.ok && baseUrl) {
         res = await fetch('/api/sync/full-sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify(payload)
         });
       }
@@ -1950,6 +1954,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       res = await fetch('/api/sync/full-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload)
       });
     }

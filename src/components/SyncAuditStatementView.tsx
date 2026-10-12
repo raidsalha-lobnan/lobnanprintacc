@@ -96,7 +96,7 @@ export const SyncAuditStatementView: React.FC = () => {
     setConnectionState('checking');
     const start = performance.now();
     try {
-      const res = await fetch('/api/sync/status', { cache: 'no-store' });
+      const res = await fetch('/api/sync/status', { cache: 'no-store', credentials: 'include' });
       const ping = Math.round(performance.now() - start);
       setServerPingMs(ping);
 

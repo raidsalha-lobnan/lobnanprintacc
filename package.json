@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "python3 ensure_nginx_api.py; vite --port=3000 --host=0.0.0.0",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --packages=external",
     "start": "node server.js",
     "preview": "vite preview --port 3000 --host 0.0.0.0",
