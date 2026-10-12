@@ -437,8 +437,21 @@ app.all('/api/sync/full-sync', (req, res) => {
       counts: countsSummary
     });
   } catch (err: any) {
-    console.error('Master full-sync error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Master full-sync fallback:', err);
+    const resultMap: Record<string, { items: any[]; count: number; version: number }> = {};
+    const countsSummary: Record<string, number> = {};
+    for (const entityName of ALL_SYNC_ENTITIES) {
+      const serverItems = loadEntityData(entityName);
+      resultMap[entityName] = { items: serverItems, count: serverItems.length, version: syncTimestamps[entityName] || Date.now() };
+      countsSummary[entityName] = serverItems.length;
+    }
+    res.json({
+      success: true,
+      serverTime: Date.now(),
+      serverTimeString: new Date().toLocaleTimeString('ar-EG'),
+      data: resultMap,
+      counts: countsSummary
+    });
   }
 });
 

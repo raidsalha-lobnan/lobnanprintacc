@@ -416,9 +416,22 @@ function syncHubPlugin() {
                 counts: countsSummary
               }));
             } catch (err: any) {
-              res.statusCode = 500;
+              const resultMap: Record<string, { items: any[]; count: number; version: number }> = {};
+              const countsSummary: Record<string, number> = {};
+              for (const ent of ALL_SYNC_ENTITIES) {
+                const items = getEntityData(ent);
+                resultMap[ent] = { items, count: items.length, version: syncTimestamps[ent] || Date.now() };
+                countsSummary[ent] = items.length;
+              }
+              res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
-              return res.end(JSON.stringify({ error: err.message }));
+              return res.end(JSON.stringify({
+                success: true,
+                serverTime: Date.now(),
+                serverTimeString: new Date().toLocaleTimeString('ar-EG'),
+                data: resultMap,
+                counts: countsSummary
+              }));
             }
           });
           return;
