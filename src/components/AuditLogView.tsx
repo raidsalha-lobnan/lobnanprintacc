@@ -23,8 +23,10 @@ import {
   CheckCircle2,
   Clock,
   Layers,
-  Scale
+  Scale,
+  Activity
 } from 'lucide-react';
+import { SyncAuditStatementView } from './SyncAuditStatementView';
 
 export interface AuditLogEntry {
   id: string;
@@ -56,6 +58,8 @@ export const AuditLogView: React.FC = () => {
     branches,
     users
   } = useAccounting();
+
+  const [activeViewTab, setActiveViewTab] = useState<'audit_logs' | 'sync_statement'>('audit_logs');
 
   // Aggregate operations into chronological audit log entries
   const allLogs = useMemo(() => {
@@ -287,8 +291,51 @@ export const AuditLogView: React.FC = () => {
     }
   };
 
+  if (activeViewTab === 'sync_statement') {
+    return (
+      <div className="space-y-3" dir="rtl">
+        {/* Navigation Switcher Tabs */}
+        <div className="bg-white p-1.5 rounded-xl border border-slate-300 shadow-xs flex items-center gap-1.5 print:hidden">
+          <button
+            onClick={() => setActiveViewTab('audit_logs')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>1. سجل حركات النظام والرقابة الداخلية</span>
+          </button>
+          <button
+            onClick={() => setActiveViewTab('sync_statement')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs cursor-pointer"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>2. سند ومطابقة المزامنة مع السيرفر الرئيسي</span>
+          </button>
+        </div>
+        <SyncAuditStatementView />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5" dir="rtl">
+    <div className="space-y-4" dir="rtl">
+      {/* Navigation Switcher Tabs */}
+      <div className="bg-white p-1.5 rounded-xl border border-slate-300 shadow-xs flex items-center gap-1.5 print:hidden">
+        <button
+          onClick={() => setActiveViewTab('audit_logs')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white shadow-xs cursor-pointer"
+        >
+          <History className="w-3.5 h-3.5" />
+          <span>1. سجل حركات النظام والرقابة الداخلية</span>
+        </button>
+        <button
+          onClick={() => setActiveViewTab('sync_statement')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>2. سند ومطابقة المزامنة مع السيرفر الرئيسي</span>
+        </button>
+      </div>
+
       {/* Top Header */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

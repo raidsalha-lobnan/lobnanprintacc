@@ -32,6 +32,7 @@ import {
   Check,
   Receipt,
   History,
+  Activity,
   Wifi,
   WifiOff,
   RefreshCw,
@@ -441,6 +442,14 @@ export const Navbar: React.FC = () => {
           icon: BookOpenCheck,
           badge: 'مزدوج',
           badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+        },
+        {
+          id: 'sync_statement',
+          label: '6. سند وتدقيق المزامنة مع السيرفر',
+          sublabel: 'كشف تفصيلي بما تم نقله للسيرفر وما تم جلبه وما لم يتم نقله وسجل الأخطاء',
+          icon: Activity,
+          badge: pendingSyncCount > 0 ? `${pendingSyncCount} معلق` : null,
+          badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
         }
       ]
     },
@@ -895,7 +904,7 @@ export const Navbar: React.FC = () => {
               setActiveTab('audit_log');
               setOpenDropdownId(null);
             }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-xs text-[11.5px] font-bold transition select-none cursor-pointer border ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-xs text-[11.5px] font-bold transition select-none cursor-pointer border ${
               activeTab === 'audit_log'
                 ? 'bg-blue-600 text-white border-blue-700 shadow-2xs'
                 : 'border-transparent text-slate-800 hover:bg-slate-200 hover:border-slate-300'
@@ -904,6 +913,28 @@ export const Navbar: React.FC = () => {
           >
             <History className={`w-3 h-3 ${activeTab === 'audit_log' ? 'text-white' : 'text-slate-600'}`} />
             <span>سجل العمليات</span>
+          </button>
+
+          {/* Sync Statement Action */}
+          <button
+            onClick={() => {
+              setActiveTab('sync_statement');
+              setOpenDropdownId(null);
+            }}
+            className={`flex items-center gap-1 px-2 py-1 rounded-xs text-[11.5px] font-bold transition select-none cursor-pointer border ${
+              activeTab === 'sync_statement'
+                ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                : 'border-transparent text-slate-800 hover:bg-slate-200 hover:border-slate-300'
+            }`}
+            title="سند مطابقة وتدقيق المزامنة ونقل البيانات للسيرفر الرئيسي"
+          >
+            <Activity className={`w-3 h-3 ${activeTab === 'sync_statement' ? 'text-white' : 'text-indigo-600'}`} />
+            <span>سند تفاصيل المزامنة</span>
+            {pendingSyncCount > 0 && (
+              <span className="bg-amber-500 text-white text-[9px] px-1 rounded-full font-mono">
+                {pendingSyncCount}
+              </span>
+            )}
           </button>
         </div>
       </nav>

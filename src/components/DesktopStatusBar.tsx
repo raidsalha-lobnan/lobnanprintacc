@@ -75,7 +75,7 @@ export const DesktopStatusBar: React.FC = () => {
 
   return (
     <footer 
-      className="print:hidden h-7 bg-[#f0f2f5] text-slate-700 text-[11px] font-sans border-t border-slate-400 select-none flex items-center justify-between px-1 w-full shrink-0 z-50 overflow-hidden shadow-xs"
+      className="print:hidden h-7 min-h-[28px] max-h-[28px] bg-[#f0f2f5] text-slate-700 text-[11px] font-sans border-t border-slate-400 select-none flex items-center justify-between px-1 w-full shrink-0 z-40 overflow-hidden shadow-xs sticky bottom-0"
       dir="rtl"
     >
       {/* Left Panels (Right in RTL) */}

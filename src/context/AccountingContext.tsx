@@ -99,6 +99,7 @@ import {
   saveMasterDatabaseToDrive,
   mergeEntityLists
 } from '../services/googleDriveDatabaseSyncService';
+import { syncAuditService } from '../services/syncAuditService';
 
 interface AccountingContextType {
   settings: BusinessSettings;
@@ -1565,8 +1566,31 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         if (data && typeof data.seq === 'number') {
           lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, data.seq);
           localStorage.setItem('accounting_last_seen_seq', String(lastSeenSeqRef.current));
+          syncAuditService.logEvent({
+            direction: 'push',
+            entity,
+            op,
+            status: 'success',
+            seq: data.seq,
+            documentId: item?.id || items?.[0]?.id,
+            documentNumber: item?.invoiceNumber || item?.code || item?.voucherNumber || item?.itemNumber,
+            details: `تم إرسال وحفظ التعديل بنجاح في السيرفر (تسلسل #${data.seq})`
+          });
         }
-      }).catch(() => {
+      }).catch((err) => {
+        syncAuditService.logIssue({
+          endpoint: targetUrl,
+          errorType: !navigator.onLine ? 'network_offline' : 'server_error',
+          message: err?.message || 'تعذر إرسال التعديل للسيرفر'
+        });
+        syncAuditService.logEvent({
+          direction: 'push',
+          entity,
+          op,
+          status: 'pending',
+          documentId: item?.id || items?.[0]?.id,
+          details: 'تم الحفظ محلياً وبانتظار المزامنة بالسيرفر'
+        });
         if (baseUrl) {
           fetch('/api/sync/delta', {
             method: 'POST',
@@ -1720,6 +1744,16 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           // Ignore deltas pushed by this client session
           if (delta.clientId && delta.clientId === myClientIdRef.current) continue;
           applyDeltaToState(delta.entity, delta.op || 'upsert', delta.item, delta.items);
+          syncAuditService.logEvent({
+            direction: 'pull',
+            entity: delta.entity,
+            op: delta.op || 'upsert',
+            status: 'success',
+            seq: delta.seq,
+            documentId: delta.item?.id || delta.items?.[0]?.id,
+            documentNumber: delta.item?.invoiceNumber || delta.item?.code || delta.item?.voucherNumber,
+            details: `تم جلب واستيعاب حركة جديدة من السيرفر (تسلسل #${delta.seq})`
+          });
         }
       }
 
@@ -1910,7 +1944,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       });
     }
 
-    if (!res.ok) throw new Error('فشل الاتصال بخادم المزامنة المركزي.');
+    if (!res.ok) {
+      syncAuditService.logIssue({
+        endpoint: endpoint,
+        errorType: !navigator.onLine ? 'network_offline' : 'server_error',
+        statusCode: res?.status,
+        message: 'فشل الاتصال بخادم المزامنة المركزي أثناء المزامنة الشاملة'
+      });
+      throw new Error('فشل الاتصال بخادم المزامنة المركزي.');
+    }
     const json = await res.json();
     if (!json || !json.data) throw new Error('استجابة غير صحيحة من السيرفر.');
 
@@ -1926,6 +1968,14 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     if (Array.isArray(json.data.employees?.items) && json.data.employees.items.length > 0) { setEmployees(json.data.employees.items); try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(json.data.employees.items)); } catch {} }
     if (Array.isArray(json.data.journalEntries?.items) && json.data.journalEntries.items.length > 0) { setJournalEntries(json.data.journalEntries.items); try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(json.data.journalEntries.items)); } catch {} }
     if (Array.isArray(json.data.expenses?.items) && json.data.expenses.items.length > 0) { setExpenses(json.data.expenses.items); try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(json.data.expenses.items)); } catch {} }
+
+    syncAuditService.logEvent({
+      direction: 'full_sync',
+      entity: 'all_tables',
+      op: 'sync',
+      status: 'success',
+      details: 'تمت المزامنة الشاملة ومطابقة كافة الجداول مع السيرفر الرئيسي بنجاح'
+    });
 
     return json;
   };
