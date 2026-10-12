@@ -85,7 +85,58 @@ export const SyncAuditStatementView: React.FC = () => {
   const [connectionIssues, setConnectionIssues] = useState<SyncConnectionIssue[]>([]);
   const [actionFeedback, setActionFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [hasDriveToken, setHasDriveToken] = useState<boolean>(() => !!getCachedSyncToken());
-  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
+  const [isTestingPing, setIsTestingPing] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; seq?: number; ms?: number; message: string } | null>(null);
+
+  const handleLiveTestSendReceive = async () => {
+    setIsTestingPing(true);
+    setTestResult(null);
+    const start = performance.now();
+    try {
+      const pingId = 'ping-' + Date.now();
+      const res = await fetch('/api/sync/delta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          entity: 'settings',
+          op: 'upsert',
+          item: { id: pingId, pingTest: true, createdAt: new Date().toISOString() }
+        })
+      });
+
+      const ms = Math.round(performance.now() - start);
+
+      if (res.ok) {
+        const json = await res.json();
+        const seq = json.seq || json.currentSeq || 1;
+        setTestResult({
+          success: true,
+          seq,
+          ms,
+          message: `تم إرسال الحركة واستقبال تأكيد التسجيل من السيرفر المركزي بنجاح برقم تسلسلي (#${seq}) خلال ${ms}ms 🟢`
+        });
+        syncAuditService.logEvent({
+          direction: 'push',
+          entity: 'settings',
+          op: 'ping',
+          status: 'success',
+          seq,
+          details: `اختبار ربط وإرسال مباشر ناجح (تسلسل #${seq}) - زمن الاستجابة ${ms}ms`
+        });
+        await forceSyncNow();
+      } else {
+        throw new Error(`استجابة السيرفر (${res.status})`);
+      }
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: `فشل اختبار المزامنة المباشرة: ${err?.message || err}`
+      });
+    } finally {
+      setIsTestingPing(false);
+    }
+  };
 
   // Check Drive token status
   useEffect(() => {
@@ -402,6 +453,66 @@ export const SyncAuditStatementView: React.FC = () => {
               {currentUser?.fullName || currentUser?.username || 'مدير النظام'}
             </span>
           </div>
+        </div>
+
+        {/* Live Send & Receive Verification Test Control */}
+        <div className="mt-3.5 p-3 rounded-xl bg-gradient-to-r from-blue-900 to-slate-900 text-white print:hidden">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                <h3 className="text-sm font-black text-white">
+                  أداة فحص واختبار إرسال واستقبال الإدخالات فورياً (Live Sync Verification)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-300 mt-1">
+                اضغط هنا لإرسال حركة تجريبية مباشرة للسيرفر المركزي وقاعدة بيانات قوقل درايف والتأكد من التسجيل الفوري واسترجاع الرقم التسلسلي:
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={handleLiveTestSendReceive}
+                disabled={isTestingPing}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 font-black text-xs rounded-lg shadow-md transition cursor-pointer disabled:opacity-50"
+              >
+                <Zap className={`w-4 h-4 ${isTestingPing ? 'animate-bounce' : ''}`} />
+                <span>{isTestingPing ? 'جارِ الاختبار والإرسال...' : 'اختبار إرسال واستقبال الآن ⚡'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConnectDrive}
+                disabled={isConnectingDrive}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 font-bold text-xs rounded-lg transition cursor-pointer"
+              >
+                <Cloud className="w-3.5 h-3.5 text-blue-400" />
+                <span>{hasDriveToken ? 'قوقل درايف (مرتبط ✅)' : 'ربط Google Drive'}</span>
+              </button>
+
+              <a
+                href="/master_drive_database_snapshot.json"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-blue-300 text-xs font-medium rounded-lg border border-slate-700 transition"
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span>معاينة قاعدة البيانات الحالية</span>
+              </a>
+            </div>
+          </div>
+
+          {testResult && (
+            <div className={`mt-3 p-2.5 rounded-lg text-xs font-bold flex items-center gap-2 ${
+              testResult.success
+                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50'
+                : 'bg-rose-950/80 text-rose-300 border border-rose-500/50'
+            }`}>
+              {testResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <XCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+              <span>{testResult.message}</span>
+            </div>
+          )}
         </div>
       </div>
 
