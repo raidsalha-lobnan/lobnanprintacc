@@ -131,6 +131,26 @@ export async function fetchFullDatabaseFromFirestore(): Promise<Record<string, a
 }
 
 /**
+ * Subscribes to live real-time Firestore snapshot updates for a single entity
+ */
+export function subscribeToSingleEntity(
+  entityName: string,
+  onUpdate: (items: any[]) => void
+): () => void {
+  const docRef = doc(db, DB_COLLECTION, entityName);
+  return onSnapshot(docRef, (snap) => {
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data && Array.isArray(data.items)) {
+        onUpdate(data.items);
+      }
+    }
+  }, (err) => {
+    console.error(`Firestore snapshot error for ${entityName}:`, err);
+  });
+}
+
+/**
  * Subscribes to live real-time Firestore snapshot updates across all devices
  */
 export function subscribeToFirestoreLiveSync(
@@ -139,17 +159,7 @@ export function subscribeToFirestoreLiveSync(
   const unsubscribes: (() => void)[] = [];
 
   ALL_ENTITIES.forEach((ent) => {
-    const docRef = doc(db, DB_COLLECTION, ent);
-    const unsub = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data && Array.isArray(data.items)) {
-          onEntityUpdated(ent, data.items);
-        }
-      }
-    }, (err) => {
-      console.error(`Firestore snapshot error for ${ent}:`, err);
-    });
+    const unsub = subscribeToSingleEntity(ent, (items) => onEntityUpdated(ent, items));
     unsubscribes.push(unsub);
   });
 
