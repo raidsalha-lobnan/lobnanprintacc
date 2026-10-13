@@ -172,21 +172,53 @@ export function subscribeToSingleEntity(
   if (isFirestoreQuotaExceeded()) {
     return () => {};
   }
-  const docRef = doc(db, DB_COLLECTION, entityName);
-  return onSnapshot(docRef, (snap) => {
-    if (snap.exists()) {
-      const data = snap.data();
-      if (data && Array.isArray(data.items)) {
-        onUpdate(data.items);
+
+  const unsubscribes: (() => void)[] = [];
+
+  // 1. Direct collection listener: Listens to collection(db, entityName) for instant document-level multi-device sync
+  try {
+    const colRef = collection(db, entityName);
+    const unsubCol = onSnapshot(colRef, (snapshot) => {
+      if (!snapshot.empty) {
+        const items: any[] = [];
+        snapshot.forEach(docSnap => {
+          if (docSnap.exists()) {
+            items.push(docSnap.data());
+          }
+        });
+        if (items.length > 0) {
+          onUpdate(items);
+        }
       }
-    }
-  }, (err) => {
-    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-      markQuotaExceeded();
-      return;
-    }
-    console.debug(`Firestore listener state for ${entityName}:`, err?.message || err);
-  });
+    }, (err) => {
+      if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+        markQuotaExceeded();
+      }
+    });
+    unsubscribes.push(unsubCol);
+  } catch {}
+
+  // 2. Collective wrapper doc listener: Listens to doc(db, 'lobnan_accounting_db', entityName)
+  try {
+    const docRef = doc(db, DB_COLLECTION, entityName);
+    const unsubDoc = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && Array.isArray(data.items)) {
+          onUpdate(data.items);
+        }
+      }
+    }, (err) => {
+      if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+        markQuotaExceeded();
+      }
+    });
+    unsubscribes.push(unsubDoc);
+  } catch {}
+
+  return () => {
+    unsubscribes.forEach(fn => { try { fn(); } catch {} });
+  };
 }
 
 /**

@@ -1943,12 +1943,30 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   // Live Firebase Firestore Real-Time Listener Effect across all devices
   useEffect(() => {
-    const unsub = subscribeToFirestoreLiveSync((entityName, items) => {
-      if (Array.isArray(items)) {
-        applyDeltaToState(entityName, 'sync', null, items);
+    let activeUnsub = () => {};
+
+    const setupSync = () => {
+      activeUnsub();
+      activeUnsub = subscribeToFirestoreLiveSync((entityName, items) => {
+        if (Array.isArray(items) && items.length > 0) {
+          applyDeltaToState(entityName, 'sync', null, items);
+        }
+      });
+    };
+
+    setupSync();
+
+    // Re-bind listeners periodically if network toggles online or if quota state resets
+    const syncInterval = setInterval(() => {
+      if (navigator.onLine && !isFirestoreQuotaExceeded()) {
+        setupSync();
       }
-    });
-    return () => unsub();
+    }, 20000);
+
+    return () => {
+      activeUnsub();
+      clearInterval(syncInterval);
+    };
   }, []);
 
   // Auto-reconciliation is handled via live Firestore listeners (subscribeToFirestoreLiveSync)
