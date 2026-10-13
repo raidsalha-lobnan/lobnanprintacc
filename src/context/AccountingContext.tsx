@@ -1921,12 +1921,17 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   const pullServerSyncState = pullDeltasFromServer;
 
-  // Lightweight 1500ms delta polling loop (Disabled in favor of Firestore)
-  // useEffect(() => {
-  //   pullDeltasFromServer();
-  //   const interval = setInterval(pullDeltasFromServer, 1500);
-  //   return () => clearInterval(interval);
-  // }, []);
+  // Lightweight delta polling loop for instant cross-device sync
+  // Ensures all devices reflect invoices and changes in real-time even if Firestore quota is paused
+  useEffect(() => {
+    pullDeltasFromServer();
+    const interval = setInterval(() => {
+      if (navigator.onLine) {
+        pullDeltasFromServer();
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Live Firebase Firestore Real-Time Listener Effect across all devices
   useEffect(() => {
