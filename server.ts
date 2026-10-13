@@ -400,20 +400,42 @@ app.all('/api/sync/full-sync', (req, res) => {
 
       // 2. Merge incoming client items
       if (Array.isArray(incomingItems)) {
+        // Collect existing invoice numbers to check for conflicts
+        const existingInvoiceNumbers = new Set<string>();
+        if (entityName === 'invoices') {
+          for (const sIt of serverItems) {
+            if (sIt && sIt.invoiceNumber) existingInvoiceNumbers.add(String(sIt.invoiceNumber));
+          }
+        }
+
         for (const cIt of incomingItems) {
           if (!cIt || !cIt.id) continue;
+          
           const key = String(cIt.id);
-          if (delSet.has(`${entityName}_${key}`) || cIt._deleted) {
+          let finalItem = cIt;
+
+          // Conflict Resolution: Only check for duplicate invoiceNumber if it's a NEW invoice (id not in mergedMap)
+          if (entityName === 'invoices' && finalItem.invoiceNumber && !mergedMap.has(key) && existingInvoiceNumbers.has(String(finalItem.invoiceNumber))) {
+            const numericPart = parseInt(String(finalItem.invoiceNumber).replace(/\D/g, ''), 10) || 0;
+            let newNumber = numericPart;
+            while (existingInvoiceNumbers.has(String(newNumber))) {
+              newNumber++;
+            }
+            finalItem = { ...finalItem, invoiceNumber: String(newNumber) };
+          }
+
+          if (delSet.has(`${entityName}_${key}`) || finalItem._deleted) {
             mergedMap.delete(key);
             continue;
           }
 
           if (!mergedMap.has(key)) {
-            mergedMap.set(key, cIt);
+            mergedMap.set(key, finalItem);
+            if (entityName === 'invoices' && finalItem.invoiceNumber) existingInvoiceNumbers.add(String(finalItem.invoiceNumber));
           } else {
             // Both have it: merge fields (client updates win)
             const existing = mergedMap.get(key);
-            mergedMap.set(key, { ...existing, ...cIt });
+            mergedMap.set(key, { ...existing, ...finalItem });
           }
         }
       }

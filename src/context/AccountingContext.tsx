@@ -111,6 +111,7 @@ import {
   mergeEntityLists
 } from '../services/googleDriveDatabaseSyncService';
 import { syncAuditService } from '../services/syncAuditService';
+import { resolveInvoiceConflicts } from '../utils/syncConflicts';
 
 interface AccountingContextType {
   settings: BusinessSettings;
@@ -2137,10 +2138,27 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     if (!res || !res.ok) {
       // Primary Cloud Fallback: Firebase Firestore Real-Time Database
       try {
+        // Resolve conflicts before pushing
+        const serverDataRes = await getDocs(collection(db, 'lobnan_accounting_db'));
+        let serverInvoices: Invoice[] = [];
+        serverDataRes.forEach(doc => {
+            if (doc.id === 'invoices') serverInvoices = doc.data().items || [];
+        });
+
+        const resolved = resolveInvoiceConflicts(
+            invoices, serverInvoices, journalEntries, vouchers, stockMovements
+        );
+
         const fsRes = await pushFullDatabaseToFirestore({
-          invoices, parties, inventory, vouchers, printOrders, purchases,
+          invoices: resolved.updatedInvoices, 
+          parties, inventory, 
+          vouchers: resolved.updatedVouchers, 
+          printOrders, purchases,
           purchaseReturns, salesReturns, accounts, treasuries, employees,
-          journalEntries, expenses, stockMovements, warehouseOperations,
+          journalEntries: resolved.updatedJournalEntries, 
+          expenses, 
+          stockMovements: resolved.updatedStockMovements, 
+          warehouseOperations,
           dailyEntrySheets, settings: [settings]
         });
         if (fsRes.success) {
