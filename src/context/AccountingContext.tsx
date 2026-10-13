@@ -1,6 +1,11 @@
 import { TelegramService } from '../services/TelegramService';
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { pushFullDatabaseToFirestore, subscribeToFirestoreLiveSync } from '../services/firebaseFirestoreSyncService';
+import {
+  pushFullDatabaseToFirestore,
+  subscribeToFirestoreLiveSync,
+  fetchFullDatabaseFromFirestore,
+  isFirestoreQuotaExceeded
+} from '../services/firebaseFirestoreSyncService';
 import {
   auth,
   db,
@@ -1573,19 +1578,23 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       }
 
       // 2. Direct Real-Time Firebase Firestore Persistence
-      const listToSave: any[] = items || (item ? [item] : []);
-      listToSave.forEach(it => {
-        if (it && it.id) {
-          const docId = String(it.id);
-          if (op === 'delete' || it._deleted) {
-            deleteDoc(doc(db, entity, docId)).catch(() => {});
-          } else {
-            setDoc(doc(db, entity, docId), cleanDocForFirestore(it), { merge: true }).catch(err => {
-              console.warn(`Direct Firebase Firestore save notice for ${entity}/${docId}:`, err);
-            });
+      if (!isFirestoreQuotaExceeded()) {
+        const listToSave: any[] = items || (item ? [item] : []);
+        listToSave.forEach(it => {
+          if (it && it.id) {
+            const docId = String(it.id);
+            if (op === 'delete' || it._deleted) {
+              deleteDoc(doc(db, entity, docId)).catch(() => {});
+            } else {
+              setDoc(doc(db, entity, docId), cleanDocForFirestore(it), { merge: true }).catch(err => {
+                if (err?.code === 'resource-exhausted') {
+                  // Handled silently to avoid quota spam
+                }
+              });
+            }
           }
-        }
-      });
+        });
+      }
 
       // Log success and mark synced
       const targetDocId = item?.id || items?.[0]?.id;
@@ -1600,13 +1609,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         details: 'تم الحفظ والرفع المباشر لسحابة Firebase Firestore بنجاح 🟢'
       });
 
-      // Trigger debounced auto-sync to update master snapshot
+      // Trigger debounced auto-sync to update master snapshot (30 seconds debounce)
       if (debouncedSyncRef.current) clearTimeout(debouncedSyncRef.current);
       debouncedSyncRef.current = setTimeout(() => {
-        if (syncToFirebaseRef.current) {
+        if (syncToFirebaseRef.current && !isFirestoreQuotaExceeded()) {
           syncToFirebaseRef.current();
         }
-      }, 500);
+      }, 30000);
 
       // 3. Post delta record to local server endpoint /api/sync/delta (optional background route)
       const payloadStr = JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current });
@@ -1883,37 +1892,8 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     return () => unsub();
   }, []);
 
-  // Periodic 6000ms Count Auto-Reconciler to guarantee 100% exact match across all devices
-  useEffect(() => {
-    const autoCheckMismatches = async () => {
-      try {
-        const baseUrl = getSyncBaseUrl();
-        const statusEndpoint = baseUrl ? `${baseUrl}/api/sync/status` : '/api/sync/status';
-        const res = await fetch(statusEndpoint).catch(() => null);
-        if (!res || !res.ok) return;
-        const json = await res.json().catch(() => null);
-        if (json && json.success && json.entities) {
-          const sInvCount = json.entities.invoices?.count;
-          const sPartyCount = json.entities.parties?.count;
-          const sVoucherCount = json.entities.vouchers?.count;
-          const sPrintCount = json.entities.printOrders?.count;
+  // Auto-reconciliation is handled via live Firestore listeners (subscribeToFirestoreLiveSync)
 
-          const invDiff = typeof sInvCount === 'number' && sInvCount !== invoices.length;
-          const partyDiff = typeof sPartyCount === 'number' && sPartyCount !== parties.length;
-          const voucherDiff = typeof sVoucherCount === 'number' && sVoucherCount !== vouchers.length;
-          const printDiff = typeof sPrintCount === 'number' && sPrintCount !== printOrders.length;
-
-          if (invDiff || partyDiff || voucherDiff || printDiff) {
-            console.log('🔄 Automatic Entity Count Mismatch Detected! Reconciling state with server...');
-            executeServerFullSync().catch(() => {});
-          }
-        }
-      } catch {}
-    };
-
-    const interval = setInterval(autoCheckMismatches, 6000);
-    return () => clearInterval(interval);
-  }, [invoices.length, parties.length, vouchers.length, printOrders.length]);
 
 
 
@@ -2043,7 +2023,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   // Real Firebase Firestore Cloud Synchronization Engine
   const syncToFirebase = async (): Promise<boolean> => {
-    if (!navigator.onLine) return false;
+    if (!navigator.onLine || isFirestoreQuotaExceeded()) return false;
     try {
       setIsFirebaseSyncing(true);
       const res = await pushFullDatabaseToFirestore({

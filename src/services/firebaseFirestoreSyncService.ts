@@ -25,10 +25,25 @@ export const ALL_ENTITIES = [
   'settings'
 ];
 
+// Quota protection: if free tier write quota (20,000/day) is reached, pause cloud writes for 10 minutes
+let quotaExceededUntil = 0;
+
+export function isFirestoreQuotaExceeded(): boolean {
+  return Date.now() < quotaExceededUntil;
+}
+
+export function markQuotaExceeded() {
+  quotaExceededUntil = Date.now() + 10 * 60 * 1000;
+  console.warn('⚠️ تم بلوغ الحد اليومي لخطة Firebase المجانية (20,000 حركة/يوم). التطبيق يعمل محلياً بصورة كاملة ومستقرة.');
+}
+
 /**
  * Saves a single entity's list of items to Firestore
  */
 export async function saveEntityToFirestore(entityName: string, items: any[]): Promise<boolean> {
+  if (isFirestoreQuotaExceeded()) {
+    return false;
+  }
   try {
     const docRef = doc(db, DB_COLLECTION, entityName);
     await setDoc(docRef, {
@@ -47,6 +62,10 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
 
     return true;
   } catch (error: any) {
+    if (error?.code === 'resource-exhausted' || error?.message?.includes('Quota limit exceeded')) {
+      markQuotaExceeded();
+      return false;
+    }
     console.error(`Error saving ${entityName} to Firestore:`, error);
     syncAuditService.logIssue({
       endpoint: `Firestore/${entityName}`,
@@ -63,6 +82,9 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
  * Pushes the full master database snapshot to Firestore
  */
 export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, any[]>): Promise<{ success: boolean; error?: string }> {
+  if (isFirestoreQuotaExceeded()) {
+    return { success: false, error: 'تم بلوغ الحد اليومي المجاني للكتابة في Firebase مؤقتاً. بياناتك محفوظة محلياً بالكامل.' };
+  }
   try {
     const promises = ALL_ENTITIES.map(async (ent) => {
       const items = Array.isArray(fullSnapshot[ent]) ? fullSnapshot[ent] : [];
@@ -81,11 +103,15 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
       entity: 'master_db',
       op: 'full_sync',
       status: 'success',
-      details: 'تم رفع قاعدة البيانات الشاملة بالكامل إلى سحابة Firebase Firestore مجاناً وبدون قيود ✅'
+      details: 'تم رفع قاعدة البيانات الشاملة بالكامل إلى سحابة Firebase Firestore بنجاح ✅'
     });
 
     return { success: true };
   } catch (err: any) {
+    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+      markQuotaExceeded();
+      return { success: false, error: 'تم بلوغ الحد اليومي المجاني لكتابة البيانات في Firebase (20,000 عملية). بياناتك محفوظة محلياً بالكامل وستُرفع تلقائياً عند تجدد الحصة.' };
+    }
     console.error('Error pushing full DB to Firestore:', err);
     return { success: false, error: err?.message || 'فشل مزامنة Firestore' };
   }

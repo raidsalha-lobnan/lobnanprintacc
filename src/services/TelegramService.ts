@@ -1,7 +1,8 @@
 import { BusinessSettings } from '../types';
 
 let lastUpdateId = 0;
-let pollingInterval: any = null;
+let pollingTimeout: any = null;
+let isPollingActive = false;
 
 export const TelegramService = {
   sendMessage: async (text: string, settings: BusinessSettings) => {
@@ -47,47 +48,69 @@ export const TelegramService = {
     onCommand: (command: string, text: string, chatId: string, botToken: string) => void
   ) => {
     if (!settings.telegramConfig?.enabled || !settings.telegramConfig?.botToken) {
-      if (pollingInterval) clearInterval(pollingInterval);
+      TelegramService.stopPolling();
       return;
     }
 
-    if (pollingInterval) clearInterval(pollingInterval);
-
+    TelegramService.stopPolling();
+    isPollingActive = true;
     const token = settings.telegramConfig.botToken;
 
+    const scheduleNext = (delayMs: number) => {
+      if (!isPollingActive) return;
+      pollingTimeout = setTimeout(poll, delayMs);
+    };
+
     const poll = async () => {
-      if (!navigator.onLine) return;
+      if (!isPollingActive) return;
+      if (!navigator.onLine) {
+        scheduleNext(10000);
+        return;
+      }
+
       try {
-        const response = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`);
+        const response = await fetch(
+          `https://api.telegram.org/bot${token}/getUpdates?offset=${lastUpdateId + 1}&timeout=10`
+        );
+
+        if (response.status === 409) {
+          // Conflict: another tab or instance is polling, back off to avoid console spam
+          scheduleNext(25000);
+          return;
+        }
+
+        if (!response.ok) {
+          scheduleNext(15000);
+          return;
+        }
+
         const data = await response.json();
         
-        if (data.ok && data.result.length > 0) {
+        if (data.ok && Array.isArray(data.result) && data.result.length > 0) {
           for (const update of data.result) {
             lastUpdateId = update.update_id;
             
             if (update.message && update.message.text) {
               const text = update.message.text;
               const chatId = update.message.chat.id.toString();
-              
-              // Call the handler
               onCommand(text, text, chatId, token);
             }
           }
         }
+        scheduleNext(3000);
       } catch (error: any) {
-        if (error?.message !== 'Failed to fetch') {
-          console.error('Telegram polling error:', error);
-        }
+        scheduleNext(15000);
       }
     };
 
-    pollingInterval = setInterval(poll, 3000);
+    scheduleNext(1000);
   },
 
   stopPolling: () => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      pollingInterval = null;
+    isPollingActive = false;
+    if (pollingTimeout) {
+      clearTimeout(pollingTimeout);
+      pollingTimeout = null;
     }
   }
 };

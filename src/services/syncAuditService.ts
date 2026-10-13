@@ -145,10 +145,7 @@ export const syncAuditService = {
       const updated = [newEntry, ...existing].slice(0, MAX_LOG_COUNT);
       localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(updated));
 
-      // Asynchronously persist to Firebase Firestore
-      import('./firebaseFirestoreSyncService').then(({ saveAuditLogToFirestore }) => {
-        saveAuditLogToFirestore(newEntry).catch(() => {});
-      }).catch(() => {});
+      // Logs are preserved in localStorage to save cloud quota
     } catch {}
   },
 
@@ -210,10 +207,7 @@ export const syncAuditService = {
       const updated = [newIssue, ...existing].slice(0, MAX_LOG_COUNT);
       localStorage.setItem(STORAGE_KEY_ISSUES, JSON.stringify(updated));
 
-      // Asynchronously persist to Firebase Firestore
-      import('./firebaseFirestoreSyncService').then(({ saveConnectionIssueToFirestore }) => {
-        saveConnectionIssueToFirestore(newIssue).catch(() => {});
-      }).catch(() => {});
+      // Issues are stored locally in localStorage to avoid consuming Firestore write quotas
     } catch {}
   },
 
