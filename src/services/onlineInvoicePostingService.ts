@@ -143,9 +143,9 @@ export const onlineInvoicePostingService = {
           }
         }
 
-        // 5. Calculate the highest authoritative invoice number on the cloud/known records
+        // 5. Calculate the highest authoritative invoice number on the cloud/known records (excluding current invoice ID)
         let maxSeq = 0;
-        const allKnown = [...cloudInvoices, ...currentInvoicesList];
+        const allKnown = [...cloudInvoices, ...currentInvoicesList].filter(inv => inv && inv.id !== invoice.id);
         allKnown.forEach(inv => {
           if (inv && inv.invoiceNumber) {
             const num = parseInt(inv.invoiceNumber.replace(/\D/g, ''), 10);
@@ -159,12 +159,12 @@ export const onlineInvoicePostingService = {
         let finalInvoiceNumber = invoice.invoiceNumber;
         const reqNum = parseInt((invoice.invoiceNumber || '').replace(/\D/g, ''), 10);
 
-        // Check if this number already exists on cloud for a different invoice
+        // Check if this number already exists on cloud for a different invoice ID
         const isConflict = cloudInvoices.some(
           inv => inv && inv.invoiceNumber === finalInvoiceNumber && inv.id !== invoice.id
         );
 
-        if (isConflict || isNaN(reqNum) || reqNum <= maxSeq) {
+        if (isConflict || !finalInvoiceNumber || isNaN(reqNum)) {
           const newNumberInt = maxSeq + 1;
           finalInvoiceNumber = `INV-${String(newNumberInt).padStart(4, '0')}`;
         }

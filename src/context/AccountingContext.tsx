@@ -1706,11 +1706,16 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     };
 
     if (entity === 'invoices') {
-      applyToGenericState<Invoice>(setInvoices, 'invoices', (a, b) => {
-        const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-        const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-        if (numA !== numB) return numB - numA;
-        return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+      setInvoices(prev => {
+        if (op === 'delete') {
+          const deleteIds = new Set(list.map(i => String(i?.id || i)));
+          const filtered = (prev || []).filter(inv => !deleteIds.has(String(inv.id)));
+          try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(filtered)); } catch {}
+          return filtered;
+        }
+        const merged = mergeInvoicesWithUpsertAndConflictResolution(prev || [], list as Invoice[]);
+        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
+        return merged;
       });
     } else if (entity === 'parties') {
       applyToGenericState<Party>(setParties, 'parties');
@@ -2657,19 +2662,8 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         });
         // Deduplicate strictly by ID first, then by invoiceNumber to eliminate ghost duplicates
         const dedupedById = deduplicateById<Invoice>(docs, 'inv');
-        const seenNumbers = new Set<string>();
-        const dedupedInvoices: Invoice[] = [];
-
-        for (const inv of dedupedById) {
-          const num = (inv.invoiceNumber || '').trim();
-          if (num && seenNumbers.has(num)) {
-            // Delete duplicate ghost copy from Firestore
-            deleteDoc(doc(db, 'invoices', inv.id)).catch(() => {});
-            continue;
-          }
-          if (num) seenNumbers.add(num);
-          dedupedInvoices.push(inv);
-        }
+        // Resolve invoice snapshot data safely without deleting documents
+        const dedupedInvoices = mergeInvoicesWithUpsertAndConflictResolution([], dedupedById);
 
         // Merge with newly created local invoices so local invoices are never wiped by snapshot updates
         setInvoices(prevLocal => {
@@ -4240,26 +4234,30 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         }
       } catch (e) {}
 
-      const mergeArray = (ent: string): any[] => {
+      const mergeArray = (ent: string, localList: any[] = []): any[] => {
         const serverList = (serverData[ent] && Array.isArray(serverData[ent].items)) ? serverData[ent].items : [];
         const snapshotList = Array.isArray(snapshotData[ent]) ? snapshotData[ent] : [];
         const map = new Map<string, any>();
         for (const item of snapshotList) if (item && item.id) map.set(String(item.id), item);
         for (const item of serverList) if (item && item.id) map.set(String(item.id), item);
+        for (const item of localList) if (item && item.id && !map.has(String(item.id))) map.set(String(item.id), item);
         return Array.from(map.values());
       };
 
-      const finalInvoices = mergeArray('invoices');
-      const finalParties = mergeArray('parties');
-      const finalInventory = mergeArray('inventory');
-      const finalPrintOrders = mergeArray('printOrders');
-      const finalVouchers = mergeArray('vouchers');
-      const finalPurchases = mergeArray('purchases');
-      const finalAccounts = mergeArray('accounts');
-      const finalTreasuries = mergeArray('treasuries');
-      const finalEmployees = mergeArray('employees');
-      const finalBranches = mergeArray('branches');
-      const finalWarehouses = mergeArray('warehouses');
+      const finalInvoices = mergeInvoicesWithUpsertAndConflictResolution(
+        invoices || [],
+        mergeArray('invoices', invoices || [])
+      );
+      const finalParties = mergeArray('parties', parties || []);
+      const finalInventory = mergeArray('inventory', inventory || []);
+      const finalPrintOrders = mergeArray('printOrders', printOrders || []);
+      const finalVouchers = mergeArray('vouchers', vouchers || []);
+      const finalPurchases = mergeArray('purchases', purchases || []);
+      const finalAccounts = mergeArray('accounts', accounts || []);
+      const finalTreasuries = mergeArray('treasuries', treasuries || []);
+      const finalEmployees = mergeArray('employees', employees || []);
+      const finalBranches = mergeArray('branches', branches || []);
+      const finalWarehouses = mergeArray('warehouses', warehouses || []);
 
       if (finalInvoices.length > 0) {
         setInvoices(finalInvoices);
@@ -7217,7 +7215,10 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     if (extraOptions?.editingInvoiceId) {
       console.log('UPDATING INVOICE', extraOptions.editingInvoiceId);
       setInvoices(prev => {
-        const next = prev.map(inv => inv.id === extraOptions.editingInvoiceId ? newInvoice : inv);
+        const exists = prev.some(inv => inv.id === extraOptions.editingInvoiceId);
+        const next = exists
+          ? prev.map(inv => inv.id === extraOptions.editingInvoiceId ? newInvoice : inv)
+          : [newInvoice, ...prev];
         broadcastEntityChange('invoices', next);
         pushToServerSync('invoices', newInvoice);
         return next;
@@ -7369,6 +7370,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     // 4. Server confirmed receipt and assigned sequential number!
     // NOW and ONLY now, commit the invoice and its financial/stock ledger effects locally!
+    // Reuse draftInvoice.id so the committed invoice updates the exact same record instead of creating a duplicate ID
     const confirmedInvoiceNumber = cloudRes.invoice.invoiceNumber;
     const finalCommittedInvoice = createPosSale(
       items,
@@ -7378,6 +7380,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       notes,
       {
         ...extraOptions,
+        editingInvoiceId: draftInvoice.id,
         invoiceNumber: confirmedInvoiceNumber
       }
     );
