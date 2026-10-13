@@ -92,6 +92,10 @@ export const TelegramService = {
 
     const poll = async () => {
       if (!isPollingActive) return;
+      if (!settings.telegramConfig?.enabled || !settings.telegramConfig?.botToken) {
+        TelegramService.stopPolling();
+        return;
+      }
       if (!navigator.onLine) {
         scheduleNext(15000);
         return;
@@ -115,9 +119,8 @@ export const TelegramService = {
         }
 
         if (response.status === 409) {
-          // Conflict: another tab or external webhook is actively polling. Back off quietly.
-          try { localStorage.removeItem('telegram_polling_leader'); } catch {}
-          scheduleNext(60000);
+          // Conflict: another bot instance or webhook is active. Stop polling to prevent console spam.
+          TelegramService.stopPolling();
           return;
         }
 

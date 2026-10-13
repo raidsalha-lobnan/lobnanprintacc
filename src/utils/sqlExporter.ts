@@ -306,6 +306,13 @@ export async function syncWithWebServer(
   apiKey?: string
 ): Promise<{ success: boolean; message: string; timestamp?: string }> {
   try {
+    if (!url || url.includes('vercel.app') || url.includes('netlify.app') || url.includes('github.io')) {
+      return {
+        success: false,
+        message: 'عنوان السيرفر المدخل هو موقع استضافة ثابت (مثل Vercel) ولا يدعم استقبال طلبات البيانات الخلفية (405). يرجى استخدام قاعدة بيانات Firebase المتصلة حالياً بكفاءة تامة.'
+      };
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
     };
