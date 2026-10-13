@@ -149,6 +149,7 @@ export function subscribeToSingleEntity(
 ): () => void {
   const docRef = doc(db, DB_COLLECTION, entityName);
   return onSnapshot(docRef, (snap) => {
+    console.log(`Firestore update for ${entityName}:`, snap.exists() ? `${snap.data()?.items?.length || 0} items` : 'does not exist');
     if (snap.exists()) {
       const data = snap.data();
       if (data && Array.isArray(data.items)) {
