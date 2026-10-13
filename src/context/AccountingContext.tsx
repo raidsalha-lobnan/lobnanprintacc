@@ -1599,7 +1599,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     try {
       const saved = localStorage.getItem('master_server_host_url');
       if (saved) {
-        if (saved.includes('loca.lt') || saved.includes('localtunnel') || saved.includes('undefined')) {
+        if (
+          saved.includes('loca.lt') ||
+          saved.includes('localtunnel') ||
+          saved.includes('vercel.app') ||
+          saved.includes('netlify.app') ||
+          saved.includes('undefined')
+        ) {
           localStorage.removeItem('master_server_host_url');
           activeMasterHostRef.current = '';
           return '';
@@ -1610,11 +1616,18 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     return '';
   };
 
-  // Clean up corrupted tunnel URLs on boot
+  // Clean up corrupted tunnel or static frontend URLs on boot
   useEffect(() => {
     try {
       const saved = localStorage.getItem('master_server_host_url');
-      if (saved && (saved.includes('loca.lt') || saved.includes('localtunnel') || saved.includes('undefined'))) {
+      if (
+        saved &&
+        (saved.includes('loca.lt') ||
+          saved.includes('localtunnel') ||
+          saved.includes('vercel.app') ||
+          saved.includes('netlify.app') ||
+          saved.includes('undefined'))
+      ) {
         localStorage.removeItem('master_server_host_url');
         activeMasterHostRef.current = '';
       }
@@ -1678,7 +1691,14 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           headers: { 'Content-Type': 'application/json' },
           body: payloadStr
         }).catch(() => null);
-        if (!res || !res.ok) return null;
+        if (!res) return null;
+        if (res.status === 405 || res.status === 404) {
+          if (baseUrl) {
+            try { localStorage.removeItem('master_server_host_url'); } catch {}
+          }
+          return null;
+        }
+        if (!res.ok) return null;
         const text = await res.text().catch(() => '');
         if (!text || !text.trim().startsWith('{')) return null;
         return JSON.parse(text);
@@ -1796,6 +1816,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       const fetchAndMergeFullServerState = async () => {
         const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
         const sRes = await fetch(stateEndpoint).catch(() => null);
+        if (sRes) {
+          if (sRes.status === 405 || sRes.status === 404) {
+            if (baseUrl) localStorage.removeItem('master_server_host_url');
+            return;
+          }
+        }
         if (sRes && sRes.ok) {
           const contentType = sRes.headers.get('content-type') || '';
           if (!contentType.includes('application/json')) {
