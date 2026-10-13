@@ -952,90 +952,46 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       try {
         const fsData = await fetchFullDatabaseFromFirestore();
         if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
-          if (Array.isArray(fsData.invoices) && fsData.invoices.length > 0) setInvoices(fsData.invoices);
-          if (Array.isArray(fsData.parties) && fsData.parties.length > 0) setParties(fsData.parties);
-          if (Array.isArray(fsData.inventory) && fsData.inventory.length > 0) setInventory(fsData.inventory);
-          if (Array.isArray(fsData.vouchers) && fsData.vouchers.length > 0) setVouchers(fsData.vouchers);
-          if (Array.isArray(fsData.printOrders) && fsData.printOrders.length > 0) setPrintOrders(fsData.printOrders);
-          if (Array.isArray(fsData.purchases) && fsData.purchases.length > 0) setPurchases(fsData.purchases);
-          if (Array.isArray(fsData.accounts) && fsData.accounts.length > 0) setAccounts(fsData.accounts);
-          if (Array.isArray(fsData.treasuries) && fsData.treasuries.length > 0) setTreasuries(fsData.treasuries);
-          if (Array.isArray(fsData.employees) && fsData.employees.length > 0) setEmployees(fsData.employees);
-          if (Array.isArray(fsData.branches) && fsData.branches.length > 0) setBranches(fsData.branches);
-          if (Array.isArray(fsData.warehouses) && fsData.warehouses.length > 0) setWarehouses(fsData.warehouses);
+          if (Array.isArray(fsData.invoices)) setInvoices(prev => mergeEntityLists(prev || [], fsData.invoices));
+          if (Array.isArray(fsData.parties)) setParties(prev => mergeEntityLists(prev || [], fsData.parties));
+          if (Array.isArray(fsData.inventory)) setInventory(prev => mergeEntityLists(prev || [], fsData.inventory));
+          if (Array.isArray(fsData.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], fsData.vouchers));
+          if (Array.isArray(fsData.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], fsData.printOrders));
+          if (Array.isArray(fsData.purchases)) setPurchases(prev => mergeEntityLists(prev || [], fsData.purchases));
+          if (Array.isArray(fsData.accounts)) setAccounts(prev => mergeEntityLists(prev || [], fsData.accounts));
+          if (Array.isArray(fsData.treasuries)) setTreasuries(prev => mergeEntityLists(prev || [], fsData.treasuries));
+          if (Array.isArray(fsData.employees)) setEmployees(prev => mergeEntityLists(prev || [], fsData.employees));
+          if (Array.isArray(fsData.branches)) setBranches(prev => mergeEntityLists(prev || [], fsData.branches));
+          if (Array.isArray(fsData.warehouses)) setWarehouses(prev => mergeEntityLists(prev || [], fsData.warehouses));
           return;
         }
 
-        let res = await fetch('/api/sync/master-snapshot');
-        if (!res.ok) {
-          res = await fetch('/master_drive_database_snapshot.json');
+        let res = await fetch('/api/sync/master-snapshot').catch(() => null);
+        if (!res || !res.ok) {
+          res = await fetch('/master_drive_database_snapshot.json').catch(() => null);
         }
-        if (!res.ok) return;
-        const text = await res.text();
+        if (!res || !res.ok) return;
+        const text = await res.text().catch(() => '');
         if (!text || text.trim().startsWith('<')) return;
         const data = JSON.parse(text);
         if (!data || typeof data !== 'object') return;
 
-        // Purge old local cache to remove test invoices like INV-9999
-        localStorage.removeItem(`${STORAGE_KEY}_invoices`);
-        localStorage.removeItem(`${STORAGE_KEY}_parties`);
-        localStorage.removeItem(`${STORAGE_KEY}_inventory`);
-        localStorage.removeItem(`${STORAGE_KEY}_vouchers`);
-        localStorage.removeItem(`${STORAGE_KEY}_purchases`);
-
-        if (Array.isArray(data.invoices) && data.invoices.length > 0) {
-          setInvoices(data.invoices);
-          localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data.invoices));
-        }
-        if (Array.isArray(data.parties) && data.parties.length > 0) {
-          setParties(data.parties);
-          localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(data.parties));
-        }
-        if (Array.isArray(data.inventory) && data.inventory.length > 0) {
-          setInventory(data.inventory);
-          localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(data.inventory));
-        }
-        if (Array.isArray(data.printOrders) && data.printOrders.length > 0) {
-          setPrintOrders(data.printOrders);
-          localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(data.printOrders));
-        }
-        if (Array.isArray(data.vouchers) && data.vouchers.length > 0) {
-          setVouchers(data.vouchers);
-          localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(data.vouchers));
-        }
-        if (Array.isArray(data.purchases) && data.purchases.length > 0) {
-          setPurchases(data.purchases);
-          localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(data.purchases));
-        }
-        if (Array.isArray(data.accounts) && data.accounts.length > 0) {
-          setAccounts(data.accounts);
-          localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(data.accounts));
-        }
-        if (Array.isArray(data.treasuries) && data.treasuries.length > 0) {
-          setTreasuries(data.treasuries);
-          localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(data.treasuries));
-        }
-        if (Array.isArray(data.employees) && data.employees.length > 0) {
-          setEmployees(data.employees);
-          localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(data.employees));
-        }
-        if (Array.isArray(data.branches) && data.branches.length > 0) {
-          setBranches(data.branches);
-          localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(data.branches));
-        }
-        if (Array.isArray(data.warehouses) && data.warehouses.length > 0) {
-          setWarehouses(data.warehouses);
-          localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(data.warehouses));
-        }
+        if (Array.isArray(data.invoices)) setInvoices(prev => mergeEntityLists(prev || [], data.invoices));
+        if (Array.isArray(data.parties)) setParties(prev => mergeEntityLists(prev || [], data.parties));
+        if (Array.isArray(data.inventory)) setInventory(prev => mergeEntityLists(prev || [], data.inventory));
+        if (Array.isArray(data.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], data.printOrders));
+        if (Array.isArray(data.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], data.vouchers));
+        if (Array.isArray(data.purchases)) setPurchases(prev => mergeEntityLists(prev || [], data.purchases));
+        if (Array.isArray(data.accounts)) setAccounts(prev => mergeEntityLists(prev || [], data.accounts));
+        if (Array.isArray(data.treasuries)) setTreasuries(prev => mergeEntityLists(prev || [], data.treasuries));
+        if (Array.isArray(data.employees)) setEmployees(prev => mergeEntityLists(prev || [], data.employees));
+        if (Array.isArray(data.branches)) setBranches(prev => mergeEntityLists(prev || [], data.branches));
+        if (Array.isArray(data.warehouses)) setWarehouses(prev => mergeEntityLists(prev || [], data.warehouses));
         if (data.settings && typeof data.settings === 'object') {
-          setSettings(data.settings);
-          localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(data.settings));
+          setSettings(prev => ({ ...prev, ...data.settings }));
         }
-
-        localStorage.setItem('master_db_hydrated', 'true');
-        console.log('Master database snapshot cleanly hydrated on startup.');
       } catch (err) {
-        console.debug('Auto master database hydration note:', err);
+        console.debug('autoHydrateMasterDb note:', err);
       }
     };
 
@@ -2065,20 +2021,20 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       const remoteData = await fetchMasterDatabaseFromDrive(token);
       let mergedPayload = localPayload;
 
-      if (remoteData && remoteData.entities) {
-        const rEnt = remoteData.entities;
-        const mergedInvoices = mergeEntityLists(invoices, rEnt.invoices || []);
-        const mergedParties = mergeEntityLists(parties, rEnt.parties || []);
-        const mergedInventory = mergeEntityLists(inventory, rEnt.inventory || []);
-        const mergedVouchers = mergeEntityLists(vouchers, rEnt.vouchers || []);
-        const mergedPrintOrders = mergeEntityLists(printOrders, rEnt.printOrders || []);
-        const mergedPurchases = mergeEntityLists(purchases, rEnt.purchases || []);
+      if (remoteData) {
+        const rEnt = remoteData.entities || remoteData.data || remoteData || {};
+        const mergedInvoices = mergeEntityLists(invoices, Array.isArray(rEnt.invoices) ? rEnt.invoices : []);
+        const mergedParties = mergeEntityLists(parties, Array.isArray(rEnt.parties) ? rEnt.parties : []);
+        const mergedInventory = mergeEntityLists(inventory, Array.isArray(rEnt.inventory) ? rEnt.inventory : []);
+        const mergedVouchers = mergeEntityLists(vouchers, Array.isArray(rEnt.vouchers) ? rEnt.vouchers : []);
+        const mergedPrintOrders = mergeEntityLists(printOrders, Array.isArray(rEnt.printOrders) ? rEnt.printOrders : []);
+        const mergedPurchases = mergeEntityLists(purchases, Array.isArray(rEnt.purchases) ? rEnt.purchases : []);
 
-        if (mergedInvoices.length > invoices.length) { setInvoices(mergedInvoices); try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(mergedInvoices)); } catch {} }
-        if (mergedParties.length > parties.length) { setParties(mergedParties); try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(mergedParties)); } catch {} }
-        if (mergedInventory.length > inventory.length) { setInventory(mergedInventory); try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(mergedInventory)); } catch {} }
-        if (mergedVouchers.length > vouchers.length) { setVouchers(mergedVouchers); try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(mergedVouchers)); } catch {} }
-        if (mergedPrintOrders.length > printOrders.length) { setPrintOrders(mergedPrintOrders); try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(mergedPrintOrders)); } catch {} }
+        setInvoices(mergedInvoices); try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(mergedInvoices)); } catch {}
+        setParties(mergedParties); try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(mergedParties)); } catch {}
+        setInventory(mergedInventory); try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(mergedInventory)); } catch {}
+        setVouchers(mergedVouchers); try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(mergedVouchers)); } catch {}
+        setPrintOrders(mergedPrintOrders); try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(mergedPrintOrders)); } catch {}
 
         mergedPayload = {
           timestamp: new Date().toISOString(),
@@ -2315,18 +2271,18 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       return { success: true, localOnly: true };
     }
 
-    // Apply merged updates across all collections
-    if (Array.isArray(json.data.invoices?.items)) { setInvoices(json.data.invoices.items); try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(json.data.invoices.items)); } catch {} }
-    if (Array.isArray(json.data.parties?.items)) { setParties(json.data.parties.items); try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(json.data.parties.items)); } catch {} }
-    if (Array.isArray(json.data.inventory?.items)) { setInventory(json.data.inventory.items); try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(json.data.inventory.items)); } catch {} }
-    if (Array.isArray(json.data.vouchers?.items)) { setVouchers(json.data.vouchers.items); try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(json.data.vouchers.items)); } catch {} }
-    if (Array.isArray(json.data.printOrders?.items)) { setPrintOrders(json.data.printOrders.items); try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(json.data.printOrders.items)); } catch {} }
-    if (Array.isArray(json.data.purchases?.items)) { setPurchases(json.data.purchases.items); try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(json.data.purchases.items)); } catch {} }
-    if (Array.isArray(json.data.accounts?.items) && json.data.accounts.items.length > 0) { setAccounts(json.data.accounts.items); try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(json.data.accounts.items)); } catch {} }
-    if (Array.isArray(json.data.treasuries?.items) && json.data.treasuries.items.length > 0) { setTreasuries(json.data.treasuries.items); try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(json.data.treasuries.items)); } catch {} }
-    if (Array.isArray(json.data.employees?.items) && json.data.employees.items.length > 0) { setEmployees(json.data.employees.items); try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(json.data.employees.items)); } catch {} }
-    if (Array.isArray(json.data.journalEntries?.items) && json.data.journalEntries.items.length > 0) { setJournalEntries(json.data.journalEntries.items); try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(json.data.journalEntries.items)); } catch {} }
-    if (Array.isArray(json.data.expenses?.items) && json.data.expenses.items.length > 0) { setExpenses(json.data.expenses.items); try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(json.data.expenses.items)); } catch {} }
+    // Apply merged updates across all collections (preserving unsynced local entries)
+    if (Array.isArray(json.data?.invoices?.items)) { setInvoices(prev => mergeEntityLists(prev || [], json.data.invoices.items)); }
+    if (Array.isArray(json.data?.parties?.items)) { setParties(prev => mergeEntityLists(prev || [], json.data.parties.items)); }
+    if (Array.isArray(json.data?.inventory?.items)) { setInventory(prev => mergeEntityLists(prev || [], json.data.inventory.items)); }
+    if (Array.isArray(json.data?.vouchers?.items)) { setVouchers(prev => mergeEntityLists(prev || [], json.data.vouchers.items)); }
+    if (Array.isArray(json.data?.printOrders?.items)) { setPrintOrders(prev => mergeEntityLists(prev || [], json.data.printOrders.items)); }
+    if (Array.isArray(json.data?.purchases?.items)) { setPurchases(prev => mergeEntityLists(prev || [], json.data.purchases.items)); }
+    if (Array.isArray(json.data?.accounts?.items)) { setAccounts(prev => mergeEntityLists(prev || [], json.data.accounts.items)); }
+    if (Array.isArray(json.data?.treasuries?.items)) { setTreasuries(prev => mergeEntityLists(prev || [], json.data.treasuries.items)); }
+    if (Array.isArray(json.data?.employees?.items)) { setEmployees(prev => mergeEntityLists(prev || [], json.data.employees.items)); }
+    if (Array.isArray(json.data?.journalEntries?.items)) { setJournalEntries(prev => mergeEntityLists(prev || [], json.data.journalEntries.items)); }
+    if (Array.isArray(json.data?.expenses?.items)) { setExpenses(prev => mergeEntityLists(prev || [], json.data.expenses.items)); }
 
     syncAuditService.clearConnectionIssues();
     syncAuditService.resolveAllPendingLogs();
@@ -2541,39 +2497,36 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
               await syncToFirebaseRef.current(true);
             }
         } else if (isMounted && hasCloudData) {
-            if (data.parties !== undefined && data.parties.length > 0) setParties(data.parties);
-            if (data.invoices !== undefined && data.invoices.length > 0) setInvoices(data.invoices);
-            if (data.employees !== undefined && data.employees.length > 0) setEmployees(data.employees);
-            if (data.vouchers !== undefined && data.vouchers.length > 0) setVouchers(data.vouchers);
-            if (data.printOrders !== undefined && data.printOrders.length > 0) setPrintOrders(data.printOrders);
-            if (data.inventory !== undefined && data.inventory.length > 0) setInventory(data.inventory);
-            if (data.accounts !== undefined && data.accounts.length > 0) setAccounts(data.accounts);
-            if (data.treasuries !== undefined && data.treasuries.length > 0) setTreasuries(data.treasuries);
-            if (data.purchases !== undefined && data.purchases.length > 0) setPurchases(data.purchases);
-            if (data.purchaseReturns !== undefined && data.purchaseReturns.length > 0) setPurchaseReturns(data.purchaseReturns);
-            if (data.salesReturns !== undefined && data.salesReturns.length > 0) setSalesReturns(data.salesReturns);
-            if (data.journalEntries !== undefined && data.journalEntries.length > 0) setJournalEntries(data.journalEntries);
-            if (data.employeeAdvances !== undefined && data.employeeAdvances.length > 0) setEmployeeAdvances(data.employeeAdvances);
-            if (data.employeeDeductions !== undefined && data.employeeDeductions.length > 0) setEmployeeDeductions(data.employeeDeductions);
-            if (data.employeeIncentives !== undefined && data.employeeIncentives.length > 0) setEmployeeIncentives(data.employeeIncentives);
-            if (data.payrollSheets !== undefined && data.payrollSheets.length > 0) setPayrollSheets(data.payrollSheets);
-            if (data.stockMovements !== undefined && data.stockMovements.length > 0) setStockMovements(data.stockMovements);
-            if (data.companies !== undefined && data.companies.length > 0) setCompanies(data.companies);
-            if (data.branches !== undefined && data.branches.length > 0) setBranches(data.branches);
-            if (data.warehouses !== undefined && data.warehouses.length > 0) setWarehouses(data.warehouses);
-            if (data.warehouseOperations !== undefined && data.warehouseOperations.length > 0) setWarehouseOperations(data.warehouseOperations);
-            if (data.roles !== undefined && data.roles.length > 0) setRoles(data.roles);
-            if (data.users !== undefined && data.users.length > 0) {
+            if (Array.isArray(data.parties)) setParties(prev => mergeEntityLists(prev || [], data.parties));
+            if (Array.isArray(data.invoices)) setInvoices(prev => mergeEntityLists(prev || [], data.invoices));
+            if (Array.isArray(data.employees)) setEmployees(prev => mergeEntityLists(prev || [], data.employees));
+            if (Array.isArray(data.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], data.vouchers));
+            if (Array.isArray(data.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], data.printOrders));
+            if (Array.isArray(data.inventory)) setInventory(prev => mergeEntityLists(prev || [], data.inventory));
+            if (Array.isArray(data.accounts)) setAccounts(prev => mergeEntityLists(prev || [], data.accounts));
+            if (Array.isArray(data.treasuries)) setTreasuries(prev => mergeEntityLists(prev || [], data.treasuries));
+            if (Array.isArray(data.purchases)) setPurchases(prev => mergeEntityLists(prev || [], data.purchases));
+            if (Array.isArray(data.purchaseReturns)) setPurchaseReturns(prev => mergeEntityLists(prev || [], data.purchaseReturns));
+            if (Array.isArray(data.salesReturns)) setSalesReturns(prev => mergeEntityLists(prev || [], data.salesReturns));
+            if (Array.isArray(data.journalEntries)) setJournalEntries(prev => mergeEntityLists(prev || [], data.journalEntries));
+            if (Array.isArray(data.employeeAdvances)) setEmployeeAdvances(prev => mergeEntityLists(prev || [], data.employeeAdvances));
+            if (Array.isArray(data.employeeDeductions)) setEmployeeDeductions(prev => mergeEntityLists(prev || [], data.employeeDeductions));
+            if (Array.isArray(data.employeeIncentives)) setEmployeeIncentives(prev => mergeEntityLists(prev || [], data.employeeIncentives));
+            if (Array.isArray(data.payrollSheets)) setPayrollSheets(prev => mergeEntityLists(prev || [], data.payrollSheets));
+            if (Array.isArray(data.stockMovements)) setStockMovements(prev => mergeEntityLists(prev || [], data.stockMovements));
+            if (Array.isArray(data.companies)) setCompanies(prev => mergeEntityLists(prev || [], data.companies));
+            if (Array.isArray(data.branches)) setBranches(prev => mergeEntityLists(prev || [], data.branches));
+            if (Array.isArray(data.warehouses)) setWarehouses(prev => mergeEntityLists(prev || [], data.warehouses));
+            if (Array.isArray(data.warehouseOperations)) setWarehouseOperations(prev => mergeEntityLists(prev || [], data.warehouseOperations));
+            if (Array.isArray(data.roles)) setRoles(prev => mergeEntityLists(prev || [], data.roles));
+            if (Array.isArray(data.users) && data.users.length > 0) {
               const cleanCloudUsers = data.users.filter((u: any) => u && u.id && !deletedDocsSet.has(`users_${u.id}`));
               if (cleanCloudUsers.length > 0) {
-                setUsers(cleanCloudUsers);
-                try {
-                  localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(cleanCloudUsers));
-                } catch(e) {}
+                setUsers(prev => mergeEntityLists(prev || [], cleanCloudUsers));
               }
             }
-            if (data.debtClearings !== undefined && data.debtClearings.length > 0) setDebtClearings(data.debtClearings);
-            if (data.expenses !== undefined && data.expenses.length > 0) setExpenses(data.expenses);
+            if (Array.isArray(data.debtClearings)) setDebtClearings(prev => mergeEntityLists(prev || [], data.debtClearings));
+            if (Array.isArray(data.expenses)) setExpenses(prev => mergeEntityLists(prev || [], data.expenses));
             
             if (data.settings && typeof data.settings === 'object') {
               setSettings(prev => ({
