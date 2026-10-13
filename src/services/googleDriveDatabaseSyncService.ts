@@ -220,11 +220,20 @@ export function mergeEntityLists(localList: any[], remoteList: any[]): any[] {
         if (!existing) {
           map.set(key, item);
         } else {
+          // ID exists: UPDATE in-place rather than overwrite or delete
           const tExist = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
           const tRemote = new Date(item.updatedAt || item.createdAt || 0).getTime();
-          if (tRemote >= tExist) {
-            map.set(key, item);
-          }
+          
+          const primary = tRemote >= tExist ? item : existing;
+          const secondary = tRemote >= tExist ? existing : item;
+
+          map.set(key, {
+            ...secondary,
+            ...primary,
+            items: (Array.isArray(primary.items) && primary.items.length > 0) ? primary.items : (existing.items || []),
+            payments: (Array.isArray(primary.payments) && primary.payments.length > 0) ? primary.payments : (existing.payments || []),
+            updatedAt: new Date(Math.max(tExist, tRemote, Date.now())).toISOString()
+          });
         }
       }
     }

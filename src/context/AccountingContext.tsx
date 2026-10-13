@@ -117,7 +117,7 @@ import {
   mergeEntityLists
 } from '../services/googleDriveDatabaseSyncService';
 import { syncAuditService } from '../services/syncAuditService';
-import { resolveInvoiceConflicts } from '../utils/syncConflicts';
+import { resolveInvoiceConflicts, mergeInvoicesWithUpsertAndConflictResolution } from '../utils/syncConflicts';
 
 interface AccountingContextType {
   settings: BusinessSettings;
@@ -952,7 +952,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       try {
         const fsData = await fetchFullDatabaseFromFirestore();
         if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
-          if (Array.isArray(fsData.invoices)) setInvoices(prev => mergeEntityLists(prev || [], fsData.invoices));
+          if (Array.isArray(fsData.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], fsData.invoices));
           if (Array.isArray(fsData.parties)) setParties(prev => mergeEntityLists(prev || [], fsData.parties));
           if (Array.isArray(fsData.inventory)) setInventory(prev => mergeEntityLists(prev || [], fsData.inventory));
           if (Array.isArray(fsData.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], fsData.vouchers));
@@ -976,7 +976,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         const data = JSON.parse(text);
         if (!data || typeof data !== 'object') return;
 
-        if (Array.isArray(data.invoices)) setInvoices(prev => mergeEntityLists(prev || [], data.invoices));
+        if (Array.isArray(data.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], data.invoices));
         if (Array.isArray(data.parties)) setParties(prev => mergeEntityLists(prev || [], data.parties));
         if (Array.isArray(data.inventory)) setInventory(prev => mergeEntityLists(prev || [], data.inventory));
         if (Array.isArray(data.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], data.printOrders));
@@ -2023,7 +2023,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
       if (remoteData) {
         const rEnt = remoteData.entities || remoteData.data || remoteData || {};
-        const mergedInvoices = mergeEntityLists(invoices, Array.isArray(rEnt.invoices) ? rEnt.invoices : []);
+        const mergedInvoices = mergeInvoicesWithUpsertAndConflictResolution(invoices, Array.isArray(rEnt.invoices) ? rEnt.invoices : []);
         const mergedParties = mergeEntityLists(parties, Array.isArray(rEnt.parties) ? rEnt.parties : []);
         const mergedInventory = mergeEntityLists(inventory, Array.isArray(rEnt.inventory) ? rEnt.inventory : []);
         const mergedVouchers = mergeEntityLists(vouchers, Array.isArray(rEnt.vouchers) ? rEnt.vouchers : []);
@@ -2271,8 +2271,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       return { success: true, localOnly: true };
     }
 
-    // Apply merged updates across all collections (preserving unsynced local entries)
-    if (Array.isArray(json.data?.invoices?.items)) { setInvoices(prev => mergeEntityLists(prev || [], json.data.invoices.items)); }
+    if (Array.isArray(json.data?.invoices?.items)) { setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], json.data.invoices.items)); }
     if (Array.isArray(json.data?.parties?.items)) { setParties(prev => mergeEntityLists(prev || [], json.data.parties.items)); }
     if (Array.isArray(json.data?.inventory?.items)) { setInventory(prev => mergeEntityLists(prev || [], json.data.inventory.items)); }
     if (Array.isArray(json.data?.vouchers?.items)) { setVouchers(prev => mergeEntityLists(prev || [], json.data.vouchers.items)); }
@@ -2498,7 +2497,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
             }
         } else if (isMounted && hasCloudData) {
             if (Array.isArray(data.parties)) setParties(prev => mergeEntityLists(prev || [], data.parties));
-            if (Array.isArray(data.invoices)) setInvoices(prev => mergeEntityLists(prev || [], data.invoices));
+            if (Array.isArray(data.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], data.invoices));
             if (Array.isArray(data.employees)) setEmployees(prev => mergeEntityLists(prev || [], data.employees));
             if (Array.isArray(data.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], data.vouchers));
             if (Array.isArray(data.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], data.printOrders));
