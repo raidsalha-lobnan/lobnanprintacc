@@ -48,17 +48,6 @@ try {
 
 export const db = firestoreInstance;
 
-// Purge any stuck mutation queues from previous runaway loops in IndexedDB
-if (typeof window !== 'undefined' && window.indexedDB && window.indexedDB.databases) {
-  window.indexedDB.databases().then(dbs => {
-    dbs.forEach(d => {
-      if (d.name && d.name.startsWith('firestore')) {
-        try { window.indexedDB.deleteDatabase(d.name); } catch {}
-      }
-    });
-  }).catch(() => {});
-}
-
 console.log("Firestore initialized with database ID:", firebaseConfig.firestoreDatabaseId || '(default)');
 
 export {
