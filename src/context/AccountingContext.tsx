@@ -1604,6 +1604,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           saved.includes('localtunnel') ||
           saved.includes('vercel.app') ||
           saved.includes('netlify.app') ||
+          saved.includes('github.io') ||
           saved.includes('undefined')
         ) {
           localStorage.removeItem('master_server_host_url');

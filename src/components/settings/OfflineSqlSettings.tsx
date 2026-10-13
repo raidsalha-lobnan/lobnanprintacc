@@ -200,9 +200,23 @@ export const OfflineSqlSettings: React.FC = () => {
             <input
               type="text"
               placeholder="اتركه فارغاً للاتصال المباشر التلقائي أو ضع: http://192.168.1.100:3000"
-              defaultValue={localStorage.getItem('master_server_host_url') || ''}
+              defaultValue={(() => {
+                const s = localStorage.getItem('master_server_host_url') || '';
+                if (s.includes('vercel.app') || s.includes('netlify.app') || s.includes('github.io')) {
+                  localStorage.removeItem('master_server_host_url');
+                  return '';
+                }
+                return s;
+              })()}
               onChange={(e) => {
-                localStorage.setItem('master_server_host_url', e.target.value);
+                const val = e.target.value.trim();
+                if (val.includes('vercel.app') || val.includes('netlify.app')) {
+                  alert('لا يمكن استخدام استضافات الواجهات الثابتة (مثل Vercel) كسيرفر مزامنة رئيسي. يترك فارغاً للعمل المحلي أو وضع عنوان IP محلي.');
+                  localStorage.removeItem('master_server_host_url');
+                  e.target.value = '';
+                } else {
+                  localStorage.setItem('master_server_host_url', val);
+                }
               }}
               className="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white font-mono"
             />
