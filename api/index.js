@@ -15,6 +15,13 @@ export default function handler(req, res) {
 
   const url = req.url || '';
 
+  if (url.includes('/api/app-version') || url.includes('app-version')) {
+    return res.status(200).json({
+      version: '1.0.0',
+      timestamp: new Date().toISOString()
+    });
+  }
+
   if (url.includes('/api/sync/status') || url.includes('/status')) {
     return res.status(200).json({
       status: 'online',

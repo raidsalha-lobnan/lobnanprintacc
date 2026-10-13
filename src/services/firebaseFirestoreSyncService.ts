@@ -300,30 +300,37 @@ export function subscribeToConnectionIssuesFromFirestore(
  * Clears audit logs from Firestore
  */
 export async function clearAuditLogsFromFirestore(): Promise<boolean> {
+  if (isFirestoreQuotaExceeded()) return false;
   try {
     const colRef = collection(db, AUDIT_COLLECTION);
     const snap = await getDocs(colRef);
     const promises = snap.docs.map(d => deleteDoc(d.ref));
     await Promise.all(promises);
     return true;
-  } catch (err) {
-    console.warn('Error clearing audit logs in Firestore:', err);
+  } catch (err: any) {
+    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+      markQuotaExceeded();
+      return false;
+    }
+    console.warn('Audit logs clear note:', err?.message || err);
     return false;
   }
 }
 
-/**
- * Clears connection issues from Firestore
- */
 export async function clearConnectionIssuesFromFirestore(): Promise<boolean> {
+  if (isFirestoreQuotaExceeded()) return false;
   try {
     const colRef = collection(db, ISSUES_COLLECTION);
     const snap = await getDocs(colRef);
     const promises = snap.docs.map(d => deleteDoc(d.ref));
     await Promise.all(promises);
     return true;
-  } catch (err) {
-    console.warn('Error clearing connection issues in Firestore:', err);
+  } catch (err: any) {
+    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+      markQuotaExceeded();
+      return false;
+    }
+    console.warn('Connection issues clear note:', err?.message || err);
     return false;
   }
 }

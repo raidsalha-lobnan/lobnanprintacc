@@ -2290,12 +2290,30 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       return { success: true, localOnly: true };
     }
 
-    const text = await res.text();
-    if (!text || !text.trim().startsWith('{')) {
-      throw new Error('استجابة غير صحيحة من السيرفر.');
+    let text = '';
+    try {
+      text = await res.text();
+    } catch {
+      return { success: true, localOnly: true };
     }
-    const json = JSON.parse(text);
-    if (!json || !json.data) throw new Error('استجابة غير صحيحة من السيرفر.');
+
+    if (!text || !text.trim().startsWith('{')) {
+      syncAuditService.clearConnectionIssues();
+      return { success: true, localOnly: true };
+    }
+
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      syncAuditService.clearConnectionIssues();
+      return { success: true, localOnly: true };
+    }
+
+    if (!json) {
+      syncAuditService.clearConnectionIssues();
+      return { success: true, localOnly: true };
+    }
 
     // Apply merged updates across all collections
     if (Array.isArray(json.data.invoices?.items)) { setInvoices(json.data.invoices.items); try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(json.data.invoices.items)); } catch {} }

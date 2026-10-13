@@ -88,11 +88,13 @@ const MainLayout: React.FC = () => {
     let currentServerVersion: string | null = null;
     const checkVersion = async () => {
       try {
-        const res = await fetch('/api/app-version');
-        if (!res.ok) return;
+        const res = await fetch('/api/app-version').catch(() => null);
+        if (!res || !res.ok) return;
         const ct = res.headers.get('content-type') || '';
         if (!ct.includes('application/json')) return;
-        const data = await res.json();
+        const text = await res.text().catch(() => '');
+        if (!text || !text.trim().startsWith('{')) return;
+        const data = JSON.parse(text);
         if (data && data.version) {
           if (currentServerVersion === null) {
             currentServerVersion = data.version;
@@ -105,7 +107,7 @@ const MainLayout: React.FC = () => {
     };
 
     checkVersion();
-    const interval = setInterval(checkVersion, 5000); // Check every 5 seconds
+    const interval = setInterval(checkVersion, 60000); // Check every 60 seconds
     return () => clearInterval(interval);
   }, []);
 
