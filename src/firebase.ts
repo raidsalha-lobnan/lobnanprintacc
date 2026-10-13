@@ -24,8 +24,12 @@ import firebaseConfig from '../firebase-applet-config.json';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
+console.log("Firebase initialized with config:", JSON.stringify(firebaseConfig));
+
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Use the configured database ID
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+console.log("Firestore initialized with database ID:", firebaseConfig.firestoreDatabaseId || '(default)');
 
 export {
   GoogleAuthProvider,
