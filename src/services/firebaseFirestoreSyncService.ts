@@ -118,26 +118,36 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
 }
 
 /**
- * Fetches all entity snapshots from Firestore once
+ * Fetches all entity snapshots from Firestore once (offline-resilient)
  */
 export async function fetchFullDatabaseFromFirestore(): Promise<Record<string, any[]> | null> {
+  if (isFirestoreQuotaExceeded()) {
+    return null;
+  }
   try {
     const snapshot: Record<string, any[]> = {};
     const promises = ALL_ENTITIES.map(async (ent) => {
-      const docRef = doc(db, DB_COLLECTION, ent);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data && Array.isArray(data.items)) {
-          snapshot[ent] = data.items;
+      try {
+        const docRef = doc(db, DB_COLLECTION, ent);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items)) {
+            snapshot[ent] = data.items;
+          }
         }
+      } catch (docErr: any) {
+        if (docErr?.code === 'resource-exhausted') {
+          markQuotaExceeded();
+        }
+        // Silently skip if client is offline or document not found
       }
     });
 
     await Promise.all(promises);
-    return snapshot;
-  } catch (err) {
-    console.error('Error fetching full DB from Firestore:', err);
+    return Object.keys(snapshot).length > 0 ? snapshot : null;
+  } catch (err: any) {
+    console.debug('Firestore hydration offline status note:', err?.message || err);
     return null;
   }
 }
@@ -151,7 +161,6 @@ export function subscribeToSingleEntity(
 ): () => void {
   const docRef = doc(db, DB_COLLECTION, entityName);
   return onSnapshot(docRef, (snap) => {
-    console.log(`Firestore update for ${entityName}:`, snap.exists() ? `${snap.data()?.items?.length || 0} items` : 'does not exist');
     if (snap.exists()) {
       const data = snap.data();
       if (data && Array.isArray(data.items)) {
@@ -159,7 +168,10 @@ export function subscribeToSingleEntity(
       }
     }
   }, (err) => {
-    console.error(`Firestore snapshot error for ${entityName}:`, err);
+    if (err?.code === 'resource-exhausted') {
+      markQuotaExceeded();
+    }
+    console.debug(`Firestore listener state for ${entityName}:`, err?.message || err);
   });
 }
 

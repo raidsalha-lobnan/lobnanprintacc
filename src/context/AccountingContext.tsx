@@ -978,7 +978,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         localStorage.setItem(syncKey, 'true');
         console.log('Master database snapshot cleanly hydrated on startup.');
       } catch (err) {
-        console.warn('Auto master database hydration note:', err);
+        console.debug('Auto master database hydration note:', err);
       }
     };
 
