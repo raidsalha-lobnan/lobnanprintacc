@@ -37,6 +37,10 @@ export function markQuotaExceeded() {
   console.warn('⚠️ تم بلوغ الحد اليومي لخطة Firebase المجانية (20,000 حركة/يوم). التطبيق يعمل محلياً بصورة كاملة ومستقرة.');
 }
 
+export function resetQuotaExceeded() {
+  quotaExceededUntil = 0;
+}
+
 /**
  * Saves a single entity's list of items to Firestore
  */
