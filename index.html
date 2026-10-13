@@ -14,6 +14,25 @@
     <script>
       (function() {
         try {
+          var savedHost = localStorage.getItem('master_server_host_url');
+          if (savedHost && (savedHost.includes('vercel.app') || savedHost.includes('netlify.app') || savedHost.includes('github.io'))) {
+            localStorage.removeItem('master_server_host_url');
+          }
+        } catch (e) {}
+
+        var nativeFetch = window.fetch;
+        if (nativeFetch) {
+          window.fetch = function(input, init) {
+            var urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+            if (urlStr && (urlStr.includes('vercel.app') || urlStr.includes('netlify.app'))) {
+              var rewritten = urlStr.replace(/https?:\/\/[^\/]+/, '');
+              return nativeFetch.call(window, rewritten, init);
+            }
+            return nativeFetch.apply(window, arguments);
+          };
+        }
+
+        try {
           var currentFetch = window.fetch ? window.fetch.bind(window) : undefined;
           try {
             Object.defineProperty(window, 'fetch', {
