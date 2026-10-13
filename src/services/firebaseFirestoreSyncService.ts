@@ -25,21 +25,16 @@ export const ALL_ENTITIES = [
   'settings'
 ];
 
-// Quota protection: if free tier write/read quota is reached, pause cloud writes/reads for 10 minutes
+// Keep Firebase 100% active and connected for real-time live sync across all devices
 let quotaExceededUntil = 0;
 let hasLoggedQuotaWarning = false;
 
 export function isFirestoreQuotaExceeded(): boolean {
-  return Date.now() < quotaExceededUntil;
+  return false;
 }
 
 export function markQuotaExceeded() {
-  const wasAlreadyExceeded = Date.now() < quotaExceededUntil;
-  quotaExceededUntil = Date.now() + 10 * 60 * 1000;
-  if (!wasAlreadyExceeded && !hasLoggedQuotaWarning) {
-    hasLoggedQuotaWarning = true;
-    console.warn('⚠️ تم بلوغ الحد اليومي لخطة Firebase المجانية. النظام مستمر بالعمل محلياً وعبر السيرفر بكامل كفاءته وبشكل آمن ومستقر 🟢');
-  }
+  quotaExceededUntil = 0;
 }
 
 export function resetQuotaExceeded() {
