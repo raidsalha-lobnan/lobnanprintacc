@@ -1730,9 +1730,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
       const fetchAndMergeFullServerState = async () => {
         const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
-        const sRes = await fetch(stateEndpoint).catch(() => null);
+        const sRes = await fetch(stateEndpoint).catch((e) => {
+            console.error('State fetch failed:', e);
+            return null;
+        });
         if (sRes && sRes.ok) {
-          const sJson = await sRes.json().catch(() => null);
+          const sJson = await sRes.json().catch((e) => {
+              console.error('State JSON parse failed:', e);
+              return null;
+          });
           if (sJson && sJson.data) {
             const delSet = new Set<string>();
             const deletedDocs = (() => {

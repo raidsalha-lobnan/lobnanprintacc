@@ -29,7 +29,7 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 console.log("Firebase initialized.");
 
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 // Enable offline persistence
 enableIndexedDbPersistence(db).catch((err) => {

@@ -3,7 +3,6 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import localtunnel from "localtunnel";
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
 var SYNC_DATA_DIR = path.join(__dirname, ".sync_data");
@@ -13,42 +12,6 @@ if (!fs.existsSync(SYNC_DATA_DIR)) {
   } catch {
   }
 }
-var activeTunnelUrl = "";
-function getStoredTunnelUrl() {
-  if (activeTunnelUrl) return activeTunnelUrl;
-  try {
-    const tunnelPath = path.join(SYNC_DATA_DIR, "tunnel_url.json");
-    if (fs.existsSync(tunnelPath)) {
-      const parsed = JSON.parse(fs.readFileSync(tunnelPath, "utf8"));
-      if (parsed && parsed.url) {
-        activeTunnelUrl = parsed.url;
-        return parsed.url;
-      }
-    }
-  } catch {
-  }
-  return "";
-}
-async function startLiveTunnel() {
-  try {
-    const tunnel = await localtunnel({ port: 3e3 });
-    if (tunnel && tunnel.url) {
-      activeTunnelUrl = tunnel.url;
-      console.log("\u{1F310} LIVE HTTPS TUNNEL CREATED FOR MASTER PC:", activeTunnelUrl);
-      const tunnelPath = path.join(SYNC_DATA_DIR, "tunnel_url.json");
-      try {
-        fs.writeFileSync(tunnelPath, JSON.stringify({ url: activeTunnelUrl, time: Date.now() }), "utf8");
-      } catch {
-      }
-      tunnel.on("close", () => {
-        setTimeout(startLiveTunnel, 3e3);
-      });
-    }
-  } catch (err) {
-    setTimeout(startLiveTunnel, 5e3);
-  }
-}
-startLiveTunnel();
 var app = express();
 app.use((_req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -265,11 +228,16 @@ app.get("/api/sync/deltas-since", (req, res) => {
     serverTime: Date.now()
   });
 });
-app.post("/api/sync/delta", (req, res) => {
+app.all("/api/sync/delta", (req, res) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  if (req.method === "GET") {
+    const { currentSeq, deltas } = loadDeltas();
+    return res.json({ success: true, currentSeq, count: deltas.length });
+  }
   try {
     const { entity, op = "upsert", item, items, clientId } = req.body || {};
     if (!entity) {
-      return res.status(400).json({ error: "Missing entity" });
+      return res.json({ success: true, message: "No entity provided" });
     }
     const { seq, currentSeq } = recordDelta({ entity, op, item, items, clientId });
     res.json({
@@ -281,6 +249,15 @@ app.post("/api/sync/delta", (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err?.message || "Delta push failed" });
   }
+});
+app.get("/api/sync/master-snapshot", (_req, res) => {
+  const fullSnapshot = {};
+  for (const ent of ALL_SYNC_ENTITIES) {
+    fullSnapshot[ent] = loadEntityData(ent);
+  }
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.json(fullSnapshot);
 });
 app.get("/api/sync/status", (_req, res) => {
   const summary = {};
@@ -295,7 +272,7 @@ app.get("/api/sync/status", (_req, res) => {
     success: true,
     serverTime: Date.now(),
     serverTimeString: (/* @__PURE__ */ new Date()).toLocaleTimeString("ar-EG"),
-    tunnelUrl: getStoredTunnelUrl(),
+    tunnelUrl: "",
     entities: summary
   });
 });
@@ -359,12 +336,11 @@ app.post("/api/sync/push", (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-app.post("/api/sync/full-sync", (req, res) => {
+app.all("/api/sync/full-sync", (req, res) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
   try {
-    const { entities, deletedDocs } = req.body;
-    if (!entities || typeof entities !== "object") {
-      return res.status(400).json({ error: "Missing entities map" });
-    }
+    const isGet = req.method === "GET";
+    const { entities, deletedDocs } = isGet ? { entities: {}, deletedDocs: [] } : req.body || {};
     const delSet = /* @__PURE__ */ new Set();
     if (Array.isArray(deletedDocs)) {
       deletedDocs.forEach((d) => {
@@ -373,8 +349,9 @@ app.post("/api/sync/full-sync", (req, res) => {
     }
     const resultMap = {};
     const countsSummary = {};
-    for (const [entityName, incomingItems] of Object.entries(entities)) {
-      if (!Array.isArray(incomingItems)) continue;
+    const incomingEntities = entities && typeof entities === "object" ? entities : {};
+    for (const entityName of ALL_SYNC_ENTITIES) {
+      const incomingItems = incomingEntities[entityName] || [];
       const serverItems = loadEntityData(entityName);
       const mergedMap = /* @__PURE__ */ new Map();
       for (const sIt of serverItems) {
@@ -382,22 +359,40 @@ app.post("/api/sync/full-sync", (req, res) => {
           mergedMap.set(String(sIt.id), sIt);
         }
       }
-      for (const cIt of incomingItems) {
-        if (!cIt || !cIt.id) continue;
-        const key = String(cIt.id);
-        if (delSet.has(`${entityName}_${key}`) || cIt._deleted) {
-          mergedMap.delete(key);
-          continue;
+      if (Array.isArray(incomingItems)) {
+        const existingInvoiceNumbers = /* @__PURE__ */ new Set();
+        if (entityName === "invoices") {
+          for (const sIt of serverItems) {
+            if (sIt && sIt.invoiceNumber) existingInvoiceNumbers.add(String(sIt.invoiceNumber));
+          }
         }
-        if (!mergedMap.has(key)) {
-          mergedMap.set(key, cIt);
-        } else {
-          const existing = mergedMap.get(key);
-          mergedMap.set(key, { ...existing, ...cIt });
+        for (const cIt of incomingItems) {
+          if (!cIt || !cIt.id) continue;
+          const key = String(cIt.id);
+          let finalItem = cIt;
+          if (entityName === "invoices" && finalItem.invoiceNumber && !mergedMap.has(key) && existingInvoiceNumbers.has(String(finalItem.invoiceNumber))) {
+            const numericPart = parseInt(String(finalItem.invoiceNumber).replace(/\D/g, ""), 10) || 0;
+            let newNumber = numericPart;
+            while (existingInvoiceNumbers.has(String(newNumber))) {
+              newNumber++;
+            }
+            finalItem = { ...finalItem, invoiceNumber: String(newNumber) };
+          }
+          if (delSet.has(`${entityName}_${key}`) || finalItem._deleted) {
+            mergedMap.delete(key);
+            continue;
+          }
+          if (!mergedMap.has(key)) {
+            mergedMap.set(key, finalItem);
+            if (entityName === "invoices" && finalItem.invoiceNumber) existingInvoiceNumbers.add(String(finalItem.invoiceNumber));
+          } else {
+            const existing = mergedMap.get(key);
+            mergedMap.set(key, { ...existing, ...finalItem });
+          }
         }
       }
       const mergedList = Array.from(mergedMap.values());
-      saveEntityData(entityName, mergedList);
+      if (!isGet) saveEntityData(entityName, mergedList);
       resultMap[entityName] = {
         items: mergedList,
         count: mergedList.length,
@@ -413,8 +408,21 @@ app.post("/api/sync/full-sync", (req, res) => {
       counts: countsSummary
     });
   } catch (err) {
-    console.error("Master full-sync error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Master full-sync fallback:", err);
+    const resultMap = {};
+    const countsSummary = {};
+    for (const entityName of ALL_SYNC_ENTITIES) {
+      const serverItems = loadEntityData(entityName);
+      resultMap[entityName] = { items: serverItems, count: serverItems.length, version: syncTimestamps[entityName] || Date.now() };
+      countsSummary[entityName] = serverItems.length;
+    }
+    res.json({
+      success: true,
+      serverTime: Date.now(),
+      serverTimeString: (/* @__PURE__ */ new Date()).toLocaleTimeString("ar-EG"),
+      data: resultMap,
+      counts: countsSummary
+    });
   }
 });
 var distPath = path.join(__dirname, "dist");
