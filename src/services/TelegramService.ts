@@ -4,14 +4,18 @@ let lastUpdateId = 0;
 let pollingTimeout: any = null;
 let isPollingActive = false;
 
+const currentTabId = typeof window !== 'undefined'
+  ? (window.name || (window.name = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`))
+  : 'server';
+
 export const TelegramService = {
-  sendMessage: async (text: string, settings: BusinessSettings) => {
+  sendMessage: async (text: string, settings: BusinessSettings): Promise<boolean> => {
     if (!settings.telegramConfig?.enabled || !settings.telegramConfig?.botToken || !settings.telegramConfig?.defaultChatId) {
-      return;
+      return false;
     }
-    
+
     try {
-      await fetch(`https://api.telegram.org/bot${settings.telegramConfig.botToken}/sendMessage`, {
+      const response = await fetch(`https://api.telegram.org/bot${settings.telegramConfig.botToken}/sendMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -22,24 +26,31 @@ export const TelegramService = {
           parse_mode: 'HTML',
         }),
       });
+
+      return response.ok;
     } catch (error) {
-      console.error('Error sending Telegram message:', error);
+      console.warn('Error sending Telegram message:', error);
+      return false;
     }
   },
 
-  sendDocument: async (blob: Blob, filename: string, caption: string, chatId: string, botToken: string) => {
+  sendDocument: async (blob: Blob, filename: string, caption: string, chatId?: string, botToken?: string) => {
+    const targetChatId = chatId || '';
+    const targetToken = botToken || '';
+    if (!targetToken || !targetChatId) return;
+
     try {
       const formData = new FormData();
-      formData.append('chat_id', chatId);
+      formData.append('chat_id', targetChatId);
       formData.append('document', blob, filename);
       if (caption) formData.append('caption', caption);
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+      await fetch(`https://api.telegram.org/bot${targetToken}/sendDocument`, {
         method: 'POST',
         body: formData,
       });
     } catch (error) {
-      console.error('Error sending document to Telegram:', error);
+      console.warn('Error sending document to Telegram:', error);
     }
   },
 
@@ -61,32 +72,63 @@ export const TelegramService = {
       pollingTimeout = setTimeout(poll, delayMs);
     };
 
+    const isTabLeader = (): boolean => {
+      try {
+        const raw = localStorage.getItem('telegram_polling_leader');
+        if (!raw) return true;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.tabId || Date.now() - parsed.time > 15000) return true;
+        return parsed.tabId === currentTabId;
+      } catch {
+        return true;
+      }
+    };
+
+    const claimLeadership = () => {
+      try {
+        localStorage.setItem('telegram_polling_leader', JSON.stringify({ tabId: currentTabId, time: Date.now() }));
+      } catch {}
+    };
+
     const poll = async () => {
       if (!isPollingActive) return;
       if (!navigator.onLine) {
+        scheduleNext(15000);
+        return;
+      }
+
+      // Multi-tab coordination: only the leader tab polls Telegram getUpdates
+      if (!isTabLeader()) {
         scheduleNext(10000);
         return;
       }
+      claimLeadership();
 
       try {
         const response = await fetch(
           `https://api.telegram.org/bot${token}/getUpdates?offset=${lastUpdateId + 1}&timeout=10`
-        );
+        ).catch(() => null);
 
-        if (response.status === 409) {
-          // Conflict: another tab or instance is polling, back off to avoid console spam
-          scheduleNext(25000);
-          return;
-        }
-
-        if (!response.ok) {
+        if (!response) {
           scheduleNext(15000);
           return;
         }
 
-        const data = await response.json();
+        if (response.status === 409) {
+          // Conflict: another tab or external webhook is actively polling. Back off quietly.
+          try { localStorage.removeItem('telegram_polling_leader'); } catch {}
+          scheduleNext(60000);
+          return;
+        }
+
+        if (!response.ok) {
+          scheduleNext(20000);
+          return;
+        }
+
+        const data = await response.json().catch(() => null);
         
-        if (data.ok && Array.isArray(data.result) && data.result.length > 0) {
+        if (data && data.ok && Array.isArray(data.result) && data.result.length > 0) {
           for (const update of data.result) {
             lastUpdateId = update.update_id;
             
@@ -97,13 +139,13 @@ export const TelegramService = {
             }
           }
         }
-        scheduleNext(3000);
-      } catch (error: any) {
-        scheduleNext(15000);
+        scheduleNext(4000);
+      } catch {
+        scheduleNext(20000);
       }
     };
 
-    scheduleNext(1000);
+    scheduleNext(1500);
   },
 
   stopPolling: () => {
@@ -112,5 +154,14 @@ export const TelegramService = {
       clearTimeout(pollingTimeout);
       pollingTimeout = null;
     }
+    try {
+      const raw = localStorage.getItem('telegram_polling_leader');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.tabId === currentTabId) {
+          localStorage.removeItem('telegram_polling_leader');
+        }
+      }
+    } catch {}
   }
 };

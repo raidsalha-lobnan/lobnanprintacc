@@ -1797,10 +1797,20 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
         const sRes = await fetch(stateEndpoint).catch(() => null);
         if (sRes && sRes.ok) {
-          const sJson = await sRes.json().catch((e) => {
-              console.error('State JSON parse failed:', e);
-              return null;
-          });
+          const contentType = sRes.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            // HTML fallback detected (e.g. from an invalid baseUrl); clear invalid baseUrl
+            if (baseUrl) localStorage.removeItem('master_server_host_url');
+            return;
+          }
+          const text = await sRes.text().catch(() => '');
+          if (!text || !text.trim().startsWith('{')) return;
+          let sJson: any = null;
+          try {
+            sJson = JSON.parse(text);
+          } catch {
+            return;
+          }
           if (sJson && sJson.data) {
             const delSet = new Set<string>();
             const deletedDocs = (() => {
@@ -1873,15 +1883,25 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`).catch(() => null);
       }
       if (!res || !res.ok) {
-          return;
+        return;
       }
-      const json = await res.json().catch((e) => {
-          console.error('Delta JSON parse failed:', e);
-          return null;
-      });
+      const cType = res.headers.get('content-type') || '';
+      if (!cType.includes('application/json')) {
+        if (baseUrl) localStorage.removeItem('master_server_host_url');
+        return;
+      }
+      const rawText = await res.text().catch(() => '');
+      if (!rawText || !rawText.trim().startsWith('{')) {
+        return;
+      }
+      let json: any = null;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        return;
+      }
       if (!json || !json.success) {
-          console.warn('Delta JSON invalid or not success:', json);
-          return;
+        return;
       }
 
       const { deltas, currentSeq } = json;
@@ -2188,6 +2208,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     }
 
     if (!res || !res.ok) {
+      // If Firestore quota is paused, succeed locally without quota errors
+      if (isFirestoreQuotaExceeded()) {
+        syncAuditService.clearConnectionIssues();
+        return { success: true, localOnly: true };
+      }
+
       // Primary Cloud Fallback: Firebase Firestore Real-Time Database
       try {
         // Resolve conflicts before pushing

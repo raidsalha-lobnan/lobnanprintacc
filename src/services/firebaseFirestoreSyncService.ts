@@ -25,20 +25,26 @@ export const ALL_ENTITIES = [
   'settings'
 ];
 
-// Quota protection: if free tier write quota (20,000/day) is reached, pause cloud writes for 10 minutes
+// Quota protection: if free tier write/read quota is reached, pause cloud writes/reads for 10 minutes
 let quotaExceededUntil = 0;
+let hasLoggedQuotaWarning = false;
 
 export function isFirestoreQuotaExceeded(): boolean {
   return Date.now() < quotaExceededUntil;
 }
 
 export function markQuotaExceeded() {
+  const wasAlreadyExceeded = Date.now() < quotaExceededUntil;
   quotaExceededUntil = Date.now() + 10 * 60 * 1000;
-  console.warn('⚠️ تم بلوغ الحد اليومي لخطة Firebase المجانية (20,000 حركة/يوم). التطبيق يعمل محلياً بصورة كاملة ومستقرة.');
+  if (!wasAlreadyExceeded && !hasLoggedQuotaWarning) {
+    hasLoggedQuotaWarning = true;
+    console.warn('⚠️ تم بلوغ الحد اليومي لخطة Firebase المجانية. النظام مستمر بالعمل محلياً وعبر السيرفر بكامل كفاءته وبشكل آمن ومستقر 🟢');
+  }
 }
 
 export function resetQuotaExceeded() {
   quotaExceededUntil = 0;
+  hasLoggedQuotaWarning = false;
 }
 
 /**
@@ -163,6 +169,9 @@ export function subscribeToSingleEntity(
   entityName: string,
   onUpdate: (items: any[]) => void
 ): () => void {
+  if (isFirestoreQuotaExceeded()) {
+    return () => {};
+  }
   const docRef = doc(db, DB_COLLECTION, entityName);
   return onSnapshot(docRef, (snap) => {
     if (snap.exists()) {
@@ -172,8 +181,9 @@ export function subscribeToSingleEntity(
       }
     }
   }, (err) => {
-    if (err?.code === 'resource-exhausted') {
+    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
       markQuotaExceeded();
+      return;
     }
     console.debug(`Firestore listener state for ${entityName}:`, err?.message || err);
   });
@@ -185,6 +195,9 @@ export function subscribeToSingleEntity(
 export function subscribeToFirestoreLiveSync(
   onEntityUpdated: (entityName: string, items: any[]) => void
 ): () => void {
+  if (isFirestoreQuotaExceeded()) {
+    return () => {};
+  }
   const unsubscribes: (() => void)[] = [];
 
   ALL_ENTITIES.forEach((ent) => {
@@ -201,11 +214,16 @@ export function subscribeToFirestoreLiveSync(
  * Saves a sync audit log item directly to Firestore
  */
 export async function saveAuditLogToFirestore(item: SyncAuditItem): Promise<boolean> {
+  if (isFirestoreQuotaExceeded()) return false;
   try {
     const docRef = doc(db, AUDIT_COLLECTION, item.id);
     await setDoc(docRef, item, { merge: true });
     return true;
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 'resource-exhausted') {
+      markQuotaExceeded();
+      return false;
+    }
     console.warn('Error saving audit log to Firestore:', err);
     return false;
   }
@@ -215,11 +233,16 @@ export async function saveAuditLogToFirestore(item: SyncAuditItem): Promise<bool
  * Saves a sync connection issue item directly to Firestore
  */
 export async function saveConnectionIssueToFirestore(issue: SyncConnectionIssue): Promise<boolean> {
+  if (isFirestoreQuotaExceeded()) return false;
   try {
     const docRef = doc(db, ISSUES_COLLECTION, issue.id);
     await setDoc(docRef, issue, { merge: true });
     return true;
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 'resource-exhausted') {
+      markQuotaExceeded();
+      return false;
+    }
     console.warn('Error saving connection issue to Firestore:', err);
     return false;
   }
@@ -231,6 +254,7 @@ export async function saveConnectionIssueToFirestore(issue: SyncConnectionIssue)
 export function subscribeToSyncAuditLogsFromFirestore(
   callback: (logs: SyncAuditItem[]) => void
 ): () => void {
+  if (isFirestoreQuotaExceeded()) return () => {};
   const colRef = collection(db, AUDIT_COLLECTION);
   return onSnapshot(colRef, (snapshot) => {
     const logs: SyncAuditItem[] = [];
@@ -240,7 +264,11 @@ export function subscribeToSyncAuditLogsFromFirestore(
     logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     callback(logs);
   }, (err) => {
-    console.warn('Audit logs snapshot listener error:', err);
+    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+      markQuotaExceeded();
+      return;
+    }
+    console.warn('Audit logs snapshot listener notice:', err?.message || err);
   });
 }
 
@@ -250,6 +278,7 @@ export function subscribeToSyncAuditLogsFromFirestore(
 export function subscribeToConnectionIssuesFromFirestore(
   callback: (issues: SyncConnectionIssue[]) => void
 ): () => void {
+  if (isFirestoreQuotaExceeded()) return () => {};
   const colRef = collection(db, ISSUES_COLLECTION);
   return onSnapshot(colRef, (snapshot) => {
     const issues: SyncConnectionIssue[] = [];
@@ -259,7 +288,11 @@ export function subscribeToConnectionIssuesFromFirestore(
     issues.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     callback(issues);
   }, (err) => {
-    console.warn('Connection issues snapshot listener error:', err);
+    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+      markQuotaExceeded();
+      return;
+    }
+    console.warn('Connection issues snapshot listener notice:', err?.message || err);
   });
 }
 
