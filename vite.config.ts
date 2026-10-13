@@ -127,6 +127,11 @@ function syncHubPlugin() {
           pathname = rawUrl.split('?')[0].replace(/\/+$/, '');
         }
 
+        // Trace all /api/ requests for debugging 405 Method Not Allowed root cause
+        if (pathname.startsWith('/api/')) {
+          console.log(`[API TRACE] Method: ${req.method} | Path: ${pathname} | URL: ${req.url}`);
+        }
+
         // Add permissive CORS headers for cross-origin multi-device sync
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -439,9 +444,10 @@ function syncHubPlugin() {
 
         // Intercept any unhandled /api/ routes to prevent fallthrough to Vite static asset server (which throws 405 Method Not Allowed)
         if (pathname.startsWith('/api/')) {
+          console.log(`[API 404/405 TRACE] Unhandled API route or method not allowed: ${req.method} ${pathname}`);
           res.statusCode = 404;
           res.setHeader('Content-Type', 'application/json');
-          return res.end(JSON.stringify({ error: `API route ${pathname} not found` }));
+          return res.end(JSON.stringify({ error: `API route ${pathname} not found or method not allowed` }));
         }
 
         next();

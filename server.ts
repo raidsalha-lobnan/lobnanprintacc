@@ -12,11 +12,14 @@ if (!fs.existsSync(SYNC_DATA_DIR)) {
 }
 
 const app = express();
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    console.log(`[EXPRESS API TRACE] Method: ${req.method} | Path: ${req.path}`);
+  }
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  if (_req.method === 'OPTIONS') {
+  if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
   next();
