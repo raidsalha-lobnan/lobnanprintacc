@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { AlertOctagon, RefreshCw, CheckCircle } from 'lucide-react';
 
-export const FirebaseDiagnosticView: React.FC = () => {
+export const FirebaseConnectionDiagnostic: React.FC = () => {
   const [status, setStatus] = useState<'checking' | 'success' | 'error'>('checking');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
