@@ -2198,16 +2198,19 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     let res: Response | null = null;
     const baseUrl = getSyncBaseUrl();
+    const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
 
-    // 1. Try relative endpoint /api/sync/full-sync first (always cleanest direct route)
-    try {
-      res = await fetch('/api/sync/full-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    } catch (e) {
-      res = null;
+    // 1. Try relative endpoint /api/sync/full-sync first (if not on Vercel static hosting)
+    if (!isVercel) {
+      try {
+        res = await fetch('/api/sync/full-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        res = null;
+      }
     }
 
     // 2. Fallback to external master host URL if relative route failed and baseUrl exists
