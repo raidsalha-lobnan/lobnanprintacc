@@ -55,9 +55,10 @@ export function resolveInvoiceConflicts(
       
       // Update vouchers if they reference invoice number
       updatedVouchers.forEach(v => {
-        if (v.referenceId === inv.id) {
-          if (v.notes && v.notes.includes(oldNumber)) {
-            v.notes = v.notes.replace(oldNumber, newNumber);
+        const vAny = v as any;
+        if (vAny.referenceInvoiceId === inv.id || vAny.referenceId === inv.id) {
+          if (v.description && v.description.includes(oldNumber)) {
+            v.description = v.description.replace(oldNumber, newNumber);
           }
         }
       });

@@ -15,6 +15,7 @@ import { InvoicesReviewModal } from './pos/InvoicesReviewModal';
 import { HeldInvoicesModal, HeldInvoiceData } from './pos/HeldInvoicesModal';
 import { DraftInvoicesQueueModal } from './pos/DraftInvoicesQueueModal';
 import { SheetInvoiceRow } from '../services/liveSheetService';
+import { onlineInvoicePostingService } from '../services/onlineInvoicePostingService';
 import { ItemSearchModal } from './pos/ItemSearchModal';
 import { ItemAutocompleteInput } from './pos/ItemAutocompleteInput';
 import { PosCustomerSearchInput } from './pos/PosCustomerSearchInput';
@@ -354,6 +355,7 @@ export const PosView: React.FC = () => {
     updateInvoice,
     settings,
     createPosSale,
+    postPosSaleOnline,
     deleteInvoice,
     deletedInvoices,
     setSelectedInvoiceForPrint,
@@ -448,6 +450,30 @@ const getInitialPosDraft = (): PosFullDraftData => {
 
   // Active top tab in POS window
   const [activeWindowTab, setActiveWindowTab] = useState<'pos' | 'items' | 'parties' | 'ledger' | 'home'>('pos');
+
+  // Real-time online posting status & screen freeze guard: "وأثناء عدم الاتصال تضل الشاشات مجمدة محتفظة بمدخلاتها ولكن لا تحفظ إلا وقت الاتصال"
+  const [isPostingCloudInvoice, setIsPostingCloudInvoice] = useState<boolean>(false);
+  const [isNetworkOffline, setIsNetworkOffline] = useState<boolean>(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [isOfflineFrozen, setIsOfflineFrozen] = useState<boolean>(false);
+  const [offlinePendingPrintMode, setOfflinePendingPrintMode] = useState<'none' | 'prompt' | 'thermal-direct' | 'a4-direct' | 'a4-custom-direct'>('none');
+  const handleSaveInvoiceRef = useRef<any>(null);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsNetworkOffline(false);
+      if (isOfflineFrozen && handleSaveInvoiceRef.current) {
+        console.log('Online restored: auto-resuming frozen invoice posting...');
+        handleSaveInvoiceRef.current(offlinePendingPrintMode || 'none');
+      }
+    };
+    const handleOffline = () => setIsNetworkOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isOfflineFrozen, offlinePendingPrintMode]);
 
 
 
@@ -2147,8 +2173,8 @@ const getInitialPosDraft = (): PosFullDraftData => {
     }
   });
 
-  // Save Invoice Action
-  const handleSaveInvoice = (printMode: 'none' | 'prompt' | 'thermal-direct' | 'a4-direct' | 'a4-custom-direct' = 'none', isExplicitSave: boolean = false) => {
+  // Save Invoice Action (Strict Online Synchronous Posting)
+  const handleSaveInvoice = async (printMode: 'none' | 'prompt' | 'thermal-direct' | 'a4-direct' | 'a4-custom-direct' = 'none', isExplicitSave: boolean = false) => {
     // 0. Active non-empty lines filter
     const activeLines = tableLines.filter(l => (l.itemName && l.itemName.trim() !== '') || l.unitPrice > 0 || l.quantity > 0);
     if (activeLines.length === 0 || calculatedTotalAmount <= 0) {
@@ -2188,6 +2214,31 @@ const getInitialPosDraft = (): PosFullDraftData => {
       return;
     }
 
+    // 3. التحقق الحصري من الاتصال بالإنترنت لمنع التخزين المتراكم دون اتصال:
+    // "وأثناء عدم الاتصال تضل الشاشات مجمدة محتفظة بمدخلاتها ولكن لا تحفظ إلا وقت الاتصال"
+    if (!onlineInvoicePostingService.checkIsOnline()) {
+      setIsOfflineFrozen(true);
+      setOfflinePendingPrintMode(printMode);
+      onlineInvoicePostingService.stageInvoiceDraft({
+        lines: tableLines,
+        customerName: customerName || customCustomerText || 'عميل كاشير نقدي',
+        selectedCustomerId,
+        notes: invoiceNotes,
+        timestamp: Date.now()
+      });
+      posSound.error();
+      alert(
+        '⚠️ لا يوجد اتصال بالإنترنت حالياً.\nتم تجميد الشاشة والاحتفاظ بكافة الأصناف والمدخلات بأمان لمنع أي فقدان في البيانات.\nلن يتم تفريغ الشاشة أو حفظ الفاتورة إلا وقت الاتصال بالإنترنت والترحيل المباشر إلى السيرفر.'
+      );
+      return;
+    }
+
+    // 4. قفل التتابع لمنع حفظ أي فاتورة قبل إتمام الفاتورة السابقة: "ولا تحفظ أي فاتورة قبل ترحيل الفاتورة السابقة"
+    if (onlineInvoicePostingService.isPostingBusy() || isPostingCloudInvoice) {
+      alert('جاري ترحيل فاتورة سابقة حالياً بالتتابع إلى السيرفر... يرجى الانتظار ثوانٍ معدودة لإتمام الترحيل أولاً بأول.');
+      return;
+    }
+
     const itemsForContext = activeLines.map(line => {
       const isDelivery = line.inventoryItemId === 'srv-delivery' || line.barcode === 'DELIVERY' || line.itemName === 'خدمة توصيل' || line.itemName?.trim().startsWith('توصيل');
       const matchedInv: InventoryItem = inventory.find(i => 
@@ -2200,22 +2251,22 @@ const getInitialPosDraft = (): PosFullDraftData => {
         name: line.itemName,
         category: isDelivery ? 'services' : 'stationery',
         unit: line.unit || (isDelivery ? 'خدمة' : 'قطعة'),
-        purchasePrice: isDelivery ? 0 : (line.unitPrice * 0.7), // خدمة التوصيل لا تتطلب مخزن وتكلفتها تسجل على الزبون لعامل التوصيل دون مربح
+        purchasePrice: isDelivery ? 0 : (line.unitPrice * 0.7),
         sellingPrice: line.unitPrice,
-        stockQuantity: 0, // ليس لها مخزن ولا رصيد
+        stockQuantity: 0,
         minAlertQuantity: 0,
         barcode: line.barcode
       };
 
       if (isDelivery) {
-        matchedInv.purchasePrice = 0; // خدمة التوصيل لا تدخل في تكلفة البضاعة المباعة للمخازن
+        matchedInv.purchasePrice = 0;
         matchedInv.sellingPrice = line.unitPrice;
         matchedInv.stockQuantity = 0;
       }
 
       return {
         item: matchedInv,
-        itemName: line.itemName, // المعدل يظهر في الكشف والمطبوعات
+        itemName: line.itemName,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
         description: line.description,
@@ -2245,7 +2296,17 @@ const getInitialPosDraft = (): PosFullDraftData => {
     else if (cBase > 0 && bBase > 0) effectiveMethod = 'cash';
     else effectiveMethod = 'credit';
 
-    const savedInvoice = createPosSale(
+    setIsPostingCloudInvoice(true);
+    onlineInvoicePostingService.stageInvoiceDraft({
+      lines: tableLines,
+      customerName: customerName || customCustomerText || 'عميل كاشير نقدي',
+      selectedCustomerId,
+      notes: invoiceNotes,
+      timestamp: Date.now()
+    });
+
+    // الترحيل المتزامن المباشر للسيرفر مع حماية عدم فقدان البيانات
+    const postRes = await postPosSaleOnline(
       itemsForContext,
       customerName || customCustomerText || 'عميل كاشير نقدي',
       effectiveMethod,
@@ -2285,6 +2346,22 @@ const getInitialPosDraft = (): PosFullDraftData => {
         workflowStatus: invoiceWorkflowStatus
       }
     );
+
+    setIsPostingCloudInvoice(false);
+
+    if (!postRes.success || !postRes.invoice) {
+      if (postRes.isOffline) {
+        setIsOfflineFrozen(true);
+        setOfflinePendingPrintMode(printMode);
+      } else {
+        alert(`تعذر الترحيل السحابي للفاتورة: ${postRes.error || 'خطأ غير معروف'}\nكافة مدخلات الفاتورة محفوظة على الشاشة لمنع فقدان البيانات.`);
+      }
+      return;
+    }
+
+    const savedInvoice = postRes.invoice;
+    setIsOfflineFrozen(false);
+    onlineInvoicePostingService.clearStagedInvoiceDraft();
 
     posSound.success();
 
@@ -2393,6 +2470,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
       // setActiveTab('invoices'); // Removed so the screen stays as is
     }
   };
+  handleSaveInvoiceRef.current = handleSaveInvoice;
 
   // Direct Pay Cash (زر دفع يتم احتساب الفاتورة كمدفوعة وبالعملة الرئيسية للبرنامج والصندوق الرئيسي وهو الشيكل)
   const handleQuickPayCash = (printMode: 'none' | 'prompt' | 'thermal-direct' | 'a4-direct' | 'a4-custom-direct' = 'none') => {
@@ -3075,6 +3153,45 @@ const getInitialPosDraft = (): PosFullDraftData => {
           </button>
         </div>
       )}
+
+      {/* ❄️ شريط تجميد الشاشة وحفظ المدخلات عند انقطاع الاتصال (Zero Data Loss Offline Freeze) */}
+      {isOfflineFrozen && (
+        <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 text-white px-4 py-2.5 shadow-xl flex items-center justify-between z-50 border-b-2 border-amber-300">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl animate-pulse">❄️</span>
+            <div>
+              <div className="font-black text-sm text-amber-100 flex items-center gap-2">
+                <span>الشاشة مجمدة ومحتفظة بكافة المدخلات والأصناف بأمان (وضع عدم الاتصال)</span>
+                <span className="bg-amber-950/70 text-amber-200 text-[10px] px-2 py-0.5 rounded-full font-bold">حماية البيانات 100%</span>
+              </div>
+              <div className="text-[11px] text-amber-200/90 mt-0.5">
+                تم إلغاء المزامنة الأوفلاين منعاً لأي فقدان في البيانات. كافة البنود والأسعار والزبون محفوظة على الشاشة ولن يتم تفريغها، وسيتم الحفظ والترحيل تلقائياً فور استعادة الاتصال بالسيرفر.
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleSaveInvoice(offlinePendingPrintMode || 'none')}
+              className="bg-white text-amber-900 hover:bg-amber-100 font-black text-xs px-3.5 py-1.5 rounded-lg shadow-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+            >
+              <span>🔄</span>
+              <span>إعادة محاولة الترحيل الآن</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ⏳ شريط الترحيل السحابي المباشر بالتتابع (Sequential In-Flight Lock) */}
+      {isPostingCloudInvoice && (
+        <div className="bg-blue-600 text-white px-4 py-1.5 shadow-md flex items-center justify-between z-50 border-b border-blue-400">
+          <div className="flex items-center gap-2 font-bold text-xs">
+            <span className="inline-block animate-spin">⏳</span>
+            <span>جاري ترحيل الفاتورة بالتتابع أولاً بأول إلى السيرفر... يرجى الانتظار</span>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================= */}
       {/* 1. TOP TOOLBAR (شريط الأدوات العلوي) */}
       {/* ========================================================= */}

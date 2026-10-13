@@ -11,7 +11,7 @@ export interface SpecialInvoiceViewProps {
 }
 
 export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose }) => {
-  const { invoices, settings, parties, inventory, addPosInvoice, getItemPriceForCustomer } = useAccounting();
+  const { invoices, settings, parties, inventory, addPosInvoice, addPosInvoiceOnline, getItemPriceForCustomer } = useAccounting();
 
   // Floating Window State
   const [position, setPosition] = useState(() => {
@@ -329,14 +329,19 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
     window.print();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const validItems = items.filter(i => (i.name || i.itemNotes) && Number(i.total) > 0);
     if (validItems.length === 0) {
       alert('يجب إدخال صنف واحد على الأقل مع إجمالي صحيح');
       return;
     }
 
-    addPosInvoice({
+    if (!navigator.onLine) {
+      alert('⚠️ لا يوجد اتصال بالإنترنت حالياً.\nتم تجميد الشاشة والاحتفاظ بكافة الأصناف والمدخلات بأمان لمنع أي فقدان في البيانات.\nلن يتم حفظ الفاتورة إلا وقت الاتصال بالإنترنت والترحيل المباشر إلى السيرفر.');
+      return;
+    }
+
+    const res = await addPosInvoiceOnline({
       invoiceNumber,
       date,
       customerId: selectedCustomerId || undefined,
@@ -365,7 +370,13 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
       status: 'paid',
       notes,
     });
-    alert('تم حفظ الفاتورة بنجاح في سجل المبيعات');
+
+    if (!res.success) {
+      alert(`تعذر الترحيل السحابي للفاتورة: ${res.error || 'خطأ غير معروف'}\nكافة المدخلات محفوظة على الشاشة.`);
+      return;
+    }
+
+    alert('تم ترحيل وحفظ الفاتورة بنجاح في السيرفر وسجل المبيعات 🟢');
   };
   return (
     <>

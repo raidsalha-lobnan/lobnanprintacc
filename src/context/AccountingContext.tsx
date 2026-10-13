@@ -1,4 +1,5 @@
 import { TelegramService } from '../services/TelegramService';
+import { onlineInvoicePostingService } from '../services/onlineInvoicePostingService';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   pushFullDatabaseToFirestore,
@@ -326,7 +327,66 @@ interface AccountingContextType {
       paymentNotes?: string;
     }
   ) => Invoice;
+  postPosSaleOnline: (
+    items: Array<{
+      item: InventoryItem;
+      quantity: number;
+      discount?: number;
+      unitPrice?: number;
+      itemName?: string;
+      description?: string;
+      notes?: string;
+      hasDimensions?: boolean;
+      length?: number;
+      width?: number;
+      count?: number;
+      unit?: string;
+      tax?: number;
+      taxRate?: number;
+      attachments?: LineAttachment[];
+      imageThumbnail?: string;
+    }>,
+    customerName: string,
+    paymentMethod: PaymentMethod,
+    customerId?: string,
+    notes?: string,
+    extraOptions?: {
+      invoiceNumber?: string;
+      date?: string;
+      additionalCharges?: number;
+      overallDiscount?: number;
+      taxRate?: number;
+      paidAmount?: number;
+      representative?: string;
+      branch?: string;
+      warehouse?: string;
+      customCustomerText?: string;
+      subCustomerId?: string;
+      subCustomerName?: string;
+      subCustomerPhone?: string;
+      treasuryAccountCode?: string;
+      currency?: string;
+      currencySymbol?: string;
+      exchangeRate?: number;
+      cashPaidAmount?: number;
+      cashCurrency?: string;
+      cashExchangeRate?: number;
+      cashTreasuryCode?: string;
+      bankPaidAmount?: number;
+      bankCurrency?: string;
+      bankExchangeRate?: number;
+      bankTreasuryCode?: string;
+      workflowStatus?: PosInvoiceWorkflowStatus;
+      paymentStatus?: InvoicePaymentStatus;
+      branchId?: string;
+      userId?: string;
+      userName?: string;
+      editingInvoiceId?: string;
+      paymentNotes?: string;
+    }
+  ) => Promise<{ success: boolean; invoice?: Invoice; error?: string; isOffline?: boolean; isBusy?: boolean }>;
   addPosInvoice: (invoiceData: any) => Invoice;
+  addPosInvoiceOnline: (invoiceData: any) => Promise<{ success: boolean; invoice?: Invoice; error?: string; isOffline?: boolean; isBusy?: boolean }>;
   updateInvoice: (
     id: string,
     updates: Partial<Invoice>,
@@ -860,10 +920,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     const handleOnline = async () => {
       setIsOnline(true);
-      console.log('Online event: internet connection restored. Triggering auto-sync with main database...');
-      if (syncToFirebaseRef.current) {
-        await syncToFirebaseRef.current(true);
-      }
+      console.log('Online event: internet connection restored 🟢');
       if (fetchFromFirebaseRef.current) {
         await fetchFromFirebaseRef.current();
       }
@@ -975,7 +1032,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(data.settings));
         }
 
-        localStorage.setItem(syncKey, 'true');
+        localStorage.setItem('master_db_hydrated', 'true');
         console.log('Master database snapshot cleanly hydrated on startup.');
       } catch (err) {
         console.debug('Auto master database hydration note:', err);
@@ -1609,13 +1666,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         details: 'تم الحفظ والرفع المباشر لسحابة Firebase Firestore بنجاح 🟢'
       });
 
-      // Trigger debounced auto-sync to update master snapshot (30 seconds debounce)
-      if (debouncedSyncRef.current) clearTimeout(debouncedSyncRef.current);
-      debouncedSyncRef.current = setTimeout(() => {
-        if (syncToFirebaseRef.current && !isFirestoreQuotaExceeded()) {
-          syncToFirebaseRef.current();
-        }
-      }, 30000);
+
 
       // 3. Post delta record to local server endpoint /api/sync/delta (optional background route)
       const payloadStr = JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current });
@@ -1649,22 +1700,26 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   };
 
   // Apply single or batch deltas to React state & localStorage
-  const applyDeltaToState = (entity: string, op: 'upsert' | 'delete', item?: any, items?: any[]) => {
+  const applyDeltaToState = (entity: string, op: 'upsert' | 'delete' | 'sync', item?: any, items?: any[]) => {
     const list: any[] = items || (item ? [item] : []);
     if (list.length === 0) return;
 
-    const applyToGenericState = <T extends { id?: string }>(
+    const applyToGenericState = <T extends { id?: string; code?: string }>(
       setter: React.Dispatch<React.SetStateAction<T[]>>,
       storageKeySuffix: string,
       sortFn?: (a: T, b: T) => number
     ) => {
       setter(prev => {
         const map = new Map<string, T>();
-        for (const it of prev) if (it && it.id) map.set(String(it.id), it);
+        for (const it of prev) {
+          const k = String((it as any).id || (it as any).code || '');
+          if (k) map.set(k, it);
+        }
         for (const it of list) {
-          if (!it || !it.id) continue;
-          if (op === 'delete' || (it as any)._deleted) map.delete(String(it.id));
-          else map.set(String(it.id), it);
+          const k = String((it as any).id || (it as any).code || '');
+          if (!k) continue;
+          if (op === 'delete' || (it as any)._deleted) map.delete(k);
+          else map.set(k, it);
         }
         const merged = Array.from(map.values());
         if (sortFn) merged.sort(sortFn);
@@ -1734,15 +1789,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   // Poll server for new deltas since lastSeenSeq
   const pullDeltasFromServer = async () => {
+    if (!navigator.onLine) return;
     try {
       const baseUrl = getSyncBaseUrl();
 
       const fetchAndMergeFullServerState = async () => {
         const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
-        const sRes = await fetch(stateEndpoint).catch((e) => {
-            console.error('State fetch failed:', e);
-            return null;
-        });
+        const sRes = await fetch(stateEndpoint).catch(() => null);
         if (sRes && sRes.ok) {
           const sJson = await sRes.json().catch((e) => {
               console.error('State JSON parse failed:', e);
@@ -1815,18 +1868,11 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         deltasEndpoint = `${baseUrl}/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`;
       }
 
-      let res = await fetch(deltasEndpoint).catch((e) => {
-        console.error('Delta fetch failed:', e);
-        return null;
-      });
+      let res = await fetch(deltasEndpoint).catch(() => null);
       if ((!res || !res.ok) && baseUrl) {
-        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`).catch((e) => {
-            console.error('Delta fetch (fallback) failed:', e);
-            return null;
-        });
+        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`).catch(() => null);
       }
       if (!res || !res.ok) {
-          console.warn('Delta response not OK or null:', res?.status);
           return;
       }
       const json = await res.json().catch((e) => {
@@ -7173,6 +7219,144 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     return newInvoice;
   };
 
+  const preparePosInvoiceDraft = (
+    items: Parameters<typeof createPosSale>[0],
+    customerName: string,
+    paymentMethod: PaymentMethod,
+    customerId?: string,
+    notes?: string,
+    extraOptions?: Parameters<typeof createPosSale>[5]
+  ): Invoice => {
+    let subtotal = 0;
+    const invItems = (items || []).map((l, idx) => {
+      const uPrice = l.unitPrice !== undefined ? l.unitPrice : (l.item?.sellingPrice || 0);
+      const qty = Number(l.quantity) || 1;
+      const lineTot = uPrice * qty;
+      subtotal += lineTot;
+      return {
+        id: `line-${Date.now()}-${idx}`,
+        itemId: l.item?.id || `itm-${idx}`,
+        itemName: l.itemName || l.item?.name || 'صنف',
+        quantity: qty,
+        unitPrice: uPrice,
+        total: lineTot,
+        discount: l.discount || 0,
+        tax: l.tax || 0,
+        notes: l.notes || l.description,
+        description: l.description || l.notes,
+        unit: l.unit || l.item?.unit || 'قطعة',
+        length: l.length,
+        width: l.width,
+        count: l.count,
+        hasDimensions: l.hasDimensions,
+        barcode: l.item?.barcode,
+        itemCode: l.item?.code
+      };
+    });
+
+    const overallDiscount = extraOptions?.overallDiscount || 0;
+    const taxRate = extraOptions?.taxRate !== undefined ? extraOptions.taxRate : (settings.vatRate || 0);
+    const taxableAmount = Math.max(0, subtotal - overallDiscount);
+    const taxAmount = (taxableAmount * taxRate) / 100;
+    const totalAmount = taxableAmount + taxAmount + (extraOptions?.additionalCharges || 0);
+    const paidAmount = extraOptions?.paidAmount !== undefined ? extraOptions.paidAmount : (paymentMethod === 'credit' ? 0 : totalAmount);
+    const remainingAmount = Math.max(0, totalAmount - paidAmount);
+
+    return {
+      id: extraOptions?.editingInvoiceId || `inv-pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      invoiceNumber: extraOptions?.invoiceNumber || `INV-${String(invoices.length + 1).padStart(4, '0')}`,
+      date: extraOptions?.date || new Date().toISOString().split('T')[0],
+      type: 'pos',
+      customerId,
+      customerName: customerName || 'عميل كاشير نقدي',
+      items: invItems as any,
+      subtotal,
+      discountTotal: overallDiscount,
+      taxRate,
+      taxAmount,
+      totalAmount,
+      paidAmount,
+      remainingAmount,
+      paymentMethod,
+      status: remainingAmount <= 0.05 ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'),
+      notes: notes || extraOptions?.paymentNotes,
+      currency: extraOptions?.currency || settings.currency || '₪',
+      currencySymbol: extraOptions?.currencySymbol || settings.currency || '₪',
+      exchangeRate: extraOptions?.exchangeRate || 1.0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  };
+
+  const postPosSaleOnline = async (
+    items: Parameters<typeof createPosSale>[0],
+    customerName: string,
+    paymentMethod: PaymentMethod,
+    customerId?: string,
+    notes?: string,
+    extraOptions?: Parameters<typeof createPosSale>[5]
+  ): Promise<{ success: boolean; invoice?: Invoice; error?: string; isOffline?: boolean; isBusy?: boolean }> => {
+    // 1. Strict online connectivity check: "وأثناء عدم الاتصال تضل الشاشات مجمدة محتفظة بمدخلاتها ولكن لا تحفظ إلا وقت الاتصال"
+    if (!onlineInvoicePostingService.checkIsOnline()) {
+      return {
+        success: false,
+        isOffline: true,
+        error: '⚠️ لا يوجد اتصال بالإنترنت حالياً. تم تجميد الشاشة والاحتفاظ بكافة المدخلات والأصناف بأمان لمنع أي فقدان في البيانات. سيتم الحفظ والترحيل فور استعادة الاتصال.'
+      };
+    }
+
+    if (onlineInvoicePostingService.isPostingBusy()) {
+      return {
+        success: false,
+        isBusy: true,
+        error: 'جاري ترحيل فاتورة سابقة حالياً بالتتابع إلى السيرفر... يرجى الانتظار ثوانٍ معدودة لإتمام الترحيل أولاً بأول.'
+      };
+    }
+
+    // 2. Build transient draft invoice representation for network transfer
+    const draftInvoice = preparePosInvoiceDraft(
+      items,
+      customerName,
+      paymentMethod,
+      customerId,
+      notes,
+      extraOptions
+    );
+
+    // 3. Post synchronously to the central online cloud server FIRST
+    // No local state is modified yet! If this fails, the local accounting state is 100% clean.
+    const cloudRes = await onlineInvoicePostingService.postInvoiceDirectlyOnline(draftInvoice, invoices);
+
+    if (!cloudRes.success || !cloudRes.invoice) {
+      return {
+        success: false,
+        isOffline: cloudRes.isOffline,
+        isBusy: cloudRes.isBusy,
+        error: cloudRes.error || 'تعذر استكمال الترحيل السحابي الفوري. مدخلات الفاتورة محفوظة على الشاشة.'
+      };
+    }
+
+    // 4. Server confirmed receipt and assigned sequential number!
+    // NOW and ONLY now, commit the invoice and its financial/stock ledger effects locally!
+    const confirmedInvoiceNumber = cloudRes.invoice.invoiceNumber;
+    const finalCommittedInvoice = createPosSale(
+      items,
+      customerName,
+      paymentMethod,
+      customerId,
+      notes,
+      {
+        ...extraOptions,
+        invoiceNumber: confirmedInvoiceNumber
+      }
+    );
+
+    return {
+      success: true,
+      invoice: finalCommittedInvoice
+    };
+  };
+
   const addPosInvoice = (invoiceData: any): Invoice => {
     const rawItems = invoiceData.items || [];
     const targetCustId = invoiceData.customerId;
@@ -7209,6 +7393,59 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     });
 
     return createPosSale(
+      itemsForSale,
+      invoiceData.customerName || 'عميل نقدي',
+      invoiceData.paymentMethod || 'cash',
+      targetCustId,
+      invoiceData.notes,
+      {
+        invoiceNumber: invoiceData.invoiceNumber,
+        date: invoiceData.date,
+        overallDiscount: invoiceData.discountTotal || 0,
+        taxRate: invoiceData.taxRate,
+        paidAmount: invoiceData.paidAmount,
+        subCustomerName: invoiceData.subCustomerName,
+        subCustomerPhone: invoiceData.subCustomerPhone,
+        currency: invoiceData.currency
+      }
+    );
+  };
+
+  const addPosInvoiceOnline = async (invoiceData: any): Promise<{ success: boolean; invoice?: Invoice; error?: string; isOffline?: boolean; isBusy?: boolean }> => {
+    const rawItems = invoiceData.items || [];
+    const targetCustId = invoiceData.customerId;
+    const itemsForSale = rawItems.map((it: any, idx: number) => {
+      const invItem = inventory.find(i => (it.inventoryItemId && i.id === it.inventoryItemId) || i.name === it.name) || {
+        id: it.inventoryItemId || `itm-${Date.now()}-${idx}`,
+        code: it.code || it.itemCode || `ITM-${idx + 1}`,
+        barcode: it.barcode || '',
+        name: it.name || it.itemName || 'بند',
+        category: 'services',
+        unit: it.unit || 'قطعة',
+        purchasePrice: 0,
+        sellingPrice: Number(it.unitPrice || it.price) || 0,
+        stockQuantity: 1000,
+        minAlertQuantity: 0
+      };
+
+      let unitPrice = Number(it.unitPrice !== undefined ? it.unitPrice : it.price);
+      if (isNaN(unitPrice) || unitPrice <= 0) {
+        unitPrice = getItemPriceForCustomer(invItem, targetCustId).price;
+      }
+
+      return {
+        item: invItem,
+        itemName: it.name || it.itemName || invItem.name,
+        quantity: Number(it.quantity || it.qty) || 1,
+        unitPrice: unitPrice,
+        discount: Number(it.discount) || 0,
+        tax: Number(it.tax) || 0,
+        notes: it.notes || it.itemNotes || it.description,
+        description: it.description || it.notes
+      };
+    });
+
+    return postPosSaleOnline(
       itemsForSale,
       invoiceData.customerName || 'عميل نقدي',
       invoiceData.paymentMethod || 'cash',
@@ -9527,7 +9764,9 @@ return (
         collectPrintOrderPayment,
         invoices,
         createPosSale,
+        postPosSaleOnline,
         addPosInvoice,
+        addPosInvoiceOnline,
         updateInvoice,
         deleteInvoice,
         deletedInvoices,

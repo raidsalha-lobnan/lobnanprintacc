@@ -101,7 +101,7 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
     syncAuditService.logEvent({
       direction: 'push',
       entity: 'master_db',
-      op: 'full_sync',
+      op: 'sync',
       status: 'success',
       details: 'تم رفع قاعدة البيانات الشاملة بالكامل إلى سحابة Firebase Firestore بنجاح ✅'
     });

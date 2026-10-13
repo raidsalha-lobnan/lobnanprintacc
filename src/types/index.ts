@@ -336,6 +336,7 @@ export interface Invoice {
   workflowStatus?: PosInvoiceWorkflowStatus; // حالة الفاتورة التشغيلية
   statusHistory?: InvoiceStatusLog[]; // سجل تتبع وتغييرات حالات الفاتورة
   createdAt?: string;
+  updatedAt?: string;
   printJobId?: string;
   additionalCharges?: number;
   representative?: string;

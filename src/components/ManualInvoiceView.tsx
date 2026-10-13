@@ -6,7 +6,7 @@ import { OfficialStamp } from './common/OfficialStamp';
 
 
 export const ManualInvoiceView: React.FC = () => {
-    const { settings, addPosInvoice, invoices, inventory, parties, getItemPriceForCustomer } = useAccounting();
+    const { settings, addPosInvoice, addPosInvoiceOnline, invoices, inventory, parties, getItemPriceForCustomer } = useAccounting();
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -213,7 +213,7 @@ export const ManualInvoiceView: React.FC = () => {
     window.print();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Only save items that have a name and total > 0
     const validItems = items.filter(i => (i.name.trim() !== '' || i.itemNotes?.trim() !== '') && i.total > 0);
     if (validItems.length === 0) {
@@ -221,7 +221,12 @@ export const ManualInvoiceView: React.FC = () => {
       return;
     }
 
-    addPosInvoice({
+    if (!navigator.onLine) {
+      alert('⚠️ لا يوجد اتصال بالإنترنت حالياً.\nتم تجميد الشاشة والاحتفاظ بكافة الأصناف والمدخلات بأمان لمنع أي فقدان في البيانات.\nلن يتم حفظ الفاتورة إلا وقت الاتصال بالإنترنت والترحيل المباشر إلى السيرفر.');
+      return;
+    }
+
+    const res = await addPosInvoiceOnline({
       invoiceNumber,
       date,
       customerId: selectedCustomerId || undefined,
@@ -250,7 +255,13 @@ export const ManualInvoiceView: React.FC = () => {
       status: 'paid',
       notes,
     });
-    alert('تم حفظ الفاتورة بنجاح في سجل المبيعات');
+
+    if (!res.success) {
+      alert(`تعذر الترحيل السحابي للفاتورة: ${res.error || 'خطأ غير معروف'}\nكافة المدخلات محفوظة على الشاشة دون فقدان.`);
+      return;
+    }
+
+    alert('تم ترحيل وحفظ الفاتورة بنجاح في السيرفر وسجل المبيعات 🟢');
   };
 
   return (

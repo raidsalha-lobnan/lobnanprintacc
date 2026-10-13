@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useAccounting } from '../../context/AccountingContext';
+import { onlineInvoicePostingService } from '../../services/onlineInvoicePostingService';
 import {
   ShoppingCart,
   Search,
@@ -84,6 +85,7 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
     settings,
     currencies,
     createPosSale,
+    postPosSaleOnline,
     setSelectedInvoiceForPrint,
     setDirectPrintOptions,
     setActiveTab,
@@ -807,10 +809,26 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
   );
   const isRemainingAllowed = isMainCustomerSelected || hasSubCustomerSpecified;
 
-  // Handle Checkout & Save
-  const handleCheckout = (autoPrint: boolean = false) => {
+  // Handle Checkout & Save (Strict Online-Only Synchronous Posting)
+  const handleCheckout = async (autoPrint: boolean = false) => {
     if (cart.length === 0) {
       alert('الرجاء إضافة أصناف إلى الفاتورة أولاً');
+      return;
+    }
+
+    if (!onlineInvoicePostingService.checkIsOnline()) {
+      onlineInvoicePostingService.stageInvoiceDraft({
+        cart,
+        customerNameInput,
+        selectedCustomerId,
+        timestamp: Date.now()
+      });
+      alert('⚠️ لا يوجد اتصال بالإنترنت حالياً.\nتم تجميد الشاشة والاحتفاظ بكافة الأصناف في السلة بأمان لمنع أي فقدان في البيانات.\nلن يتم تفريغ السلة أو حفظ الفاتورة إلا وقت الاتصال بالإنترنت والترحيل المباشر إلى السيرفر.');
+      return;
+    }
+
+    if (onlineInvoicePostingService.isPostingBusy()) {
+      alert('جاري ترحيل فاتورة سابقة حالياً بالتتابع إلى السيرفر... يرجى الانتظار ثوانٍ معدودة لإتمام الترحيل أولاً بأول.');
       return;
     }
 
@@ -892,7 +910,14 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
         ? (selectedBankTreasuryCode || '1102')
         : (selectedCashTreasuryCode || '1101');
 
-      const createdInvoice: Invoice = createPosSale(
+      onlineInvoicePostingService.stageInvoiceDraft({
+        cart,
+        customerNameInput,
+        selectedCustomerId,
+        timestamp: Date.now()
+      });
+
+      const postRes = await postPosSaleOnline(
         itemsPayload,
         fullCustomerDisplayName,
         paymentMethod,
@@ -919,6 +944,14 @@ export const MobilePosView: React.FC<MobilePosViewProps> = ({ onSwitchToDesktop 
           notes: invoiceNotes.trim()
         }
       );
+
+      if (!postRes.success || !postRes.invoice) {
+        alert(`تعذر الترحيل السحابي للفاتورة: ${postRes.error || 'خطأ غير معروف'}\nكافة الأصناف والمدخلات محفوظة في السلة.`);
+        return;
+      }
+
+      const createdInvoice = postRes.invoice;
+      onlineInvoicePostingService.clearStagedInvoiceDraft();
 
       setSuccessNotification({
         number: createdInvoice.invoiceNumber,
