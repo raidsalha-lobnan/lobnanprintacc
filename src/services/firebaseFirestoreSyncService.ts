@@ -79,12 +79,12 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
 export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, any[]>): Promise<{ success: boolean; error?: string }> {
   try {
     const promises = ALL_ENTITIES.map(async (ent) => {
-      const items = fullSnapshot[ent] || [];
+      const items = Array.isArray(fullSnapshot[ent]) ? fullSnapshot[ent] : [];
       const docRef = doc(db, DB_COLLECTION, ent);
       return setDoc(docRef, {
         items,
         updatedAt: new Date().toISOString(),
-        count: items.length
+        count: items.length || 0
       }, { merge: true });
     });
 
