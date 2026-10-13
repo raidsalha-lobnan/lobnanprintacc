@@ -15,7 +15,7 @@ function getEntityData(entity: string): any[] {
   if (fs.existsSync(filePath)) {
     try {
       const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      if (Array.isArray(data)) existingData = data;
+      if (Array.isArray(data)) existingData = data.filter(it => it && typeof it === 'object' && it.id != null);
     } catch {}
   }
 
@@ -27,10 +27,10 @@ function getEntityData(entity: string): any[] {
       if (snap && Array.isArray(snap[entity]) && snap[entity].length > 0) {
         const itemMap = new Map<string, any>();
         for (const it of snap[entity]) {
-          if (it && it.id) itemMap.set(String(it.id), it);
+          if (it && typeof it === 'object' && it.id != null) itemMap.set(String(it.id), it);
         }
         for (const it of existingData) {
-          if (it && it.id) {
+          if (it && typeof it === 'object' && it.id != null) {
             const existing = itemMap.get(String(it.id));
             itemMap.set(String(it.id), existing ? { ...existing, ...it } : it);
           }
@@ -46,11 +46,12 @@ function getEntityData(entity: string): any[] {
 }
 
 function putEntityData(entity: string, data: any[]) {
-  syncCache[entity] = data;
+  const safeData = Array.isArray(data) ? data.filter(it => it && typeof it === 'object' && it.id != null) : [];
+  syncCache[entity] = safeData;
   syncTimestamps[entity] = Date.now();
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
   try {
-    fs.writeFileSync(filePath, JSON.stringify(data), 'utf8');
+    fs.writeFileSync(filePath, JSON.stringify(safeData), 'utf8');
   } catch {}
 
   // Also sync public/master_drive_database_snapshot.json
@@ -58,7 +59,7 @@ function putEntityData(entity: string, data: any[]) {
     const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
     if (fs.existsSync(snapshotPath)) {
       const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) || {};
-      snap[entity] = data;
+      snap[entity] = safeData;
       fs.writeFileSync(snapshotPath, JSON.stringify(snap, null, 2), 'utf8');
     }
   } catch {}
@@ -100,14 +101,14 @@ function recordDelta(delta: { entity: string; op: 'upsert' | 'delete'; item?: an
   // Apply delta to entity file
   const current = getEntityData(delta.entity);
   const map = new Map<string, any>();
-  for (const it of current) if (it && it.id) map.set(String(it.id), it);
+  for (const it of current) if (it && typeof it === 'object' && it.id != null) map.set(String(it.id), it);
 
   if (delta.op === 'delete') {
-    if (delta.item && delta.item.id) map.delete(String(delta.item.id));
-    if (Array.isArray(delta.items)) for (const it of delta.items) if (it && it.id) map.delete(String(it.id));
+    if (delta.item && typeof delta.item === 'object' && delta.item.id != null) map.delete(String(delta.item.id));
+    if (Array.isArray(delta.items)) for (const it of delta.items) if (it && typeof it === 'object' && it.id != null) map.delete(String(it.id));
   } else {
-    if (delta.item && delta.item.id) map.set(String(delta.item.id), delta.item);
-    if (Array.isArray(delta.items)) for (const it of delta.items) if (it && it.id) map.set(String(it.id), it);
+    if (delta.item && typeof delta.item === 'object' && delta.item.id != null) map.set(String(delta.item.id), delta.item);
+    if (Array.isArray(delta.items)) for (const it of delta.items) if (it && typeof it === 'object' && it.id != null) map.set(String(it.id), it);
   }
 
   putEntityData(delta.entity, Array.from(map.values()));

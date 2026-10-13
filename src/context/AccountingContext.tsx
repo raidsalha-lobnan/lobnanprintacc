@@ -660,19 +660,20 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
   const map = new Map<string, T>();
   const unpushedDeltas: T[] = [];
 
+  const safeServerItems = Array.isArray(serverItems) ? serverItems.filter(i => i && typeof i === 'object' && i.id != null) : [];
+  const safeLocalItems = Array.isArray(localItems) ? localItems.filter(i => i && typeof i === 'object' && i.id != null) : [];
+
   // 1. Load server items
-  for (const sItem of serverItems) {
-    if (!sItem || !sItem.id) continue;
+  for (const sItem of safeServerItems) {
     if (delSet.has(`${entityName}_${sItem.id}`)) continue;
     map.set(String(sItem.id), sItem);
   }
 
   // 2. Differential sync comparison with local items
-  for (const lItem of localItems) {
-    if (!lItem || !lItem.id) continue;
-    if (delSet.has(`${entityName}_${lItem.id}`)) continue;
-
+  for (const lItem of safeLocalItems) {
     const idStr = String(lItem.id);
+    if (delSet.has(`${entityName}_${idStr}`)) continue;
+
     const sItem = map.get(idStr);
 
     if (!sItem) {
@@ -696,7 +697,7 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
     }
   }
 
-  const merged = Array.from(map.values());
+  const merged = Array.from(map.values()).filter(it => it && typeof it === 'object');
   return { merged, unpushedDeltas };
 }
 

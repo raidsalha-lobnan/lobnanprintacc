@@ -10,19 +10,19 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
 ): Invoice[] {
   const map = new Map<string, Invoice>();
 
-  // 1. Load local invoices into map
+  // 1. Load valid local invoices into map
   if (Array.isArray(localInvoices)) {
     for (const inv of localInvoices) {
-      if (inv && inv.id) {
+      if (inv && typeof inv === 'object' && inv.id != null) {
         map.set(String(inv.id), { ...inv });
       }
     }
   }
 
-  // 2. Merge remote invoices with ID-matching in-place update (Upsert)
+  // 2. Merge valid remote invoices with ID-matching in-place update (Upsert)
   if (Array.isArray(remoteInvoices)) {
     for (const remoteInv of remoteInvoices) {
-      if (!remoteInv || !remoteInv.id) continue;
+      if (!remoteInv || typeof remoteInv !== 'object' || remoteInv.id == null) continue;
       const key = String(remoteInv.id);
       const localInv = map.get(key);
 
@@ -53,7 +53,7 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     }
   }
 
-  const mergedList = Array.from(map.values());
+  const mergedList = Array.from(map.values()).filter(inv => inv && typeof inv === 'object');
 
   // 3. Resolve invoice number collisions across distinct IDs
   const numberMap = new Map<string, Invoice>();
@@ -79,10 +79,10 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
 
   // Sort descending by invoice number
   mergedList.sort((a, b) => {
-    const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-    const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+    const numA = parseInt((a?.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+    const numB = parseInt((b?.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
     if (numA !== numB) return numB - numA;
-    return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+    return (b?.invoiceNumber || '').localeCompare(a?.invoiceNumber || '', undefined, { numeric: true });
   });
 
   return mergedList;
