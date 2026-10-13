@@ -67,7 +67,10 @@
             msg.includes('send was called before connect') ||
             msg.includes('WebSocket') ||
             msg.includes('[vite]') ||
-            msg.includes('Sheet fetch error')
+            msg.includes('Sheet fetch error') ||
+            msg.includes('M_ID') ||
+            msg.includes('200.js') ||
+            msg.includes('extension')
           ) {
             event.preventDefault();
             event.stopPropagation();
@@ -75,16 +78,21 @@
           }
         }, true);
 
-        // Catch unhandled promise rejections to prevent blank uncaught crashes
+        // Catch unhandled promise rejections to prevent blank uncaught crashes and silence external extension noise
         window.addEventListener('unhandledrejection', function(event) {
-          var reasonStr = String(event.reason || '');
+          var reasonStr = String(event.reason || event.reason?.message || event.reason?.stack || '');
           if (
             reasonStr.includes('send was called before connect') ||
             reasonStr.includes('WebSocket') ||
             reasonStr.includes('vite') ||
-            reasonStr.includes('Sheet fetch error')
+            reasonStr.includes('Sheet fetch error') ||
+            reasonStr.includes('M_ID') ||
+            reasonStr.includes('200.js') ||
+            reasonStr.includes('extension') ||
+            reasonStr.includes('chrome-extension')
           ) {
             event.preventDefault();
+            event.stopPropagation();
             return;
           }
           console.warn('Unhandled promise rejection safely handled:', event.reason);
