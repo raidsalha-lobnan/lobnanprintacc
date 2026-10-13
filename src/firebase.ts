@@ -36,14 +36,19 @@ console.log("Firebase initialized.");
 
 export const auth = getAuth(app);
 
-// Initialize Firestore with auto-detect long-polling for high stability in iframes & sandboxes
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
-    experimentalAutoDetectLongPolling: true
+    experimentalForceLongPolling: true
   }, firebaseConfig.firestoreDatabaseId);
 } catch {
-  firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  try {
+    firestoreInstance = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true
+    }, firebaseConfig.firestoreDatabaseId);
+  } catch {
+    firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
 }
 
 export const db = firestoreInstance;
