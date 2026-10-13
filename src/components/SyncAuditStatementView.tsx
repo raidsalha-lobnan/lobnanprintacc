@@ -8,6 +8,7 @@ import {
   subscribeToConnectionIssuesFromFirestore,
   fetchFullDatabaseFromFirestore
 } from '../services/firebaseFirestoreSyncService';
+import { FirebaseConnectionDiagnostic } from './FirebaseConnectionDiagnostic';
 import {
   RefreshCw,
   Cloud,
@@ -396,6 +397,8 @@ export const SyncAuditStatementView: React.FC = () => {
 
   return (
     <div className="space-y-3 p-1 sm:p-2 text-slate-800" dir="rtl">
+      {/* التشخيص الفوري */}
+      <FirebaseConnectionDiagnostic />
       {/* 1. Official Header & Voucher Title Banner */}
       <div className="bg-white rounded-xl border border-slate-300 shadow-xs p-3.5 print:border-none print:shadow-none">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-slate-200">
