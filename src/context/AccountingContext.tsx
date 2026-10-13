@@ -1866,12 +1866,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   const pullServerSyncState = pullDeltasFromServer;
 
-  // Lightweight 1500ms delta polling loop
-  useEffect(() => {
-    pullDeltasFromServer();
-    const interval = setInterval(pullDeltasFromServer, 1500);
-    return () => clearInterval(interval);
-  }, []);
+  // Lightweight 1500ms delta polling loop (Disabled in favor of Firestore)
+  // useEffect(() => {
+  //   pullDeltasFromServer();
+  //   const interval = setInterval(pullDeltasFromServer, 1500);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   // Live Firebase Firestore Real-Time Listener Effect across all devices
   useEffect(() => {
