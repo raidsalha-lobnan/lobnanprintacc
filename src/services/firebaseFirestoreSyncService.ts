@@ -8,22 +8,25 @@ import {
   onSnapshot,
   collection,
   getDocs,
-  enableIndexedDbPersistence
+  enableIndexedDbPersistence,
+  CACHE_SIZE_UNLIMITED
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { syncAuditService, SyncAuditItem, SyncConnectionIssue } from './syncAuditService';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const db = getFirestore(app, {
+  cacheSizeBytes: CACHE_SIZE_UNLIMITED
+});
 
 // Enable offline persistence
-enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-        console.warn('Multiple tabs open, persistence enabled in first tab only.');
-    } else if (err.code === 'unimplemented') {
-        console.warn('Browser does not support offline persistence.');
-    }
-});
+// enableIndexedDbPersistence(db).catch((err) => {
+//     if (err.code === 'failed-precondition') {
+//         console.warn('Multiple tabs open, persistence enabled in first tab only.');
+//     } else if (err.code === 'unimplemented') {
+//         console.warn('Browser does not support offline persistence.');
+//     }
+// });
 
 const DB_COLLECTION = 'lobnan_accounting_db';
 const AUDIT_COLLECTION = 'lobnan_accounting_sync_audit_logs';

@@ -1800,13 +1800,28 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         deltasEndpoint = `${baseUrl}/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`;
       }
 
-      let res = await fetch(deltasEndpoint).catch(() => null);
+      let res = await fetch(deltasEndpoint).catch((e) => {
+        console.error('Delta fetch failed:', e);
+        return null;
+      });
       if ((!res || !res.ok) && baseUrl) {
-        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`).catch(() => null);
+        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`).catch((e) => {
+            console.error('Delta fetch (fallback) failed:', e);
+            return null;
+        });
       }
-      if (!res || !res.ok) return;
-      const json = await res.json().catch(() => null);
-      if (!json || !json.success) return;
+      if (!res || !res.ok) {
+          console.warn('Delta response not OK or null:', res?.status);
+          return;
+      }
+      const json = await res.json().catch((e) => {
+          console.error('Delta JSON parse failed:', e);
+          return null;
+      });
+      if (!json || !json.success) {
+          console.warn('Delta JSON invalid or not success:', json);
+          return;
+      }
 
       const { deltas, currentSeq } = json;
 
