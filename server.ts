@@ -12,6 +12,93 @@ if (!fs.existsSync(SYNC_DATA_DIR)) {
 }
 
 const app = express();
+
+const API_LOGS_FILE = path.join(SYNC_DATA_DIR, 'api_requests_log.json');
+let apiRequestLogs: any[] = [];
+try {
+  if (fs.existsSync(API_LOGS_FILE)) {
+    const data = JSON.parse(fs.readFileSync(API_LOGS_FILE, 'utf8'));
+    if (Array.isArray(data)) apiRequestLogs = data.slice(-1000);
+  }
+} catch {}
+
+function saveApiLogs() {
+  try {
+    fs.writeFileSync(API_LOGS_FILE, JSON.stringify(apiRequestLogs.slice(-1000), null, 2), 'utf8');
+  } catch {}
+}
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) {
+    return next();
+  }
+  const startTime = Date.now();
+  const reqId = Math.random().toString(36).substring(2, 9);
+  const reqBody = req.body;
+
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    const logEntry = {
+      id: reqId,
+      timestamp: startTime,
+      iso: new Date(startTime).toISOString(),
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      headers: {
+        host: req.headers['host'],
+        'user-agent': req.headers['user-agent'],
+        'content-type': req.headers['content-type'],
+        'authorization': req.headers['authorization'] ? 'Bearer [HIDDEN]' : undefined,
+        'x-requested-with': req.headers['x-requested-with'],
+        'origin': req.headers['origin'],
+        'referer': req.headers['referer']
+      },
+      body: reqBody,
+      statusCode: res.statusCode,
+      durationMs: duration
+    };
+
+    apiRequestLogs.push(logEntry);
+    if (apiRequestLogs.length > 1000) apiRequestLogs.shift();
+    saveApiLogs();
+  });
+
+  next();
+});
+
+// Endpoint to retrieve / clear automated API request logs
+app.get('/api/logs/requests', (req, res) => {
+  const filterMethod = req.query.method ? String(req.query.method).toUpperCase() : '';
+  const filterStatus = req.query.status ? parseInt(String(req.query.status), 10) : NaN;
+  const filterSearch = req.query.search ? String(req.query.search).toLowerCase() : '';
+
+  let filtered = [...apiRequestLogs];
+  if (filterMethod) filtered = filtered.filter(l => l.method === filterMethod);
+  if (!isNaN(filterStatus)) filtered = filtered.filter(l => l.statusCode === filterStatus);
+  if (filterSearch) {
+    filtered = filtered.filter(l => 
+      l.path.toLowerCase().includes(filterSearch) ||
+      JSON.stringify(l.headers).toLowerCase().includes(filterSearch) ||
+      JSON.stringify(l.body || '').toLowerCase().includes(filterSearch)
+    );
+  }
+
+  res.json({
+    success: true,
+    totalCaptured: apiRequestLogs.length,
+    filteredCount: filtered.length,
+    serverTime: Date.now(),
+    logs: filtered.reverse()
+  });
+});
+
+app.delete('/api/logs/requests', (_req, res) => {
+  apiRequestLogs = [];
+  saveApiLogs();
+  res.json({ success: true, message: 'API request logs cleared' });
+});
+
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
     console.log(`[EXPRESS API TRACE] Method: ${req.method} | Path: ${req.path}`);

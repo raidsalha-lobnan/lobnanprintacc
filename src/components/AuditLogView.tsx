@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { DateInput } from '../components/common/DateInput';
 import { useAccounting } from '../context/AccountingContext';
+import { ApiRequestLogsModal } from './ApiRequestLogsModal';
 import {
   History,
   Search,
@@ -60,6 +61,7 @@ export const AuditLogView: React.FC = () => {
   } = useAccounting();
 
   const [activeViewTab, setActiveViewTab] = useState<'audit_logs' | 'sync_statement'>('audit_logs');
+  const [showApiLogsModal, setShowApiLogsModal] = useState(false);
 
   // Aggregate operations into chronological audit log entries
   const allLogs = useMemo(() => {
@@ -352,6 +354,14 @@ export const AuditLogView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowApiLogsModal(true)}
+            className="bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs px-3.5 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer border border-slate-700"
+            title="تقرير طلبات API وخطأ 405"
+          >
+            <Activity className="w-4 h-4 text-blue-400 animate-pulse" />
+            <span>تقرير طلبات API (خطأ 405)</span>
+          </button>
+          <button
             onClick={handleExportCSV}
             className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs px-3.5 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer border border-slate-200"
           >
@@ -527,6 +537,7 @@ export const AuditLogView: React.FC = () => {
           </table>
         </div>
       </div>
+      <ApiRequestLogsModal isOpen={showApiLogsModal} onClose={() => setShowApiLogsModal(false)} />
     </div>
   );
 };
