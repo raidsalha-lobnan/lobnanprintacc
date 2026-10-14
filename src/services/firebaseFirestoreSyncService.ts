@@ -50,11 +50,12 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
     return false;
   }
   try {
+    const cleanItems = JSON.parse(JSON.stringify(items || []));
     const docRef = doc(db, DB_COLLECTION, entityName);
     await setDoc(docRef, {
-      items: items || [],
+      items: cleanItems,
       updatedAt: new Date().toISOString(),
-      count: (items || []).length
+      count: cleanItems.length
     }, { merge: true });
 
     syncAuditService.logEvent({
@@ -62,7 +63,7 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
       entity: entityName,
       op: 'upsert',
       status: 'success',
-      details: `تم حفظ ${items.length} عنصر في سحابة Firebase Firestore بنجاح 🟢`
+      details: `تم حفظ ${cleanItems.length} عنصر في سحابة Firebase Firestore بنجاح 🟢`
     });
 
     return true;
@@ -92,7 +93,8 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
   }
   try {
     const promises = ALL_ENTITIES.map(async (ent) => {
-      const items = Array.isArray(fullSnapshot[ent]) ? fullSnapshot[ent] : [];
+      const rawItems = Array.isArray(fullSnapshot[ent]) ? fullSnapshot[ent] : [];
+      const items = JSON.parse(JSON.stringify(rawItems));
       const docRef = doc(db, DB_COLLECTION, ent);
       return setDoc(docRef, {
         items,
@@ -243,8 +245,9 @@ export function subscribeToFirestoreLiveSync(
 export async function saveAuditLogToFirestore(item: SyncAuditItem): Promise<boolean> {
   if (isFirestoreQuotaExceeded()) return false;
   try {
-    const docRef = doc(db, AUDIT_COLLECTION, item.id);
-    await setDoc(docRef, item, { merge: true });
+    const cleanItem = JSON.parse(JSON.stringify(item));
+    const docRef = doc(db, AUDIT_COLLECTION, cleanItem.id);
+    await setDoc(docRef, cleanItem, { merge: true });
     return true;
   } catch (err: any) {
     if (err?.code === 'resource-exhausted') {
@@ -262,8 +265,9 @@ export async function saveAuditLogToFirestore(item: SyncAuditItem): Promise<bool
 export async function saveConnectionIssueToFirestore(issue: SyncConnectionIssue): Promise<boolean> {
   if (isFirestoreQuotaExceeded()) return false;
   try {
-    const docRef = doc(db, ISSUES_COLLECTION, issue.id);
-    await setDoc(docRef, issue, { merge: true });
+    const cleanIssue = JSON.parse(JSON.stringify(issue));
+    const docRef = doc(db, ISSUES_COLLECTION, cleanIssue.id);
+    await setDoc(docRef, cleanIssue, { merge: true });
     return true;
   } catch (err: any) {
     if (err?.code === 'resource-exhausted') {
