@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertTriangle,
-  Cloud
+  Cloud,
+  HardDrive
 } from 'lucide-react';
 
 export const DesktopStatusBar: React.FC = () => {
@@ -24,6 +25,7 @@ export const DesktopStatusBar: React.FC = () => {
     branches,
     stats,
     isOnline,
+    isLocalOnlyMode,
     lastSyncTime,
     isFirebaseSyncing,
     pendingSyncCount,
@@ -122,9 +124,14 @@ export const DesktopStatusBar: React.FC = () => {
         <div 
           onClick={() => setActiveTab('settings_database')}
           className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-300 rounded-xs shadow-inner cursor-pointer hover:bg-emerald-50 transition shrink-0"
-          title={isOnline ? "قاعدة البيانات السحابية (Google Drive & Server Hub) متصلة ومزامنة فورية" : "النظام في وضع غير متصل (Offline)"}
+          title={isLocalOnlyMode ? "وضع العمل المحلي الخالص (مُفعل 100% - محلي فقط)" : isOnline ? "قاعدة البيانات السحابية (Google Drive & Server Hub) متصلة ومزامنة فورية" : "النظام في وضع غير متصل (Offline)"}
         >
-          {isOnline ? (
+          {isLocalOnlyMode ? (
+            <div className="flex items-center gap-1 text-emerald-800 font-extrabold">
+              <HardDrive className="w-3 h-3 text-emerald-600 shrink-0" />
+              <span className="text-[11px]">🟢 وضع محلي خالص (100% Offline)</span>
+            </div>
+          ) : isOnline ? (
             <div className="flex items-center gap-1 text-emerald-700">
               <Database className="w-3 h-3 text-emerald-600 shrink-0" />
               <span className="font-bold text-[11px]">مزامنة السيرفر وقاعدة البيانات: متصل</span>

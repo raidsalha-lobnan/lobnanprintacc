@@ -55,6 +55,9 @@ import {
 import { CalculatorModal } from './pos/CalculatorModal';
 import { AboutAppModal } from './AboutAppModal';
 
+import { LocalDatabaseModal } from './LocalDatabaseModal';
+import { ServerOff } from 'lucide-react';
+
 interface SubMenuItem {
   id: string;
   label: string;
@@ -96,6 +99,7 @@ export const Navbar: React.FC = () => {
     currentUser,
     getAllowedBranchesForUser,
     isOnline,
+    isLocalOnlyMode,
     lastSyncTime,
     isFirebaseSyncing,
     lastFirebaseSyncTime,
@@ -108,6 +112,7 @@ export const Navbar: React.FC = () => {
   } = useAccounting();
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isLocalDbModalOpen, setIsLocalDbModalOpen] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ message: string; success: boolean } | null>(null);
 
   const isSessionAdmin = Boolean(
@@ -1051,6 +1056,21 @@ export const Navbar: React.FC = () => {
             <span>حاسبة</span>
           </button>
 
+          {/* STANDALONE LOCAL DATABASE BUTTON */}
+          <button
+            type="button"
+            onClick={() => setIsLocalDbModalOpen(true)}
+            className={`px-2 py-0.5 flex items-center gap-1 font-bold text-[11px] rounded-xs shadow-xs active:translate-y-px transition cursor-pointer border ${
+              isLocalOnlyMode 
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-800 animate-pulse' 
+                : 'bg-slate-700 hover:bg-slate-800 text-white border-slate-900'
+            }`}
+            title="إدارة وتفعيل وضع التشغيل المحلي الخالص (100% Offline Local Mode)"
+          >
+            <HardDrive className="w-3.5 h-3.5 text-white" />
+            <span>{isLocalOnlyMode ? '🟢 قاعدة بيانات محلية (100%)' : 'قاعدة البيانات المحلية'}</span>
+          </button>
+
           {/* PROMINENT FORCED REAL-TIME RELOAD BUTTON */}
           <button
             type="button"
@@ -1259,6 +1279,12 @@ export const Navbar: React.FC = () => {
       <AboutAppModal
         isOpen={isAboutOpen}
         onClose={() => setIsAboutOpen(false)}
+      />
+
+      {/* Local Database Modal */}
+      <LocalDatabaseModal
+        isOpen={isLocalDbModalOpen}
+        onClose={() => setIsLocalDbModalOpen(false)}
       />
 
       {/* Mobile Navigation Hub / Modal */}

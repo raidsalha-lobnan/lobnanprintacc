@@ -435,6 +435,11 @@ interface AccountingContextType {
 
   // Offline-First & Database Integration (التشغيل المحلي الدائم والربط بقاعدة بيانات البرنامج الرئيسي)
   isOnline: boolean;
+  isLocalOnlyMode: boolean;
+  toggleLocalOnlyMode: (enable?: boolean) => void;
+  seedLocalDatabaseDemo: () => { success: boolean; message: string; count: number };
+  exportLocalDatabaseJSON: () => void;
+  importLocalDatabaseJSON: (jsonData: any) => Promise<{ success: boolean; message: string }>;
   lastSyncTime: string | null;
   isFirebaseSyncing: boolean;
   lastFirebaseSyncTime: string | null;
@@ -825,6 +830,20 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [lastLocalSaveTime, setLastLocalSaveTime] = useState<string>(() => {
     return localStorage.getItem(`${STORAGE_KEY}_last_local_save`) || new Date().toLocaleTimeString('en-US');
   });
+
+  const [isLocalOnlyMode, setIsLocalOnlyMode] = useState<boolean>(() => {
+    return localStorage.getItem('accounting_is_local_only_mode') === 'true';
+  });
+
+  const toggleLocalOnlyMode = (enable?: boolean) => {
+    setIsLocalOnlyMode(prev => {
+      const next = enable !== undefined ? enable : !prev;
+      try {
+        localStorage.setItem('accounting_is_local_only_mode', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const isInitialMount = React.useRef<boolean>(true);
   const isCloudHydratedRef = React.useRef<boolean>(false);
@@ -1775,7 +1794,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   // Poll server for new deltas since lastSeenSeq
   const pullDeltasFromServer = async () => {
-    if (!navigator.onLine) return;
+    if (isLocalOnlyMode || !navigator.onLine) return;
     try {
       const baseUrl = getSyncBaseUrl();
 
@@ -1951,6 +1970,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     const setupSync = () => {
       activeUnsub();
+      if (isLocalOnlyMode) return;
       activeUnsub = subscribeToFirestoreLiveSync((entityName, items) => {
         if (Array.isArray(items) && items.length > 0) {
           applyDeltaToState(entityName, 'sync', null, items);
@@ -7350,6 +7370,22 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     notes?: string,
     extraOptions?: Parameters<typeof createPosSale>[5]
   ): Promise<{ success: boolean; invoice?: Invoice; error?: string; isOffline?: boolean; isBusy?: boolean }> => {
+    if (isLocalOnlyMode) {
+      const localInvoice = createPosSale(
+        items,
+        customerName,
+        paymentMethod,
+        customerId,
+        notes,
+        extraOptions
+      );
+      return {
+        success: true,
+        invoice: localInvoice,
+        isOffline: true
+      };
+    }
+
     // 1. Strict online connectivity check: "وأثناء عدم الاتصال تضل الشاشات مجمدة محتفظة بمدخلاتها ولكن لا تحفظ إلا وقت الاتصال"
     if (!onlineInvoicePostingService.checkIsOnline()) {
       return {
@@ -9741,18 +9777,122 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   };
 
   
+  const seedLocalDatabaseDemo = () => {
+    try {
+      try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(invoices)); } catch {}
+      try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(parties)); } catch {}
+      try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(inventory)); } catch {}
+      try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(accounts)); } catch {}
+      try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(treasuries)); } catch {}
+      try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(vouchers)); } catch {}
+      
+      return {
+        success: true,
+        message: `تم التأكد من تجهيز قاعدة البيانات المحلية وتحديث المحفوظات (${invoices.length} فاتورة مبيعات جاهزة محلياً)`,
+        count: invoices.length
+      };
+    } catch (e: any) {
+      return { success: false, message: 'حدث خطأ أثناء تجهيز البيانات المحلية: ' + e.message, count: 0 };
+    }
+  };
+
+  const exportLocalDatabaseJSON = () => {
+    try {
+      const exportObject = {
+        appTitle: 'برنامج الأيهم المحاسبي - قاعدة بيانات محلية',
+        version: '1.0.0',
+        exportedAt: new Date().toISOString(),
+        invoices: invoices || [],
+        parties: parties || [],
+        inventory: inventory || [],
+        accounts: accounts || [],
+        treasuries: treasuries || [],
+        vouchers: vouchers || [],
+        dailyEntries: dailyEntries || [],
+        purchases: purchases || [],
+        purchaseReturns: purchaseReturns || [],
+        salesReturns: salesReturns || [],
+        settings: settings || {},
+        branches: branches || [],
+        users: users || []
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObject, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `alnoor_accounting_local_db_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (e: any) {
+      alert('تعذر تصدير الملف المحلي: ' + e.message);
+    }
+  };
+
+  const importLocalDatabaseJSON = async (jsonData: any): Promise<{ success: boolean; message: string }> => {
+    try {
+      if (!jsonData || typeof jsonData !== 'object') {
+        return { success: false, message: 'صيغة ملف النسخة الاحتياطية غير صحيحة' };
+      }
+      if (Array.isArray(jsonData.invoices)) {
+        setInvoices(jsonData.invoices);
+        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(jsonData.invoices)); } catch {}
+      }
+      if (Array.isArray(jsonData.parties)) {
+        setParties(jsonData.parties);
+        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(jsonData.parties)); } catch {}
+      }
+      if (Array.isArray(jsonData.inventory)) {
+        setInventory(jsonData.inventory);
+        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(jsonData.inventory)); } catch {}
+      }
+      if (Array.isArray(jsonData.accounts)) {
+        setAccounts(jsonData.accounts);
+        try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(jsonData.accounts)); } catch {}
+      }
+      if (Array.isArray(jsonData.treasuries)) {
+        setTreasuries(jsonData.treasuries);
+        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(jsonData.treasuries)); } catch {}
+      }
+      if (Array.isArray(jsonData.vouchers)) {
+        setVouchers(jsonData.vouchers);
+        try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(jsonData.vouchers)); } catch {}
+      }
+      if (Array.isArray(jsonData.purchases)) {
+        setPurchases(jsonData.purchases);
+        try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(jsonData.purchases)); } catch {}
+      }
+      return { success: true, message: 'تمت استعادة وتحديث قاعدة البيانات المحلية بنجاح من الملف المرفق!' };
+    } catch (err: any) {
+      return { success: false, message: 'حدث خطأ أثناء استعادة البيانات المحلية: ' + err.message };
+    }
+  };
+
   const forcePushAndPullSync = async (): Promise<{ success: boolean; message: string; invoicesCount: number }> => {
-    const res = await forceSyncNow();
-    return {
-      success: res.success,
-      message: res.message,
-      invoicesCount: invoices.length
-    };
+    try {
+      const res = await forceSyncNow();
+      return {
+        success: res.success,
+        message: res.message,
+        invoicesCount: invoices.length
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        message: e?.message || 'حدث خطأ أثناء المزامنة',
+        invoicesCount: invoices.length
+      };
+    }
   };
 
 return (
     <AccountingContext.Provider
       value={{
+        isLocalOnlyMode,
+        toggleLocalOnlyMode,
+        seedLocalDatabaseDemo,
+        exportLocalDatabaseJSON,
+        importLocalDatabaseJSON,
         settings,
         updateSettings,
         accounts,

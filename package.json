@@ -1,15 +1,37 @@
 {
-  "name": "react-example",
+  "name": "alnoor-accounting-desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
+  "description": "برنامج الأيهم المحاسبي - مطبعة ومكتبة لبنان",
+  "author": "Lobnan Press",
   "scripts": {
     "dev": "python3 ensure_nginx_api.py; vite --port=3000 --host=0.0.0.0",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --packages=external",
+    "build:exe": "vite build && npx electron-builder --win nsis",
+    "electron": "electron .",
     "start": "node server.js",
-    "preview": "vite preview --port 3000 --host 0.0.0.0",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
+  },
+  "build": {
+    "appId": "com.alnoor.accounting",
+    "productName": "AlNoorAccounting",
+    "electronVersion": "33.0.0",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -39,6 +61,8 @@
     "@types/node": "^22.14.0",
     "@types/qrcode": "^1.5.6",
     "autoprefixer": "^10.4.21",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",

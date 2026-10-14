@@ -88,6 +88,15 @@ export const onlineInvoicePostingService = {
     invoice: Invoice,
     currentInvoicesList: Invoice[]
   ): Promise<PostResult> => {
+    // 0. Standalone Local Mode Check
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('accounting_is_local_only_mode') === 'true') {
+      return {
+        success: true,
+        invoice,
+        isOffline: true
+      };
+    }
+
     // 1. Strict Connectivity Check: "وأثناء عدم الاتصال تضل الشاشات مجمدة محتفظة بمدخلاتها ولكن لا تحفظ إلا وقت الاتصال"
     if (!onlineInvoicePostingService.checkIsOnline()) {
       return {
