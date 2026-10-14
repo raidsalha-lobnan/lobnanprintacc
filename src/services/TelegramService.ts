@@ -124,10 +124,14 @@ export const TelegramService = {
         }
 
         if (response.status === 409) {
-          // Conflict: another bot instance or webhook is active. Back off to prevent console flooding.
+          // Conflict: another bot instance or webhook is active. Stop polling to prevent console flooding.
           consecutiveConflicts++;
-          const backoff = consecutiveConflicts > 2 ? 120000 : 45000;
-          scheduleNext(backoff);
+          if (consecutiveConflicts >= 4) {
+            console.warn('Notice: Telegram getUpdates polling paused due to external webhook/bot conflict (HTTP 409). Outgoing Telegram notifications remain 100% active.');
+            TelegramService.stopPolling();
+            return;
+          }
+          scheduleNext(60000);
           return;
         }
         consecutiveConflicts = 0;

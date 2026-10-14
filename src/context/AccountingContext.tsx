@@ -2427,7 +2427,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   const fetchCloudData = async (isInitial = false) => {
     let isMounted = true;
     
-      if (!navigator.onLine) {
+      if (!navigator.onLine || isFirestoreQuotaExceeded() || isLocalOnlyMode) {
         setIsOnline(false);
         isInitialMount.current = false;
         isCloudHydratedRef.current = true;
@@ -2617,6 +2617,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   fetchFromFirebaseRef.current = fetchCloudData;
 
   useEffect(() => {
+    if (isLocalOnlyMode || isFirestoreQuotaExceeded()) return;
     fetchCloudData(true);
     executeServerFullSync().catch(() => {});
 
