@@ -92,6 +92,8 @@ export const TelegramService = {
 
     let isFetchInFlight = false;
 
+    let consecutiveConflicts = 0;
+
     const poll = async () => {
       if (!isPollingActive || isFetchInFlight) return;
       if (!settings.telegramConfig?.enabled || !settings.telegramConfig?.botToken) {
@@ -122,10 +124,13 @@ export const TelegramService = {
         }
 
         if (response.status === 409) {
-          // Conflict: another bot instance or webhook is active. Back off 30s before retrying.
-          scheduleNext(30000);
+          // Conflict: another bot instance or webhook is active. Back off to prevent console flooding.
+          consecutiveConflicts++;
+          const backoff = consecutiveConflicts > 2 ? 120000 : 45000;
+          scheduleNext(backoff);
           return;
         }
+        consecutiveConflicts = 0;
 
         if (!response.ok) {
           scheduleNext(20000);

@@ -5,6 +5,7 @@
 import { db, doc, getDoc, setDoc } from '../firebase';
 import { Invoice } from '../types';
 import { syncAuditService } from './syncAuditService';
+import { isFirestoreQuotaExceeded, markQuotaExceeded } from './firebaseFirestoreSyncService';
 
 const DB_COLLECTION = 'lobnan_accounting_db';
 const STAGED_POS_DRAFT_KEY = 'alnoor_pos_staged_in_flight_draft';
@@ -148,22 +149,21 @@ export const onlineInvoicePostingService = {
         const docRef = doc(db, DB_COLLECTION, 'invoices');
         let cloudInvoices: Invoice[] = [];
 
-        try {
-          const snap = await getDoc(docRef);
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data && Array.isArray(data.items)) {
-              cloudInvoices = data.items;
+        if (!isFirestoreQuotaExceeded()) {
+          try {
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+              const data = snap.data();
+              if (data && Array.isArray(data.items)) {
+                cloudInvoices = data.items;
+              }
             }
-          }
-        } catch (fetchErr: any) {
-          console.warn('Authoritative cloud invoices check notice:', fetchErr?.message || fetchErr);
-          if (!onlineInvoicePostingService.checkIsOnline()) {
-            return {
-              success: false,
-              isOffline: true,
-              error: 'انقطع الاتصال بالسيرفر أثناء فحص التسلسل السحابي. البيانات محفوظة على الشاشة دون أي فقدان.'
-            };
+          } catch (fetchErr: any) {
+            if (fetchErr?.code === 'resource-exhausted' || fetchErr?.message?.includes('Quota limit exceeded')) {
+              markQuotaExceeded();
+            } else {
+              console.warn('Authoritative cloud invoices check notice:', fetchErr?.message || fetchErr);
+            }
           }
         }
 
@@ -212,13 +212,19 @@ export const onlineInvoicePostingService = {
         // 7. Commit write directly:
         // A. Direct invoice document (1 targeted write)
         let savedDirectFirestore = false;
-        try {
-          const cleanInvoice = sanitizeForFirestore(finalInvoice);
-          const singleDocRef = doc(db, 'invoices', cleanInvoice.id);
-          await setDoc(singleDocRef, cleanInvoice, { merge: true });
-          savedDirectFirestore = true;
-        } catch (err: any) {
-          console.warn('Single doc save notice:', err?.message || err);
+        if (!isFirestoreQuotaExceeded()) {
+          try {
+            const cleanInvoice = sanitizeForFirestore(finalInvoice);
+            const singleDocRef = doc(db, 'invoices', cleanInvoice.id);
+            await setDoc(singleDocRef, cleanInvoice, { merge: true });
+            savedDirectFirestore = true;
+          } catch (err: any) {
+            if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+              markQuotaExceeded();
+            } else {
+              console.warn('Single doc save notice:', err?.message || err);
+            }
+          }
         }
 
         // B. Smart Delta write to Firestore delta collection (1 single write unit instead of full DB rewrite)

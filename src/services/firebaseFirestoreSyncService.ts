@@ -151,6 +151,9 @@ export function subscribeToFirestoreLiveDeltas(
   sinceTimestamp: number,
   onDeltaReceived: (delta: FirestoreDeltaPayload) => void
 ): () => void {
+  if (isFirestoreQuotaExceeded()) {
+    return () => {};
+  }
   try {
     const q = query(
       collection(db, DELTAS_COLLECTION),
@@ -169,13 +172,13 @@ export function subscribeToFirestoreLiveDeltas(
         }
       });
     }, (err) => {
-      if (err?.code === 'resource-exhausted') {
+      if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
         markQuotaExceeded();
+        return;
       }
       console.warn('Firestore live deltas listener notice:', err?.message || err);
     });
-  } catch (err) {
-    console.warn('subscribeToFirestoreLiveDeltas catch:', err);
+  } catch {
     return () => {};
   }
 }
@@ -486,21 +489,31 @@ export async function fetchFullDatabaseFromFirestore(): Promise<Record<string, a
 export const subscribeToConnectionIssuesFromFirestore = subscribeToSyncConnectionIssuesFromFirestore;
 
 export async function clearAuditLogsFromFirestore(): Promise<void> {
+  if (isFirestoreQuotaExceeded()) return;
   try {
     const snap = await getDocs(collection(db, AUDIT_COLLECTION));
     const promises = snap.docs.map(d => deleteDoc(d.ref));
     await Promise.all(promises);
-  } catch (e) {
-    console.warn('clearAuditLogsFromFirestore notice:', e);
+  } catch (e: any) {
+    if (e?.code === 'resource-exhausted' || e?.message?.includes('Quota limit exceeded')) {
+      markQuotaExceeded();
+      return;
+    }
+    console.warn('clearAuditLogsFromFirestore notice:', e?.message || e);
   }
 }
 
 export async function clearConnectionIssuesFromFirestore(): Promise<void> {
+  if (isFirestoreQuotaExceeded()) return;
   try {
     const snap = await getDocs(collection(db, ISSUES_COLLECTION));
     const promises = snap.docs.map(d => deleteDoc(d.ref));
     await Promise.all(promises);
-  } catch (e) {
-    console.warn('clearConnectionIssuesFromFirestore notice:', e);
+  } catch (e: any) {
+    if (e?.code === 'resource-exhausted' || e?.message?.includes('Quota limit exceeded')) {
+      markQuotaExceeded();
+      return;
+    }
+    console.warn('clearConnectionIssuesFromFirestore notice:', e?.message || e);
   }
 }
