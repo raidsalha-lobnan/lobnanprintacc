@@ -27,6 +27,7 @@ import { InvoiceStatusHistoryModal } from './pos/InvoiceStatusHistoryModal';
 import { DraftInvoicesQueueModal } from './pos/DraftInvoicesQueueModal';
 import { DeletedInvoicesModal } from './pos/DeletedInvoicesModal';
 import { InvoiceAuditLogModal } from './pos/InvoiceAuditLogModal';
+import { DeleteAllSalesInvoicesModal } from './modals/DeleteAllSalesInvoicesModal';
 import { getInvoiceWorkflowStatusMeta, getInvoicePaymentStatusMeta } from '../utils/invoiceStatusUtils';
 import { formatDateDisplay } from '../utils/dateUtils';
 
@@ -48,6 +49,7 @@ export const InvoicesView: React.FC = () => {
   const [isDraftQueueOpen, setIsDraftQueueOpen] = useState<boolean>(false);
   const [isDeletedInvoicesOpen, setIsDeletedInvoicesOpen] = useState<boolean>(false);
   const [isAuditLogOpen, setIsAuditLogOpen] = useState<boolean>(false);
+  const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState<boolean>(false);
 
   const filteredInvoices = invoices
     .filter(inv => {
@@ -89,6 +91,21 @@ export const InvoicesView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsDeleteAllModalOpen(true)}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer"
+            title="حذف كافة فواتير المبيعات من قاعدة البيانات واسترجاع المخزون وحذف السندات المرتبطة"
+          >
+            <Trash2 className="w-4 h-4 text-rose-200" />
+            <span>حذف كل فواتير المبيعات</span>
+            {invoices.length > 0 && (
+              <span className="bg-rose-800 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono">
+                {invoices.length}
+              </span>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={() => setIsDeletedInvoicesOpen(true)}
@@ -391,6 +408,12 @@ export const InvoicesView: React.FC = () => {
         isOpen={isAuditLogOpen}
         onClose={() => setIsAuditLogOpen(false)}
         initialInvoiceId="29"
+      />
+
+      {/* Delete All Sales Invoices Modal */}
+      <DeleteAllSalesInvoicesModal
+        isOpen={isDeleteAllModalOpen}
+        onClose={() => setIsDeleteAllModalOpen(false)}
       />
     </div>
   );

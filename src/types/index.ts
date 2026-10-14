@@ -914,6 +914,30 @@ export interface ZeroingExecutionResult {
   executedBy: string;
 }
 
+// Bulk deletion options and result for sales invoices and associated inventory/vouchers
+export interface DeleteAllSalesInvoicesOptions {
+  restoreStock?: boolean;
+  deleteLinkedVouchers?: boolean;
+  deleteLinkedStockMovements?: boolean;
+  deleteLinkedJournalEntries?: boolean;
+  revertCustomerBalances?: boolean;
+  revertTreasuryBalances?: boolean;
+  clearDeletedInvoicesTrash?: boolean;
+}
+
+export interface DeleteAllSalesInvoicesResult {
+  success: boolean;
+  message: string;
+  deletedInvoicesCount: number;
+  deletedVouchersCount: number;
+  deletedMovementsCount: number;
+  restoredItemsCount: number;
+  restoredTotalUnits: number;
+  adjustedPartiesCount: number;
+  adjustedTreasuriesCount: number;
+  executedAt: string;
+}
+
 // ==========================================
 // Daily Entry Sheet Types (كشف إدخال يومي)
 // ==========================================

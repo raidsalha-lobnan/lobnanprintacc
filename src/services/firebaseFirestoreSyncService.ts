@@ -37,21 +37,42 @@ export const ALL_ENTITIES = [
   'settings'
 ];
 
-// Keep Firebase 100% active and connected for real-time live sync across all devices
+// Quota state tracking for Firebase Firestore
 let quotaExceededUntil = 0;
+try {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('accounting_quota_exceeded_until');
+    if (saved) quotaExceededUntil = parseInt(saved, 10) || 0;
+  }
+} catch {}
+
 let hasLoggedQuotaWarning = false;
 
 export function isFirestoreQuotaExceeded(): boolean {
-  return false;
+  return Date.now() < quotaExceededUntil;
 }
 
-export function markQuotaExceeded() {
-  quotaExceededUntil = 0;
+export function markQuotaExceeded(durationMs: number = 3600000) {
+  quotaExceededUntil = Date.now() + durationMs;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('accounting_quota_exceeded_until', String(quotaExceededUntil));
+    }
+  } catch {}
+  if (!hasLoggedQuotaWarning) {
+    console.warn('⚠️ تم بلوغ الحد اليومي المجاني للكتابة في Firebase Firestore. تم تفعيل الحفظ والعمل المحلي الآمن مؤقتاً.');
+    hasLoggedQuotaWarning = true;
+  }
 }
 
 export function resetQuotaExceeded() {
   quotaExceededUntil = 0;
   hasLoggedQuotaWarning = false;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('accounting_quota_exceeded_until');
+    }
+  } catch {}
 }
 
 export function sanitizeForFirestore(data: any): any {

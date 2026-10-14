@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useAccounting } from '../context/AccountingContext';
 import { TelegramService } from '../services/TelegramService';
 import jsPDF from 'jspdf';
@@ -7,8 +7,19 @@ import 'jspdf-autotable';
 export const TelegramBotIntegration: React.FC = () => {
   const { settings, parties, journalEntries, invoices, vouchers, updateSettings } = useAccounting();
 
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  const partiesRef = useRef(parties);
+  partiesRef.current = parties;
+
+  const isEnabled = settings.telegramConfig?.enabled;
+  const botToken = settings.telegramConfig?.botToken;
+
   useEffect(() => {
-    TelegramService.startPolling(settings, async (command, text, chatId, botToken) => {
+    if (!isEnabled || !botToken) return;
+
+    TelegramService.startPolling(settingsRef.current, async (command, text, chatId, currentToken) => {
       console.log('Received Telegram command:', command);
       
       if (!settings.telegramConfig?.defaultChatId && text === 'مرحبا') {
@@ -120,7 +131,7 @@ export const TelegramBotIntegration: React.FC = () => {
     return () => {
       TelegramService.stopPolling();
     };
-  }, [settings, parties, updateSettings]); 
+  }, [isEnabled, botToken]); 
 
   return null;
 };

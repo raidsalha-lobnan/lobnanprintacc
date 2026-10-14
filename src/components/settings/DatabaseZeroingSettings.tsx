@@ -31,6 +31,7 @@ import {
   Warehouse as WarehouseIcon,
   RefreshCw
 } from 'lucide-react';
+import { DeleteAllSalesInvoicesModal } from '../modals/DeleteAllSalesInvoicesModal';
 
 export const DatabaseZeroingSettings: React.FC = () => {
   const {
@@ -126,6 +127,7 @@ export const DatabaseZeroingSettings: React.FC = () => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<ZeroingExecutionResult | null>(null);
   const [showResultModal, setShowResultModal] = useState(false);
+  const [isDeleteAllSalesModalOpen, setIsDeleteAllSalesModalOpen] = useState(false);
 
   // حالة النسخ الاحتياطي المحققة محلياً في هذه الجلسة
   const [sessionBackupCompleted, setSessionBackupCompleted] = useState<boolean>(() => !!lastBackupInfo);
@@ -335,6 +337,36 @@ export const DatabaseZeroingSettings: React.FC = () => {
       resetDebtClearings: false,
       resetExpenses: false,
       resetStockMovements: false,
+      resetWarehouseOperations: false,
+      resetManualParties: false,
+      zeroPartyBalances: false,
+      zeroInventoryStock: false,
+      resetManualInventoryItems: false,
+      resetManualWarehouses: false,
+      zeroTreasuryBalances: false,
+      resetManualTreasuries: false,
+      zeroAccountBalances: false
+    }));
+  };
+
+  const handleSelectOnlySalesInvoices = () => {
+    setOptions(prev => ({
+      ...prev,
+      resetEmployees: false,
+      resetPayroll: false,
+      resetEmployeeAdvances: false,
+      resetEmployeeDeductions: false,
+      resetEmployeeIncentives: false,
+      resetInvoices: true,
+      resetPurchases: false,
+      resetSalesReturns: false,
+      resetPurchaseReturns: false,
+      resetVouchers: true,
+      resetJournalEntries: true,
+      resetPrintOrders: false,
+      resetDebtClearings: false,
+      resetExpenses: false,
+      resetStockMovements: true,
       resetWarehouseOperations: false,
       resetManualParties: false,
       zeroPartyBalances: false,
@@ -646,12 +678,46 @@ export const DatabaseZeroingSettings: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={handleSelectOnlySalesInvoices}
+              className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-md font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <Trash2 className="w-3 h-3 text-rose-600" />
+              <span>فواتير المبيعات وملحقاتها فقط</span>
+            </button>
+            <button
+              type="button"
               onClick={handleDeselectAll}
               className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-md text-[11px] transition-colors cursor-pointer"
             >
               إلغاء التحديد
             </button>
           </div>
+        </div>
+
+        {/* بطاقة الحذف الفوري المباشر لفواتير المبيعات مع استرجاع المخزون */}
+        <div className="bg-rose-50 border border-rose-300 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Trash2 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="font-bold text-slate-900 text-xs">
+                حذف سريع لكافة فواتير المبيعات ({invoices.length} فاتورة) مع استرجاع المخزون
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                تصفير كامل لسجل المبيعات، إعادة كميات الأصناف المباعة لرصيد المخزن تلقائياً، وحذف سندات القبض الناتجة عنها.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsDeleteAllSalesModalOpen(true)}
+            disabled={!isSystemAdmin}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition shrink-0 cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4 text-rose-200" />
+            <span>حذف فواتير المبيعات الآن</span>
+          </button>
         </div>
 
         {/* 4 Pillars Grid */}
@@ -1131,6 +1197,12 @@ export const DatabaseZeroingSettings: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete All Sales Invoices Modal */}
+      <DeleteAllSalesInvoicesModal
+        isOpen={isDeleteAllSalesModalOpen}
+        onClose={() => setIsDeleteAllSalesModalOpen(false)}
+      />
     </div>
   );
 };

@@ -6,6 +6,7 @@ import {
   subscribeToFirestoreLiveSync,
   fetchFullDatabaseFromFirestore,
   isFirestoreQuotaExceeded,
+  markQuotaExceeded,
   saveDeltaToFirestore,
   subscribeToFirestoreLiveDeltas
 } from '../services/firebaseFirestoreSyncService';
@@ -71,6 +72,8 @@ import {
   DebtClearingRecord,
   DatabaseZeroingOptions,
   ZeroingExecutionResult,
+  DeleteAllSalesInvoicesOptions,
+  DeleteAllSalesInvoicesResult,
   ExpenseItem,
   DailyEntryRow,
   DailyEntrySheet,
@@ -395,6 +398,7 @@ interface AccountingContextType {
     statusMeta?: { notes?: string; userName?: string; userId?: string }
   ) => void;
   deleteInvoice: (id: string, reason?: string) => void;
+  deleteAllSalesInvoicesAndRelatedData: (options?: DeleteAllSalesInvoicesOptions) => DeleteAllSalesInvoicesResult;
   deletedInvoices: Invoice[];
   restoreDeletedInvoice: (id: string) => Promise<Invoice | null>;
   permanentlyDeleteInvoice: (id: string) => Promise<void>;
@@ -2035,10 +2039,25 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     };
   }, [isLocalOnlyMode]);
 
-  // Auto-reconciliation is handled via live Firestore listeners (subscribeToFirestoreLiveSync)
-
-
-
+  // تنظيف وتصفير تلقائي لمرة واحدة لفواتير المبيعات التجريبية والقديمة مع استرجاع المخزون
+  useEffect(() => {
+    const purgeFlagKey = `${STORAGE_KEY}_auto_purged_sales_invoices_oct2026_v1`;
+    if (!localStorage.getItem(purgeFlagKey)) {
+      localStorage.setItem(purgeFlagKey, 'true');
+      const storedInvoices = localStorage.getItem(`${STORAGE_KEY}_invoices`);
+      if (storedInvoices) {
+        try {
+          const parsed = JSON.parse(storedInvoices);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            console.log(`Executing auto-purge on ${parsed.length} leftover sales invoices and restoring inventory...`);
+            setTimeout(() => {
+              deleteAllSalesInvoicesAndRelatedData();
+            }, 300);
+          }
+        } catch {}
+      }
+    }
+  }, []);
 
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<Invoice | null>(null);
   const [directPrintOptions, setDirectPrintOptions] = useState<{ format: 'thermal' | 'a4' | 'a4-custom', autoPrint: boolean } | null>(null);
@@ -2278,8 +2297,8 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       }
     }
 
-    // 2. Fallback to external master host URL if relative route failed and baseUrl exists
-    if ((!res || !res.ok) && baseUrl) {
+    // 2. Fallback to external master host URL if relative route failed and baseUrl exists (skip Vercel serverless limits)
+    if ((!res || !res.ok) && baseUrl && !baseUrl.includes('vercel.app')) {
       try {
         const extRes = await fetch(`${baseUrl}/api/sync/full-sync`, {
           method: 'POST',
@@ -2288,6 +2307,8 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         });
         if (extRes.ok) {
           res = extRes;
+        } else if (extRes.status === 413) {
+          console.warn('Vercel payload limit (413): skipping full HTTP sync');
         }
       } catch (e) {}
     }
@@ -2346,8 +2367,11 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           });
           return { success: true, cloud: 'firebase' };
         }
-      } catch (fsErr) {
-        console.warn('Firebase full sync fallback note:', fsErr);
+      } catch (fsErr: any) {
+        if (fsErr?.code === 'resource-exhausted' || fsErr?.message?.includes('Quota limit exceeded')) {
+          markQuotaExceeded();
+        }
+        console.warn('Firebase full sync fallback note:', fsErr?.message || fsErr);
       }
 
       // If both HTTP endpoint and Firestore fail offline, log mild note without breaking app
@@ -2598,13 +2622,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           }
         }
         
-        const hasUnsyncedLocalChanges = localStorage.getItem(`${STORAGE_KEY}_has_unsynced`) === 'true';
-        if (isMounted && hasUnsyncedLocalChanges) {
-            console.log('Local changes pending sync; pushing local changes to cloud first...');
-            if (syncToFirebaseRef.current) {
-              await syncToFirebaseRef.current(true);
-            }
-        } else if (isMounted && hasCloudData) {
+        if (isMounted && hasCloudData) {
             if (Array.isArray(data.parties)) setParties(prev => mergeEntityLists(prev || [], data.parties));
             if (Array.isArray(data.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], data.invoices));
             if (Array.isArray(data.employees)) setEmployees(prev => mergeEntityLists(prev || [], data.employees));
@@ -7923,6 +7941,454 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     } catch (e) {
       console.warn('Audit log write exception:', e);
     }
+
+    // 4. استرجاع الكميات المباعة وإعادتها لمخزون الأصناف في المستودع
+    if (target && Array.isArray(target.items) && target.items.length > 0) {
+      const itemQtyMap: Record<string, number> = {};
+      target.items.forEach(it => {
+        const rawId = it.itemId || (it as any).id || (it as any).item?.id;
+        const q = Number(it.quantity) || 0;
+        if (rawId && q > 0) {
+          itemQtyMap[rawId] = (itemQtyMap[rawId] || 0) + q;
+        }
+      });
+
+      if (Object.keys(itemQtyMap).length > 0) {
+        setInventory(prev => {
+          const wh = target.warehouse || 'المخزن الرئيسي';
+          const updated = prev.map(invItem => {
+            const addQ = itemQtyMap[invItem.id] || (invItem.code ? itemQtyMap[invItem.code] : 0) || 0;
+            if (addQ > 0) {
+              const newQty = (invItem.stockQuantity || 0) + addQ;
+              const updatedWh = { ...(invItem.warehouseStocks || {}) };
+              updatedWh[wh] = (updatedWh[wh] || 0) + addQ;
+              return {
+                ...invItem,
+                stockQuantity: newQty,
+                warehouseStocks: updatedWh,
+                lastMovementDate: new Date().toISOString().split('T')[0]
+              };
+            }
+            return invItem;
+          });
+          try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(updated)); } catch {}
+          pushToServerSync('inventory', updated);
+          broadcastEntityChange('inventory', updated);
+          return updated;
+        });
+      }
+    }
+
+    // 5. حذف حركات المخزون المرتبطة بهذه الفاتورة
+    setStockMovements(prev => {
+      const kept = prev.filter(sm => {
+        const isMatch = sm.referenceId === id ||
+                        (target && sm.referenceNumber === target.invoiceNumber) ||
+                        sm.id.includes(id);
+        if (isMatch) {
+          registerDeletedDoc('stockMovements', sm.id);
+          deleteDoc(doc(db, 'stockMovements', sm.id)).catch(() => {});
+          return false;
+        }
+        return true;
+      });
+      try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(kept)); } catch {}
+      pushToServerSync('stockMovements', kept);
+      broadcastEntityChange('stockMovements', kept);
+      return kept;
+    });
+
+    // 6. حذف سندات القبض والدفع المرتبطة بالفاتورة
+    setVouchers(prev => {
+      const kept = prev.filter(v => {
+        const isMatch = v.id === `vch-inv-${id}` ||
+                        v.id.includes(id) ||
+                        (target && v.voucherNumber === `RCT-INV-${target.invoiceNumber.replace('INV-', '')}`) ||
+                        (target && v.description?.includes(target.invoiceNumber));
+        if (isMatch) {
+          registerDeletedDoc('vouchers', v.id);
+          deleteDoc(doc(db, 'vouchers', v.id)).catch(() => {});
+          return false;
+        }
+        return true;
+      });
+      try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(kept)); } catch {}
+      pushToServerSync('vouchers', kept);
+      broadcastEntityChange('vouchers', kept);
+      return kept;
+    });
+
+    // 7. حذف القيود المحاسبية المرتبطة بالفاتورة
+    setJournalEntries(prev => {
+      const kept = prev.filter(je => {
+        const isMatch = je.referenceId === id || (target && je.description?.includes(target.invoiceNumber));
+        if (isMatch) {
+          registerDeletedDoc('journalEntries', je.id);
+          deleteDoc(doc(db, 'journalEntries', je.id)).catch(() => {});
+          return false;
+        }
+        return true;
+      });
+      try { localStorage.setItem(`${STORAGE_KEY}_journalEntries`, JSON.stringify(kept)); } catch {}
+      pushToServerSync('journalEntries', kept);
+      broadcastEntityChange('journalEntries', kept);
+      return kept;
+    });
+
+    // 8. تسوية ذمة ودين العميل إن كانت الفاتورة بالأجل
+    if (target && target.remainingAmount && target.remainingAmount > 0) {
+      const custId = target.subCustomerId || target.customerId;
+      if (custId) {
+        setParties(prev => {
+          const updated = prev.map(p => {
+            if (p.id === custId) {
+              const newBal = Number(Math.max(0, (p.balance || 0) - target.remainingAmount).toFixed(2));
+              return { ...p, balance: newBal };
+            }
+            return p;
+          });
+          try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(updated)); } catch {}
+          pushToServerSync('parties', updated);
+          broadcastEntityChange('parties', updated);
+          return updated;
+        });
+      }
+    }
+
+    // 9. تسوية الصناديق في حال تم دفع مبالغ
+    if (target && (target.paidAmount || target.cashPaidAmount || target.bankPaidAmount)) {
+      const paid = target.paidAmount || (Number(target.cashPaidAmount || 0) + Number(target.bankPaidAmount || 0));
+      if (paid > 0) {
+        setTreasuries(prev => {
+          const updated = prev.map(t => {
+            const cleanTxns = (t.transactions || []).filter(tx => {
+              return !(tx.referenceId === id || (target && tx.description?.includes(target.invoiceNumber)));
+            });
+            if (cleanTxns.length !== (t.transactions || []).length) {
+              return {
+                ...t,
+                balance: Number(Math.max(0, (t.balance || 0) - paid).toFixed(2)),
+                transactions: cleanTxns
+              };
+            }
+            return t;
+          });
+          try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(updated)); } catch {}
+          pushToServerSync('treasuries', updated);
+          broadcastEntityChange('treasuries', updated);
+          return updated;
+        });
+      }
+    }
+  };
+
+  /**
+   * حذف شامل وكامل لكافة فواتير المبيعات من قاعدة البيانات مع استرجاع المخزون وحذف السندات والحركات التابعة
+   */
+  const deleteAllSalesInvoicesAndRelatedData = (options?: DeleteAllSalesInvoicesOptions): DeleteAllSalesInvoicesResult => {
+    const restoreStock = options?.restoreStock !== false;
+    const deleteLinkedVouchers = options?.deleteLinkedVouchers !== false;
+    const deleteLinkedStockMovements = options?.deleteLinkedStockMovements !== false;
+    const deleteLinkedJournalEntries = options?.deleteLinkedJournalEntries !== false;
+    const revertCustomerBalances = options?.revertCustomerBalances !== false;
+    const revertTreasuryBalances = options?.revertTreasuryBalances !== false;
+    const clearDeletedInvoicesTrash = options?.clearDeletedInvoicesTrash !== false;
+
+    const currentInvoices = invoices || [];
+    const invCount = currentInvoices.length;
+
+    // تجميع معرفات وأرقام الفواتير
+    const invoiceIds = new Set<string>();
+    const invoiceNumbers = new Set<string>();
+
+    currentInvoices.forEach(inv => {
+      if (inv.id) invoiceIds.add(String(inv.id));
+      if (inv.invoiceNumber) invoiceNumbers.add(String(inv.invoiceNumber));
+    });
+
+    if (clearDeletedInvoicesTrash && deletedInvoices) {
+      deletedInvoices.forEach(inv => {
+        if (inv.id) invoiceIds.add(String(inv.id));
+        if (inv.invoiceNumber) invoiceNumbers.add(String(inv.invoiceNumber));
+      });
+    }
+
+    // 1. حساب الكميات المباعة لإعادتها إلى رصيد المخزون
+    const restoredQuantitiesByItem: Record<string, number> = {};
+    const restoredQuantitiesByItemAndWarehouse: Record<string, Record<string, number>> = {};
+    let totalRestoredUnits = 0;
+
+    if (restoreStock) {
+      currentInvoices.forEach(inv => {
+        const wh = inv.warehouse || 'المخزن الرئيسي';
+        (inv.items || []).forEach(item => {
+          const rawId = item.itemId || (item as any).id || (item as any).item?.id;
+          const qty = Number(item.quantity) || 0;
+          if (rawId && qty > 0) {
+            restoredQuantitiesByItem[rawId] = (restoredQuantitiesByItem[rawId] || 0) + qty;
+            totalRestoredUnits += qty;
+            if (!restoredQuantitiesByItemAndWarehouse[rawId]) {
+              restoredQuantitiesByItemAndWarehouse[rawId] = {};
+            }
+            restoredQuantitiesByItemAndWarehouse[rawId][wh] = (restoredQuantitiesByItemAndWarehouse[rawId][wh] || 0) + qty;
+          }
+        });
+      });
+    }
+
+    // 2. استرجاع المخزون في بطاقات الأصناف والمستودعات
+    let restoredItemsCount = 0;
+    if (restoreStock && Object.keys(restoredQuantitiesByItem).length > 0) {
+      setInventory(prev => {
+        const updated = prev.map(item => {
+          const addQty = restoredQuantitiesByItem[item.id] || (item.code ? restoredQuantitiesByItem[item.code] : 0) || 0;
+          if (addQty > 0) {
+            restoredItemsCount++;
+            const newQty = (item.stockQuantity || 0) + addQty;
+            const updatedWhStocks = { ...(item.warehouseStocks || {}) };
+            const whBreakdown = restoredQuantitiesByItemAndWarehouse[item.id];
+            if (whBreakdown) {
+              Object.entries(whBreakdown).forEach(([whName, q]) => {
+                updatedWhStocks[whName] = (updatedWhStocks[whName] || 0) + q;
+              });
+            }
+            return {
+              ...item,
+              stockQuantity: newQty,
+              warehouseStocks: updatedWhStocks,
+              lastMovementDate: new Date().toISOString().split('T')[0]
+            };
+          }
+          return item;
+        });
+        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(updated)); } catch {}
+        pushToServerSync('inventory', updated);
+        broadcastEntityChange('inventory', updated);
+        return updated;
+      });
+    }
+
+    // 3. حذف حركات المخزون الناتجة عن المبيعات
+    let deletedMovementsCount = 0;
+    if (deleteLinkedStockMovements) {
+      setStockMovements(prev => {
+        const kept: StockMovement[] = [];
+        const deletedIds: string[] = [];
+        prev.forEach(sm => {
+          const isSale = sm.type === 'out_sale';
+          const isPosRef = sm.referenceType === 'pos_invoice' || sm.referenceType === 'invoice';
+          const matchesInv = (sm.referenceNumber && invoiceNumbers.has(sm.referenceNumber)) ||
+                             (sm.referenceId && invoiceIds.has(sm.referenceId)) ||
+                             (sm.reason && Array.from(invoiceNumbers).some(num => sm.reason?.includes(num)));
+          if (isSale || (isPosRef && matchesInv) || matchesInv) {
+            deletedIds.push(sm.id);
+            deletedMovementsCount++;
+          } else {
+            kept.push(sm);
+          }
+        });
+        try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(kept)); } catch {}
+        pushToServerSync('stockMovements', kept);
+        broadcastEntityChange('stockMovements', kept);
+        deletedIds.forEach(did => registerDeletedDoc('stockMovements', did));
+        return kept;
+      });
+    }
+
+    // 4. حذف سندات القبض والدفع التابعة لفواتير المبيعات
+    let deletedVouchersCount = 0;
+    if (deleteLinkedVouchers) {
+      setVouchers(prev => {
+        const kept: PaymentVoucher[] = [];
+        const deletedIds: string[] = [];
+        prev.forEach(v => {
+          const isInvVch = v.id.startsWith('vch-inv-') || v.voucherNumber?.startsWith('RCT-INV-');
+          const matchesInv = (v.referenceId && invoiceIds.has(v.referenceId)) ||
+                             (v.referenceInvoiceId && invoiceIds.has(v.referenceInvoiceId)) ||
+                             (v.voucherNumber && invoiceNumbers.has(v.voucherNumber)) ||
+                             (v.description && (
+                               v.description.includes('فاتورة مبيعات') ||
+                               v.description.includes('سند تحصيل فوري لفاتورة') ||
+                               Array.from(invoiceNumbers).some(num => v.description?.includes(num))
+                             ));
+          if (isInvVch || matchesInv) {
+            deletedIds.push(v.id);
+            deletedVouchersCount++;
+          } else {
+            kept.push(v);
+          }
+        });
+        try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(kept)); } catch {}
+        pushToServerSync('vouchers', kept);
+        broadcastEntityChange('vouchers', kept);
+        deletedIds.forEach(did => registerDeletedDoc('vouchers', did));
+        return kept;
+      });
+    }
+
+    // 5. حذف القيود المحاسبية لعمليات المبيعات
+    if (deleteLinkedJournalEntries) {
+      setJournalEntries(prev => {
+        const kept: JournalEntry[] = [];
+        const deletedIds: string[] = [];
+        prev.forEach(je => {
+          const isPos = je.referenceType === 'pos_invoice' || je.referenceType === 'cogs';
+          const matchesInv = (je.referenceId && invoiceIds.has(je.referenceId)) ||
+                             (je.description && (
+                               je.description.includes('فاتورة مبيعات') ||
+                               je.description.includes('تكلفة البضاعة المباعة لفاتورة') ||
+                               Array.from(invoiceNumbers).some(num => je.description?.includes(num))
+                             ));
+          if (isPos || matchesInv) {
+            deletedIds.push(je.id);
+          } else {
+            kept.push(je);
+          }
+        });
+        try { localStorage.setItem(`${STORAGE_KEY}_journalEntries`, JSON.stringify(kept)); } catch {}
+        pushToServerSync('journalEntries', kept);
+        broadcastEntityChange('journalEntries', kept);
+        deletedIds.forEach(did => registerDeletedDoc('journalEntries', did));
+        return kept;
+      });
+    }
+
+    // 6. تسوية ذمم العملاء (خصم مبالغ الديون الناتجة عن الفواتير المحذوفة)
+    let adjustedPartiesCount = 0;
+    if (revertCustomerBalances) {
+      const customerDebtToDeduct: Record<string, number> = {};
+      currentInvoices.forEach(inv => {
+        const rem = Number(inv.remainingAmount) || 0;
+        const custId = inv.subCustomerId || inv.customerId;
+        if (custId && rem > 0) {
+          customerDebtToDeduct[custId] = (customerDebtToDeduct[custId] || 0) + rem;
+        }
+      });
+
+      if (Object.keys(customerDebtToDeduct).length > 0) {
+        setParties(prev => {
+          const updated = prev.map(p => {
+            const deduct = customerDebtToDeduct[p.id];
+            if (deduct && deduct > 0) {
+              adjustedPartiesCount++;
+              const newBal = Number(Math.max(0, (p.balance || 0) - deduct).toFixed(2));
+              return { ...p, balance: newBal };
+            }
+            return p;
+          });
+          try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(updated)); } catch {}
+          pushToServerSync('parties', updated);
+          broadcastEntityChange('parties', updated);
+          return updated;
+        });
+      }
+    }
+
+    // 7. تسوية أرصدة وحركات الصناديق النقدية والبنكية
+    let adjustedTreasuriesCount = 0;
+    if (revertTreasuryBalances) {
+      setTreasuries(prev => {
+        const updated = prev.map(t => {
+          let removedAmount = 0;
+          const cleanTxns = (t.transactions || []).filter(tx => {
+            const isSale = (tx as any).referenceType === 'pos_sale' || (tx as any).type === 'pos_sale';
+            const matchesInv = ((tx as any).referenceId && invoiceIds.has((tx as any).referenceId)) ||
+                               ((tx as any).voucherNumber && invoiceNumbers.has((tx as any).voucherNumber)) ||
+                               (tx.description && (
+                                 tx.description.includes('فاتورة مبيعات') ||
+                                 Array.from(invoiceNumbers).some(num => tx.description?.includes(num))
+                               ));
+            if (isSale || matchesInv) {
+              removedAmount += (tx.amount || 0);
+              return false;
+            }
+            return true;
+          });
+
+          if (removedAmount > 0 || cleanTxns.length !== (t.transactions || []).length) {
+            adjustedTreasuriesCount++;
+            return {
+              ...t,
+              balance: Number(Math.max(0, (t.balance || 0) - removedAmount).toFixed(2)),
+              transactions: cleanTxns
+            };
+          }
+          return t;
+        });
+        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(updated)); } catch {}
+        pushToServerSync('treasuries', updated);
+        broadcastEntityChange('treasuries', updated);
+        return updated;
+      });
+    }
+
+    // 8. فك ربط أوامر تشغيل المطبعة بالفواتير المحذوفة
+    setPrintOrders(prev => {
+      const updated = prev.map(po => {
+        if (po.associatedInvoiceId && invoiceIds.has(po.associatedInvoiceId)) {
+          return { ...po, associatedInvoiceId: undefined };
+        }
+        return po;
+      });
+      try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+
+    // 9. تصفير وحذف الفواتير من الذاكرة المحلية
+    setInvoices([]);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify([]));
+    } catch {}
+    pushToServerSync('invoices', []);
+    broadcastEntityChange('invoices', []);
+
+    if (clearDeletedInvoicesTrash) {
+      setDeletedInvoices([]);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_deletedInvoices`, JSON.stringify([]));
+      } catch {}
+      pushToServerSync('deletedInvoices', []);
+    }
+
+    // تسجيل كافة المعرفات في سجل الحظر لمنع إعادة استرجاعها من المزامنة
+    invoiceIds.forEach(id => {
+      registerDeletedDoc('invoices', id);
+      registerDeletedDoc('deletedInvoices', id);
+    });
+
+    // 10. إرسال الحذف إلى السحابة وقاعدة بيانات Firestore
+    (async () => {
+      try {
+        // تحديث وثيقة الفواتير المجمعة
+        setDoc(doc(db, 'lobnan_accounting_db', 'invoices'), {
+          items: [],
+          updatedAt: new Date().toISOString(),
+          count: 0
+        }).catch(() => {});
+
+        // حذف كل وثيقة فردية
+        const idList = Array.from(invoiceIds);
+        for (const id of idList) {
+          deleteDoc(doc(db, 'invoices', id)).catch(() => {});
+          deleteDoc(doc(db, 'deletedInvoices', id)).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('Notice during Firestore sales invoices purge:', err);
+      }
+    })();
+
+    return {
+      success: true,
+      message: `تم بنجاح حذف كافة فواتير المبيعات (${invCount} فاتورة)، واسترجاع ${totalRestoredUnits} وحدة إلى مخزون ${restoredItemsCount} صنف، وحذف ${deletedVouchersCount} سند مرتبط، و ${deletedMovementsCount} حركة مخزنية.`,
+      deletedInvoicesCount: invCount,
+      deletedVouchersCount,
+      deletedMovementsCount,
+      restoredItemsCount,
+      restoredTotalUnits: totalRestoredUnits,
+      adjustedPartiesCount,
+      adjustedTreasuriesCount,
+      executedAt: new Date().toISOString()
+    };
   };
 
   const restoreDeletedInvoice = async (id: string): Promise<Invoice | null> => {
@@ -10027,6 +10493,7 @@ return (
         addPosInvoiceOnline,
         updateInvoice,
         deleteInvoice,
+        deleteAllSalesInvoicesAndRelatedData,
         deletedInvoices,
         restoreDeletedInvoice,
         permanentlyDeleteInvoice,

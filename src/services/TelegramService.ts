@@ -90,8 +90,10 @@ export const TelegramService = {
       } catch {}
     };
 
+    let isFetchInFlight = false;
+
     const poll = async () => {
-      if (!isPollingActive) return;
+      if (!isPollingActive || isFetchInFlight) return;
       if (!settings.telegramConfig?.enabled || !settings.telegramConfig?.botToken) {
         TelegramService.stopPolling();
         return;
@@ -108,9 +110,10 @@ export const TelegramService = {
       }
       claimLeadership();
 
+      isFetchInFlight = true;
       try {
         const response = await fetch(
-          `https://api.telegram.org/bot${token}/getUpdates?offset=${lastUpdateId + 1}&timeout=10`
+          `https://api.telegram.org/bot${token}/getUpdates?offset=${lastUpdateId + 1}&timeout=0`
         ).catch(() => null);
 
         if (!response) {
@@ -119,8 +122,8 @@ export const TelegramService = {
         }
 
         if (response.status === 409) {
-          // Conflict: another bot instance or webhook is active. Stop polling to prevent console spam.
-          TelegramService.stopPolling();
+          // Conflict: another bot instance or webhook is active. Back off 30s before retrying.
+          scheduleNext(30000);
           return;
         }
 
@@ -145,6 +148,8 @@ export const TelegramService = {
         scheduleNext(4000);
       } catch {
         scheduleNext(20000);
+      } finally {
+        isFetchInFlight = false;
       }
     };
 
