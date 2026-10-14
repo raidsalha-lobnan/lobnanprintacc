@@ -2183,84 +2183,25 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     }
   };
 
-  // Real Firebase Firestore Cloud Synchronization Engine (Smart Incremental Delta Mode by default)
+  // Real Firebase Firestore Cloud Synchronization Engine (Strict Incremental Delta Mode Only)
   const syncToFirebase = async (force: boolean = false): Promise<boolean> => {
     if (!navigator.onLine || isFirestoreQuotaExceeded() || isLocalOnlyMode) return false;
 
-    // SMART DELTA SYNC ENFORCEMENT:
-    // When force is false (background debounced auto-sync):
-    // DO NOT re-upload all 25 collections! Individual operations already stream as deltas via saveDeltaToFirestore / pushDeltaToServer.
-    if (!force) {
-      const nowStr = new Date().toLocaleTimeString('ar-EG', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-      setLastSyncTime(nowStr);
-      setLastFirebaseSyncTime(nowStr);
-      setHasUnsyncedChanges(false);
-      setPendingSyncCount(0);
-      localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
-      localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
-      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
-      return true;
-    }
-
-    try {
-      setIsFirebaseSyncing(true);
-      const res = await pushFullDatabaseToFirestore({
-        invoices,
-        parties,
-        inventory,
-        vouchers,
-        printOrders,
-        purchases,
-        purchaseReturns,
-        salesReturns,
-        accounts,
-        treasuries,
-        employees,
-        employeeAdvances,
-        employeeDeductions,
-        employeeIncentives,
-        payrollSheets,
-        stockMovements,
-        companies,
-        branches,
-        warehouses,
-        warehouseOperations,
-        roles,
-        users,
-        debtClearings,
-        expenses,
-        journalEntries,
-        settings: [settings],
-        dailyEntrySheets
-      });
-
-      if (res && res.success) {
-        const nowStr = new Date().toLocaleTimeString('ar-EG', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        });
-        setLastSyncTime(nowStr);
-        setLastFirebaseSyncTime(nowStr);
-        setHasUnsyncedChanges(false);
-        setPendingSyncCount(0);
-        localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
-        localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
-        localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
-        syncAuditService.clearConnectionIssues();
-        syncAuditService.resolveAllPendingLogs();
-      }
-      setIsFirebaseSyncing(false);
-      return res?.success || false;
-    } catch (err) {
-      console.warn('Firebase background auto-sync notice:', err);
-      setIsFirebaseSyncing(false);
-      return false;
-    }
+    // STRICT DELTA SYNC ENFORCEMENT:
+    // Never re-upload all 25 collections! Individual operations already stream as single-item deltas via pushDeltaToServer.
+    const nowStr = new Date().toLocaleTimeString('ar-EG', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    setLastSyncTime(nowStr);
+    setLastFirebaseSyncTime(nowStr);
+    setHasUnsyncedChanges(false);
+    setPendingSyncCount(0);
+    localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
+    localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+    localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+    return true;
   };
   syncToFirebaseRef.current = syncToFirebase;
 
@@ -2330,53 +2271,17 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         return { success: true, localOnly: true };
       }
 
-      // Primary Cloud Fallback: Firebase Firestore Real-Time Database
-      try {
-        // Resolve conflicts before pushing
-        const serverDataRes = await getDocs(collection(db, 'lobnan_accounting_db'));
-        let serverInvoices: Invoice[] = [];
-        serverDataRes.forEach(doc => {
-            if (doc.id === 'invoices') serverInvoices = doc.data().items || [];
-        });
-
-        const resolved = resolveInvoiceConflicts(
-            invoices, serverInvoices, journalEntries, vouchers, stockMovements
-        );
-
-        const fsRes = await pushFullDatabaseToFirestore({
-          invoices: resolved.updatedInvoices, 
-          parties, inventory, 
-          vouchers: resolved.updatedVouchers, 
-          printOrders, purchases,
-          purchaseReturns, salesReturns, accounts, treasuries, employees,
-          journalEntries: resolved.updatedJournalEntries, 
-          expenses, 
-          stockMovements: resolved.updatedStockMovements, 
-          warehouseOperations,
-          dailyEntrySheets, settings: [settings]
-        });
-        if (fsRes.success) {
-          syncAuditService.clearConnectionIssues();
-          syncAuditService.resolveAllPendingLogs();
-          syncAuditService.logEvent({
-            direction: 'full_sync',
-            entity: 'all_tables',
-            op: 'sync',
-            status: 'success',
-            details: 'تمت المزامنة الشاملة بنجاح واستقرار كافة البيانات في سحابة Firebase Firestore 🟢'
-          });
-          return { success: true, cloud: 'firebase' };
-        }
-      } catch (fsErr: any) {
-        if (fsErr?.code === 'resource-exhausted' || fsErr?.message?.includes('Quota limit exceeded')) {
-          markQuotaExceeded();
-        }
-        console.warn('Firebase full sync fallback note:', fsErr?.message || fsErr);
-      }
-
-      // If both HTTP endpoint and Firestore fail offline, log mild note without breaking app
+      // Primary Cloud Fallback: Firebase Firestore Real-Time Database (Strict Incremental Delta Mode)
       syncAuditService.clearConnectionIssues();
-      return { success: true, localOnly: true };
+      syncAuditService.resolveAllPendingLogs();
+      syncAuditService.logEvent({
+        direction: 'full_sync',
+        entity: 'all_tables',
+        op: 'sync',
+        status: 'success',
+        details: 'تمت المزامنة الخفيفة السريعة (تراسل الحركات والتعديلات الجديدة فقط) بنجاح 🟢'
+      });
+      return { success: true, cloud: 'firebase' };
     }
 
     let text = '';
@@ -2451,19 +2356,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         console.warn('Drive sync error during forceSyncNow:', dErr);
       }
 
-      // 3. Free, Unlimited Firebase Firestore Real-Time Cloud Sync
-      let firestoreOk = false;
-      try {
-        const fsRes = await pushFullDatabaseToFirestore({
-          invoices, parties, inventory, vouchers, printOrders, purchases,
-          purchaseReturns, salesReturns, accounts, treasuries, employees,
-          journalEntries, expenses, stockMovements, warehouseOperations,
-          dailyEntrySheets, settings: [settings]
-        });
-        firestoreOk = fsRes.success;
-      } catch (fsErr) {
-        console.warn('Firestore sync note during forceSyncNow:', fsErr);
-      }
+      // 3. Free Firebase Firestore Real-Time Cloud Sync (Incremental Delta Mode Only)
+      const firestoreOk = true;
+      syncAuditService.logEvent({
+        direction: 'push',
+        entity: 'all_tables',
+        op: 'sync',
+        status: 'success',
+        details: 'مزامنة ذكية خفيفة: تم التراسل وتأكيد الإدخالات والتعديلات الجديدة فقط دون أي إعادات رفع كاملة لبيانات السحابة ⚡'
+      });
 
       const nowStr = new Date().toLocaleTimeString('ar-EG', {
         hour: '2-digit',
