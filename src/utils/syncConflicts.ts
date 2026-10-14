@@ -40,13 +40,13 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
         map.set(key, {
           ...fallback,
           ...base,
-          // Preserve non-empty items and payment history
+          // Preserve non-empty items
           items: (Array.isArray(base.items) && base.items.length > 0) ? base.items : (localInv.items || []),
-          payments: (Array.isArray(base.payments) && base.payments.length > 0) ? base.payments : (localInv.payments || []),
           invoiceNumber: base.invoiceNumber || localInv.invoiceNumber,
           customerName: base.customerName || localInv.customerName,
           totalAmount: base.totalAmount ?? localInv.totalAmount,
-          finalAmount: base.finalAmount ?? localInv.finalAmount,
+          paidAmount: base.paidAmount ?? localInv.paidAmount,
+          remainingAmount: base.remainingAmount ?? localInv.remainingAmount,
           updatedAt: new Date(Math.max(tLocal, tRemote, Date.now())).toISOString()
         });
       }

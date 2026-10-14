@@ -1,10 +1,22 @@
-import { db, doc, setDoc, getDoc, deleteDoc, onSnapshot, collection, getDocs } from '../firebase';
+import { db, doc, setDoc, getDoc, deleteDoc, onSnapshot, collection, getDocs, query, where, orderBy, limit } from '../firebase';
 import { syncAuditService, SyncAuditItem, SyncConnectionIssue } from './syncAuditService';
 
 const DB_COLLECTION = 'lobnan_accounting_db';
+const DELTAS_COLLECTION = 'lobnan_accounting_deltas';
 const AUDIT_COLLECTION = 'lobnan_accounting_sync_audit_logs';
 const ISSUES_COLLECTION = 'lobnan_accounting_sync_connection_issues';
 const TESTS_COLLECTION = 'lobnan_accounting_sync_tests';
+
+export interface FirestoreDeltaPayload {
+  id?: string;
+  entity: string;
+  op: 'upsert' | 'delete' | 'sync';
+  item?: any;
+  items?: any[];
+  clientId?: string;
+  timestamp: number;
+  isoTime?: string;
+}
 
 export const ALL_ENTITIES = [
   'invoices',
@@ -42,6 +54,111 @@ export function resetQuotaExceeded() {
   hasLoggedQuotaWarning = false;
 }
 
+export function sanitizeForFirestore(data: any): any {
+  if (data === null || data === undefined) return null;
+  try {
+    const str = JSON.stringify(data, (_, v) => {
+      if (typeof v === 'undefined') return null;
+      if (typeof v === 'function' || typeof v === 'symbol') return null;
+      return v;
+    });
+    return JSON.parse(str);
+  } catch (err) {
+    console.warn('sanitizeForFirestore fallback error:', err);
+    return null;
+  }
+}
+
+/**
+ * SMART INCREMENTAL DELTA PUSH:
+ * Pushes ONLY a single changed operation (delta) to Firestore.
+ * Consumes exactly 1 write unit instead of re-uploading entire collections or full databases!
+ */
+export async function saveDeltaToFirestore(delta: {
+  entity: string;
+  op?: 'upsert' | 'delete' | 'sync';
+  item?: any;
+  items?: any[];
+  clientId?: string;
+}): Promise<boolean> {
+  if (isFirestoreQuotaExceeded()) return false;
+  try {
+    const timestamp = Date.now();
+    const rand = Math.random().toString(36).substring(2, 7);
+    const docId = `delta_${timestamp}_${delta.clientId || 'c'}_${rand}`;
+    const cleanDelta = sanitizeForFirestore({
+      id: docId,
+      entity: delta.entity,
+      op: delta.op || 'upsert',
+      item: delta.item || null,
+      items: delta.items || null,
+      clientId: delta.clientId || 'default',
+      timestamp,
+      isoTime: new Date(timestamp).toISOString()
+    });
+
+    const docRef = doc(db, DELTAS_COLLECTION, docId);
+    await setDoc(docRef, cleanDelta);
+
+    syncAuditService.logEvent({
+      direction: 'push',
+      entity: delta.entity,
+      op: delta.op || 'upsert',
+      status: 'success',
+      documentId: delta.item?.id || delta.items?.[0]?.id,
+      documentNumber: delta.item?.invoiceNumber || delta.item?.code || delta.item?.voucherNumber,
+      details: `تم رفع الحركة الجديدة فقط (${delta.entity}) كـ Delta خفيف لسحابة Firestore بنجاح ⚡ (1 Write Unit)`
+    });
+
+    return true;
+  } catch (err: any) {
+    if (err?.code === 'resource-exhausted') {
+      markQuotaExceeded();
+      return false;
+    }
+    console.warn('saveDeltaToFirestore error:', err);
+    return false;
+  }
+}
+
+/**
+ * SMART INCREMENTAL DELTA PULL:
+ * Subscribes to live delta updates since a given timestamp from Firestore.
+ * Listens to ONLY new transactions as they occur across devices (Zero Full-DB Reads).
+ */
+export function subscribeToFirestoreLiveDeltas(
+  sinceTimestamp: number,
+  onDeltaReceived: (delta: FirestoreDeltaPayload) => void
+): () => void {
+  try {
+    const q = query(
+      collection(db, DELTAS_COLLECTION),
+      where('timestamp', '>', sinceTimestamp),
+      orderBy('timestamp', 'asc'),
+      limit(100)
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const delta = change.doc.data() as FirestoreDeltaPayload;
+          if (delta && delta.entity) {
+            onDeltaReceived(delta);
+          }
+        }
+      });
+    }, (err) => {
+      if (err?.code === 'resource-exhausted') {
+        markQuotaExceeded();
+      }
+      console.warn('Firestore live deltas listener notice:', err?.message || err);
+    });
+  } catch (err) {
+    console.warn('subscribeToFirestoreLiveDeltas catch:', err);
+    return () => {};
+  }
+}
+
 /**
  * Saves a single entity's list of items to Firestore
  */
@@ -50,13 +167,14 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
     return false;
   }
   try {
-    const cleanItems = JSON.parse(JSON.stringify(items || []));
+    const cleanItems = sanitizeForFirestore(items || []) || [];
     const docRef = doc(db, DB_COLLECTION, entityName);
-    await setDoc(docRef, {
+    const docPayload = sanitizeForFirestore({
       items: cleanItems,
       updatedAt: new Date().toISOString(),
       count: cleanItems.length
-    }, { merge: true });
+    });
+    await setDoc(docRef, docPayload, { merge: true });
 
     syncAuditService.logEvent({
       direction: 'push',
@@ -94,13 +212,14 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
   try {
     const promises = ALL_ENTITIES.map(async (ent) => {
       const rawItems = Array.isArray(fullSnapshot[ent]) ? fullSnapshot[ent] : [];
-      const items = JSON.parse(JSON.stringify(rawItems));
+      const items = sanitizeForFirestore(rawItems) || [];
       const docRef = doc(db, DB_COLLECTION, ent);
-      return setDoc(docRef, {
+      const docPayload = sanitizeForFirestore({
         items,
         updatedAt: new Date().toISOString(),
         count: items.length || 0
-      }, { merge: true });
+      });
+      return setDoc(docRef, docPayload, { merge: true });
     });
 
     await Promise.all(promises);
@@ -117,126 +236,71 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
   } catch (err: any) {
     if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
       markQuotaExceeded();
-      return { success: false, error: 'تم بلوغ الحد اليومي المجاني لكتابة البيانات في Firebase (20,000 عملية). بياناتك محفوظة محلياً بالكامل وستُرفع تلقائياً عند تجدد الحصة.' };
+      return { success: false, error: 'تم بلوغ الحد اليومي المجاني للكتابة في Firebase مؤقتاً.' };
     }
-    console.error('Error pushing full DB to Firestore:', err);
-    return { success: false, error: err?.message || 'فشل مزامنة Firestore' };
+    console.warn('Error pushing full DB to Firestore:', err?.message || err);
+    return { success: false, error: err?.message || 'تعذر رفع قاعدة البيانات الكاملة' };
   }
 }
 
 /**
- * Fetches all entity snapshots from Firestore once (offline-resilient)
- */
-export async function fetchFullDatabaseFromFirestore(): Promise<Record<string, any[]> | null> {
-  if (isFirestoreQuotaExceeded()) {
-    return null;
-  }
-  try {
-    const snapshot: Record<string, any[]> = {};
-    const promises = ALL_ENTITIES.map(async (ent) => {
-      try {
-        const docRef = doc(db, DB_COLLECTION, ent);
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data && Array.isArray(data.items)) {
-            snapshot[ent] = data.items;
-          }
-        }
-      } catch (docErr: any) {
-        if (docErr?.code === 'resource-exhausted') {
-          markQuotaExceeded();
-        }
-        // Silently skip if client is offline or document not found
-      }
-    });
-
-    await Promise.all(promises);
-    return Object.keys(snapshot).length > 0 ? snapshot : null;
-  } catch (err: any) {
-    console.debug('Firestore hydration offline status note:', err?.message || err);
-    return null;
-  }
-}
-
-/**
- * Subscribes to live real-time Firestore snapshot updates for a single entity
- */
-export function subscribeToSingleEntity(
-  entityName: string,
-  onUpdate: (items: any[]) => void
-): () => void {
-  if (isFirestoreQuotaExceeded()) {
-    return () => {};
-  }
-
-  const unsubscribes: (() => void)[] = [];
-
-  // 1. Direct collection listener: Listens to collection(db, entityName) for instant document-level multi-device sync
-  try {
-    const colRef = collection(db, entityName);
-    const unsubCol = onSnapshot(colRef, (snapshot) => {
-      if (!snapshot.empty) {
-        const items: any[] = [];
-        snapshot.forEach(docSnap => {
-          if (docSnap.exists()) {
-            items.push(docSnap.data());
-          }
-        });
-        if (items.length > 0) {
-          onUpdate(items);
-        }
-      }
-    }, (err) => {
-      if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-        markQuotaExceeded();
-      }
-    });
-    unsubscribes.push(unsubCol);
-  } catch {}
-
-  // 2. Collective wrapper doc listener: Listens to doc(db, 'lobnan_accounting_db', entityName)
-  try {
-    const docRef = doc(db, DB_COLLECTION, entityName);
-    const unsubDoc = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data && Array.isArray(data.items)) {
-          onUpdate(data.items);
-        }
-      }
-    }, (err) => {
-      if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-        markQuotaExceeded();
-      }
-    });
-    unsubscribes.push(unsubDoc);
-  } catch {}
-
-  return () => {
-    unsubscribes.forEach(fn => { try { fn(); } catch {} });
-  };
-}
-
-/**
- * Subscribes to live real-time Firestore snapshot updates across all devices
+ * Subscribes to live sync updates across all entities from Firestore
  */
 export function subscribeToFirestoreLiveSync(
   onEntityUpdated: (entityName: string, items: any[]) => void
 ): () => void {
-  if (isFirestoreQuotaExceeded()) {
-    return () => {};
-  }
   const unsubscribes: (() => void)[] = [];
 
-  ALL_ENTITIES.forEach((ent) => {
-    const unsub = subscribeToSingleEntity(ent, (items) => onEntityUpdated(ent, items));
-    unsubscribes.push(unsub);
-  });
+  for (const ent of ALL_ENTITIES) {
+    try {
+      const docRef = doc(db, DB_COLLECTION, ent);
+      const unsub = onSnapshot(docRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items)) {
+            onEntityUpdated(ent, data.items);
+          }
+        }
+      }, (err) => {
+        if (err?.code === 'resource-exhausted') {
+          markQuotaExceeded();
+        }
+      });
+      unsubscribes.push(unsub);
+    } catch {}
+  }
 
   return () => {
-    unsubscribes.forEach((fn) => fn());
+    unsubscribes.forEach(u => {
+      try { u(); } catch {}
+    });
   };
+}
+
+/**
+ * Subscribes to a single entity document changes in Firestore
+ */
+export function subscribeToSingleEntity(
+  entityName: string,
+  onUpdated: (items: any[]) => void
+): () => void {
+  try {
+    const docRef = doc(db, DB_COLLECTION, entityName);
+    return onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && Array.isArray(data.items)) {
+          onUpdated(data.items);
+        }
+      }
+    }, (err) => {
+      if (err?.code === 'resource-exhausted') {
+        markQuotaExceeded();
+      }
+    });
+  } catch {
+    return () => {};
+  }
 }
 
 /**
@@ -245,7 +309,7 @@ export function subscribeToFirestoreLiveSync(
 export async function saveAuditLogToFirestore(item: SyncAuditItem): Promise<boolean> {
   if (isFirestoreQuotaExceeded()) return false;
   try {
-    const cleanItem = JSON.parse(JSON.stringify(item));
+    const cleanItem = sanitizeForFirestore(item);
     const docRef = doc(db, AUDIT_COLLECTION, cleanItem.id);
     await setDoc(docRef, cleanItem, { merge: true });
     return true;
@@ -265,7 +329,7 @@ export async function saveAuditLogToFirestore(item: SyncAuditItem): Promise<bool
 export async function saveConnectionIssueToFirestore(issue: SyncConnectionIssue): Promise<boolean> {
   if (isFirestoreQuotaExceeded()) return false;
   try {
-    const cleanIssue = JSON.parse(JSON.stringify(issue));
+    const cleanIssue = sanitizeForFirestore(issue);
     const docRef = doc(db, ISSUES_COLLECTION, cleanIssue.id);
     await setDoc(docRef, cleanIssue, { merge: true });
     return true;
@@ -285,84 +349,41 @@ export async function saveConnectionIssueToFirestore(issue: SyncConnectionIssue)
 export function subscribeToSyncAuditLogsFromFirestore(
   callback: (logs: SyncAuditItem[]) => void
 ): () => void {
-  if (isFirestoreQuotaExceeded()) return () => {};
-  const colRef = collection(db, AUDIT_COLLECTION);
-  return onSnapshot(colRef, (snapshot) => {
-    const logs: SyncAuditItem[] = [];
-    snapshot.forEach((d) => {
-      logs.push(d.data() as SyncAuditItem);
-    });
-    logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    callback(logs);
-  }, (err) => {
-    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-      markQuotaExceeded();
-      return;
-    }
-    console.warn('Audit logs snapshot listener notice:', err?.message || err);
-  });
+  try {
+    const colRef = collection(db, AUDIT_COLLECTION);
+    return onSnapshot(colRef, (snap) => {
+      const logs: SyncAuditItem[] = [];
+      snap.forEach(d => {
+        const data = d.data() as SyncAuditItem;
+        if (data) logs.push(data);
+      });
+      logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      callback(logs.slice(0, 500));
+    }, () => {});
+  } catch {
+    return () => {};
+  }
 }
 
 /**
  * Subscribes to live connection issues from Firestore across all devices
  */
-export function subscribeToConnectionIssuesFromFirestore(
+export function subscribeToSyncConnectionIssuesFromFirestore(
   callback: (issues: SyncConnectionIssue[]) => void
 ): () => void {
-  if (isFirestoreQuotaExceeded()) return () => {};
-  const colRef = collection(db, ISSUES_COLLECTION);
-  return onSnapshot(colRef, (snapshot) => {
-    const issues: SyncConnectionIssue[] = [];
-    snapshot.forEach((d) => {
-      issues.push(d.data() as SyncConnectionIssue);
-    });
-    issues.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    callback(issues);
-  }, (err) => {
-    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-      markQuotaExceeded();
-      return;
-    }
-    console.warn('Connection issues snapshot listener notice:', err?.message || err);
-  });
-}
-
-/**
- * Clears audit logs from Firestore
- */
-export async function clearAuditLogsFromFirestore(): Promise<boolean> {
-  if (isFirestoreQuotaExceeded()) return false;
-  try {
-    const colRef = collection(db, AUDIT_COLLECTION);
-    const snap = await getDocs(colRef);
-    const promises = snap.docs.map(d => deleteDoc(d.ref));
-    await Promise.all(promises);
-    return true;
-  } catch (err: any) {
-    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-      markQuotaExceeded();
-      return false;
-    }
-    console.warn('Audit logs clear note:', err?.message || err);
-    return false;
-  }
-}
-
-export async function clearConnectionIssuesFromFirestore(): Promise<boolean> {
-  if (isFirestoreQuotaExceeded()) return false;
   try {
     const colRef = collection(db, ISSUES_COLLECTION);
-    const snap = await getDocs(colRef);
-    const promises = snap.docs.map(d => deleteDoc(d.ref));
-    await Promise.all(promises);
-    return true;
-  } catch (err: any) {
-    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-      markQuotaExceeded();
-      return false;
-    }
-    console.warn('Connection issues clear note:', err?.message || err);
-    return false;
+    return onSnapshot(colRef, (snap) => {
+      const issues: SyncConnectionIssue[] = [];
+      snap.forEach(d => {
+        const data = d.data() as SyncConnectionIssue;
+        if (data) issues.push(data);
+      });
+      issues.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      callback(issues.slice(0, 200));
+    }, () => {});
+  } catch {
+    return () => {};
   }
 }
 
@@ -379,13 +400,13 @@ export async function runLiveFirestorePingTest(): Promise<{
   const testId = 'firestore-ping-' + Date.now();
   try {
     const testDocRef = doc(db, TESTS_COLLECTION, testId);
-    const testPayload = {
+    const testPayload = sanitizeForFirestore({
       id: testId,
       createdAt: new Date().toISOString(),
       pingTest: true,
       status: 'success',
       details: 'اختبار إرسال واستقبال مباشر وسريع في قاعدة بيانات Firebase Firestore السحابية'
-    };
+    });
 
     // 1. Send/Write to Firestore
     await setDoc(testDocRef, testPayload);
@@ -410,7 +431,55 @@ export async function runLiveFirestorePingTest(): Promise<{
       success: false,
       ms,
       docId: testId,
-      message: `فشل اختبار المزامنة في Firebase Firestore: ${err?.message || err}`
+      message: `فشل اختبار الاتصال السحابي: ${err?.message || 'خطأ غير معروف'}`
     };
+  }
+}
+
+/**
+ * Fetches the full master database snapshot from Firestore
+ */
+export async function fetchFullDatabaseFromFirestore(): Promise<Record<string, any[]> | null> {
+  if (isFirestoreQuotaExceeded()) return null;
+  try {
+    const data: Record<string, any[]> = {};
+    for (const ent of ALL_ENTITIES) {
+      const docRef = doc(db, DB_COLLECTION, ent);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d && Array.isArray(d.items)) {
+          data[ent] = d.items;
+        }
+      }
+    }
+    return data;
+  } catch (err: any) {
+    if (err?.code === 'resource-exhausted') {
+      markQuotaExceeded();
+    }
+    return null;
+  }
+}
+
+export const subscribeToConnectionIssuesFromFirestore = subscribeToSyncConnectionIssuesFromFirestore;
+
+export async function clearAuditLogsFromFirestore(): Promise<void> {
+  try {
+    const snap = await getDocs(collection(db, AUDIT_COLLECTION));
+    const promises = snap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(promises);
+  } catch (e) {
+    console.warn('clearAuditLogsFromFirestore notice:', e);
+  }
+}
+
+export async function clearConnectionIssuesFromFirestore(): Promise<void> {
+  try {
+    const snap = await getDocs(collection(db, ISSUES_COLLECTION));
+    const promises = snap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(promises);
+  } catch (e) {
+    console.warn('clearConnectionIssuesFromFirestore notice:', e);
   }
 }

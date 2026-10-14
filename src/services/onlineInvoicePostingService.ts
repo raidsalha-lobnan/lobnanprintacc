@@ -21,6 +21,21 @@ export interface PostResult {
   isBusy?: boolean;
 }
 
+function sanitizeForFirestore(data: any): any {
+  if (data === null || data === undefined) return null;
+  try {
+    const str = JSON.stringify(data, (_, v) => {
+      if (typeof v === 'undefined') return null;
+      if (typeof v === 'function' || typeof v === 'symbol') return null;
+      return v;
+    });
+    return JSON.parse(str);
+  } catch (err) {
+    console.warn('sanitizeForFirestore fallback error:', err);
+    return null;
+  }
+}
+
 export const onlineInvoicePostingService = {
   /**
    * Check if the device is currently online
@@ -198,23 +213,25 @@ export const onlineInvoicePostingService = {
         // A. Direct invoice document (1 targeted write)
         let savedDirectFirestore = false;
         try {
-          const singleDocRef = doc(db, 'invoices', finalInvoice.id);
-          await setDoc(singleDocRef, finalInvoice, { merge: true });
+          const cleanInvoice = sanitizeForFirestore(finalInvoice);
+          const singleDocRef = doc(db, 'invoices', cleanInvoice.id);
+          await setDoc(singleDocRef, cleanInvoice, { merge: true });
           savedDirectFirestore = true;
         } catch (err: any) {
           console.warn('Single doc save notice:', err?.message || err);
         }
 
-        // B. Collective invoices list
+        // B. Smart Delta write to Firestore delta collection (1 single write unit instead of full DB rewrite)
         try {
-          await setDoc(docRef, {
-            items: updatedCloudInvoices,
-            updatedAt: new Date().toISOString(),
-            count: updatedCloudInvoices.length
-          }, { merge: true });
-          savedDirectFirestore = true;
+          const { saveDeltaToFirestore } = await import('./firebaseFirestoreSyncService');
+          await saveDeltaToFirestore({
+            entity: 'invoices',
+            op: 'upsert',
+            item: finalInvoice,
+            clientId: 'pos_direct_poster'
+          });
         } catch (err: any) {
-          console.warn('Collective invoices doc save notice:', err?.message || err);
+          console.warn('Smart delta save notice:', err?.message || err);
         }
 
         // C. Local/network server delta route (always fast and zero Firestore quota)

@@ -114,7 +114,7 @@ export const FirebaseConnectionDiagnostic: React.FC = () => {
     <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 flex items-center justify-between">
       <div className="flex items-center gap-2">
         <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-        <span className="text-xs font-medium">اتصال Firebase Firestore نشط ومستقر 🟢</span>
+        <span className="text-xs font-medium">اتصال Firebase Firestore نشط 🟢 (مزامنة ذكية تفاضلية: رفع وجلب الحركات الجديدة فقط لتوفير الكوتا)</span>
       </div>
       <div className="flex items-center gap-2">
         <button

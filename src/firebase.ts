@@ -20,7 +20,11 @@ import {
   setDoc,
   deleteDoc,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 
 import firebaseConfig from '../firebase-applet-config.json';
@@ -70,5 +74,9 @@ export {
   setDoc,
   deleteDoc,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+  limit
 };

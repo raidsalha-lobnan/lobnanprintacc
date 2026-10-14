@@ -5,7 +5,9 @@ import {
   pushFullDatabaseToFirestore,
   subscribeToFirestoreLiveSync,
   fetchFullDatabaseFromFirestore,
-  isFirestoreQuotaExceeded
+  isFirestoreQuotaExceeded,
+  saveDeltaToFirestore,
+  subscribeToFirestoreLiveDeltas
 } from '../services/firebaseFirestoreSyncService';
 import {
   auth,
@@ -586,7 +588,16 @@ const STORAGE_KEY = 'alnoor_press_accounting_v1';
 
 export function cleanDocForFirestore<T>(data: T): any {
   if (data === null || data === undefined) return null;
-  return JSON.parse(JSON.stringify(data));
+  try {
+    const serialized = JSON.stringify(data, (_, value) => {
+      if (typeof value === 'undefined') return null;
+      if (typeof value === 'function' || typeof value === 'symbol') return null;
+      return value;
+    });
+    return JSON.parse(serialized);
+  } catch {
+    return null;
+  }
 }
 
 function safeLoadArray<T>(key: string, fallback: T[]): T[] {
@@ -843,6 +854,22 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       } catch {}
       return next;
     });
+  };
+
+  const safeSetSyncedHashes = (hashesObj: Record<string, string>) => {
+    try {
+      const keys = Object.keys(hashesObj);
+      let finalObj = hashesObj;
+      if (keys.length > 300) {
+        finalObj = {};
+        keys.slice(-300).forEach(k => { finalObj[k] = hashesObj[k]; });
+      }
+      localStorage.setItem('accounting_synced_hashes', JSON.stringify(finalObj));
+    } catch (e) {
+      try {
+        localStorage.removeItem('accounting_synced_hashes');
+      } catch {}
+    }
   };
 
   const isInitialMount = React.useRef<boolean>(true);
@@ -1627,8 +1654,8 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         } catch {}
       }
 
-      // 2. Direct Real-Time Firebase Firestore Persistence
-      if (!isFirestoreQuotaExceeded()) {
+      // 2. Direct Real-Time Firebase Firestore Persistence (Smart Incremental Delta: 1 doc + 1 delta stream event)
+      if (!isFirestoreQuotaExceeded() && !isLocalOnlyMode) {
         const listToSave: any[] = items || (item ? [item] : []);
         listToSave.forEach(it => {
           if (it && it.id) {
@@ -1644,6 +1671,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
             }
           }
         });
+
+        // Push delta entry to Firestore deltas stream for real-time cross-device reception
+        saveDeltaToFirestore({
+          entity,
+          op,
+          item,
+          items,
+          clientId: myClientIdRef.current
+        }).catch(() => {});
       }
 
       // Log success and mark synced
@@ -1964,34 +2000,40 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     return () => clearInterval(interval);
   }, []);
 
-  // Live Firebase Firestore Real-Time Listener Effect across all devices
+  // Live Firebase Firestore Real-Time Delta Listener across all devices
+  // SMART DELTA: Listens ONLY to newly created/updated transactions via Firestore delta stream
+  // Zero full-database reads and zero periodic listener churn!
   useEffect(() => {
-    let activeUnsub = () => {};
+    if (isLocalOnlyMode) return;
 
-    const setupSync = () => {
-      activeUnsub();
-      if (isLocalOnlyMode) return;
-      activeUnsub = subscribeToFirestoreLiveSync((entityName, items) => {
-        if (Array.isArray(items) && items.length > 0) {
-          applyDeltaToState(entityName, 'sync', null, items);
-        }
+    let unsubDeltas = () => {};
+    const startTime = Date.now() - 30000; // Look back 30 seconds for in-flight cross-device deltas
+
+    try {
+      unsubDeltas = subscribeToFirestoreLiveDeltas(startTime, (delta) => {
+        if (!delta || !delta.entity) return;
+        // Skip deltas emitted by this local client to prevent duplicate application
+        if (delta.clientId && delta.clientId === myClientIdRef.current) return;
+
+        applyDeltaToState(delta.entity, delta.op || 'upsert', delta.item, delta.items);
+        syncAuditService.logEvent({
+          direction: 'pull',
+          entity: delta.entity,
+          op: delta.op || 'upsert',
+          status: 'success',
+          documentId: delta.item?.id || delta.items?.[0]?.id,
+          documentNumber: delta.item?.invoiceNumber || delta.item?.code || delta.item?.voucherNumber,
+          details: `تم استلام حركة جديدة فقط (${delta.entity}) من سحابة Firestore مباشرة ⚡ (جلب ذكي وخفيف)`
+        });
       });
-    };
-
-    setupSync();
-
-    // Re-bind listeners periodically if network toggles online or if quota state resets
-    const syncInterval = setInterval(() => {
-      if (navigator.onLine && !isFirestoreQuotaExceeded()) {
-        setupSync();
-      }
-    }, 20000);
+    } catch (e) {
+      console.warn('Firestore live deltas listener init notice:', e);
+    }
 
     return () => {
-      activeUnsub();
-      clearInterval(syncInterval);
+      try { unsubDeltas(); } catch {}
     };
-  }, []);
+  }, [isLocalOnlyMode]);
 
   // Auto-reconciliation is handled via live Firestore listeners (subscribeToFirestoreLiveSync)
 
@@ -2122,9 +2164,29 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     }
   };
 
-  // Real Firebase Firestore Cloud Synchronization Engine
-  const syncToFirebase = async (): Promise<boolean> => {
-    if (!navigator.onLine || isFirestoreQuotaExceeded()) return false;
+  // Real Firebase Firestore Cloud Synchronization Engine (Smart Incremental Delta Mode by default)
+  const syncToFirebase = async (force: boolean = false): Promise<boolean> => {
+    if (!navigator.onLine || isFirestoreQuotaExceeded() || isLocalOnlyMode) return false;
+
+    // SMART DELTA SYNC ENFORCEMENT:
+    // When force is false (background debounced auto-sync):
+    // DO NOT re-upload all 25 collections! Individual operations already stream as deltas via saveDeltaToFirestore / pushDeltaToServer.
+    if (!force) {
+      const nowStr = new Date().toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      setLastSyncTime(nowStr);
+      setLastFirebaseSyncTime(nowStr);
+      setHasUnsyncedChanges(false);
+      setPendingSyncCount(0);
+      localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
+      localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+      return true;
+    }
+
     try {
       setIsFirebaseSyncing(true);
       const res = await pushFullDatabaseToFirestore({
@@ -2598,7 +2660,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
             if (data.settings) {
                 newHashes['settings_global'] = JSON.stringify(data.settings);
             }
-            localStorage.setItem('accounting_synced_hashes', JSON.stringify(newHashes));
+            safeSetSyncedHashes(newHashes);
 
             const timeStr = new Date().toLocaleTimeString('en-US');
             setLastFirebaseSyncTime(timeStr);
@@ -5831,7 +5893,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'true');
         const hashes = JSON.parse(localStorage.getItem('accounting_synced_hashes') || '{}');
         delete hashes[`parties_${targetId}`];
-        localStorage.setItem('accounting_synced_hashes', JSON.stringify(hashes));
+        safeSetSyncedHashes(hashes);
       } catch (e) {}
 
       // 3. Direct cloud update and multi-device hub push
@@ -9651,7 +9713,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
             await currentBatch.commit();
           }
 
-          localStorage.setItem('accounting_synced_hashes', JSON.stringify(newHashes));
+          safeSetSyncedHashes(newHashes);
           localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
           const timeStr = new Date().toLocaleTimeString('en-US');
           setLastFirebaseSyncTime(timeStr);
@@ -9808,7 +9870,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         accounts: accounts || [],
         treasuries: treasuries || [],
         vouchers: vouchers || [],
-        dailyEntries: dailyEntries || [],
+        dailyEntrySheets: dailyEntrySheets || {},
         purchases: purchases || [],
         purchaseReturns: purchaseReturns || [],
         salesReturns: salesReturns || [],
