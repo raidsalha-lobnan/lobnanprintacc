@@ -7356,9 +7356,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     }
     
     // Direct immediate cloud save for multi-user synchronization
-    setDoc(doc(db, 'invoices', newInvoice.id), cleanDocForFirestore(newInvoice)).catch(err => {
-      console.warn('Direct cloud save invoice notice:', err);
-    });
+    if (!isFirestoreQuotaExceeded() && !isLocalOnlyMode) {
+      setDoc(doc(db, 'invoices', newInvoice.id), cleanDocForFirestore(newInvoice)).catch(err => {
+        if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+          markQuotaExceeded();
+        } else {
+          console.warn('Direct cloud save invoice notice:', err);
+        }
+      });
+    }
 
     // Telegram Notification - Send ONLY: Name, Item(s), Amount without journal entries or extra info
     try {
@@ -7859,9 +7865,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     setTimeout(() => {
       const target = invoices.find(inv => inv.id === id);
-      if (target) {
+      if (target && !isFirestoreQuotaExceeded() && !isLocalOnlyMode) {
         setDoc(doc(db, 'invoices', id), cleanDocForFirestore({ ...target, ...updates })).catch(err => {
-          console.warn('Direct cloud update invoice notice:', err);
+          if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+            markQuotaExceeded();
+          } else {
+            console.warn('Direct cloud update invoice notice:', err);
+          }
         });
       }
     }, 100);
@@ -7900,9 +7910,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
     };
 
     // 1. حفظ في سلة المحذوفات في Firestore
-    setDoc(doc(db, 'deletedInvoices', id), cleanDocForFirestore(deletedSnapshot)).catch(err => {
-      console.warn('Notice saving to deletedInvoices collection:', err);
-    });
+    if (!isFirestoreQuotaExceeded() && !isLocalOnlyMode) {
+      setDoc(doc(db, 'deletedInvoices', id), cleanDocForFirestore(deletedSnapshot)).catch(err => {
+        if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+          markQuotaExceeded();
+        } else {
+          console.warn('Notice saving to deletedInvoices collection:', err);
+        }
+      });
+    }
     setDeletedInvoices(prev => [deletedSnapshot, ...prev.filter(d => d.id !== id)]);
 
     // 2. الحذف من الفواتير النشطة في Firestore
@@ -7913,7 +7929,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       return next;
     });
     registerDeletedDoc('invoices', id);
-    deleteDoc(doc(db, 'invoices', id)).catch(err => console.warn('Direct cloud delete invoice notice:', err));
+    if (!isFirestoreQuotaExceeded() && !isLocalOnlyMode) {
+      deleteDoc(doc(db, 'invoices', id)).catch(err => {
+        if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
+          markQuotaExceeded();
+        }
+      });
+    }
 
     // 3. التوثيق في مجموعة auditLog بقاعدة بيانات Firestore
     try {
@@ -7935,9 +7957,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         } : undefined,
         createdAt: now.toISOString()
       };
-      setDoc(doc(db, 'auditLog', auditEntry.id), cleanDocForFirestore(auditEntry)).catch(e => {
-        console.warn('Notice writing to auditLog collection:', e);
-      });
+      if (!isFirestoreQuotaExceeded() && !isLocalOnlyMode) {
+        setDoc(doc(db, 'auditLog', auditEntry.id), cleanDocForFirestore(auditEntry)).catch(e => {
+          if (e?.code === 'resource-exhausted' || e?.message?.includes('Quota limit exceeded')) {
+            markQuotaExceeded();
+          }
+        });
+      }
     } catch (e) {
       console.warn('Audit log write exception:', e);
     }
