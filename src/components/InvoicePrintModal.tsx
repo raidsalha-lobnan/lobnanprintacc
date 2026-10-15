@@ -49,7 +49,7 @@ export const InvoicePrintModal: React.FC = () => {
   }${inv.subCustomerName ? ` - زبون فرعي: ${inv.subCustomerName}` : ''}`;
 
   // =========================================================================
-  // REQUIREMENT 2: 15 ITEMS PER PRINTED PAGE & INVOICE NUMBER EXTENSION (-1, -2) FOR PRINT ONLY
+  // REQUIREMENT: 15 ITEMS PER PRINTED PAGE & INVOICE NUMBER EXTENSION (-1, -2) FOR PRINT ONLY
   // =========================================================================
   const ITEMS_PER_PAGE = 15;
   const rawItems = inv.items || [];
@@ -157,50 +157,21 @@ export const InvoicePrintModal: React.FC = () => {
                     }
                   />
 
-                  {/* REQUIREMENT 1: SELLER INFO IN SINGLE LINE */}
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 whitespace-nowrap overflow-hidden leading-tight bg-white p-2 rounded-lg border border-slate-200">
-                      <div className="flex items-center gap-1 shrink truncate">
-                        <span className="text-slate-500 font-semibold">البائع:</span>
-                        <strong className="text-slate-900 truncate">{settings.businessName}</strong>
-                      </div>
-                      <span className="text-slate-300 shrink-0">|</span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-slate-500 font-semibold">الهاتف:</span>
-                        <span className="font-mono text-slate-900">{settings.phone || '—'}</span>
-                      </div>
-                      <span className="text-slate-300 shrink-0">|</span>
-                      <div className="flex items-center gap-1 shrink truncate">
-                        <span className="text-slate-500 font-semibold">العنوان:</span>
-                        <span className="text-slate-900 truncate">{settings.address || '—'}</span>
-                      </div>
-                      {(settings.taxNumber && settings.showTaxNumberInPrints !== false) && (
-                        <>
-                          <span className="text-slate-300 shrink-0">|</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className="text-slate-500 font-semibold">الرقم الضريبي:</span>
-                            <span className="font-mono text-slate-900">{settings.taxNumber}</span>
-                          </div>
-                        </>
-                      )}
+                  {/* Customer Meta Row */}
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <div><span className="text-slate-500">رقم الفاتورة:</span> <strong className="font-mono text-slate-900">{printInvoiceNumber}</strong> {isMultiPage && <span className="text-[10px] text-indigo-600 font-semibold">(صفحة {pageNumber} من {totalPages})</span>}</div>
+                      <div><span className="text-slate-500">تاريخ الإصدار:</span> <span className="font-mono">{formatDateDisplay(inv.date)}</span></div>
+                      <div><span className="text-slate-500">طريقة السداد:</span> <strong>{inv.paymentMethod === 'cash' ? 'نقدي' : (inv.paymentMethod === 'card' || inv.paymentMethod === 'bank_transfer') ? (inv.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : 'بطاقة بنكية / مدى') : 'آجل على الحساب'}</strong></div>
                     </div>
-
-                    {/* Customer Meta Row */}
-                    <div className="grid grid-cols-2 gap-4 text-xs pt-1">
-                      <div className="space-y-1">
-                        <div><span className="text-slate-500">رقم الفاتورة للطباعة:</span> <strong className="font-mono text-slate-900">{printInvoiceNumber}</strong> {isMultiPage && <span className="text-[10px] text-indigo-600 font-semibold">(صفحة {pageNumber} من {totalPages})</span>}</div>
-                        <div><span className="text-slate-500">تاريخ الإصدار:</span> <span className="font-mono">{formatDateDisplay(inv.date)}</span></div>
-                        <div><span className="text-slate-500">طريقة السداد:</span> <strong>{inv.paymentMethod === 'cash' ? 'نقدي' : (inv.paymentMethod === 'card' || inv.paymentMethod === 'bank_transfer') ? (inv.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : 'بطاقة بنكية / مدى') : 'آجل على الحساب'}</strong></div>
-                      </div>
-                      <div className="space-y-1">
-                        <div><span className="text-slate-500">العميل:</span> <strong className="text-slate-900">{formattedCustomerDisplayName}</strong></div>
-                        {(inv.customerPhone || inv.subCustomerPhone) && (
-                          <div><span className="text-slate-500">هاتف العميل:</span> <span className="font-mono">{inv.customerPhone || inv.subCustomerPhone}</span></div>
-                        )}
-                        {inv.customerTaxNumber && (
-                          <div><span className="text-slate-500">الرقم الضريبي للعميل:</span> <span className="font-mono">{inv.customerTaxNumber}</span></div>
-                        )}
-                      </div>
+                    <div className="space-y-1">
+                      <div><span className="text-slate-500">العميل:</span> <strong className="text-slate-900">{formattedCustomerDisplayName}</strong></div>
+                      {(inv.customerPhone || inv.subCustomerPhone) && (
+                        <div><span className="text-slate-500">هاتف العميل:</span> <span className="font-mono">{inv.customerPhone || inv.subCustomerPhone}</span></div>
+                      )}
+                      {inv.customerTaxNumber && (
+                        <div><span className="text-slate-500">الرقم الضريبي للعميل:</span> <span className="font-mono">{inv.customerTaxNumber}</span></div>
+                      )}
                     </div>
                   </div>
 
@@ -327,7 +298,7 @@ export const InvoicePrintModal: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* REQUIREMENT 3: SIGNATURES FOOTER (توقيع وختم المستلم -- الختم) */}
+                      {/* SIGNATURES FOOTER (توقيع وختم المستلم -- الختم) */}
                       <ReportSignatures columns={2} rightLabel="توقيع وختم المستلم" leftLabel="الختم" />
                     </div>
                   ) : (
@@ -360,87 +331,41 @@ export const InvoicePrintModal: React.FC = () => {
                     chunkIdx < totalPages - 1 ? 'break-after-page print:break-after-page' : ''
                   }`}
                 >
-                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col p-4 space-y-5">
+                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col p-4 space-y-4">
                     
-                    {/* Header Row */}
-                    <div className="flex items-center justify-between mt-1">
-                      <div className="border border-[#2b3a67] rounded-md px-3 py-1.5 w-60 text-right flex items-center justify-between bg-[#f0f4f8]">
-                        <span className="font-bold text-[#2b3a67] text-xs">رقم الفاتورة :</span>
-                        <span className="font-mono text-sm font-bold text-slate-900 border-b border-dashed border-slate-400 min-w-[90px] text-center inline-block">
-                          {printInvoiceNumber}
-                        </span>
-                      </div>
-                      
-                      <div className="bg-[#2b3a67] text-white px-12 py-2 rounded-xl shadow-xs text-center">
-                        <h1 className="text-2xl font-black">{isDraftPreview ? "مسودة فاتورة مبيعات" : "فاتورة مبيعات"}</h1>
-                        {isMultiPage && <p className="text-[11px] text-indigo-200 mt-0.5">صفحة {pageNumber} من {totalPages}</p>}
-                      </div>
+                    {/* Replaced 'بيانات البائع' with Official Program Print Header (<PrintHeader />) */}
+                    <PrintHeader
+                      title={isDraftPreview ? "مسودة فاتورة مبيعات" : "فاتورة مبيعات"}
+                      docNumber={printInvoiceNumber}
+                      docDate={inv.date}
+                      badge={isMultiPage ? `صفحة ${pageNumber} من ${totalPages}` : undefined}
+                      showBorder={true}
+                    />
 
-                      <div className="border border-[#2b3a67] rounded-md px-3 py-1.5 w-60 text-right flex items-center justify-between bg-[#f0f4f8]">
-                        <span className="font-bold text-[#2b3a67] text-xs">التاريخ :</span>
-                        <span className="font-mono text-sm border-b border-dashed border-slate-400 min-w-[90px] text-center inline-block">{inv.date}</span>
+                    {/* Customer Info Box */}
+                    <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden">
+                      <div className="bg-[#d2e0ee] text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
+                        بيانات العميل
                       </div>
-                    </div>
-
-                    {/* Info Sections Row */}
-                    <div className="grid grid-cols-1 gap-3">
-                      {/* REQUIREMENT 1: SELLER INFO IN A SINGLE LINE */}
-                      <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden">
-                        <div className="bg-[#d2e0ee] text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
-                          بيانات البائع
+                      <div className="p-2 flex items-center justify-between gap-2 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight">
+                        <div className="flex items-center gap-1 shrink truncate">
+                          <span>اسم العميل:</span>
+                          <span className="text-slate-900 truncate">{formattedCustomerDisplayName}</span>
                         </div>
-                        <div className="p-2 flex items-center justify-between gap-2 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight">
-                          <div className="flex items-center gap-1 shrink truncate">
-                            <span>اسم المنشأة:</span>
-                            <span className="text-slate-900 truncate">{settings.businessName}</span>
-                          </div>
-                          <span className="text-slate-300 shrink-0">|</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span>الهاتف:</span>
-                            <span className="font-mono text-slate-900">{settings.phone || '—'}</span>
-                          </div>
-                          <span className="text-slate-300 shrink-0">|</span>
-                          <div className="flex items-center gap-1 shrink truncate">
-                            <span>العنوان:</span>
-                            <span className="text-slate-900 truncate">{settings.address || '—'}</span>
-                          </div>
-                          {(settings.taxNumber && settings.showTaxNumberInPrints !== false) && (
-                            <>
-                              <span className="text-slate-300 shrink-0">|</span>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <span>الرقم الضريبي:</span>
-                                <span className="font-mono text-slate-900">{settings.taxNumber}</span>
-                              </div>
-                            </>
-                          )}
+                        <span className="text-slate-300 shrink-0">|</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span>الهاتف:</span>
+                          <span className="font-mono text-slate-900">{inv.customerPhone || inv.subCustomerPhone || '—'}</span>
                         </div>
-                      </div>
-
-                      {/* Customer Info Box */}
-                      <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden">
-                        <div className="bg-[#d2e0ee] text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
-                          بيانات العميل
-                        </div>
-                        <div className="p-2 flex items-center justify-between gap-2 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight">
-                          <div className="flex items-center gap-1 shrink truncate">
-                            <span>اسم العميل:</span>
-                            <span className="text-slate-900 truncate">{formattedCustomerDisplayName}</span>
-                          </div>
-                          <span className="text-slate-300 shrink-0">|</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span>الهاتف:</span>
-                            <span className="font-mono text-slate-900">{inv.customerPhone || inv.subCustomerPhone || '—'}</span>
-                          </div>
-                          {inv.customerTaxNumber && (
-                            <>
-                              <span className="text-slate-300 shrink-0">|</span>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <span>الرقم الضريبي:</span>
-                                <span className="font-mono text-slate-900">{inv.customerTaxNumber}</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                        {inv.customerTaxNumber && (
+                          <>
+                            <span className="text-slate-300 shrink-0">|</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span>الرقم الضريبي:</span>
+                              <span className="font-mono text-slate-900">{inv.customerTaxNumber}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -522,7 +447,7 @@ export const InvoicePrintModal: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* REQUIREMENT 3: SIGNATURES FOOTER (توقيع وختم المستلم -- الختم) */}
+                        {/* SIGNATURES FOOTER (توقيع وختم المستلم -- الختم) */}
                         <ReportSignatures columns={2} rightLabel="توقيع وختم المستلم" leftLabel="الختم" />
                       </div>
                     ) : (
