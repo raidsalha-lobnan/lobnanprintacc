@@ -9,12 +9,18 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
   remoteInvoices: Invoice[]
 ): Invoice[] {
   const map = new Map<string, Invoice>();
+  const deletedIds = new Set<string>();
 
   // 1. Load valid local invoices into map
   if (Array.isArray(localInvoices)) {
     for (const inv of localInvoices) {
       if (inv && typeof inv === 'object' && inv.id != null) {
-        map.set(String(inv.id), { ...inv });
+        const key = String(inv.id);
+        if ((inv as any)._deleted || (inv as any).deletedAt) {
+          deletedIds.add(key);
+        } else {
+          map.set(key, { ...inv });
+        }
       }
     }
   }
@@ -24,43 +30,54 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     for (const remoteInv of remoteInvoices) {
       if (!remoteInv || typeof remoteInv !== 'object' || remoteInv.id == null) continue;
       const key = String(remoteInv.id);
-      const localInv = map.get(key);
 
-      if (!localInv) {
-        // ID does not exist locally: insert new invoice
-        map.set(key, { ...remoteInv });
-      } else {
-        // ID exists: UPDATE in-place rather than overwrite or delete
-        const tLocal = new Date(localInv.updatedAt || localInv.createdAt || 0).getTime();
-        const tRemote = new Date(remoteInv.updatedAt || remoteInv.createdAt || 0).getTime();
+      if ((remoteInv as any)._deleted || (remoteInv as any).deletedAt) {
+        deletedIds.add(key);
+        map.delete(key);
+      } else if (!deletedIds.has(key)) {
+        const localInv = map.get(key);
 
-        const base = tRemote >= tLocal ? remoteInv : localInv;
-        const fallback = tRemote >= tLocal ? localInv : remoteInv;
+        if (!localInv) {
+          // ID does not exist locally: insert new invoice
+          map.set(key, { ...remoteInv });
+        } else {
+          // ID exists: UPDATE in-place rather than overwrite or delete
+          const tLocal = new Date(localInv.updatedAt || localInv.createdAt || 0).getTime();
+          const tRemote = new Date(remoteInv.updatedAt || remoteInv.createdAt || 0).getTime();
 
-        map.set(key, {
-          ...fallback,
-          ...base,
-          // Preserve non-empty items
-          items: (Array.isArray(base.items) && base.items.length > 0) ? base.items : (localInv.items || []),
-          invoiceNumber: base.invoiceNumber || localInv.invoiceNumber,
-          customerName: base.customerName || localInv.customerName,
-          totalAmount: base.totalAmount ?? localInv.totalAmount,
-          paidAmount: base.paidAmount ?? localInv.paidAmount,
-          remainingAmount: base.remainingAmount ?? localInv.remainingAmount,
-          updatedAt: new Date(Math.max(tLocal, tRemote, Date.now())).toISOString()
-        });
+          const base = tRemote >= tLocal ? remoteInv : localInv;
+          const fallback = tRemote >= tLocal ? localInv : remoteInv;
+
+          map.set(key, {
+            ...fallback,
+            ...base,
+            // Preserve non-empty items
+            items: (Array.isArray(base.items) && base.items.length > 0) ? base.items : (localInv.items || []),
+            invoiceNumber: base.invoiceNumber || localInv.invoiceNumber,
+            customerName: base.customerName || localInv.customerName,
+            totalAmount: base.totalAmount ?? localInv.totalAmount,
+            paidAmount: base.paidAmount ?? localInv.paidAmount,
+            remainingAmount: base.remainingAmount ?? localInv.remainingAmount,
+            updatedAt: new Date(Math.max(tLocal, tRemote, Date.now())).toISOString()
+          });
+        }
       }
     }
   }
 
-  const mergedList = Array.from(map.values()).filter(inv => inv && typeof inv === 'object');
+  const mergedList = Array.from(map.values()).filter(inv => inv && typeof inv === 'object' && !deletedIds.has(String(inv.id)));
 
-  // 3. Resolve invoice number collisions across distinct IDs
+  // 3. Resolve invoice number collisions across distinct IDs with clean INV-000X formatting
   const numberMap = new Map<string, Invoice>();
   let maxNum = 0;
   for (const inv of mergedList) {
-    const rawNum = parseInt((inv.invoiceNumber || '').replace(/\D/g, ''), 10);
-    if (!isNaN(rawNum) && rawNum > maxNum) maxNum = rawNum;
+    if (inv.invoiceNumber) {
+      const matched = inv.invoiceNumber.match(/\d+/g);
+      if (matched && matched.length > 0) {
+        const rawNum = parseInt(matched[matched.length - 1], 10);
+        if (!isNaN(rawNum) && rawNum > maxNum && rawNum < 1000000) maxNum = rawNum;
+      }
+    }
   }
 
   for (const inv of mergedList) {
@@ -70,9 +87,13 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     if (!existing) {
       numberMap.set(numKey, inv);
     } else if (existing.id !== inv.id) {
-      // Concurrency collision: 2 different invoices created offline with same invoice number
+      // Concurrency collision: 2 different invoices created offline/online with same invoice number
       maxNum++;
-      inv.invoiceNumber = String(maxNum);
+      const prefixMatch = (existing.invoiceNumber || inv.invoiceNumber || 'INV-').match(/^[^\d]*/);
+      const prefix = prefixMatch && prefixMatch[0] ? prefixMatch[0] : 'INV-';
+      const digitsMatch = (existing.invoiceNumber || inv.invoiceNumber || '').match(/\d+/g);
+      const digitsCount = digitsMatch && digitsMatch.length > 0 ? digitsMatch[digitsMatch.length - 1].length : 4;
+      inv.invoiceNumber = `${prefix}${String(maxNum).padStart(Math.max(4, digitsCount), '0')}`;
       numberMap.set(inv.invoiceNumber, inv);
     }
   }

@@ -900,40 +900,26 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (!event.data || typeof event.data !== 'object') return;
           const { type, payload } = event.data;
 
-          if (type === 'SYNC_ENTITY_UPDATE') {
+          if (type === 'SYNC_DELTA_EVENT') {
+            const { entity, op, item, items, clientId } = payload || {};
+            if (!entity || clientId === myClientIdRef.current) return;
+            applyDeltaToState(entity, op || 'upsert', item, items);
+          } else if (type === 'SYNC_ENTITY_UPDATE') {
             const { entity, data } = payload || {};
-            if (!entity || !data) return;
+            if (!entity || !data || !Array.isArray(data)) return;
 
             if (entity === 'invoices') {
-              setInvoices(prev => {
-                const map = new Map<string, Invoice>();
-                for (const inv of data) if (inv && inv.id) map.set(inv.id, inv);
-                for (const p of prev) if (p && p.id && !map.has(p.id)) map.set(p.id, p);
-                const merged = Array.from(map.values());
-                merged.sort((a, b) => {
-                  const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-                  const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-                  if (numA !== numB) return numB - numA;
-return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
-                });
-                return merged;
-              });
+              setInvoices(data);
+              try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data)); } catch {}
             } else if (entity === 'parties') {
-              setParties(prev => {
-                const map = new Map<string, Party>();
-                for (const item of data) if (item && item.id) map.set(item.id, item);
-                for (const p of prev) if (p && p.id && !map.has(p.id)) map.set(p.id, p);
-                return Array.from(map.values());
-              });
+              setParties(data);
+              try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(data)); } catch {}
             } else if (entity === 'inventory') {
-              setInventory(prev => {
-                const map = new Map<string, InventoryItem>();
-                for (const item of data) if (item && item.id) map.set(item.id, item);
-                for (const p of prev) if (p && p.id && !map.has(p.id)) map.set(p.id, p);
-                return Array.from(map.values());
-              });
+              setInventory(data);
+              try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(data)); } catch {}
             } else if (entity === 'vouchers') {
               setVouchers(data);
+              try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(data)); } catch {}
             } else if (entity === 'printOrders') {
               setPrintOrders(data);
             } else if (entity === 'purchases') {
@@ -1649,23 +1635,25 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   // Send single operation delta to server (Fire-and-forget + sequence tracking)
   const pushDeltaToServer = (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]) => {
     try {
+      const listToSave: any[] = items || (item ? [item] : []);
+      const effectiveOp = (op === 'delete' || listToSave.some(i => i && typeof i === 'object' && (i._deleted || i.deletedAt))) ? 'delete' : 'upsert';
+
       // 1. Instant local BroadcastChannel notification for all open tabs in same browser
       if (syncChannelRef.current) {
         try {
           syncChannelRef.current.postMessage({
             type: 'SYNC_DELTA_EVENT',
-            payload: { entity, op, item, items, clientId: myClientIdRef.current }
+            payload: { entity, op: effectiveOp, item, items, clientId: myClientIdRef.current }
           });
         } catch {}
       }
 
       // 2. Direct Real-Time Firebase Firestore Persistence (Smart Incremental Delta)
       if (!isLocalOnlyMode) {
-        const listToSave: any[] = items || (item ? [item] : []);
         listToSave.forEach(it => {
           if (it && it.id) {
             const docId = String(it.id);
-            if (op === 'delete' || it._deleted) {
+            if (effectiveOp === 'delete' || it._deleted) {
               deleteDoc(doc(db, entity, docId)).catch(err => {
                 if (err?.code === 'resource-exhausted') {
                   markQuotaExceeded(300000);
@@ -1684,7 +1672,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         // Push delta entry to Firestore deltas stream for real-time cross-device reception
         saveDeltaToFirestore({
           entity,
-          op,
+          op: effectiveOp,
           item,
           items,
           clientId: myClientIdRef.current
@@ -1697,17 +1685,15 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       syncAuditService.logEvent({
         direction: 'push',
         entity,
-        op,
+        op: effectiveOp,
         status: 'success',
         documentId: targetDocId,
         documentNumber: item?.invoiceNumber || item?.code || item?.voucherNumber || item?.itemNumber,
-        details: 'تم الحفظ والرفع المباشر لسحابة Firebase Firestore بنجاح 🟢'
+        details: effectiveOp === 'delete' ? 'تم حذف العنصر ومزامنة الحذف لسحابة Firebase بنجاح 🔴' : 'تم الحفظ والرفع المباشر لسحابة Firebase Firestore بنجاح 🟢'
       });
 
-
-
       // 3. Post delta record to local server endpoint /api/sync/delta (optional background route)
-      const payloadStr = JSON.stringify({ entity, op, item, items, clientId: myClientIdRef.current });
+      const payloadStr = JSON.stringify({ entity, op: effectiveOp, item, items, clientId: myClientIdRef.current });
       const baseUrl = getSyncBaseUrl();
 
       const attemptPush = async (url: string) => {
@@ -1741,7 +1727,9 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
   // Backward-compatible alias for existing entity calls
   const pushToServerSync = (entity: string, item?: any, items?: any[]) => {
-    pushDeltaToServer(entity, 'upsert', item, items);
+    const listToSave: any[] = items || (item ? [item] : []);
+    const isDelete = listToSave.some(i => i && typeof i === 'object' && (i._deleted || i.deletedAt));
+    pushDeltaToServer(entity, isDelete ? 'delete' : 'upsert', item, items);
   };
 
   // Apply single or batch deltas to React state & localStorage
@@ -1775,15 +1763,19 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
 
     if (entity === 'invoices') {
       setInvoices(prev => {
-        if (op === 'delete') {
-          const deleteIds = new Set(list.map(i => String(i?.id || i)));
-          const filtered = (prev || []).filter(inv => !deleteIds.has(String(inv.id)));
-          try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(filtered)); } catch {}
-          return filtered;
+        const deleteIds = new Set(
+          list
+            .filter(i => op === 'delete' || (i && typeof i === 'object' && (i._deleted || i.deletedAt)))
+            .map(i => String(i?.id || i))
+        );
+        const upserts = list.filter(i => !(op === 'delete' || (i && typeof i === 'object' && (i._deleted || i.deletedAt))));
+
+        let filtered = (prev || []).filter(inv => inv && inv.id && !deleteIds.has(String(inv.id)));
+        if (upserts.length > 0) {
+          filtered = mergeInvoicesWithUpsertAndConflictResolution(filtered, upserts as Invoice[]);
         }
-        const merged = mergeInvoicesWithUpsertAndConflictResolution(prev || [], list as Invoice[]);
-        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
-        return merged;
+        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(filtered)); } catch {}
+        return filtered;
       });
     } else if (entity === 'parties') {
       applyToGenericState<Party>(setParties, 'parties');
@@ -5654,7 +5646,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
        return { success: false, message: 'لا يمكن حذف الصنف لوجوده في فواتير مشتريات سابقة.' };
     }
 
-    setInventory(prev => prev.filter(it => it.id !== id));
+    setInventory(prev => {
+      const next = prev.filter(it => it.id !== id);
+      pushDeltaToServer('inventory', 'delete', { id, _deleted: true });
+      broadcastEntityChange('inventory', next);
+      return next;
+    });
     registerDeletedDoc('inventory', id);
     deleteDoc(doc(db, 'inventory', id)).catch(() => {});
     return { success: true, message: 'تم حذف الصنف بنجاح' };
@@ -5885,7 +5882,12 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
       };
     }
 
-    setParties(prev => prev.filter(p => p.id !== id));
+    setParties(prev => {
+      const next = prev.filter(p => p.id !== id);
+      pushDeltaToServer('parties', 'delete', { id, _deleted: true });
+      broadcastEntityChange('parties', next);
+      return next;
+    });
     registerDeletedDoc('parties', id);
     deleteDoc(doc(db, 'parties', id)).catch(err => console.warn('Direct cloud delete party notice:', err));
     if (selectedPartyForStatement?.id === id) {
@@ -9038,13 +9040,23 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   };
 
   const deletePaymentVoucher = (id: string) => {
-    setVouchers(prev => prev.filter(v => v.id !== id));
+    setVouchers(prev => {
+      const next = prev.filter(v => v.id !== id);
+      pushDeltaToServer('vouchers', 'delete', { id, _deleted: true });
+      broadcastEntityChange('vouchers', next);
+      return next;
+    });
     registerDeletedDoc('vouchers', id);
     deleteDoc(doc(db, 'vouchers', id)).catch(() => {});
   };
 
   const deletePurchaseInvoice = (id: string) => {
-    setPurchases(prev => prev.filter(p => p.id !== id));
+    setPurchases(prev => {
+      const next = prev.filter(p => p.id !== id);
+      pushDeltaToServer('purchases', 'delete', { id, _deleted: true });
+      broadcastEntityChange('purchases', next);
+      return next;
+    });
     registerDeletedDoc('purchases', id);
     deleteDoc(doc(db, 'purchases', id)).catch(() => {});
   };
@@ -9175,7 +9187,11 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   };
 
   const deletePurchaseReturn = (id: string) => {
-    setPurchaseReturns(prev => prev.filter(r => r.id !== id));
+    setPurchaseReturns(prev => {
+      const next = prev.filter(r => r.id !== id);
+      pushDeltaToServer('purchaseReturns', 'delete', { id, _deleted: true });
+      return next;
+    });
     registerDeletedDoc('purchaseReturns', id);
     deleteDoc(doc(db, 'purchaseReturns', id)).catch(() => {});
   };
@@ -9305,7 +9321,11 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   };
 
   const deleteSalesReturn = (id: string) => {
-    setSalesReturns(prev => prev.filter(r => r.id !== id));
+    setSalesReturns(prev => {
+      const next = prev.filter(r => r.id !== id);
+      pushDeltaToServer('salesReturns', 'delete', { id, _deleted: true });
+      return next;
+    });
     registerDeletedDoc('salesReturns', id);
     deleteDoc(doc(db, 'salesReturns', id)).catch(() => {});
   };
