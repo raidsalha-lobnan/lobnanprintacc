@@ -1751,8 +1751,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         for (const it of list) {
           const k = String((it as any).id || (it as any).code || '');
           if (!k) continue;
-          if (op === 'delete' || (it as any)._deleted) map.delete(k);
-          else map.set(k, it);
+          if (op === 'delete' || (it as any)._deleted || (it as any).deletedAt) {
+            map.delete(k);
+            registerDeletedDoc(storageKeySuffix, k);
+          } else {
+            map.set(k, it);
+          }
         }
         const merged = Array.from(map.values());
         if (sortFn) merged.sort(sortFn);
@@ -1768,6 +1772,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             .filter(i => op === 'delete' || (i && typeof i === 'object' && (i._deleted || i.deletedAt)))
             .map(i => String(i?.id || i))
         );
+        deleteIds.forEach(id => registerDeletedDoc('invoices', id));
+
         const upserts = list.filter(i => !(op === 'delete' || (i && typeof i === 'object' && (i._deleted || i.deletedAt))));
 
         let filtered = (prev || []).filter(inv => inv && inv.id && !deleteIds.has(String(inv.id)));
@@ -2683,12 +2689,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const map = new Map<string, Invoice>();
           // Cloud documents take precedence for existing IDs
           for (const inv of dedupedInvoices) {
-            if (inv && inv.id) map.set(inv.id, inv);
+            if (inv && inv.id && !delSet.has(`invoices_${inv.id}`)) {
+              map.set(inv.id, { ...inv, _fromCloud: true } as unknown as Invoice);
+            }
           }
-          // Retain local invoices that were recently created and not yet in snapshot
+          // Retain local invoices that were recently created offline and not yet in snapshot
           for (const localInv of prevLocal) {
-            if (localInv && localInv.id && !map.has(localInv.id) && !delSet.has(`invoices_${localInv.id}`)) {
-              map.set(localInv.id, localInv);
+            if (localInv && localInv.id && !map.has(localInv.id)) {
+              if ((localInv as any)._unsyncedLocal && !(localInv as any)._fromCloud && !delSet.has(`invoices_${localInv.id}`) && !(localInv as any)._deleted) {
+                map.set(localInv.id, localInv);
+              }
             }
           }
           const merged = Array.from(map.values());
@@ -2745,11 +2755,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setPrintOrders(prevLocal => {
           const map = new Map<string, PrintJobOrder>();
           for (const item of dedupedPrn) {
-            if (item && item.id) map.set(item.id, item);
+            if (item && item.id && !delSet.has(`printOrders_${item.id}`)) {
+              map.set(item.id, { ...item, _fromCloud: true } as unknown as PrintJobOrder);
+            }
           }
           for (const lp of prevLocal) {
-            if (lp && lp.id && !map.has(lp.id) && !delSet.has(`printOrders_${lp.id}`)) {
-              map.set(lp.id, lp);
+            if (lp && lp.id && !map.has(lp.id)) {
+              if ((lp as any)._unsyncedLocal && !(lp as any)._fromCloud && !delSet.has(`printOrders_${lp.id}`) && !(lp as any)._deleted) {
+                map.set(lp.id, lp);
+              }
             }
           }
           const merged = Array.from(map.values());
@@ -2773,11 +2787,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setParties(prevLocal => {
           const map = new Map<string, Party>();
           for (const p of dedupedParties) {
-            if (p && p.id) map.set(p.id, p);
+            if (p && p.id && !delSet.has(`parties_${p.id}`)) {
+              map.set(p.id, { ...p, _fromCloud: true } as unknown as Party);
+            }
           }
           for (const lp of prevLocal) {
-            if (lp && lp.id && !map.has(lp.id) && !delSet.has(`parties_${lp.id}`)) {
-              map.set(lp.id, lp);
+            if (lp && lp.id && !map.has(lp.id)) {
+              if ((lp as any)._unsyncedLocal && !(lp as any)._fromCloud && !delSet.has(`parties_${lp.id}`) && !(lp as any)._deleted) {
+                map.set(lp.id, lp);
+              }
             }
           }
           const merged = Array.from(map.values());
@@ -2811,11 +2829,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setInventory(prevLocal => {
           const map = new Map<string, InventoryItem>();
           for (const it of dedupedInventory) {
-            if (it && it.id) map.set(it.id, it);
+            if (it && it.id && !delSet.has(`inventory_${it.id}`)) {
+              map.set(it.id, { ...it, _fromCloud: true } as unknown as InventoryItem);
+            }
           }
           for (const lit of prevLocal) {
-            if (lit && lit.id && !map.has(lit.id) && !delSet.has(`inventory_${lit.id}`)) {
-              map.set(lit.id, lit);
+            if (lit && lit.id && !map.has(lit.id)) {
+              if ((lit as any)._unsyncedLocal && !(lit as any)._fromCloud && !delSet.has(`inventory_${lit.id}`) && !(lit as any)._deleted) {
+                map.set(lit.id, lit);
+              }
             }
           }
           const merged = Array.from(map.values());
@@ -2839,11 +2861,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setVouchers(prevLocal => {
           const map = new Map<string, PaymentVoucher>();
           for (const item of dedupedVch) {
-            if (item && item.id) map.set(item.id, item);
+            if (item && item.id && !delSet.has(`vouchers_${item.id}`)) {
+              map.set(item.id, { ...item, _fromCloud: true } as unknown as PaymentVoucher);
+            }
           }
           for (const lp of prevLocal) {
-            if (lp && lp.id && !map.has(lp.id) && !delSet.has(`vouchers_${lp.id}`)) {
-              map.set(lp.id, lp);
+            if (lp && lp.id && !map.has(lp.id)) {
+              if ((lp as any)._unsyncedLocal && !(lp as any)._fromCloud && !delSet.has(`vouchers_${lp.id}`) && !(lp as any)._deleted) {
+                map.set(lp.id, lp);
+              }
             }
           }
           const merged = Array.from(map.values());
