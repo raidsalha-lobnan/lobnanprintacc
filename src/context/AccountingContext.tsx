@@ -7,6 +7,7 @@ import {
   fetchFullDatabaseFromFirestore,
   isFirestoreQuotaExceeded,
   markQuotaExceeded,
+  resetQuotaExceeded,
   saveDeltaToFirestore,
   subscribeToFirestoreLiveDeltas
 } from '../services/firebaseFirestoreSyncService';
@@ -1658,18 +1659,22 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
         } catch {}
       }
 
-      // 2. Direct Real-Time Firebase Firestore Persistence (Smart Incremental Delta: 1 doc + 1 delta stream event)
-      if (!isFirestoreQuotaExceeded() && !isLocalOnlyMode) {
+      // 2. Direct Real-Time Firebase Firestore Persistence (Smart Incremental Delta)
+      if (!isLocalOnlyMode) {
         const listToSave: any[] = items || (item ? [item] : []);
         listToSave.forEach(it => {
           if (it && it.id) {
             const docId = String(it.id);
             if (op === 'delete' || it._deleted) {
-              deleteDoc(doc(db, entity, docId)).catch(() => {});
+              deleteDoc(doc(db, entity, docId)).catch(err => {
+                if (err?.code === 'resource-exhausted') {
+                  markQuotaExceeded(300000);
+                }
+              });
             } else {
               setDoc(doc(db, entity, docId), cleanDocForFirestore(it), { merge: true }).catch(err => {
                 if (err?.code === 'resource-exhausted') {
-                  // Handled silently to avoid quota spam
+                  markQuotaExceeded(300000);
                 }
               });
             }
@@ -2427,7 +2432,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   const fetchCloudData = async (isInitial = false) => {
     let isMounted = true;
     
-      if (!navigator.onLine || isFirestoreQuotaExceeded() || isLocalOnlyMode) {
+      if (!navigator.onLine || isLocalOnlyMode) {
         setIsOnline(false);
         isInitialMount.current = false;
         isCloudHydratedRef.current = true;
@@ -2617,7 +2622,8 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
   fetchFromFirebaseRef.current = fetchCloudData;
 
   useEffect(() => {
-    if (isLocalOnlyMode || isFirestoreQuotaExceeded()) return;
+    if (isLocalOnlyMode) return;
+    resetQuotaExceeded();
     fetchCloudData(true);
     executeServerFullSync().catch(() => {});
 

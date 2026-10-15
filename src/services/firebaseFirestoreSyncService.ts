@@ -37,30 +37,26 @@ export const ALL_ENTITIES = [
   'settings'
 ];
 
-// Quota state tracking for Firebase Firestore
+// Quota state tracking for Firebase Firestore (Session-only, zero persistent localStorage lockout)
 let quotaExceededUntil = 0;
+let hasLoggedQuotaWarning = false;
+
+// Clear any stale quota lock from previous sessions on startup
 try {
   if (typeof localStorage !== 'undefined') {
-    const saved = localStorage.getItem('accounting_quota_exceeded_until');
-    if (saved) quotaExceededUntil = parseInt(saved, 10) || 0;
+    localStorage.removeItem('accounting_quota_exceeded_until');
   }
 } catch {}
-
-let hasLoggedQuotaWarning = false;
 
 export function isFirestoreQuotaExceeded(): boolean {
   return Date.now() < quotaExceededUntil;
 }
 
-export function markQuotaExceeded(durationMs: number = 3600000) {
+export function markQuotaExceeded(durationMs: number = 300000) {
+  // In-memory 5-minute pause only for active session errors
   quotaExceededUntil = Date.now() + durationMs;
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('accounting_quota_exceeded_until', String(quotaExceededUntil));
-    }
-  } catch {}
   if (!hasLoggedQuotaWarning) {
-    console.warn('⚠️ تم بلوغ الحد اليومي المجاني للكتابة في Firebase Firestore. تم تفعيل الحفظ والعمل المحلي الآمن مؤقتاً.');
+    console.warn('⚠️ إشعار: تم الوصول مؤقتاً للحد السحابي المجاني. يعمل النظام بالحفظ المحلي وستستأنف المزامنة السحابية تلقائياً.');
     hasLoggedQuotaWarning = true;
   }
 }
