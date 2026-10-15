@@ -2655,31 +2655,22 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
             if (!inv || !inv.id || delSet.has(`invoices_${inv.id}`)) return false;
             const num = parseInt((inv.invoiceNumber || '').replace(/\D/g, ''), 10);
             if (num === 11 || inv.invoiceNumber === 'INV-0011' || inv.invoiceNumber === 'INV-00011' || inv.id === 'inv-11') {
-              registerDeletedDoc('invoices', inv.id);
-              deleteDoc(doc(db, 'invoices', inv.id)).catch(err => { if (err?.code !== 'resource-exhausted') console.debug(err); });
               return false;
             }
             return true;
           })
           .map(inv => {
             if (!inv || !Array.isArray(inv.items)) return inv;
-            let hasChange = false;
             const items = inv.items.map(it => {
               if (
                 it.itemCode === 'PRI-0009' ||
                 it.itemName?.includes('جاليه سيلكون')
               ) {
-                hasChange = true;
                 return { ...it, itemCode: 'TEX-0001' };
               }
               return it;
             });
-            if (hasChange) {
-              const updated = { ...inv, items };
-              setDoc(doc(db, 'invoices', inv.id), cleanDocForFirestore(updated), { merge: true }).catch(() => {});
-              return updated;
-            }
-            return inv;
+            return { ...inv, items };
           });
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => {
@@ -2748,20 +2739,13 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
           .filter(ord => ord && ord.id && !delSet.has(`printOrders_${ord.id}`))
           .map(ord => {
             if (!ord || !Array.isArray(ord.items)) return ord;
-            let hasChange = false;
             const items = ord.items.map(it => {
               if (it.itemCode === 'PRI-0009' || it.itemName?.includes('جاليه سيلكون')) {
-                hasChange = true;
                 return { ...it, itemCode: 'TEX-0001' };
               }
               return it;
             });
-            if (hasChange) {
-              const updated = { ...ord, items };
-              setDoc(doc(db, 'printOrders', ord.id), cleanDocForFirestore(updated), { merge: true }).catch(() => {});
-              return updated;
-            }
-            return ord;
+            return { ...ord, items };
           });
         if (docs.length === 0 && isPendingUnsynced()) return;
         docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || (b.id || '').localeCompare(a.id || ''));
@@ -2825,11 +2809,7 @@ return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, {
               it.name?.includes('جاليه سيلكون') ||
               (it.name?.includes('جاليه') && (it.category === 'مطبوعات قماش' || it.category === 'textiles'))
             ) {
-              const updated = { ...it, code: 'TEX-0001', category: 'textiles' };
-              if (it.code !== 'TEX-0001' || it.category !== 'textiles') {
-                setDoc(doc(db, 'inventory', it.id), cleanDocForFirestore(updated), { merge: true }).catch(() => {});
-              }
-              return updated;
+              return { ...it, code: 'TEX-0001', category: 'textiles' };
             }
             return it;
           });
