@@ -10,39 +10,37 @@ interface ReportSignaturesProps {
 }
 
 export const ReportSignatures: React.FC<ReportSignaturesProps> = ({
-  columns = 3,
-  rightLabel = 'إعداد وتدقيق المحاسب',
+  columns = 2,
+  rightLabel = 'توقيع وختم المستلم',
   centerLabel = 'توقيع العميل / المستلم',
-  leftLabel = 'المدير المالي والاعتماد',
+  leftLabel = 'الختم',
 }) => {
   const { settings } = useAccounting();
 
   return (
     <div className={`pt-6 border-t border-slate-300 grid gap-6 text-center text-xs mt-6 ${columns === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-      {/* Right Column */}
-      <div className="space-y-6 flex flex-col items-center justify-end">
-        <span className="font-bold text-slate-700 block mb-auto">{rightLabel}</span>
-        <div className="border-b border-dashed border-slate-400 w-48 mx-auto mt-10"></div>
-        <span className="text-[11px] text-slate-400 block font-mono">{columns === 2 ? 'المستلم المعتمد' : 'التوقيع والتاريخ'}</span>
+      {/* Right Column: توقيع وختم المستلم */}
+      <div className="space-y-4 flex flex-col items-center justify-end">
+        <span className="font-bold text-slate-800 text-sm block mb-auto">{rightLabel}</span>
+        <div className="border-b border-dashed border-slate-400 w-48 mx-auto mt-8"></div>
       </div>
 
       {/* Center Column (Only if columns === 3) */}
       {columns === 3 && (
-        <div className="space-y-6 flex flex-col items-center justify-end">
-          <span className="font-bold text-slate-700 block mb-auto">{centerLabel}</span>
-          <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-10"></div>
-          <span className="text-[11px] text-slate-400 block font-mono">المستلم المعتمد</span>
+        <div className="space-y-4 flex flex-col items-center justify-end">
+          <span className="font-bold text-slate-800 text-sm block mb-auto">{centerLabel}</span>
+          <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
         </div>
       )}
 
-      {/* Left Column - Official Stamp & Signature */}
+      {/* Left Column: الختم */}
       <div className="space-y-2 flex flex-col items-center justify-end">
-        <span className="font-bold text-slate-700 block mb-auto">{leftLabel}</span>
+        <span className="font-bold text-slate-800 text-sm block mb-auto">{leftLabel}</span>
         
-        <div className="min-h-[4.2cm] flex items-center justify-center relative">
+        <div className="min-h-[3.8cm] flex items-center justify-center relative">
           {settings.stampUrl ? (
             <div className="relative flex items-center justify-center">
-              <OfficialStamp size="3.5cm" />
+              <OfficialStamp size="3.2cm" />
               {settings.signatureUrl && (
                 <img
                   src={settings.signatureUrl}
@@ -58,11 +56,9 @@ export const ReportSignatures: React.FC<ReportSignaturesProps> = ({
               className="max-h-16 max-w-[140px] object-contain mix-blend-multiply opacity-90"
             />
           ) : (
-            <div className="border-b border-dashed border-slate-400 w-48 mx-auto mt-10"></div>
+            <div className="border-b border-dashed border-slate-400 w-48 mx-auto mt-8"></div>
           )}
         </div>
-        
-        <span className="text-[11px] text-slate-400 block font-mono mt-2">الختم والتوقيع المعتمد</span>
       </div>
     </div>
   );

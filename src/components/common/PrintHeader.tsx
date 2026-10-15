@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAccounting } from '../../context/AccountingContext';
-import { Building2, Phone, MapPin, Hash, FileSpreadsheet } from 'lucide-react';
+import { Building2, MapPin, Hash } from 'lucide-react';
 import { BusinessSettings } from '../../types';
 
 interface PrintHeaderProps {
@@ -22,9 +22,10 @@ interface PrintHeaderProps {
  * PrintHeader Component
  * 
  * القواعد الصارمة المعتمدة بحسب طلب المستخدم:
- * 1. في حال تم رفع "هيدر كامل" (headerImageUrl / letterheadUrl): يتم اعتماده كترويسة رسمية كاملة لكل الكشوفات والأوراق المطبوعة.
- * 2. في حال عدم رفع هيدر: يتم استخدام اللوقو (logoUrl / logo) مع اسم المنشأة والبيانات الرسمية والضريبية (العناوين والهواتف المتعددة).
- * 3. الكاشير الحراري: له مكون خاص ThermalReceiptHeader يستخدم دائماً اللوقو والبيانات المكتوبة (العناوين والهواتف).
+ * 1. في حال تم رفع "هيدر كامل" (headerImageUrl / letterheadUrl): يتم اعتماده كترويسة رسمية كاملة لكافة الكشوفات والأوراق المطبوعة.
+ * 2. في حال عدم رفع هيدر كامل: يتم وضع اللوقو يمين، وبجانبه الاسم العربي أولاً ثم الاسم الإنجليزي تحته مباشرة.
+ * 3. يتم اقتران العناوين والأرقام خطوة بخطوة على نسق: "العنوان الأول - الرقم الأول"، "العنوان الثاني - الرقم الثاني" وهكذا.
+ * 4. الكاشير الحراري ThermalReceiptHeader: يستخدم نفس ترتيب الهيدر (اللوقو والاسم بالعربي والانجليزي المقترن بالعناوين والأرقام).
  */
 export const PrintHeader: React.FC<PrintHeaderProps> = ({
   title,
@@ -68,7 +69,22 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
       : []
   ).filter((p: any) => p && p.trim());
 
-  // CASE 1: Full Header Image is Uploaded (اعتماد الهيدر الكامل)
+  // Paired Address - Phone lines ("العنوان الأول - الرقم الأول")
+  const maxPairs = Math.max(addressesList.length, phonesList.length);
+  const pairedContactLines: string[] = [];
+  for (let i = 0; i < maxPairs; i++) {
+    const addr = addressesList[i];
+    const ph = phonesList[i];
+    if (addr && ph) {
+      pairedContactLines.push(`${addr} - ${ph}`);
+    } else if (addr) {
+      pairedContactLines.push(addr);
+    } else if (ph) {
+      pairedContactLines.push(ph);
+    }
+  }
+
+  // CASE 1: Full Header Image is Uploaded (اعتماد الهيدر الكامل المصمم)
   if (hasFullHeader) {
     return (
       <div className={`print-header w-full mb-4 print:mb-3 print:block ${className}`} data-component="print-header">
@@ -123,12 +139,13 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
     );
   }
 
-  // CASE 2: Standard Header (Logo + Company Name + Official Tax Data + Multiple Addresses & Phones)
+  // CASE 2: Standard Header (Logo on Right + Arabic Name First + English Name Underneath + Paired Addresses & Phones)
   return (
     <div className={`print-header w-full mb-4 print:mb-3 print:block ${showBorder ? 'border-b-2 border-slate-900 pb-4' : ''} ${className}`} data-component="print-header">
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-        {/* Right side: Logo and Company Info */}
+        {/* Right side (RTL start): Logo on the Right, Name beside it, Paired Addresses/Phones */}
         <div className="flex items-start gap-3.5 flex-1 min-w-0">
+          {/* Logo on Right */}
           {hasLogo ? (
             <div className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 bg-white border border-slate-200 rounded-xl p-1.5 flex items-center justify-center shadow-2xs overflow-hidden">
               <img
@@ -138,7 +155,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
               />
             </div>
           ) : (
-            <div className="shrink-0 w-16 h-16 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex flex-col items-center justify-center font-bold text-xs p-1 shadow-2xs">
+            <div className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex flex-col items-center justify-center font-bold text-xs p-1 shadow-2xs">
               <Building2 className="w-6 h-6 mb-0.5 text-blue-600" />
               <span className="text-[9px] text-center leading-tight truncate max-w-full">
                 {settings.logoText || 'النور'}
@@ -146,13 +163,20 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
             </div>
           )}
 
+          {/* Beside Logo: Arabic Name First, English Name Underneath */}
           <div className="min-w-0 flex-1">
+            {/* Arabic Business Name */}
             <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
               {businessName}
             </h1>
+            
+            {/* English Business Name Underneath */}
             {settings.businessNameEn && (
-              <p className="text-[10px] text-slate-400 font-light font-mono -mt-0.5">{settings.businessNameEn}</p>
+              <p className="text-xs sm:text-sm text-slate-600 font-bold font-mono mt-0.5 tracking-tight">
+                {settings.businessNameEn}
+              </p>
             )}
+
             {(settings.activityType || settings.description) && (
               <p className="text-xs text-slate-600 font-medium mt-0.5">
                 {settings.activityType || settings.description}
@@ -174,37 +198,21 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
               )}
             </div>
 
-            {/* Multiple Phone Numbers (أرقام الهواتف المتعددة) */}
-            {phonesList.length > 0 && (
-              <div className="flex items-start gap-1.5 text-[11px] text-slate-700 mt-1">
-                <Phone className="w-3 h-3 text-slate-500 shrink-0 mt-0.5" />
-                <div className="flex flex-wrap gap-x-2 gap-y-0.5 font-mono">
-                  {phonesList.map((p: any, idx: number) => (
-                    <span key={idx} className="after:content-['|'] last:after:content-none after:mr-2 after:text-slate-300">
-                      {p}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Multiple Addresses (العناوين المتعددة) */}
-            {addressesList.length > 0 && (
-              <div className="flex items-start gap-1.5 text-[11px] text-slate-600 mt-1">
-                <MapPin className="w-3 h-3 text-slate-500 shrink-0 mt-0.5" />
-                <div className="flex flex-col gap-0.5">
-                  {addressesList.map((addr: any, idx: number) => (
-                    <span key={idx} className="leading-tight">
-                      {addressesList.length > 1 ? `• ${addr}` : addr}
-                    </span>
-                  ))}
-                </div>
+            {/* Paired Address - Phone Lines ("العنوان الأول - الرقم الأول") */}
+            {pairedContactLines.length > 0 && (
+              <div className="space-y-0.5 text-[11px] text-slate-800 font-medium mt-1.5 font-sans">
+                {pairedContactLines.map((line, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 leading-tight">
+                    <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span>{line}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
 
-        {/* Left side: Document Title / Badges / QR Code */}
+        {/* Left side (RTL end): Document Title / Badges / Numbers / QR Code */}
         <div className="text-left shrink-0 flex flex-col items-end sm:min-w-[200px]">
           {title && (
             <div className="text-right sm:text-left mb-1.5">
@@ -215,19 +223,19 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
           )}
 
           {subtitle && (
-            <p className="text-[10px] text-slate-400 font-light font-medium mb-1 text-left">{subtitle}</p>
+            <p className="text-[10px] text-slate-500 font-medium mb-1 text-left">{subtitle}</p>
           )}
 
-          <div className="text-[11px] text-slate-600 font-mono space-y-0.5 text-left">
+          <div className="text-[11px] text-slate-700 font-mono space-y-0.5 text-left">
             {docNumber && (
               <div>
-                <span className="text-slate-400 font-sans">الرقم: </span>
+                <span className="text-slate-500 font-sans">الرقم: </span>
                 <strong className="text-slate-900 font-bold">{docNumber}</strong>
               </div>
             )}
             {docDate && (
               <div>
-                <span className="text-slate-400 font-sans">التاريخ: </span>
+                <span className="text-slate-500 font-sans">التاريخ: </span>
                 <span>{docDate}</span>
               </div>
             )}
@@ -246,10 +254,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
  * ThermalReceiptHeader Component
  * 
  * مخصص لطابعات الكاشير الحراري (80mm / 58mm).
- * بحسب توجيه المستخدم:
- * "ماعدا الكاشير الحراري تكون باللوقو والعناوين والهواتف المكتوبة وفي حال عدم رفع هيدر يتم استخدام اللوقو مع اسم المنشألة والبيانات للمنشأة"
- * 
- * أي أن الكاشير الحراري لا يعتمد البانر العريض، بل يعتمد دائماً اللوقو + اسم المنشأة + العناوين والهواتف المكتوبة.
+ * يتضمن اللوقو والاسم بالعربي والانجليزي المقترن بالعناوين والأرقام.
  */
 interface ThermalReceiptHeaderProps {
   overrideSettings?: Partial<BusinessSettings>;
@@ -263,9 +268,10 @@ export const ThermalReceiptHeader: React.FC<ThermalReceiptHeaderProps> = ({
   className = ''
 }) => {
   const { settings: contextSettings } = useAccounting();
-  const settings = { ...contextSettings, ...(overrideSettings || {}) };
+  const settings: any = { ...contextSettings, ...(overrideSettings || {}) };
 
   const hasLogo = Boolean(settings.logoUrl && settings.logoUrl.trim());
+  const businessName = settings.businessName || settings.name || 'المنشأة التجارية';
 
   const addressesList = (
     settings.addresses && settings.addresses.length > 0
@@ -273,7 +279,7 @@ export const ThermalReceiptHeader: React.FC<ThermalReceiptHeaderProps> = ({
       : settings.address
       ? [settings.address]
       : []
-  ).filter(a => a && a.trim());
+  ).filter((a: any) => a && a.trim());
 
   const phonesList = (
     settings.phones && settings.phones.length > 0
@@ -281,31 +287,48 @@ export const ThermalReceiptHeader: React.FC<ThermalReceiptHeaderProps> = ({
       : settings.phone
       ? [settings.phone]
       : []
-  ).filter(p => p && p.trim());
+  ).filter((p: any) => p && p.trim());
+
+  const maxPairs = Math.max(addressesList.length, phonesList.length);
+  const pairedContactLines: string[] = [];
+  for (let i = 0; i < maxPairs; i++) {
+    const addr = addressesList[i];
+    const ph = phonesList[i];
+    if (addr && ph) {
+      pairedContactLines.push(`${addr} - ${ph}`);
+    } else if (addr) {
+      pairedContactLines.push(addr);
+    } else if (ph) {
+      pairedContactLines.push(ph);
+    }
+  }
 
   return (
     <div className={`text-center space-y-1.5 pb-2 border-b border-dashed border-slate-400 font-mono ${className}`}>
-      {/* Logo on Thermal Receipt */}
-      {hasLogo && (
-        <div className="flex justify-center mb-1">
-          <img
-            src={settings.logoUrl}
-            alt={settings.businessName}
-            className="max-h-14 max-w-[140px] object-contain filter grayscale contrast-125"
-          />
+      {/* Top Section: Logo & Name beside it */}
+      <div className="flex items-center justify-center gap-2.5">
+        {hasLogo && (
+          <div className="shrink-0">
+            <img
+              src={settings.logoUrl}
+              alt={businessName}
+              className="max-h-12 max-w-[90px] object-contain filter grayscale contrast-125"
+            />
+          </div>
+        )}
+
+        <div className="text-right">
+          <h2 className="font-black text-sm text-slate-950 leading-tight">
+            {businessName}
+          </h2>
+          {settings.businessNameEn && (
+            <p className="text-[10px] text-slate-700 font-bold">{settings.businessNameEn}</p>
+          )}
         </div>
-      )}
-
-      <h2 className="font-black text-base text-slate-950 leading-tight">
-        {settings.businessName || settings.name || 'نقطة البيع'}
-      </h2>
-
-      {settings.businessNameEn && (
-        <p className="text-[10px] text-slate-600">{settings.businessNameEn}</p>
-      )}
+      </div>
 
       {receiptTitle && (
-        <div className="inline-block bg-slate-900 text-white font-bold text-[11px] px-2 py-0.5 rounded my-1">
+        <div className="inline-block bg-slate-900 text-white font-bold text-[11px] px-2.5 py-0.5 rounded my-1">
           {receiptTitle}
         </div>
       )}
@@ -316,20 +339,11 @@ export const ThermalReceiptHeader: React.FC<ThermalReceiptHeaderProps> = ({
         {(settings.crNumber && settings.showCrNumberInPrints !== false) && <div>سجل تجاري: {settings.crNumber}</div>}
       </div>
 
-      {/* Multiple Phones on Thermal */}
-      {phonesList.length > 0 && (
-        <div className="text-[10px] text-slate-800 space-y-0.5">
-          {phonesList.map((ph, idx) => (
-            <div key={idx}>هاتف: {ph}</div>
-          ))}
-        </div>
-      )}
-
-      {/* Multiple Addresses on Thermal */}
-      {addressesList.length > 0 && (
-        <div className="text-[10px] text-slate-700 space-y-0.5 pt-0.5">
-          {addressesList.map((addr, idx) => (
-            <div key={idx}>{addr}</div>
+      {/* Paired Addresses and Phones ("العنوان الأول - الرقم الأول") */}
+      {pairedContactLines.length > 0 && (
+        <div className="text-[10px] text-slate-900 font-medium space-y-0.5 pt-0.5 font-sans">
+          {pairedContactLines.map((line, idx) => (
+            <div key={idx} className="leading-tight">{line}</div>
           ))}
         </div>
       )}
