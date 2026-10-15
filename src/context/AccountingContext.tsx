@@ -127,7 +127,7 @@ import { resolveInvoiceConflicts, mergeInvoicesWithUpsertAndConflictResolution }
 
 interface AccountingContextType {
   settings: BusinessSettings;
-  updateSettings: (newSettings: BusinessSettings) => void;
+  updateSettings: (newSettings: Partial<BusinessSettings> | BusinessSettings) => void;
   
   accounts: Account[];
   addAccount: (account: Omit<Account, 'balance'> & { initialBalance?: number }) => void;
@@ -906,24 +906,44 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             applyDeltaToState(entity, op || 'upsert', item, items);
           } else if (type === 'SYNC_ENTITY_UPDATE') {
             const { entity, data } = payload || {};
-            if (!entity || !data || !Array.isArray(data)) return;
+            if (!entity || !data) return;
 
-            if (entity === 'invoices') {
-              setInvoices(data);
-              try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data)); } catch {}
-            } else if (entity === 'parties') {
-              setParties(data);
-              try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(data)); } catch {}
-            } else if (entity === 'inventory') {
-              setInventory(data);
-              try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(data)); } catch {}
-            } else if (entity === 'vouchers') {
-              setVouchers(data);
-              try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(data)); } catch {}
-            } else if (entity === 'printOrders') {
-              setPrintOrders(data);
-            } else if (entity === 'purchases') {
-              setPurchases(data);
+            if (entity === 'settings') {
+              if (typeof data === 'object') {
+                const sObj = Array.isArray(data) ? data[0] : data;
+                setSettings(prev => {
+                  const merged = { ...prev, ...sObj };
+                  try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(merged)); } catch {}
+                  return merged;
+                });
+              }
+            } else if (Array.isArray(data)) {
+              if (entity === 'invoices') {
+                setInvoices(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'parties') {
+                setParties(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'inventory') {
+                setInventory(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'vouchers') {
+                setVouchers(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'printOrders') {
+                setPrintOrders(data);
+              } else if (entity === 'purchases') {
+                setPurchases(data);
+              } else if (entity === 'companies') {
+                setCompanies(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'branches') {
+                setBranches(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'warehouses') {
+                setWarehouses(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(data)); } catch {}
+              }
             }
           }
         };
@@ -951,6 +971,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } else if (e.key === `${STORAGE_KEY}_printOrders`) {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) setPrintOrders(parsed);
+        } else if (e.key === `${STORAGE_KEY}_settings`) {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object') setSettings(prev => ({ ...prev, ...parsed }));
+        } else if (e.key === `${STORAGE_KEY}_companies`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setCompanies(parsed);
+        } else if (e.key === `${STORAGE_KEY}_branches`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setBranches(parsed);
+        } else if (e.key === `${STORAGE_KEY}_warehouses`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setWarehouses(parsed);
         }
       } catch {}
     };
@@ -3464,28 +3496,42 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       id: `comp-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    setCompanies(prev => [...prev, newComp]);
+    setCompanies(prev => {
+      const next = [...prev, newComp];
+      try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('companies', 'upsert', newComp);
+      broadcastEntityChange('companies', next);
+      return next;
+    });
     setDoc(doc(db, 'companies', newComp.id), cleanDocForFirestore(newComp)).catch(() => {});
     return newComp;
   };
 
   const updateCompany = (id: string, updated: Partial<Company>) => {
-    const existing = companies.find(c => c.id === id);
-    const merged: Company = existing ? { ...existing, ...updated } : ({ ...updated, id } as Company);
-    setCompanies(prev => prev.map(c => (c.id === id ? merged : c)));
-    try {
-      const next = companies.map(c => (c.id === id ? merged : c));
-      localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(next));
-    } catch {}
-    setDoc(doc(db, 'companies', id), cleanDocForFirestore(merged), { merge: true }).catch(() => {});
+    setCompanies(prev => {
+      const existing = prev.find(c => c.id === id);
+      const merged: Company = existing ? { ...existing, ...updated } : ({ ...updated, id } as Company);
+      const next = prev.map(c => (c.id === id ? merged : c));
+      try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('companies', 'upsert', merged);
+      broadcastEntityChange('companies', next);
+      setDoc(doc(db, 'companies', id), cleanDocForFirestore(merged), { merge: true }).catch(() => {});
+      return next;
+    });
   };
 
   const deleteCompany = (id: string) => {
     if (companies.length <= 1) {
       return { success: false, message: 'لا يمكن حذف الشركة الوحيدة المتبقية بالنظام' };
     }
-    setCompanies(prev => prev.filter(c => c.id !== id));
-    deleteDoc(doc(db, 'companies', id)).catch(e => console.warn('Could not delete company in cloud:', e));
+    setCompanies(prev => {
+      const next = prev.filter(c => c.id !== id);
+      try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('companies', 'delete', { id, _deleted: true });
+      broadcastEntityChange('companies', next);
+      deleteDoc(doc(db, 'companies', id)).catch(e => console.warn('Could not delete company in cloud:', e));
+      return next;
+    });
     return { success: true };
   };
 
@@ -3496,28 +3542,42 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       id: `br-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    setBranches(prev => [...prev, newBranch]);
+    setBranches(prev => {
+      const next = [...prev, newBranch];
+      try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('branches', 'upsert', newBranch);
+      broadcastEntityChange('branches', next);
+      return next;
+    });
     setDoc(doc(db, 'branches', newBranch.id), cleanDocForFirestore(newBranch)).catch(() => {});
     return newBranch;
   };
 
   const updateBranch = (id: string, updated: Partial<Branch>) => {
-    const existing = branches.find(b => b.id === id);
-    const merged: Branch = existing ? { ...existing, ...updated } : ({ ...updated, id } as Branch);
-    setBranches(prev => prev.map(b => (b.id === id ? merged : b)));
-    try {
-      const next = branches.map(b => (b.id === id ? merged : b));
-      localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(next));
-    } catch {}
-    setDoc(doc(db, 'branches', id), cleanDocForFirestore(merged), { merge: true }).catch(() => {});
+    setBranches(prev => {
+      const existing = prev.find(b => b.id === id);
+      const merged: Branch = existing ? { ...existing, ...updated } : ({ ...updated, id } as Branch);
+      const next = prev.map(b => (b.id === id ? merged : b));
+      try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('branches', 'upsert', merged);
+      broadcastEntityChange('branches', next);
+      setDoc(doc(db, 'branches', id), cleanDocForFirestore(merged), { merge: true }).catch(() => {});
+      return next;
+    });
   };
 
   const deleteBranch = (id: string) => {
     if (branches.length <= 1) {
       return { success: false, message: 'لا يمكن حذف الفرع الوحيد المتبقي بالنظام' };
     }
-    setBranches(prev => prev.filter(b => b.id !== id));
-    deleteDoc(doc(db, 'branches', id)).catch(e => console.warn('Could not delete branch in cloud:', e));
+    setBranches(prev => {
+      const next = prev.filter(b => b.id !== id);
+      try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('branches', 'delete', { id, _deleted: true });
+      broadcastEntityChange('branches', next);
+      deleteDoc(doc(db, 'branches', id)).catch(e => console.warn('Could not delete branch in cloud:', e));
+      return next;
+    });
     if (activeBranchId === id) {
       const remaining = branches.filter(b => b.id !== id);
       if (remaining.length > 0) setActiveBranchId(remaining[0].id);
@@ -3536,7 +3596,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       warehouseType: wh.warehouseType || 'general_main',
       createdAt: new Date().toISOString()
     };
-    setWarehouses(prev => [...prev, newWh]);
+    setWarehouses(prev => {
+      const next = [...prev, newWh];
+      try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('warehouses', 'upsert', newWh);
+      broadcastEntityChange('warehouses', next);
+      return next;
+    });
     setDoc(doc(db, 'warehouses', newWh.id), cleanDocForFirestore(newWh)).catch(() => {});
 
     // Link new warehouse to its branch if not already linked
@@ -3555,18 +3621,20 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const updateWarehouse = (id: string, updated: Partial<Warehouse>) => {
-    const existing = warehouses.find(w => w.id === id);
-    let nextWh: Warehouse = existing ? { ...existing, ...updated } : ({ ...updated, id } as Warehouse);
-    if (updated.branchId) {
-      const b = branches.find(br => br.id === updated.branchId);
-      nextWh.branchName = b?.name || nextWh.branchName;
-    }
-    setWarehouses(prev => prev.map(w => (w.id === id ? nextWh : w)));
-    try {
-      const next = warehouses.map(w => (w.id === id ? nextWh : w));
-      localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(next));
-    } catch {}
-    setDoc(doc(db, 'warehouses', id), cleanDocForFirestore(nextWh), { merge: true }).catch(() => {});
+    setWarehouses(prev => {
+      const existing = prev.find(w => w.id === id);
+      let nextWh: Warehouse = existing ? { ...existing, ...updated } : ({ ...updated, id } as Warehouse);
+      if (updated.branchId) {
+        const b = branches.find(br => br.id === updated.branchId);
+        nextWh.branchName = b?.name || nextWh.branchName;
+      }
+      const next = prev.map(w => (w.id === id ? nextWh : w));
+      try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('warehouses', 'upsert', nextWh);
+      broadcastEntityChange('warehouses', next);
+      setDoc(doc(db, 'warehouses', id), cleanDocForFirestore(nextWh), { merge: true }).catch(() => {});
+      return next;
+    });
 
     // Update branch warehouseIds if branch changed
     if (updated.branchId) {
@@ -3585,8 +3653,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (warehouses.length <= 1) {
       return { success: false, message: 'لا يمكن حذف المستودع الوحيد المتبقي بالنظام' };
     }
-    setWarehouses(prev => prev.filter(w => w.id !== id));
-    deleteDoc(doc(db, 'warehouses', id)).catch(e => console.warn('Could not delete warehouse in cloud:', e));
+    setWarehouses(prev => {
+      const next = prev.filter(w => w.id !== id);
+      try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(next)); } catch {}
+      pushDeltaToServer('warehouses', 'delete', { id, _deleted: true });
+      broadcastEntityChange('warehouses', next);
+      deleteDoc(doc(db, 'warehouses', id)).catch(e => console.warn('Could not delete warehouse in cloud:', e));
+      return next;
+    });
     setBranches(prev => prev.map(b => {
       const updatedB = {
         ...b,
@@ -4104,40 +4178,37 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return { success: true };
   };
 
-  const updateSettings = (newSettings: BusinessSettings) => {
-    setSettings(newSettings);
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(newSettings));
-      setDoc(doc(db, 'settings', 'global'), newSettings).catch(err => {
-        console.warn('Failed direct settings save to cloud:', err);
-      });
-    } catch (e) {
-      console.warn('Settings persistence error:', e);
-    }
+  const updateSettings = (newSettings: Partial<BusinessSettings> | BusinessSettings) => {
+    setSettings(prev => {
+      const merged = { ...prev, ...newSettings };
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(merged));
+        setDoc(doc(db, 'settings', 'global'), cleanDocForFirestore(merged)).catch(err => {
+          console.warn('Failed direct settings save to cloud:', err);
+        });
+      } catch (e) {
+        console.warn('Settings persistence error:', e);
+      }
+      pushDeltaToServer('settings', 'upsert', merged);
+      broadcastEntityChange('settings', merged);
+      return merged;
+    });
   };
 
   // Multi-Currency handlers (العملة الأساسية: الشيكل الفلسطيني ₪)
   const currencies = settings.currencies && settings.currencies.length > 0 ? settings.currencies : defaultCurrencies;
 
   const updateCurrencies = (newCurrencies: CurrencyInfo[]) => {
-    setSettings(prev => ({
-      ...prev,
-      currencies: newCurrencies
-    }));
+    updateSettings({ currencies: newCurrencies });
   };
 
   const updateCurrencyRate = (code: string, rate: number) => {
     const today = new Date().toISOString().split('T')[0];
-    setSettings(prev => {
-      const currentList = prev.currencies || defaultCurrencies;
-      const updatedList = currentList.map(c =>
-        c.code === code ? { ...c, rateAgainstBase: rate, updatedAt: today } : c
-      );
-      return {
-        ...prev,
-        currencies: updatedList
-      };
-    });
+    const currentList = settings.currencies || defaultCurrencies;
+    const updatedList = currentList.map(c =>
+      c.code === code ? { ...c, rateAgainstBase: rate, updatedAt: today } : c
+    );
+    updateSettings({ currencies: updatedList });
   };
 
   const fetchLiveRates = async (): Promise<{ success: boolean; message: string }> => {
