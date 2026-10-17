@@ -345,11 +345,11 @@ export const InvoicePrintModal: React.FC = () => {
                   className={`a4-custom-outer-frame border-[3px] border-[#2b3a67] p-1.5 pb-2 flex flex-col justify-between relative mb-8 print:mb-0 print:border-[3px] print:border-[#2b3a67] print:h-[270mm] print:max-h-[275mm] print:break-inside-avoid print:box-border bg-white ${
                     chunkIdx < totalPages - 1 ? 'break-after-page print:break-after-page' : ''
                   }`}
-                  style={{ border: '3px solid #2b3a67' }}
+                  style={{ border: '3px solid #2b3a67', outline: '2px solid #2b3a67' }}
                 >
                   <div
                     className="a4-custom-inner-frame border-[2px] border-[#2b3a67] flex-1 flex flex-col justify-between p-2 space-y-1.5 print:p-1.5 print:space-y-1.5 bg-white"
-                    style={{ border: '2px solid #2b3a67' }}
+                    style={{ border: '2px solid #2b3a67', outline: '1px solid #2b3a67' }}
                   >
                     
                     {/* Header Banner & Sub-bar */}
@@ -388,7 +388,7 @@ export const InvoicePrintModal: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, dark blue table header with white text, 15% blue shaded background for empty rows) */}
+                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, dark blue table header with white text, 5% blue shaded background for empty rows) */}
                     <div className="flex-1 flex flex-col justify-start bg-white">
                       <table className="invoice-print-table w-full text-center border-collapse border-[2.5px] border-[#2b3a67] bg-white">
                         <thead>
@@ -483,10 +483,10 @@ export const InvoicePrintModal: React.FC = () => {
                     {isLastPage ? (
                       <div className="space-y-3 shrink-0 bg-white">
                         <div className="grid grid-cols-2 gap-4 items-start mt-1 bg-white">
-                          {/* Totals Box with Complete Dark Blue Outer Border */}
+                          {/* Totals Box with Complete Dark Blue Outer Border & Outline */}
                           <div
-                            className="a4-totals-box border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-xs bg-white"
-                            style={{ border: '2.5px solid #2b3a67' }}
+                            className="a4-totals-box border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col text-xs bg-white"
+                            style={{ border: '2.5px solid #2b3a67', outline: '2px solid #2b3a67' }}
                           >
                             <div className="flex border-b-[2px] border-[#2b3a67]">
                               <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-white text-[#2b3a67]">إجمالي المبلغ</div>
@@ -506,10 +506,10 @@ export const InvoicePrintModal: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Notes Box */}
+                          {/* Notes Box with Complete Dark Blue Outer Border & Outline */}
                           <div
-                            className="a4-notes-box border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[90px] bg-white"
-                            style={{ border: '2.5px solid #2b3a67' }}
+                            className="a4-notes-box border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col min-h-[90px] bg-white"
+                            style={{ border: '2.5px solid #2b3a67', outline: '2px solid #2b3a67' }}
                           >
                             <div className="bg-white text-[#2b3a67] font-bold text-center py-1 border-b-[2px] border-[#2b3a67] text-xs">
                               ملاحظات

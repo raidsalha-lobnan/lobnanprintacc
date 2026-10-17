@@ -1249,6 +1249,13 @@ fieldset legend, .vb-groupbox legend {
 
 /* 8. Print Exact Color Adjust & Custom Invoice Table Styles */
 @media print {
+  html, body, #root, main, .print-modal-container {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   body, *, *::before, *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -1258,29 +1265,39 @@ fieldset legend, .vb-groupbox legend {
   div.a4-custom-outer-frame,
   div[class*="a4-custom-outer-frame"] {
     border: 3px solid #2b3a67 !important;
+    outline: 2px solid #2b3a67 !important;
     padding: 6px !important;
     box-sizing: border-box !important;
+    background-color: #ffffff !important;
   }
 
   .a4-custom-inner-frame,
   div.a4-custom-inner-frame,
   div[class*="a4-custom-inner-frame"] {
     border: 2px solid #2b3a67 !important;
+    outline: 1px solid #2b3a67 !important;
     padding: 8px !important;
     box-sizing: border-box !important;
+    background-color: #ffffff !important;
   }
 
   .a4-totals-box,
-  .a4-notes-box {
+  div.a4-totals-box,
+  .a4-notes-box,
+  div.a4-notes-box {
     border: 2.5px solid #2b3a67 !important;
+    outline: 2px solid #2b3a67 !important;
     box-sizing: border-box !important;
     background-color: #ffffff !important;
   }
 }
 
 .a4-totals-box,
-.a4-notes-box {
+div.a4-totals-box,
+.a4-notes-box,
+div.a4-notes-box {
   border: 2.5px solid #2b3a67 !important;
+  outline: 2px solid #2b3a67 !important;
   box-sizing: border-box !important;
   background-color: #ffffff !important;
 }
