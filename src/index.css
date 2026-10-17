@@ -1247,3 +1247,34 @@ fieldset legend, .vb-groupbox legend {
   background: #94a3b8;
 }
 
+/* 8. Print Exact Color Adjust & Custom Invoice Table Styles */
+@media print {
+  body, *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+.invoice-print-table {
+  border-collapse: collapse !important;
+  border: 2.5px solid #2b3a67 !important;
+}
+
+.invoice-print-table thead th {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border: 2px solid #2b3a67 !important;
+  color: #2b3a67 !important;
+}
+
+.invoice-print-table tbody td {
+  border: 2px solid #2b3a67 !important;
+}
+
+.invoice-print-table tbody tr.empty-row-shaded td,
+td.empty-row-shaded {
+  background-color: rgba(43, 58, 103, 0.4) !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+

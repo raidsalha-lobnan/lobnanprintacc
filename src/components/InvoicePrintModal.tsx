@@ -381,9 +381,9 @@ export const InvoicePrintModal: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, pure white headers, shaded dark background for empty rows) */}
+                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, pure white headers, 40% blue shaded background for empty rows) */}
                     <div className="flex-1 flex flex-col justify-start bg-white">
-                      <table className="w-full text-center border-collapse border-[2.5px] border-[#2b3a67] bg-white">
+                      <table className="invoice-print-table w-full text-center border-collapse border-[2.5px] border-[#2b3a67] bg-white">
                         <thead>
                           <tr className="bg-white text-[#2b3a67] font-black text-xs border-b-[2.5px] border-[#2b3a67]">
                             <th className="border-[2px] border-[#2b3a67] py-2 w-10 bg-white">م</th>
@@ -402,34 +402,67 @@ export const InvoicePrintModal: React.FC = () => {
                             const isEmpty = !item;
 
                             return (
-                              <tr key={rowIdx} className={`h-[1.65rem] ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                              <tr
+                                key={rowIdx}
+                                className={`h-[1.65rem] ${isEmpty ? 'empty-row-shaded bg-[#2b3a67]/40' : 'bg-white'}`}
+                              >
                                 {/* Column م: Always numbered 1 to 15 */}
-                                <td className={`border-[2px] border-[#2b3a67] font-mono font-extrabold text-center w-10 ${isEmpty ? 'bg-slate-700 text-white' : 'bg-white text-slate-900'}`}>
+                                <td
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  className={`border-[2px] border-[#2b3a67] font-mono font-extrabold text-center w-10 ${
+                                    isEmpty ? 'bg-[#2b3a67]/40 text-[#2b3a67]' : 'bg-white text-slate-900'
+                                  }`}
+                                >
                                   {overallIndex}
                                 </td>
 
                                 {/* Item Name */}
-                                <td className={`border-[2px] border-[#2b3a67] px-2 text-right font-bold truncate ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                <td
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  className={`border-[2px] border-[#2b3a67] px-2 text-right font-bold truncate ${
+                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                  }`}
+                                >
                                   {item ? item.itemName : ''}
                                 </td>
 
                                 {/* Description / Notes */}
-                                <td className={`border-[2px] border-[#2b3a67] px-2 text-right font-medium text-xs text-slate-800 ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                <td
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  className={`border-[2px] border-[#2b3a67] px-2 text-right font-medium text-xs text-slate-800 ${
+                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                  }`}
+                                >
                                   {item ? (item.notes || item.description || '') : ''}
                                 </td>
 
                                 {/* Quantity */}
-                                <td className={`border-[2px] border-[#2b3a67] font-mono ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                <td
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  className={`border-[2px] border-[#2b3a67] font-mono ${
+                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                  }`}
+                                >
                                   {item ? item.quantity : ''}
                                 </td>
 
                                 {/* Unit Price */}
-                                <td className={`border-[2px] border-[#2b3a67] font-mono ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                <td
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  className={`border-[2px] border-[#2b3a67] font-mono ${
+                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                  }`}
+                                >
                                   {item ? item.unitPrice.toFixed(2) : ''}
                                 </td>
 
                                 {/* Total */}
-                                <td className={`border-[2px] border-[#2b3a67] font-mono ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                <td
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  className={`border-[2px] border-[#2b3a67] font-mono ${
+                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                  }`}
+                                >
                                   {item ? item.total.toFixed(2) : ''}
                                 </td>
                               </tr>
@@ -457,9 +490,9 @@ export const InvoicePrintModal: React.FC = () => {
                               <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-white text-[#2b3a67]">قيمة الضريبة</div>
                               <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.taxAmount > 0 ? inv.taxAmount.toFixed(2) : '0.00'}</div>
                             </div>
-                            <div className="flex bg-white text-[#2b3a67] font-black">
-                              <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-white text-[#2b3a67]">المبلغ الإجمالي</div>
-                              <div className="w-1/2 p-1 font-mono text-center bg-white text-[#2b3a67] font-black">{inv.totalAmount.toFixed(2)} {inv.currencySymbol || settings.currency}</div>
+                            <div className="flex bg-[#2b3a67] text-white font-black">
+                              <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-[#2b3a67] text-white">المبلغ الإجمالي</div>
+                              <div className="w-1/2 p-1 font-mono text-center bg-[#2b3a67] text-white font-black">{inv.totalAmount.toFixed(2)} {inv.currencySymbol || settings.currency}</div>
                             </div>
                           </div>
 
