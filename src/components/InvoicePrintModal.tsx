@@ -346,7 +346,7 @@ export const InvoicePrintModal: React.FC = () => {
                     chunkIdx < totalPages - 1 ? 'break-after-page print:break-after-page' : ''
                   }`}
                 >
-                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col justify-between p-3 space-y-3 print:p-2 print:space-y-2 bg-white">
+                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col justify-between p-2 space-y-1.5 print:p-1.5 print:space-y-1.5 bg-white">
                     
                     {/* Header Banner & Sub-bar */}
                     <PrintHeader
@@ -357,28 +357,28 @@ export const InvoicePrintModal: React.FC = () => {
                       showBorder={true}
                     />
 
-                    {/* Customer Info Box (Single Row without 'بيانات العميل' Header Bar) */}
-                    <div className="border-[2px] border-[#2b3a67] rounded-lg p-2 px-3 flex items-center justify-between gap-3 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight bg-white w-full print:flex print:flex-row print:justify-between print:items-center print:w-full print:py-1.5">
+                    {/* Customer Info Box (Single Row without 'بيانات العميل' Header Bar, inline flow without large blank gap) */}
+                    <div className="border-[2px] border-[#2b3a67] rounded-lg p-1.5 px-3 flex items-center justify-start gap-3 sm:gap-4 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight bg-white w-full print:flex print:flex-row print:justify-start print:items-center print:w-full print:py-1">
                       <div className="flex items-center gap-1.5 shrink min-w-0 print:flex print:items-center">
                         <span className="shrink-0 text-[#2b3a67]">اسم العميل:</span>
-                        <span className="text-slate-950 font-extrabold truncate max-w-[450px]">{formattedCustomerDisplayName}</span>
+                        <span className="text-slate-950 font-extrabold truncate max-w-[500px]">{formattedCustomerDisplayName}</span>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0 print:flex print:items-center">
-                        <span className="text-slate-300">|</span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[#2b3a67]">الهاتف:</span>
-                          <span className="font-mono text-slate-900 font-bold">{inv.customerPhone || inv.subCustomerPhone || '—'}</span>
-                        </div>
-                        {inv.customerTaxNumber && (
-                          <>
-                            <span className="text-slate-300">|</span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[#2b3a67]">الرقم الضريبي:</span>
-                              <span className="font-mono text-slate-900 font-bold">{inv.customerTaxNumber}</span>
-                            </div>
-                          </>
-                        )}
+                      
+                      <span className="text-slate-300">|</span>
+                      <div className="flex items-center gap-1 shrink-0 print:flex print:items-center">
+                        <span className="text-[#2b3a67]">الهاتف:</span>
+                        <span className="font-mono text-slate-900 font-bold">{inv.customerPhone || inv.subCustomerPhone || '—'}</span>
                       </div>
+
+                      {inv.customerTaxNumber && (
+                        <>
+                          <span className="text-slate-300">|</span>
+                          <div className="flex items-center gap-1 shrink-0 print:flex print:items-center">
+                            <span className="text-[#2b3a67]">الرقم الضريبي:</span>
+                            <span className="font-mono text-slate-900 font-bold">{inv.customerTaxNumber}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* Table (Exactly 15 rows numbered 1-15, thicker borders, pure white headers, shaded dark background for empty rows) */}

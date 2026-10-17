@@ -87,7 +87,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
   // CASE 1: Full Header Image is Uploaded (اعتماد الهيدر الكامل المصمم)
   if (hasFullHeader) {
     return (
-      <div className={`print-header w-full mb-4 print:mb-3 print:block ${className}`} data-component="print-header">
+      <div className={`print-header w-full mb-2 print:mb-1.5 print:block ${className}`} data-component="print-header">
         {/* Full Header Banner Image */}
         <div className="w-full overflow-hidden rounded-lg border border-slate-200/60 print:border-none print:rounded-none bg-white">
           <img
@@ -99,7 +99,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
 
         {/* Sub-bar for document identification: Centered Title in Blue Rounded Box, DocNumber Right, DocDate Left */}
         {(title || docNumber || docDate || badge || extraMeta || qrCode) && (
-          <div className={`mt-2 pt-2 pb-2.5 flex items-center justify-between gap-2 text-xs w-full ${showBorder ? 'border-b-2 border-slate-900' : ''}`}>
+          <div className={`mt-1 pt-1 pb-1 flex items-center justify-between gap-2 text-xs w-full ${showBorder ? 'border-b-2 border-slate-900' : ''}`}>
             {/* Right side in RTL: Invoice Number */}
             <div className="w-1/3 text-right font-mono text-xs text-slate-900 font-bold truncate">
               {docNumber && (
@@ -141,7 +141,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
 
   // CASE 2: Standard Header (Logo on Right + Arabic Name First + English Name Underneath + Paired Addresses & Phones)
   return (
-    <div className={`print-header w-full mb-4 print:mb-3 print:block ${showBorder ? 'border-b-2 border-slate-900 pb-4' : ''} ${className}`} data-component="print-header">
+    <div className={`print-header w-full mb-2 print:mb-1.5 print:block ${showBorder ? 'border-b-2 border-slate-900 pb-1.5' : ''} ${className}`} data-component="print-header">
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
         {/* Right side (RTL start): Logo on the Right, Name beside it, Paired Addresses/Phones */}
         <div className="flex items-start gap-3.5 flex-1 min-w-0">
@@ -223,7 +223,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
 
       {/* Full-width Sub-bar: Title in Centered Blue Rounded Box, DocNumber Right, DocDate Left */}
       {(title || docNumber || docDate || badge || extraMeta) && (
-        <div className="mt-3 pt-2 flex items-center justify-between gap-2 text-xs w-full">
+        <div className="mt-1.5 pt-1 pb-0.5 flex items-center justify-between gap-2 text-xs w-full">
           {/* Right side in RTL: Invoice Number */}
           <div className="w-1/3 text-right font-mono text-xs text-slate-900 font-bold truncate">
             {docNumber && (
@@ -237,7 +237,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
           {/* Center: Title in elegant blue outline rounded box with white background */}
           <div className="w-1/3 flex flex-col justify-center items-center">
             {title && (
-              <div className="border-2 border-[#2b3a67] text-[#2b3a67] font-black text-xs sm:text-sm px-6 py-1 rounded-xl text-center whitespace-nowrap inline-block tracking-wide bg-white">
+              <div className="border-2 border-[#2b3a67] text-[#2b3a67] font-black text-xs sm:text-sm px-6 py-0.5 rounded-xl text-center whitespace-nowrap inline-block tracking-wide bg-white">
                 {title}
               </div>
             )}
