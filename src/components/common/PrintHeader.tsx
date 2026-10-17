@@ -97,41 +97,41 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
           />
         </div>
 
-        {/* Sub-bar for document identification (Title, date, number, badge) */}
-        {(title || badge || docNumber || docDate || extraMeta || qrCode) && (
-          <div className={`mt-2 pt-2 flex flex-wrap items-center justify-between gap-2 text-xs ${showBorder ? 'border-b-2 border-slate-900 pb-2.5' : ''}`}>
-            <div>
-              {title && (
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">{title}</h2>
-                  {badge && (
-                    <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold ${badgeColor}`}>
-                      {badge}
-                    </span>
-                  )}
+        {/* Sub-bar for document identification: Centered Title in Blue Rounded Box, DocNumber Right, DocDate Left */}
+        {(title || docNumber || docDate || badge || extraMeta || qrCode) && (
+          <div className={`mt-2 pt-2 pb-2.5 flex items-center justify-between gap-2 text-xs w-full ${showBorder ? 'border-b-2 border-slate-900' : ''}`}>
+            {/* Right side in RTL: Invoice Number */}
+            <div className="w-1/3 text-right font-mono text-xs text-slate-900 font-bold truncate">
+              {docNumber && (
+                <div className="inline-flex items-center gap-1">
+                  <span className="text-slate-600 font-sans font-semibold text-xs">الرقم:</span>
+                  <strong className="text-slate-950 font-black text-sm">{docNumber}</strong>
                 </div>
               )}
-              {subtitle && <p className="text-[11px] text-slate-600 mt-0.5">{subtitle}</p>}
             </div>
 
-            <div className="flex items-center gap-3 mr-auto text-left font-mono">
-              {extraMeta}
-              <div className="text-[11px] text-slate-700 text-left space-y-0.5">
-                {docNumber && (
-                  <div>
-                    <span className="text-slate-500 font-sans">الرقم: </span>
-                    <strong className="text-slate-900">{docNumber}</strong>
-                  </div>
-                )}
-                {docDate && (
-                  <div>
-                    <span className="text-slate-500 font-sans">التاريخ: </span>
-                    <span>{docDate}</span>
-                  </div>
-                )}
-              </div>
-              {qrCode}
-              {rightAction}
+            {/* Center: Title in elegant blue rounded box with white text */}
+            <div className="w-1/3 flex flex-col justify-center items-center">
+              {title && (
+                <div className="bg-[#2b3a67] text-white font-bold text-xs sm:text-sm px-6 py-1.5 rounded-xl shadow-xs text-center whitespace-nowrap inline-block tracking-wide">
+                  {title}
+                </div>
+              )}
+              {badge && (
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold mt-1 ${badgeColor}`}>
+                  {badge}
+                </span>
+              )}
+            </div>
+
+            {/* Left side in RTL: Date */}
+            <div className="w-1/3 text-left font-mono text-xs text-slate-900 font-bold truncate">
+              {docDate && (
+                <div className="inline-flex items-center gap-1">
+                  <span className="text-slate-600 font-sans font-semibold text-xs">التاريخ:</span>
+                  <span className="text-slate-950 font-bold text-xs">{docDate}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -212,40 +212,54 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
           </div>
         </div>
 
-        {/* Left side (RTL end): Document Title / Badges / Numbers / QR Code */}
-        <div className="text-left shrink-0 flex flex-col items-end sm:min-w-[200px]">
-          {title && (
-            <div className="text-right sm:text-left mb-1.5">
-              <div className={`inline-block font-black text-sm px-3.5 py-1.5 rounded-lg shadow-xs ${badgeColor}`}>
-                {title}
-              </div>
-            </div>
-          )}
+        {/* Left side (RTL end): QR Code or Extra Action */}
+        {(qrCode || rightAction) && (
+          <div className="text-left shrink-0 flex flex-col items-end sm:min-w-[120px]">
+            {qrCode && <div className="mt-1">{qrCode}</div>}
+            {rightAction && <div className="mt-1">{rightAction}</div>}
+          </div>
+        )}
+      </div>
 
-          {subtitle && (
-            <p className="text-[10px] text-slate-500 font-medium mb-1 text-left">{subtitle}</p>
-          )}
-
-          <div className="text-[11px] text-slate-700 font-mono space-y-0.5 text-left">
+      {/* Full-width Sub-bar: Title in Centered Blue Rounded Box, DocNumber Right, DocDate Left */}
+      {(title || docNumber || docDate || badge || extraMeta) && (
+        <div className="mt-3 pt-2 flex items-center justify-between gap-2 text-xs w-full">
+          {/* Right side in RTL: Invoice Number */}
+          <div className="w-1/3 text-right font-mono text-xs text-slate-900 font-bold truncate">
             {docNumber && (
-              <div>
-                <span className="text-slate-500 font-sans">الرقم: </span>
-                <strong className="text-slate-900 font-bold">{docNumber}</strong>
+              <div className="inline-flex items-center gap-1">
+                <span className="text-slate-600 font-sans font-semibold text-xs">الرقم:</span>
+                <strong className="text-slate-950 font-black text-sm">{docNumber}</strong>
               </div>
             )}
+          </div>
+
+          {/* Center: Title in elegant blue rounded box with white text */}
+          <div className="w-1/3 flex flex-col justify-center items-center">
+            {title && (
+              <div className="bg-[#2b3a67] text-white font-bold text-xs sm:text-sm px-6 py-1.5 rounded-xl shadow-xs text-center whitespace-nowrap inline-block tracking-wide">
+                {title}
+              </div>
+            )}
+            {badge && (
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold mt-1 ${badgeColor}`}>
+                {badge}
+              </span>
+            )}
+          </div>
+
+          {/* Left side in RTL: Date */}
+          <div className="w-1/3 text-left font-mono text-xs text-slate-900 font-bold truncate">
             {docDate && (
-              <div>
-                <span className="text-slate-500 font-sans">التاريخ: </span>
-                <span>{docDate}</span>
+              <div className="inline-flex items-center gap-1">
+                <span className="text-slate-600 font-sans font-semibold text-xs">التاريخ:</span>
+                <span className="text-slate-950 font-bold text-xs">{docDate}</span>
               </div>
             )}
             {extraMeta}
           </div>
-
-          {qrCode && <div className="mt-2">{qrCode}</div>}
-          {rightAction && <div className="mt-2">{rightAction}</div>}
         </div>
-      </div>
+      )}
     </div>
   );
 };

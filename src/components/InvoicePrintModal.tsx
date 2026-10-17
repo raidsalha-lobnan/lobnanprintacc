@@ -44,16 +44,23 @@ export const InvoicePrintModal: React.FC = () => {
     window.print();
   };
 
-  const mainCust = (inv.customerName || 'عميل كاشير نقدي').trim();
+  const mainCust = (inv.customerName || '').trim();
   const subCust = (inv.subCustomerName || '').trim();
   const customTxt = (inv.customCustomerText || '').trim();
 
-  let formattedCustomerDisplayName = mainCust;
-  if (customTxt) {
-    formattedCustomerDisplayName += ` (${customTxt})`;
-  }
-  if (subCust && subCust.toLowerCase() !== mainCust.toLowerCase()) {
-    formattedCustomerDisplayName += ` / ${subCust}`;
+  let formattedCustomerDisplayName = '';
+
+  if (subCust) {
+    // Requirement: "في حال كان اسم الزبون فرعي لا يكرر الاسم فقط يكتب الفرعي مرة واحدة بدون ذكر الرئيسي"
+    formattedCustomerDisplayName = subCust;
+  } else if (customTxt) {
+    if (mainCust && mainCust !== 'عميل كاشير نقدي' && mainCust !== 'عميل نقدي' && mainCust !== customTxt) {
+      formattedCustomerDisplayName = `${mainCust} (${customTxt})`;
+    } else {
+      formattedCustomerDisplayName = customTxt;
+    }
+  } else {
+    formattedCustomerDisplayName = mainCust || 'عميل كاشير نقدي';
   }
 
   // =========================================================================
