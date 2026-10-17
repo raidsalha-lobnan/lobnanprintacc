@@ -342,13 +342,13 @@ export const InvoicePrintModal: React.FC = () => {
               return (
                 <div
                   key={chunkIdx}
-                  className={`border-[3px] border-[#2b3a67] p-1 pb-2 min-h-[1020px] flex flex-col relative mb-8 print:mb-0 ${
+                  className={`border-[3px] border-[#2b3a67] p-1.5 pb-2 flex flex-col justify-between relative mb-8 print:mb-0 print:border-[3px] print:border-[#2b3a67] print:h-[270mm] print:max-h-[275mm] print:break-inside-avoid print:box-border ${
                     chunkIdx < totalPages - 1 ? 'break-after-page print:break-after-page' : ''
                   }`}
                 >
-                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col p-4 space-y-4">
+                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col justify-between p-3 space-y-3 print:p-2 print:space-y-2">
                     
-                    {/* Replaced 'بيانات البائع' with Official Program Print Header (<PrintHeader />) */}
+                    {/* Header Banner & Sub-bar */}
                     <PrintHeader
                       title={isDraftPreview ? "مسودة فاتورة مبيعات" : "فاتورة مبيعات"}
                       docNumber={printInvoiceNumber}
@@ -357,53 +357,50 @@ export const InvoicePrintModal: React.FC = () => {
                       showBorder={true}
                     />
 
-                    {/* Customer Info Box */}
-                    <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden">
-                      <div className="bg-[#d2e0ee] text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
-                        بيانات العميل
+                    {/* Customer Info Box (Single Row without 'بيانات العميل' Header Bar) */}
+                    <div className="border border-[#2b3a67] rounded-lg p-2 px-3 flex items-center justify-between gap-3 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight bg-white w-full print:flex print:flex-row print:justify-between print:items-center print:w-full print:py-1.5">
+                      <div className="flex items-center gap-1.5 shrink min-w-0 print:flex print:items-center">
+                        <span className="shrink-0 text-[#2b3a67]">اسم العميل:</span>
+                        <span className="text-slate-950 font-extrabold truncate max-w-[450px]">{formattedCustomerDisplayName}</span>
                       </div>
-                      <div className="p-2 flex items-center justify-between gap-2 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight">
-                        <div className="flex items-center gap-1 shrink truncate">
-                          <span>اسم العميل:</span>
-                          <span className="text-slate-900 truncate">{formattedCustomerDisplayName}</span>
-                        </div>
-                        <span className="text-slate-300 shrink-0">|</span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span>الهاتف:</span>
-                          <span className="font-mono text-slate-900">{inv.customerPhone || inv.subCustomerPhone || '—'}</span>
+                      <div className="flex items-center gap-2 shrink-0 print:flex print:items-center">
+                        <span className="text-slate-300">|</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[#2b3a67]">الهاتف:</span>
+                          <span className="font-mono text-slate-900 font-bold">{inv.customerPhone || inv.subCustomerPhone || '—'}</span>
                         </div>
                         {inv.customerTaxNumber && (
                           <>
-                            <span className="text-slate-300 shrink-0">|</span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <span>الرقم الضريبي:</span>
-                              <span className="font-mono text-slate-900">{inv.customerTaxNumber}</span>
+                            <span className="text-slate-300">|</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[#2b3a67]">الرقم الضريبي:</span>
+                              <span className="font-mono text-slate-900 font-bold">{inv.customerTaxNumber}</span>
                             </div>
                           </>
                         )}
                       </div>
                     </div>
 
-                    {/* Table (Exactly up to 15 items per page) */}
-                    <div className="flex-1 flex flex-col">
+                    {/* Table (Fits cleanly within single page height) */}
+                    <div className="flex-1 flex flex-col justify-start">
                       <table className="w-full text-center border-collapse border border-[#2b3a67]">
                         <thead>
-                          <tr className="bg-[#d2e0ee] text-[#2b3a67] font-bold text-base">
-                            <th className="border border-[#2b3a67] py-2 w-12">م</th>
-                            <th className="border border-[#2b3a67] py-2 w-48">الصنف</th>
-                            <th className="border border-[#2b3a67] py-2">البيان</th>
-                            <th className="border border-[#2b3a67] py-2 w-24">الكمية</th>
-                            <th className="border border-[#2b3a67] py-2 w-28">سعر الوحدة</th>
-                            <th className="border border-[#2b3a67] py-2 w-28">الإجمالي</th>
+                          <tr className="bg-slate-100 text-[#2b3a67] font-bold text-xs border-b border-[#2b3a67]">
+                            <th className="border border-[#2b3a67] py-1.5 w-10">م</th>
+                            <th className="border border-[#2b3a67] py-1.5 w-48">الصنف</th>
+                            <th className="border border-[#2b3a67] py-1.5">البيان</th>
+                            <th className="border border-[#2b3a67] py-1.5 w-20">الكمية</th>
+                            <th className="border border-[#2b3a67] py-1.5 w-24">سعر الوحدة</th>
+                            <th className="border border-[#2b3a67] py-1.5 w-24">الإجمالي</th>
                           </tr>
                         </thead>
-                        <tbody className="text-sm font-bold text-[#2b3a67]">
-                          {/* Render exact 15 rows padding if needed */}
-                          {Array.from({ length: Math.max(15, chunk.length) }).map((_, rowIdx) => {
+                        <tbody className="text-xs font-bold text-[#2b3a67]">
+                          {/* Pad empty rows dynamically without overflowing page height */}
+                          {Array.from({ length: Math.min(12, Math.max(chunk.length, 6)) }).map((_, rowIdx) => {
                             const item = chunk[rowIdx];
                             const overallIndex = chunkIdx * ITEMS_PER_PAGE + rowIdx + 1;
                             return (
-                              <tr key={rowIdx} className="h-[2.1rem]">
+                              <tr key={rowIdx} className="h-[1.85rem]">
                                 <td className="border border-[#2b3a67] font-mono text-slate-600">{item ? overallIndex : ''}</td>
                                 <td className="border border-[#2b3a67] px-2 text-right font-bold truncate">
                                   {item ? item.itemName : ''}
@@ -427,36 +424,36 @@ export const InvoicePrintModal: React.FC = () => {
                       </table>
                     </div>
 
-                    {/* Footer and Totals */}
+                    {/* Footer and Totals (Stays on same page) */}
                     {isLastPage ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-6 items-start mt-1">
-                          {/* Totals Box */}
-                          <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-sm">
+                      <div className="space-y-3 shrink-0">
+                        <div className="grid grid-cols-2 gap-4 items-start mt-1">
+                          {/* Totals Box (Clean White & Slate, No Extra Blue Shading) */}
+                          <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-xs">
                             <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1.5 font-bold text-center border-l border-[#2b3a67] bg-[#d2e0ee] text-[#2b3a67]">إجمالي المبلغ</div>
-                              <div className="w-1/2 p-1.5 font-mono text-center font-bold text-[#2b3a67]">{inv.subtotal.toFixed(2)}</div>
+                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-slate-100 text-[#2b3a67]">إجمالي المبلغ</div>
+                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67]">{inv.subtotal.toFixed(2)}</div>
                             </div>
                             <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1.5 font-bold text-center border-l border-[#2b3a67] bg-[#d2e0ee] text-[#2b3a67]">الخصم</div>
-                              <div className="w-1/2 p-1.5 font-mono text-center font-bold text-[#2b3a67]">{inv.discountTotal > 0 ? inv.discountTotal.toFixed(2) : '0.00'}</div>
+                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-slate-100 text-[#2b3a67]">الخصم</div>
+                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67]">{inv.discountTotal > 0 ? inv.discountTotal.toFixed(2) : '0.00'}</div>
                             </div>
                             <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1.5 font-bold text-center border-l border-[#2b3a67] bg-[#d2e0ee] text-[#2b3a67]">قيمة الضريبة (إن وجدت)</div>
-                              <div className="w-1/2 p-1.5 font-mono text-center font-bold text-[#2b3a67]">{inv.taxAmount > 0 ? inv.taxAmount.toFixed(2) : '0.00'}</div>
+                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-slate-100 text-[#2b3a67]">قيمة الضريبة (إن وجدت)</div>
+                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67]">{inv.taxAmount > 0 ? inv.taxAmount.toFixed(2) : '0.00'}</div>
                             </div>
                             <div className="flex bg-[#2b3a67] text-white">
-                              <div className="w-1/2 p-1.5 font-bold text-center border-l border-[#2b3a67]">المبلغ الإجمالي</div>
-                              <div className="w-1/2 p-1.5 font-mono text-center bg-white text-[#2b3a67] font-black">{inv.totalAmount.toFixed(2)} {inv.currencySymbol || settings.currency}</div>
+                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67]">المبلغ الإجمالي</div>
+                              <div className="w-1/2 p-1 font-mono text-center bg-white text-[#2b3a67] font-black">{inv.totalAmount.toFixed(2)} {inv.currencySymbol || settings.currency}</div>
                             </div>
                           </div>
 
                           {/* Notes Box */}
-                          <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[120px]">
-                            <div className="bg-[#d2e0ee] text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
+                          <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[90px]">
+                            <div className="bg-slate-100 text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
                               ملاحظات
                             </div>
-                            <div className="p-3 font-medium text-slate-700 text-xs whitespace-pre-wrap flex-1">
+                            <div className="p-2 font-medium text-slate-700 text-xs whitespace-pre-wrap flex-1">
                               {inv.notes || 'لا توجد ملاحظات إضافية'}
                             </div>
                           </div>
@@ -466,7 +463,7 @@ export const InvoicePrintModal: React.FC = () => {
                         <ReportSignatures columns={2} rightLabel="توقيع وختم المستلم" leftLabel="الختم" />
                       </div>
                     ) : (
-                      <div className="text-center py-2 text-[#2b3a67] font-bold text-xs border border-[#2b3a67] bg-[#f0f4f8] rounded-md">
+                      <div className="text-center py-1.5 text-[#2b3a67] font-bold text-xs border border-[#2b3a67] bg-slate-50 rounded-md">
                         يتبع باقي البنود في الصفحة التالية... (صفحة {pageNumber} من {totalPages})
                       </div>
                     )}
