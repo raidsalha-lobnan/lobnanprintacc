@@ -44,9 +44,17 @@ export const InvoicePrintModal: React.FC = () => {
     window.print();
   };
 
-  const formattedCustomerDisplayName = `${inv.customerName || 'عميل كاشير نقدي'}${
-    inv.customCustomerText ? ` (${inv.customCustomerText})` : ''
-  }${inv.subCustomerName ? ` - زبون فرعي: ${inv.subCustomerName}` : ''}`;
+  const mainCust = (inv.customerName || 'عميل كاشير نقدي').trim();
+  const subCust = (inv.subCustomerName || '').trim();
+  const customTxt = (inv.customCustomerText || '').trim();
+
+  let formattedCustomerDisplayName = mainCust;
+  if (customTxt) {
+    formattedCustomerDisplayName += ` (${customTxt})`;
+  }
+  if (subCust && subCust.toLowerCase() !== mainCust.toLowerCase()) {
+    formattedCustomerDisplayName += ` / ${subCust}`;
+  }
 
   // =========================================================================
   // REQUIREMENT: 15 ITEMS PER PRINTED PAGE & INVOICE NUMBER EXTENSION (-1, -2) FOR PRINT ONLY

@@ -93,6 +93,11 @@ export async function getOrCreateBackupFolder(token: string): Promise<string> {
     { headers: { Authorization: `Bearer ${token}` } }
   );
 
+  if (searchRes.status === 401) {
+    setCachedDriveToken(null);
+    throw new Error('انتهت صلاحية رمز الوصول لـ Google Drive (401). يرجى المزامنة وإعادة الاتصال.');
+  }
+
   if (searchRes.ok) {
     const data = await searchRes.json();
     if (data.files && data.files.length > 0) {
@@ -112,6 +117,11 @@ export async function getOrCreateBackupFolder(token: string): Promise<string> {
       description: BACKUP_DRIVE_FOLDER_DESC
     })
   });
+
+  if (createRes.status === 401) {
+    setCachedDriveToken(null);
+    throw new Error('انتهت صلاحية رمز الوصول لـ Google Drive (401). يرجى المزامنة وإعادة الاتصال.');
+  }
 
   if (!createRes.ok) {
     throw new Error(`فشل إنشاء مجلد النسخ الاحتياطي (${createRes.status})`);
@@ -165,6 +175,11 @@ export async function uploadBackupJsonToDrive(token: string, payload: any): Prom
       body: fullBody
     });
 
+    if (uploadRes.status === 401) {
+      setCachedDriveToken(null);
+      return { success: false, error: 'انتهت صلاحية رمز الوصول لـ Google Drive (401).' };
+    }
+
     if (!uploadRes.ok) {
       throw new Error(`فشل رفع النسخة الاحتياطية (${uploadRes.status})`);
     }
@@ -172,7 +187,10 @@ export async function uploadBackupJsonToDrive(token: string, payload: any): Prom
     const resJson = await uploadRes.json();
     return { success: true, fileId: resJson.id, fileName: resJson.name };
   } catch (error: any) {
-    console.error('Error uploading backup to Google Drive:', error);
+    if (error?.message?.includes('401')) {
+      setCachedDriveToken(null);
+    }
+    console.warn('Error uploading backup to Google Drive:', error?.message || error);
     return { success: false, error: error?.message || 'Unknown error' };
   }
 }
@@ -185,6 +203,11 @@ export async function listDriveBackupFiles(token: string): Promise<DriveBackupFi
       `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,size,createdTime,modifiedTime,webViewLink,webContentLink)&orderBy=createdTime desc`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
+
+    if (res.status === 401) {
+      setCachedDriveToken(null);
+      return [];
+    }
 
     if (!res.ok) return [];
 
@@ -211,8 +234,11 @@ export async function listDriveBackupFiles(token: string): Promise<DriveBackupFi
         formattedDate: new Date(createdTime).toLocaleString('ar-PS')
       };
     });
-  } catch (err) {
-    console.error('Error listing backup files:', err);
+  } catch (err: any) {
+    if (err?.message?.includes('401')) {
+      setCachedDriveToken(null);
+    }
+    console.warn('Error listing backup files:', err?.message || err);
     return [];
   }
 }
@@ -223,6 +249,10 @@ export async function deleteSingleBackupFile(token: string, fileId: string): Pro
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
+    if (res.status === 401) {
+      setCachedDriveToken(null);
+      return false;
+    }
     return res.ok;
   } catch {
     return false;

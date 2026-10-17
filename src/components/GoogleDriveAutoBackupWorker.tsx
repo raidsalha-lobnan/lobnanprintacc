@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useAccounting } from '../context/AccountingContext';
 import {
   getCachedDriveToken,
+  setCachedDriveToken,
   executeHourlyDriveBackupFlow
 } from '../services/googleDriveBackupService';
 
@@ -91,10 +92,16 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
           localStorage.setItem(STORAGE_KEY_LAST_INFO, JSON.stringify(result));
           console.log('✓ Google Drive hourly backup succeeded:', result.fileName, `(Deleted ${result.deletedOldBackupsCount} backups older than 7 days)`);
         } else {
+          if (result.error?.includes('401') || result.error?.includes('انتهت صلاحية')) {
+            setCachedDriveToken(null);
+          }
           console.warn('Google Drive hourly backup failed:', result.error);
         }
-      } catch (err) {
-        console.warn('Hourly backup worker error:', err);
+      } catch (err: any) {
+        if (err?.message?.includes('401')) {
+          setCachedDriveToken(null);
+        }
+        console.warn('Hourly backup worker error:', err?.message || err);
       } finally {
         isRunningRef.current = false;
       }
