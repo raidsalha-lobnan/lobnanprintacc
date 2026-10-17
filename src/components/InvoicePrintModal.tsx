@@ -485,8 +485,8 @@ export const InvoicePrintModal: React.FC = () => {
                               <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">قيمة الضريبة</div>
                               <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.taxAmount > 0 ? inv.taxAmount.toFixed(2) : '0.00'}</div>
                             </div>
-                            <div className="flex bg-[#2b3a67] text-white">
-                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67]">المبلغ الإجمالي</div>
+                            <div className="flex border-t border-[#2b3a67] bg-white text-[#2b3a67] font-black">
+                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">المبلغ الإجمالي</div>
                               <div className="w-1/2 p-1 font-mono text-center bg-white text-[#2b3a67] font-black">{inv.totalAmount.toFixed(2)} {inv.currencySymbol || settings.currency}</div>
                             </div>
                           </div>

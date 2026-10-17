@@ -110,10 +110,10 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
               )}
             </div>
 
-            {/* Center: Title in elegant blue rounded box with white text */}
+            {/* Center: Title in elegant blue outline rounded box with white background */}
             <div className="w-1/3 flex flex-col justify-center items-center">
               {title && (
-                <div className="bg-[#2b3a67] text-white font-bold text-xs sm:text-sm px-6 py-1.5 rounded-xl shadow-xs text-center whitespace-nowrap inline-block tracking-wide">
+                <div className="border-2 border-[#2b3a67] text-[#2b3a67] font-black text-xs sm:text-sm px-6 py-1 rounded-xl text-center whitespace-nowrap inline-block tracking-wide bg-white">
                   {title}
                 </div>
               )}
@@ -234,10 +234,10 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
             )}
           </div>
 
-          {/* Center: Title in elegant blue rounded box with white text */}
+          {/* Center: Title in elegant blue outline rounded box with white background */}
           <div className="w-1/3 flex flex-col justify-center items-center">
             {title && (
-              <div className="bg-[#2b3a67] text-white font-bold text-xs sm:text-sm px-6 py-1.5 rounded-xl shadow-xs text-center whitespace-nowrap inline-block tracking-wide">
+              <div className="border-2 border-[#2b3a67] text-[#2b3a67] font-black text-xs sm:text-sm px-6 py-1 rounded-xl text-center whitespace-nowrap inline-block tracking-wide bg-white">
                 {title}
               </div>
             )}
