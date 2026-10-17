@@ -333,7 +333,7 @@ export const InvoicePrintModal: React.FC = () => {
           </div>
         ) : printFormat === 'a4-custom' ? (
           /* A4 Custom Print Format */
-          <div className="p-8 text-slate-800 text-sm font-sans print:p-0" dir="rtl">
+          <div className="p-8 text-slate-800 text-sm font-sans print:p-0 bg-white" dir="rtl">
             {itemChunks.map((chunk, chunkIdx) => {
               const pageNumber = chunkIdx + 1;
               const printInvoiceNumber = isMultiPage ? `${inv.invoiceNumber}-${pageNumber}` : inv.invoiceNumber;
@@ -342,11 +342,11 @@ export const InvoicePrintModal: React.FC = () => {
               return (
                 <div
                   key={chunkIdx}
-                  className={`border-[3px] border-[#2b3a67] p-1.5 pb-2 flex flex-col justify-between relative mb-8 print:mb-0 print:border-[3px] print:border-[#2b3a67] print:h-[270mm] print:max-h-[275mm] print:break-inside-avoid print:box-border ${
+                  className={`border-[3px] border-[#2b3a67] p-1.5 pb-2 flex flex-col justify-between relative mb-8 print:mb-0 print:border-[3px] print:border-[#2b3a67] print:h-[270mm] print:max-h-[275mm] print:break-inside-avoid print:box-border bg-white ${
                     chunkIdx < totalPages - 1 ? 'break-after-page print:break-after-page' : ''
                   }`}
                 >
-                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col justify-between p-3 space-y-3 print:p-2 print:space-y-2">
+                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col justify-between p-3 space-y-3 print:p-2 print:space-y-2 bg-white">
                     
                     {/* Header Banner & Sub-bar */}
                     <PrintHeader
@@ -381,41 +381,84 @@ export const InvoicePrintModal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Table (Fits cleanly within single page height) */}
-                    <div className="flex-1 flex flex-col justify-start">
-                      <table className="w-full text-center border-collapse border border-[#2b3a67]">
+                    {/* Table (Exactly 15 rows numbered 1-15, thin middle line for empty rows) */}
+                    <div className="flex-1 flex flex-col justify-start bg-white">
+                      <table className="w-full text-center border-collapse border border-[#2b3a67] bg-white">
                         <thead>
-                          <tr className="bg-slate-100 text-[#2b3a67] font-bold text-xs border-b border-[#2b3a67]">
-                            <th className="border border-[#2b3a67] py-1.5 w-10">م</th>
-                            <th className="border border-[#2b3a67] py-1.5 w-48">الصنف</th>
-                            <th className="border border-[#2b3a67] py-1.5">البيان</th>
-                            <th className="border border-[#2b3a67] py-1.5 w-20">الكمية</th>
-                            <th className="border border-[#2b3a67] py-1.5 w-24">سعر الوحدة</th>
-                            <th className="border border-[#2b3a67] py-1.5 w-24">الإجمالي</th>
+                          <tr className="bg-white text-[#2b3a67] font-bold text-xs border-b border-[#2b3a67]">
+                            <th className="border border-[#2b3a67] py-1.5 w-10 bg-white">م</th>
+                            <th className="border border-[#2b3a67] py-1.5 w-48 bg-white">الصنف</th>
+                            <th className="border border-[#2b3a67] py-1.5 bg-white">البيان</th>
+                            <th className="border border-[#2b3a67] py-1.5 w-20 bg-white">الكمية</th>
+                            <th className="border border-[#2b3a67] py-1.5 w-24 bg-white">سعر الوحدة</th>
+                            <th className="border border-[#2b3a67] py-1.5 w-24 bg-white">الإجمالي</th>
                           </tr>
                         </thead>
-                        <tbody className="text-xs font-bold text-[#2b3a67]">
-                          {/* Pad empty rows dynamically without overflowing page height */}
-                          {Array.from({ length: Math.min(12, Math.max(chunk.length, 6)) }).map((_, rowIdx) => {
+                        <tbody className="text-xs font-bold text-[#2b3a67] bg-white">
+                          {/* Always render 15 rows numbered 1-15 */}
+                          {Array.from({ length: 15 }).map((_, rowIdx) => {
                             const item = chunk[rowIdx];
                             const overallIndex = chunkIdx * ITEMS_PER_PAGE + rowIdx + 1;
                             return (
-                              <tr key={rowIdx} className="h-[1.85rem]">
-                                <td className="border border-[#2b3a67] font-mono text-slate-600">{item ? overallIndex : ''}</td>
-                                <td className="border border-[#2b3a67] px-2 text-right font-bold truncate">
-                                  {item ? item.itemName : ''}
+                              <tr key={rowIdx} className="h-[1.65rem]">
+                                {/* Column م: Always numbered 1 to 15 */}
+                                <td className="border border-[#2b3a67] font-mono text-slate-800 font-bold bg-white text-center w-10">
+                                  {overallIndex}
                                 </td>
-                                <td className="border border-[#2b3a67] px-2 text-right font-medium text-xs text-slate-800">
-                                  {item ? (item.notes || item.description || '') : ''}
+
+                                {/* Item Name */}
+                                <td className="border border-[#2b3a67] px-2 text-right font-bold truncate bg-white">
+                                  {item ? (
+                                    item.itemName
+                                  ) : (
+                                    <div className="w-full flex items-center justify-center h-full px-0.5">
+                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
+                                    </div>
+                                  )}
                                 </td>
-                                <td className="border border-[#2b3a67] font-mono">
-                                  {item ? item.quantity : ''}
+
+                                {/* Description / Notes */}
+                                <td className="border border-[#2b3a67] px-2 text-right font-medium text-xs text-slate-800 bg-white">
+                                  {item ? (
+                                    item.notes || item.description || ''
+                                  ) : (
+                                    <div className="w-full flex items-center justify-center h-full px-0.5">
+                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
+                                    </div>
+                                  )}
                                 </td>
-                                <td className="border border-[#2b3a67] font-mono">
-                                  {item ? item.unitPrice.toFixed(2) : ''}
+
+                                {/* Quantity */}
+                                <td className="border border-[#2b3a67] font-mono bg-white">
+                                  {item ? (
+                                    item.quantity
+                                  ) : (
+                                    <div className="w-full flex items-center justify-center h-full px-0.5">
+                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
+                                    </div>
+                                  )}
                                 </td>
-                                <td className="border border-[#2b3a67] font-mono">
-                                  {item ? item.total.toFixed(2) : ''}
+
+                                {/* Unit Price */}
+                                <td className="border border-[#2b3a67] font-mono bg-white">
+                                  {item ? (
+                                    item.unitPrice.toFixed(2)
+                                  ) : (
+                                    <div className="w-full flex items-center justify-center h-full px-0.5">
+                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* Total */}
+                                <td className="border border-[#2b3a67] font-mono bg-white">
+                                  {item ? (
+                                    item.total.toFixed(2)
+                                  ) : (
+                                    <div className="w-full flex items-center justify-center h-full px-0.5">
+                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             );
@@ -426,21 +469,21 @@ export const InvoicePrintModal: React.FC = () => {
 
                     {/* Footer and Totals (Stays on same page) */}
                     {isLastPage ? (
-                      <div className="space-y-3 shrink-0">
+                      <div className="space-y-3 shrink-0 bg-white">
                         <div className="grid grid-cols-2 gap-4 items-start mt-1">
-                          {/* Totals Box (Clean White & Slate, No Extra Blue Shading) */}
-                          <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-xs">
+                          {/* Totals Box with Complete Dark Blue Outer Border */}
+                          <div className="border-[2px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-xs bg-white">
                             <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-slate-100 text-[#2b3a67]">إجمالي المبلغ</div>
-                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67]">{inv.subtotal.toFixed(2)}</div>
+                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">إجمالي المبلغ</div>
+                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.subtotal.toFixed(2)}</div>
                             </div>
                             <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-slate-100 text-[#2b3a67]">الخصم</div>
-                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67]">{inv.discountTotal > 0 ? inv.discountTotal.toFixed(2) : '0.00'}</div>
+                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">الخصم</div>
+                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.discountTotal > 0 ? inv.discountTotal.toFixed(2) : '0.00'}</div>
                             </div>
                             <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-slate-100 text-[#2b3a67]">قيمة الضريبة (إن وجدت)</div>
-                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67]">{inv.taxAmount > 0 ? inv.taxAmount.toFixed(2) : '0.00'}</div>
+                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">قيمة الضريبة</div>
+                              <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.taxAmount > 0 ? inv.taxAmount.toFixed(2) : '0.00'}</div>
                             </div>
                             <div className="flex bg-[#2b3a67] text-white">
                               <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67]">المبلغ الإجمالي</div>
@@ -449,11 +492,11 @@ export const InvoicePrintModal: React.FC = () => {
                           </div>
 
                           {/* Notes Box */}
-                          <div className="border border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[90px]">
-                            <div className="bg-slate-100 text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
+                          <div className="border-[2px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[90px] bg-white">
+                            <div className="bg-white text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
                               ملاحظات
                             </div>
-                            <div className="p-2 font-medium text-slate-700 text-xs whitespace-pre-wrap flex-1">
+                            <div className="p-2 font-medium text-slate-800 text-xs whitespace-pre-wrap flex-1 bg-white">
                               {inv.notes || 'لا توجد ملاحظات إضافية'}
                             </div>
                           </div>
@@ -463,7 +506,7 @@ export const InvoicePrintModal: React.FC = () => {
                         <ReportSignatures columns={2} rightLabel="توقيع وختم المستلم" leftLabel="الختم" />
                       </div>
                     ) : (
-                      <div className="text-center py-1.5 text-[#2b3a67] font-bold text-xs border border-[#2b3a67] bg-slate-50 rounded-md">
+                      <div className="text-center py-1.5 text-[#2b3a67] font-bold text-xs border border-[#2b3a67] bg-white rounded-md">
                         يتبع باقي البنود في الصفحة التالية... (صفحة {pageNumber} من {totalPages})
                       </div>
                     )}

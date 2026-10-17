@@ -20,21 +20,19 @@ export const ReportSignatures: React.FC<ReportSignaturesProps> = ({
   return (
     <div className={`pt-6 border-t border-slate-300 grid gap-6 text-center text-xs mt-6 ${columns === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
       {/* Right Column: توقيع وختم المستلم */}
-      <div className="space-y-4 flex flex-col items-center justify-end">
+      <div className="space-y-4 flex flex-col items-center justify-end min-h-[80px]">
         <span className="font-bold text-slate-800 text-sm block mb-auto">{rightLabel}</span>
-        <div className="border-b border-dashed border-slate-400 w-48 mx-auto mt-8"></div>
       </div>
 
       {/* Center Column (Only if columns === 3) */}
       {columns === 3 && (
-        <div className="space-y-4 flex flex-col items-center justify-end">
+        <div className="space-y-4 flex flex-col items-center justify-end min-h-[80px]">
           <span className="font-bold text-slate-800 text-sm block mb-auto">{centerLabel}</span>
-          <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
         </div>
       )}
 
       {/* Left Column: الختم */}
-      <div className="space-y-2 flex flex-col items-center justify-end">
+      <div className="space-y-2 flex flex-col items-center justify-end min-h-[80px]">
         <span className="font-bold text-slate-800 text-sm block mb-auto">{leftLabel}</span>
         
         <div className="min-h-[3.8cm] flex items-center justify-center relative">
@@ -55,9 +53,7 @@ export const ReportSignatures: React.FC<ReportSignaturesProps> = ({
               alt="Signature"
               className="max-h-16 max-w-[140px] object-contain mix-blend-multiply opacity-90"
             />
-          ) : (
-            <div className="border-b border-dashed border-slate-400 w-48 mx-auto mt-8"></div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
