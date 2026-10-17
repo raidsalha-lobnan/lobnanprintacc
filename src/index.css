@@ -1269,6 +1269,20 @@ fieldset legend, .vb-groupbox legend {
     padding: 8px !important;
     box-sizing: border-box !important;
   }
+
+  .a4-totals-box,
+  .a4-notes-box {
+    border: 2.5px solid #2b3a67 !important;
+    box-sizing: border-box !important;
+    background-color: #ffffff !important;
+  }
+}
+
+.a4-totals-box,
+.a4-notes-box {
+  border: 2.5px solid #2b3a67 !important;
+  box-sizing: border-box !important;
+  background-color: #ffffff !important;
 }
 
 .invoice-print-table {
@@ -1292,7 +1306,7 @@ fieldset legend, .vb-groupbox legend {
 
 .invoice-print-table tbody tr.empty-row-shaded td,
 td.empty-row-shaded {
-  background-color: rgba(43, 58, 103, 0.15) !important;
+  background-color: rgba(43, 58, 103, 0.05) !important;
   -webkit-print-color-adjust: exact !important;
   print-color-adjust: exact !important;
 }

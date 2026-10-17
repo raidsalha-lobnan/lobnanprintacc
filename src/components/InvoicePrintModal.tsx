@@ -411,13 +411,13 @@ export const InvoicePrintModal: React.FC = () => {
                             return (
                               <tr
                                 key={rowIdx}
-                                className={`h-[1.65rem] ${isEmpty ? 'empty-row-shaded bg-[#2b3a67]/15' : 'bg-white'}`}
+                                className={`h-[1.65rem] ${isEmpty ? 'empty-row-shaded bg-[#2b3a67]/5' : 'bg-white'}`}
                               >
                                 {/* Column م: Always numbered 1 to 15 */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.05)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] font-mono font-extrabold text-center w-10 ${
-                                    isEmpty ? 'bg-[#2b3a67]/15 text-[#2b3a67]' : 'bg-white text-slate-900'
+                                    isEmpty ? 'bg-[#2b3a67]/5 text-[#2b3a67]' : 'bg-white text-slate-900'
                                   }`}
                                 >
                                   {overallIndex}
@@ -425,9 +425,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Item Name */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.05)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] px-2 text-right font-bold truncate ${
-                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/5' : 'bg-white'
                                   }`}
                                 >
                                   {item ? item.itemName : ''}
@@ -435,9 +435,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Description / Notes */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.05)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] px-2 text-right font-medium text-xs text-slate-800 ${
-                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/5' : 'bg-white'
                                   }`}
                                 >
                                   {item ? (item.notes || item.description || '') : ''}
@@ -445,9 +445,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Quantity */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.05)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] font-mono ${
-                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/5' : 'bg-white'
                                   }`}
                                 >
                                   {item ? item.quantity : ''}
@@ -455,9 +455,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Unit Price */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.05)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] font-mono ${
-                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/5' : 'bg-white'
                                   }`}
                                 >
                                   {item ? item.unitPrice.toFixed(2) : ''}
@@ -465,9 +465,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Total */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.05)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] font-mono ${
-                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/5' : 'bg-white'
                                   }`}
                                 >
                                   {item ? item.total.toFixed(2) : ''}
@@ -482,9 +482,12 @@ export const InvoicePrintModal: React.FC = () => {
                     {/* Footer and Totals (Stays on same page) */}
                     {isLastPage ? (
                       <div className="space-y-3 shrink-0 bg-white">
-                        <div className="grid grid-cols-2 gap-4 items-start mt-1">
+                        <div className="grid grid-cols-2 gap-4 items-start mt-1 bg-white">
                           {/* Totals Box with Complete Dark Blue Outer Border */}
-                          <div className="border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-xs bg-white">
+                          <div
+                            className="a4-totals-box border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-xs bg-white"
+                            style={{ border: '2.5px solid #2b3a67' }}
+                          >
                             <div className="flex border-b-[2px] border-[#2b3a67]">
                               <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-white text-[#2b3a67]">إجمالي المبلغ</div>
                               <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.subtotal.toFixed(2)}</div>
@@ -504,7 +507,10 @@ export const InvoicePrintModal: React.FC = () => {
                           </div>
 
                           {/* Notes Box */}
-                          <div className="border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[90px] bg-white">
+                          <div
+                            className="a4-notes-box border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[90px] bg-white"
+                            style={{ border: '2.5px solid #2b3a67' }}
+                          >
                             <div className="bg-white text-[#2b3a67] font-bold text-center py-1 border-b-[2px] border-[#2b3a67] text-xs">
                               ملاحظات
                             </div>
