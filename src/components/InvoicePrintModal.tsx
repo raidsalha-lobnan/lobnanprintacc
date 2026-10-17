@@ -388,17 +388,17 @@ export const InvoicePrintModal: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, pure white headers, 15% blue shaded background for empty rows) */}
+                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, dark blue table header with white text, 15% blue shaded background for empty rows) */}
                     <div className="flex-1 flex flex-col justify-start bg-white">
                       <table className="invoice-print-table w-full text-center border-collapse border-[2.5px] border-[#2b3a67] bg-white">
                         <thead>
-                          <tr className="bg-white text-[#2b3a67] font-black text-xs border-b-[2.5px] border-[#2b3a67]">
-                            <th className="border-[2px] border-[#2b3a67] py-2 w-10 bg-white">م</th>
-                            <th className="border-[2px] border-[#2b3a67] py-2 w-48 bg-white">الصنف</th>
-                            <th className="border-[2px] border-[#2b3a67] py-2 bg-white">البيان</th>
-                            <th className="border-[2px] border-[#2b3a67] py-2 w-20 bg-white">الكمية</th>
-                            <th className="border-[2px] border-[#2b3a67] py-2 w-24 bg-white">سعر الوحدة</th>
-                            <th className="border-[2px] border-[#2b3a67] py-2 w-24 bg-white">الإجمالي</th>
+                          <tr className="bg-[#2b3a67] text-white font-black text-xs border-b-[2.5px] border-[#2b3a67]">
+                            <th style={{ backgroundColor: '#2b3a67', color: '#ffffff' }} className="border-[2px] border-[#2b3a67] py-2 w-10 bg-[#2b3a67] text-white font-black">م</th>
+                            <th style={{ backgroundColor: '#2b3a67', color: '#ffffff' }} className="border-[2px] border-[#2b3a67] py-2 w-48 bg-[#2b3a67] text-white font-black">الصنف</th>
+                            <th style={{ backgroundColor: '#2b3a67', color: '#ffffff' }} className="border-[2px] border-[#2b3a67] py-2 bg-[#2b3a67] text-white font-black">البيان</th>
+                            <th style={{ backgroundColor: '#2b3a67', color: '#ffffff' }} className="border-[2px] border-[#2b3a67] py-2 w-20 bg-[#2b3a67] text-white font-black">الكمية</th>
+                            <th style={{ backgroundColor: '#2b3a67', color: '#ffffff' }} className="border-[2px] border-[#2b3a67] py-2 w-24 bg-[#2b3a67] text-white font-black">سعر الوحدة</th>
+                            <th style={{ backgroundColor: '#2b3a67', color: '#ffffff' }} className="border-[2px] border-[#2b3a67] py-2 w-24 bg-[#2b3a67] text-white font-black">الإجمالي</th>
                           </tr>
                         </thead>
                         <tbody className="text-xs font-bold text-[#2b3a67]">

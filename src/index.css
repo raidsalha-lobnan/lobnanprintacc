@@ -1254,13 +1254,17 @@ fieldset legend, .vb-groupbox legend {
     print-color-adjust: exact !important;
   }
 
-  .a4-custom-outer-frame {
+  .a4-custom-outer-frame,
+  div.a4-custom-outer-frame,
+  div[class*="a4-custom-outer-frame"] {
     border: 3px solid #2b3a67 !important;
     padding: 6px !important;
     box-sizing: border-box !important;
   }
 
-  .a4-custom-inner-frame {
+  .a4-custom-inner-frame,
+  div.a4-custom-inner-frame,
+  div[class*="a4-custom-inner-frame"] {
     border: 2px solid #2b3a67 !important;
     padding: 8px !important;
     box-sizing: border-box !important;
@@ -1273,10 +1277,13 @@ fieldset legend, .vb-groupbox legend {
 }
 
 .invoice-print-table thead th {
-  background-color: #ffffff !important;
+  background-color: #2b3a67 !important;
   background-image: none !important;
   border: 2px solid #2b3a67 !important;
-  color: #2b3a67 !important;
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
 }
 
 .invoice-print-table tbody td {
