@@ -342,11 +342,15 @@ export const InvoicePrintModal: React.FC = () => {
               return (
                 <div
                   key={chunkIdx}
-                  className={`border-[3px] border-[#2b3a67] p-1.5 pb-2 flex flex-col justify-between relative mb-8 print:mb-0 print:border-[3px] print:border-[#2b3a67] print:h-[270mm] print:max-h-[275mm] print:break-inside-avoid print:box-border bg-white ${
+                  className={`a4-custom-outer-frame border-[3px] border-[#2b3a67] p-1.5 pb-2 flex flex-col justify-between relative mb-8 print:mb-0 print:border-[3px] print:border-[#2b3a67] print:h-[270mm] print:max-h-[275mm] print:break-inside-avoid print:box-border bg-white ${
                     chunkIdx < totalPages - 1 ? 'break-after-page print:break-after-page' : ''
                   }`}
+                  style={{ border: '3px solid #2b3a67' }}
                 >
-                  <div className="border-[2px] border-[#2b3a67] flex-1 flex flex-col justify-between p-2 space-y-1.5 print:p-1.5 print:space-y-1.5 bg-white">
+                  <div
+                    className="a4-custom-inner-frame border-[2px] border-[#2b3a67] flex-1 flex flex-col justify-between p-2 space-y-1.5 print:p-1.5 print:space-y-1.5 bg-white"
+                    style={{ border: '2px solid #2b3a67' }}
+                  >
                     
                     {/* Header Banner & Sub-bar */}
                     <PrintHeader
@@ -357,14 +361,17 @@ export const InvoicePrintModal: React.FC = () => {
                       showBorder={true}
                     />
 
-                    {/* Customer Info Box (Single Row without 'بيانات العميل' Header Bar, inline flow without large blank gap) */}
-                    <div className="border-[2px] border-[#2b3a67] rounded-lg p-1.5 px-3 flex items-center justify-start gap-3 sm:gap-4 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight bg-white w-full print:flex print:flex-row print:justify-start print:items-center print:w-full print:py-1">
-                      <div className="flex items-center gap-1.5 shrink min-w-0 print:flex print:items-center">
+                    {/* Customer Info Box (Single Row, single-line inline flow in preview and print) */}
+                    <div
+                      className="border-[2px] border-[#2b3a67] rounded-lg p-1.5 px-3 flex items-center justify-start gap-2.5 sm:gap-3 text-xs print:text-[11px] font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight bg-white w-full print:flex print:flex-row print:flex-nowrap print:justify-start print:items-center print:w-full print:py-1"
+                      style={{ border: '2px solid #2b3a67' }}
+                    >
+                      <div className="flex items-center gap-1 shrink min-w-0 print:flex print:items-center">
                         <span className="shrink-0 text-[#2b3a67]">اسم العميل:</span>
-                        <span className="text-slate-950 font-extrabold truncate max-w-[500px]">{formattedCustomerDisplayName}</span>
+                        <span className="text-slate-950 font-extrabold truncate max-w-[380px] sm:max-w-[480px]">{formattedCustomerDisplayName}</span>
                       </div>
                       
-                      <span className="text-slate-300">|</span>
+                      <span className="text-slate-400 shrink-0">|</span>
                       <div className="flex items-center gap-1 shrink-0 print:flex print:items-center">
                         <span className="text-[#2b3a67]">الهاتف:</span>
                         <span className="font-mono text-slate-900 font-bold">{inv.customerPhone || inv.subCustomerPhone || '—'}</span>
@@ -372,7 +379,7 @@ export const InvoicePrintModal: React.FC = () => {
 
                       {inv.customerTaxNumber && (
                         <>
-                          <span className="text-slate-300">|</span>
+                          <span className="text-slate-400 shrink-0">|</span>
                           <div className="flex items-center gap-1 shrink-0 print:flex print:items-center">
                             <span className="text-[#2b3a67]">الرقم الضريبي:</span>
                             <span className="font-mono text-slate-900 font-bold">{inv.customerTaxNumber}</span>
@@ -381,7 +388,7 @@ export const InvoicePrintModal: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, pure white headers, 40% blue shaded background for empty rows) */}
+                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, pure white headers, 15% blue shaded background for empty rows) */}
                     <div className="flex-1 flex flex-col justify-start bg-white">
                       <table className="invoice-print-table w-full text-center border-collapse border-[2.5px] border-[#2b3a67] bg-white">
                         <thead>
@@ -404,13 +411,13 @@ export const InvoicePrintModal: React.FC = () => {
                             return (
                               <tr
                                 key={rowIdx}
-                                className={`h-[1.65rem] ${isEmpty ? 'empty-row-shaded bg-[#2b3a67]/40' : 'bg-white'}`}
+                                className={`h-[1.65rem] ${isEmpty ? 'empty-row-shaded bg-[#2b3a67]/15' : 'bg-white'}`}
                               >
                                 {/* Column م: Always numbered 1 to 15 */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] font-mono font-extrabold text-center w-10 ${
-                                    isEmpty ? 'bg-[#2b3a67]/40 text-[#2b3a67]' : 'bg-white text-slate-900'
+                                    isEmpty ? 'bg-[#2b3a67]/15 text-[#2b3a67]' : 'bg-white text-slate-900'
                                   }`}
                                 >
                                   {overallIndex}
@@ -418,9 +425,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Item Name */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] px-2 text-right font-bold truncate ${
-                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
                                   }`}
                                 >
                                   {item ? item.itemName : ''}
@@ -428,9 +435,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Description / Notes */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] px-2 text-right font-medium text-xs text-slate-800 ${
-                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
                                   }`}
                                 >
                                   {item ? (item.notes || item.description || '') : ''}
@@ -438,9 +445,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Quantity */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] font-mono ${
-                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
                                   }`}
                                 >
                                   {item ? item.quantity : ''}
@@ -448,9 +455,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Unit Price */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] font-mono ${
-                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
                                   }`}
                                 >
                                   {item ? item.unitPrice.toFixed(2) : ''}
@@ -458,9 +465,9 @@ export const InvoicePrintModal: React.FC = () => {
 
                                 {/* Total */}
                                 <td
-                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.4)' } : undefined}
+                                  style={isEmpty ? { backgroundColor: 'rgba(43, 58, 103, 0.15)' } : undefined}
                                   className={`border-[2px] border-[#2b3a67] font-mono ${
-                                    isEmpty ? 'bg-[#2b3a67]/40' : 'bg-white'
+                                    isEmpty ? 'bg-[#2b3a67]/15' : 'bg-white'
                                   }`}
                                 >
                                   {item ? item.total.toFixed(2) : ''}
