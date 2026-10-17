@@ -358,7 +358,7 @@ export const InvoicePrintModal: React.FC = () => {
                     />
 
                     {/* Customer Info Box (Single Row without 'بيانات العميل' Header Bar) */}
-                    <div className="border border-[#2b3a67] rounded-lg p-2 px-3 flex items-center justify-between gap-3 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight bg-white w-full print:flex print:flex-row print:justify-between print:items-center print:w-full print:py-1.5">
+                    <div className="border-[2px] border-[#2b3a67] rounded-lg p-2 px-3 flex items-center justify-between gap-3 text-xs font-bold text-[#2b3a67] whitespace-nowrap overflow-hidden leading-tight bg-white w-full print:flex print:flex-row print:justify-between print:items-center print:w-full print:py-1.5">
                       <div className="flex items-center gap-1.5 shrink min-w-0 print:flex print:items-center">
                         <span className="shrink-0 text-[#2b3a67]">اسم العميل:</span>
                         <span className="text-slate-950 font-extrabold truncate max-w-[450px]">{formattedCustomerDisplayName}</span>
@@ -381,84 +381,56 @@ export const InvoicePrintModal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Table (Exactly 15 rows numbered 1-15, thin middle line for empty rows) */}
+                    {/* Table (Exactly 15 rows numbered 1-15, thicker borders, pure white headers, shaded dark background for empty rows) */}
                     <div className="flex-1 flex flex-col justify-start bg-white">
-                      <table className="w-full text-center border-collapse border border-[#2b3a67] bg-white">
+                      <table className="w-full text-center border-collapse border-[2.5px] border-[#2b3a67] bg-white">
                         <thead>
-                          <tr className="bg-white text-[#2b3a67] font-bold text-xs border-b border-[#2b3a67]">
-                            <th className="border border-[#2b3a67] py-1.5 w-10 bg-white">م</th>
-                            <th className="border border-[#2b3a67] py-1.5 w-48 bg-white">الصنف</th>
-                            <th className="border border-[#2b3a67] py-1.5 bg-white">البيان</th>
-                            <th className="border border-[#2b3a67] py-1.5 w-20 bg-white">الكمية</th>
-                            <th className="border border-[#2b3a67] py-1.5 w-24 bg-white">سعر الوحدة</th>
-                            <th className="border border-[#2b3a67] py-1.5 w-24 bg-white">الإجمالي</th>
+                          <tr className="bg-white text-[#2b3a67] font-black text-xs border-b-[2.5px] border-[#2b3a67]">
+                            <th className="border-[2px] border-[#2b3a67] py-2 w-10 bg-white">م</th>
+                            <th className="border-[2px] border-[#2b3a67] py-2 w-48 bg-white">الصنف</th>
+                            <th className="border-[2px] border-[#2b3a67] py-2 bg-white">البيان</th>
+                            <th className="border-[2px] border-[#2b3a67] py-2 w-20 bg-white">الكمية</th>
+                            <th className="border-[2px] border-[#2b3a67] py-2 w-24 bg-white">سعر الوحدة</th>
+                            <th className="border-[2px] border-[#2b3a67] py-2 w-24 bg-white">الإجمالي</th>
                           </tr>
                         </thead>
-                        <tbody className="text-xs font-bold text-[#2b3a67] bg-white">
+                        <tbody className="text-xs font-bold text-[#2b3a67]">
                           {/* Always render 15 rows numbered 1-15 */}
                           {Array.from({ length: 15 }).map((_, rowIdx) => {
                             const item = chunk[rowIdx];
                             const overallIndex = chunkIdx * ITEMS_PER_PAGE + rowIdx + 1;
+                            const isEmpty = !item;
+
                             return (
-                              <tr key={rowIdx} className="h-[1.65rem]">
+                              <tr key={rowIdx} className={`h-[1.65rem] ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
                                 {/* Column م: Always numbered 1 to 15 */}
-                                <td className="border border-[#2b3a67] font-mono text-slate-800 font-bold bg-white text-center w-10">
+                                <td className={`border-[2px] border-[#2b3a67] font-mono font-extrabold text-center w-10 ${isEmpty ? 'bg-slate-700 text-white' : 'bg-white text-slate-900'}`}>
                                   {overallIndex}
                                 </td>
 
                                 {/* Item Name */}
-                                <td className="border border-[#2b3a67] px-2 text-right font-bold truncate bg-white">
-                                  {item ? (
-                                    item.itemName
-                                  ) : (
-                                    <div className="w-full flex items-center justify-center h-full px-0.5">
-                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
-                                    </div>
-                                  )}
+                                <td className={`border-[2px] border-[#2b3a67] px-2 text-right font-bold truncate ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                  {item ? item.itemName : ''}
                                 </td>
 
                                 {/* Description / Notes */}
-                                <td className="border border-[#2b3a67] px-2 text-right font-medium text-xs text-slate-800 bg-white">
-                                  {item ? (
-                                    item.notes || item.description || ''
-                                  ) : (
-                                    <div className="w-full flex items-center justify-center h-full px-0.5">
-                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
-                                    </div>
-                                  )}
+                                <td className={`border-[2px] border-[#2b3a67] px-2 text-right font-medium text-xs text-slate-800 ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                  {item ? (item.notes || item.description || '') : ''}
                                 </td>
 
                                 {/* Quantity */}
-                                <td className="border border-[#2b3a67] font-mono bg-white">
-                                  {item ? (
-                                    item.quantity
-                                  ) : (
-                                    <div className="w-full flex items-center justify-center h-full px-0.5">
-                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
-                                    </div>
-                                  )}
+                                <td className={`border-[2px] border-[#2b3a67] font-mono ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                  {item ? item.quantity : ''}
                                 </td>
 
                                 {/* Unit Price */}
-                                <td className="border border-[#2b3a67] font-mono bg-white">
-                                  {item ? (
-                                    item.unitPrice.toFixed(2)
-                                  ) : (
-                                    <div className="w-full flex items-center justify-center h-full px-0.5">
-                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
-                                    </div>
-                                  )}
+                                <td className={`border-[2px] border-[#2b3a67] font-mono ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                  {item ? item.unitPrice.toFixed(2) : ''}
                                 </td>
 
                                 {/* Total */}
-                                <td className="border border-[#2b3a67] font-mono bg-white">
-                                  {item ? (
-                                    item.total.toFixed(2)
-                                  ) : (
-                                    <div className="w-full flex items-center justify-center h-full px-0.5">
-                                      <div className="w-full h-[2px] bg-[#2b3a67]/60 rounded-full"></div>
-                                    </div>
-                                  )}
+                                <td className={`border-[2px] border-[#2b3a67] font-mono ${isEmpty ? 'bg-slate-700' : 'bg-white'}`}>
+                                  {item ? item.total.toFixed(2) : ''}
                                 </td>
                               </tr>
                             );
@@ -472,28 +444,28 @@ export const InvoicePrintModal: React.FC = () => {
                       <div className="space-y-3 shrink-0 bg-white">
                         <div className="grid grid-cols-2 gap-4 items-start mt-1">
                           {/* Totals Box with Complete Dark Blue Outer Border */}
-                          <div className="border-[2px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-xs bg-white">
-                            <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">إجمالي المبلغ</div>
+                          <div className="border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden text-xs bg-white">
+                            <div className="flex border-b-[2px] border-[#2b3a67]">
+                              <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-white text-[#2b3a67]">إجمالي المبلغ</div>
                               <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.subtotal.toFixed(2)}</div>
                             </div>
-                            <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">الخصم</div>
+                            <div className="flex border-b-[2px] border-[#2b3a67]">
+                              <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-white text-[#2b3a67]">الخصم</div>
                               <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.discountTotal > 0 ? inv.discountTotal.toFixed(2) : '0.00'}</div>
                             </div>
-                            <div className="flex border-b border-[#2b3a67]">
-                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">قيمة الضريبة</div>
+                            <div className="flex border-b-[2px] border-[#2b3a67]">
+                              <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-white text-[#2b3a67]">قيمة الضريبة</div>
                               <div className="w-1/2 p-1 font-mono text-center font-bold text-[#2b3a67] bg-white">{inv.taxAmount > 0 ? inv.taxAmount.toFixed(2) : '0.00'}</div>
                             </div>
-                            <div className="flex border-t border-[#2b3a67] bg-white text-[#2b3a67] font-black">
-                              <div className="w-1/2 p-1 font-bold text-center border-l border-[#2b3a67] bg-white text-[#2b3a67]">المبلغ الإجمالي</div>
+                            <div className="flex bg-white text-[#2b3a67] font-black">
+                              <div className="w-1/2 p-1 font-bold text-center border-l-[2px] border-[#2b3a67] bg-white text-[#2b3a67]">المبلغ الإجمالي</div>
                               <div className="w-1/2 p-1 font-mono text-center bg-white text-[#2b3a67] font-black">{inv.totalAmount.toFixed(2)} {inv.currencySymbol || settings.currency}</div>
                             </div>
                           </div>
 
                           {/* Notes Box */}
-                          <div className="border-[2px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[90px] bg-white">
-                            <div className="bg-white text-[#2b3a67] font-bold text-center py-1 border-b border-[#2b3a67] text-xs">
+                          <div className="border-[2.5px] border-[#2b3a67] rounded-lg flex flex-col overflow-hidden min-h-[90px] bg-white">
+                            <div className="bg-white text-[#2b3a67] font-bold text-center py-1 border-b-[2px] border-[#2b3a67] text-xs">
                               ملاحظات
                             </div>
                             <div className="p-2 font-medium text-slate-800 text-xs whitespace-pre-wrap flex-1 bg-white">
