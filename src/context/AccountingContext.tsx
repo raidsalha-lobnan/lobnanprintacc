@@ -1924,10 +1924,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               storageKeySuffix: string
             ) => {
               if (sJson.data[entityName]?.items) {
-                const { merged, unpushedDeltas } = mergeEntitiesWithDeltaSync(entityName, localState, sJson.data[entityName].items, delSet);
+                const { merged } = mergeEntitiesWithDeltaSync(entityName, localState, sJson.data[entityName].items, delSet);
                 setter(merged);
                 try { localStorage.setItem(`${STORAGE_KEY}_${storageKeySuffix}`, JSON.stringify(merged)); } catch {}
-                if (unpushedDeltas.length > 0) pushDeltaToServer(entityName, 'upsert', undefined, unpushedDeltas);
               }
             };
 
