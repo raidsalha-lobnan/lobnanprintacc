@@ -179,18 +179,26 @@ export const onlineInvoicePostingService = {
           }
         });
 
+        const isExistingInvoice = cloudInvoices.some(inv => inv.id === invoice.id) || currentInvoicesList.some(inv => inv.id === invoice.id);
+
         // Current requested invoice number
         let finalInvoiceNumber = invoice.invoiceNumber;
         const reqNum = parseInt((invoice.invoiceNumber || '').replace(/\D/g, ''), 10);
 
-        // Check if this number already exists on cloud for a different invoice ID
-        const isConflict = cloudInvoices.some(
-          inv => inv && inv.invoiceNumber === finalInvoiceNumber && inv.id !== invoice.id
+        // Check if this number already exists on cloud/known for a different invoice ID
+        const isConflict = allKnown.some(
+          inv => inv && inv.invoiceNumber && inv.invoiceNumber.trim() === (finalInvoiceNumber || '').trim() && inv.id !== invoice.id
         );
 
-        if (isConflict || !finalInvoiceNumber || isNaN(reqNum)) {
-          const newNumberInt = maxSeq + 1;
-          finalInvoiceNumber = `INV-${String(newNumberInt).padStart(4, '0')}`;
+        // If it's a new invoice (not editing existing), or if conflicting or missing, calculate next sequence strictly upon save
+        if (!isExistingInvoice || isConflict || !finalInvoiceNumber || isNaN(reqNum)) {
+          let newNumberInt = maxSeq + 1;
+          let candidate = `INV-${String(newNumberInt).padStart(4, '0')}`;
+          while (allKnown.some(inv => inv && inv.invoiceNumber && inv.invoiceNumber.trim() === candidate.trim())) {
+            newNumberInt++;
+            candidate = `INV-${String(newNumberInt).padStart(4, '0')}`;
+          }
+          finalInvoiceNumber = candidate;
         }
 
         const finalInvoice: Invoice = {

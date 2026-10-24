@@ -958,7 +958,7 @@ export const DraftInvoicesQueueModal: React.FC<DraftInvoicesQueueModalProps> = (
       matchedParty?.id || draft.customerId,
       draft.notes,
       {
-        invoiceNumber: nextInvNumber,
+        invoiceNumber: undefined,
         date: draft.date || new Date().toISOString().split('T')[0],
         overallDiscount: discountVal,
         taxRate: 0,

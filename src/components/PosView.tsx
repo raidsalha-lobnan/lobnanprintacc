@@ -2313,7 +2313,9 @@ const getInitialPosDraft = (): PosFullDraftData => {
       selectedCustomerId || undefined,
       invoiceNotes,
       {
-        invoiceNumber: `INV-${invoiceSeqNumber.padStart(4, '0')}`,
+        invoiceNumber: (currentEditingInvoiceIdRef.current || editingPosInvoiceId)
+          ? invoices.find(i => i.id === (currentEditingInvoiceIdRef.current || editingPosInvoiceId))?.invoiceNumber
+          : undefined,
         date: invoiceDate,
         additionalCharges,
         overallDiscount: calculatedDiscountTotal,
@@ -2564,7 +2566,9 @@ const getInitialPosDraft = (): PosFullDraftData => {
 
     const draftInvoice: Invoice = {
       id: currentEditingInvoiceIdRef.current || editingPosInvoiceId || 'draft-pos-preview',
-      invoiceNumber: `INV-${invoiceSeqNumber.padStart(4, '0')}`,
+      invoiceNumber: (currentEditingInvoiceIdRef.current || editingPosInvoiceId)
+        ? (invoices.find(i => i.id === (currentEditingInvoiceIdRef.current || editingPosInvoiceId))?.invoiceNumber || '')
+        : '',
       date: invoiceDate || new Date().toISOString().split('T')[0],
       customerId: selectedCustomerId || undefined,
       customerName: customerName || customCustomerText || 'عميل كاشير نقدي',
@@ -3538,15 +3542,19 @@ const getInitialPosDraft = (): PosFullDraftData => {
           <div className="bg-white/90 border border-slate-300 rounded-lg p-1 mb-1 shadow-2xs w-fit overflow-hidden">
             <div className="flex flex-nowrap items-center justify-between gap-2.5 text-sm w-fit overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               
-              {/* 1. رقم الفاتورة (تسلسلي موحد غير مكرر لكل حالات الفاتورة) */}
+              {/* 1. رقم الفاتورة (تسلسلي موحد غير مكرر لكل حالات الفاتورة يصدر بعد إتمام الحفظ) */}
               <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-lg px-2 py-0.5 shrink-0">
                 <span className="font-bold text-slate-700 text-[14px] shrink-0">رقم الفاتورة:</span>
                 <div
                   className={`bg-blue-600 text-white font-mono font-black text-[14px] px-2.5 py-0.5 rounded shadow-2xs flex items-center gap-1`}
-                  title="رقم الفاتورة تلقائي يفرزه البرنامج بشكل تسلسلي ولا يتكرر لكل حالات الفاتورة"
+                  title="يتم توليد وإصدار رقم الفاتورة تلقائياً بعد إتمام عملية البيع والحفظ لضمان عدم تكرار الأرقام بين الأجهزة"
                 >
                   <Lock className={`w-3.5 h-3.5 text-blue-200`} />
-                  <span>#{invoiceSeqNumber.padStart(4, '0')}</span>
+                  <span>
+                    {(editingPosInvoiceId || currentEditingInvoiceIdRef.current)
+                      ? `#${(invoices.find(i => i.id === (currentEditingInvoiceIdRef.current || editingPosInvoiceId))?.invoiceNumber || `INV-${invoiceSeqNumber.padStart(4, '0')}`)}`
+                      : 'تلقائي بعد الحفظ'}
+                  </span>
                 </div>
               </div>
 

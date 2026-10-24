@@ -203,38 +203,71 @@ export async function saveMasterDatabaseToDrive(token: string, payload: any): Pr
   }
 }
 
-export function mergeEntityLists(localList: any[], remoteList: any[]): any[] {
+export function isTestSyncProbeItem(item: any): boolean {
+  if (!item) return false;
+  const id = String(item.id || '');
+  const code = String(item.code || '');
+  const name = String(item.name || '');
+  return id === 'inv-probe-sync-1' || id === 'inv-test-full-1' || code === 'ITEM-9999' || name === 'صنف تجربة المزامنة' || name === 'صنف فحص المزامنة الشاملة';
+}
+
+export function mergeEntityLists(localList: any[], remoteList: any[], customDelSet?: Set<string>, entityName?: string): any[] {
   const map = new Map<string, any>();
+
+  // Load persistent deleted tombstones from localStorage
+  const delSet = customDelSet || (() => {
+    const set = new Set<string>();
+    try {
+      const delList = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
+      if (Array.isArray(delList)) {
+        delList.forEach((d: any) => {
+          if (d && d.id) {
+            set.add(String(d.id));
+            if (d.col) set.add(`${d.col}_${d.id}`);
+          }
+        });
+      }
+    } catch {}
+    return set;
+  })();
+
   if (Array.isArray(localList)) {
     for (const item of localList) {
-      if (item && item.id) {
-        map.set(String(item.id), item);
-      }
+      if (!item || !item.id || isTestSyncProbeItem(item)) continue;
+      const key = String(item.id);
+      if (delSet.has(key) || (entityName && delSet.has(`${entityName}_${key}`)) || item._deleted || item.deletedAt) continue;
+      map.set(key, item);
     }
   }
+
   if (Array.isArray(remoteList)) {
     for (const item of remoteList) {
-      if (item && item.id) {
-        const key = String(item.id);
-        const existing = map.get(key);
-        if (!existing) {
-          map.set(key, item);
-        } else {
-          // ID exists: UPDATE in-place rather than overwrite or delete
-          const tExist = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-          const tRemote = new Date(item.updatedAt || item.createdAt || 0).getTime();
-          
-          const primary = tRemote >= tExist ? item : existing;
-          const secondary = tRemote >= tExist ? existing : item;
+      if (!item || !item.id || isTestSyncProbeItem(item)) continue;
+      const key = String(item.id);
+      if (delSet.has(key) || (entityName && delSet.has(`${entityName}_${key}`)) || item._deleted || item.deletedAt) {
+        map.delete(key);
+        continue;
+      }
 
-          map.set(key, {
-            ...secondary,
-            ...primary,
-            items: (Array.isArray(primary.items) && primary.items.length > 0) ? primary.items : (existing.items || []),
-            payments: (Array.isArray(primary.payments) && primary.payments.length > 0) ? primary.payments : (existing.payments || []),
-            updatedAt: new Date(Math.max(tExist, tRemote, Date.now())).toISOString()
-          });
-        }
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, item);
+      } else {
+        // ID exists: compare timestamps so local edits win if tExist >= tRemote
+        const tExist = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const tRemote = new Date(item.updatedAt || item.createdAt || 0).getTime();
+
+        const localWins = tExist >= tRemote || Boolean((existing as any)._unsyncedLocal);
+        const primary = localWins ? existing : item;
+        const secondary = localWins ? item : existing;
+
+        map.set(key, {
+          ...secondary,
+          ...primary,
+          items: (Array.isArray(primary.items) && primary.items.length > 0) ? primary.items : (secondary.items || []),
+          payments: (Array.isArray(primary.payments) && primary.payments.length > 0) ? primary.payments : (secondary.payments || []),
+          updatedAt: new Date(Math.max(tExist, tRemote, Date.now())).toISOString()
+        });
       }
     }
   }

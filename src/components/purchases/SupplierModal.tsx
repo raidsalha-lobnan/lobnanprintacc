@@ -64,8 +64,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
         setOpeningBalanceType('credit'); // default for suppliers: they are credited (we owe them)
         setOpeningBalanceDate(new Date().toISOString().split('T')[0]);
         setNotes('');
-        const nextCode = generateSequentialPartyCode('supplier', parties);
-        setGeneratedCode(nextCode);
+        setGeneratedCode('تلقائي بعد الحفظ');
       }
     }
   }, [isOpen, supplierToEdit, parties]);

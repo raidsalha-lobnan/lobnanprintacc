@@ -734,9 +734,25 @@ export const NewPrintOrderView: React.FC<NewPrintOrderViewProps> = ({
 
     posSound.playSuccessBeep();
 
+    const curYear = new Date().getFullYear();
+    const jobPrefix = `JOB-${curYear}-`;
+    let maxJobSeq = 0;
+    printOrders.forEach(o => {
+      if (o.orderNumber && o.orderNumber.startsWith(jobPrefix)) {
+        const seq = parseInt(o.orderNumber.substring(jobPrefix.length), 10);
+        if (!isNaN(seq) && seq > maxJobSeq) maxJobSeq = seq;
+      }
+    });
+    let nextJobSeq = maxJobSeq + 1;
+    let finalOrderNumber = `${jobPrefix}${String(nextJobSeq).padStart(4, '0')}`;
+    while (printOrders.some(o => o.orderNumber === finalOrderNumber)) {
+      nextJobSeq++;
+      finalOrderNumber = `${jobPrefix}${String(nextJobSeq).padStart(4, '0')}`;
+    }
+
     const fullOrderObj: PrintJobOrder = {
       id: createdOrderId,
-      orderNumber: nextOrderNumber,
+      orderNumber: finalOrderNumber,
       customerId: selectedCustomerId || 'cust-registered',
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -807,7 +823,7 @@ export const NewPrintOrderView: React.FC<NewPrintOrderViewProps> = ({
             <Printer className="w-4 h-4 text-blue-400" />
             <h1 className="text-sm font-black tracking-tight">أمر تشغيل وطباعة جديد</h1>
             <span className="bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-mono font-bold px-2 py-0.2 rounded-full">
-              {nextOrderNumber}
+              تلقائي بعد الحفظ
             </span>
           </div>
         </div>

@@ -158,26 +158,28 @@ export function generateSequentialSku(
  */
 export function validateSkuUniqueness(
   skuToCheck: string,
-  existingItems: { id: string; code: string; name: string; category: ItemCategory }[],
+  existingItems: { id: string; code?: string; name?: string; category?: ItemCategory }[],
   currentItemId?: string,
   customCategories?: CategoryDefinition[]
 ): {
   isUnique: boolean;
-  conflictingItem?: { id: string; code: string; name: string };
+  conflictingItem?: { id: string; code?: string; name?: string };
   suggestedSku?: string;
 } {
   const cleanSku = (skuToCheck || '').trim().toLowerCase();
   if (!cleanSku) {
-    return { isUnique: false };
+    return { isUnique: true };
   }
 
-  const conflictingItem = existingItems.find(
-    item => item.id !== currentItemId && item.code.trim().toLowerCase() === cleanSku
+  const safeItems = Array.isArray(existingItems) ? existingItems.filter(Boolean) : [];
+
+  const conflictingItem = safeItems.find(
+    item => item && item.id !== currentItemId && item.code && typeof item.code === 'string' && item.code.trim().toLowerCase() === cleanSku
   );
 
   if (conflictingItem) {
     // Generate next available SKU for this category or generic
-    const allCodes = existingItems.map(i => i.code);
+    const allCodes = safeItems.map(i => i?.code || '').filter(Boolean);
     const category = (conflictingItem as any).category || 'stationery';
     const suggestedSku = generateSequentialSku(category, allCodes, customCategories);
 

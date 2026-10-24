@@ -344,14 +344,14 @@ export const InventoryView: React.FC = () => {
       if (!q) return matchCat;
 
       const matchBarcode =
-        (it.barcode && it.barcode.toLowerCase().includes(q)) ||
-        (it.additionalBarcodes && it.additionalBarcodes.some(b => b.toLowerCase().includes(q))) ||
-        (it.barcodeEntries && it.barcodeEntries.some(b => b.barcode.toLowerCase().includes(q) || (b.label && b.label.toLowerCase().includes(q))));
+        (it.barcode && typeof it.barcode === 'string' && it.barcode.toLowerCase().includes(q)) ||
+        (it.additionalBarcodes && Array.isArray(it.additionalBarcodes) && it.additionalBarcodes.some(b => typeof b === 'string' && b.toLowerCase().includes(q))) ||
+        (it.barcodeEntries && Array.isArray(it.barcodeEntries) && it.barcodeEntries.some(b => b && ((b.barcode && typeof b.barcode === 'string' && b.barcode.toLowerCase().includes(q)) || (b.label && typeof b.label === 'string' && b.label.toLowerCase().includes(q)))));
 
       const matchSearch =
-        it.name.toLowerCase().includes(q) ||
-        it.code.toLowerCase().includes(q) ||
-        matchBarcode;
+        (it.name && typeof it.name === 'string' ? it.name.toLowerCase().includes(q) : false) ||
+        (it.code && typeof it.code === 'string' ? it.code.toLowerCase().includes(q) : false) ||
+        Boolean(matchBarcode);
 
       return matchCat && matchSearch;
     });
@@ -385,8 +385,7 @@ export const InventoryView: React.FC = () => {
     const cat = defaultCat || (allCategories[0]?.id as ItemCategory) || 'stationery';
     setEditingItem(null);
     setFormName('');
-    const nextCode = generateSequentialSku(cat, inventory.map(i => i.code), allCategories);
-    setFormCode(nextCode);
+    setFormCode(''); // Leave empty to generate sequential SKU safely after save
     setFormBarcode(''); // Clear primary barcode completely
     setFormBarcodeEntries([]);
     setNewEntryBarcode('');
@@ -412,7 +411,7 @@ export const InventoryView: React.FC = () => {
 
   const handleCategoryChange = (newCat: ItemCategory) => {
     setFormCategory(newCat);
-    if (!editingItem) {
+    if (!editingItem && formCode.trim()) {
       const nextCode = generateSequentialSku(newCat, inventory.map(i => i.code), allCategories);
       setFormCode(nextCode);
     }
@@ -545,19 +544,24 @@ export const InventoryView: React.FC = () => {
 
   const handleSaveItem = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formCode) return;
+    if (!formName.trim()) return;
 
-    const trimmedCode = formCode.trim();
+    let trimmedCode = formCode.trim();
 
-    // Strict validation: check for duplicate SKU with any other item
-    const duplicateConflict = inventory.find(
-      it => it.id !== editingItem?.id && it.code.trim().toLowerCase() === trimmedCode.toLowerCase()
-    );
+    // إذا كان الكود فارغاً، يتم توليد الكود التسلسلي غير المكرر فورياً عند الحفظ
+    if (!trimmedCode || trimmedCode === 'تلقائي بعد الحفظ') {
+      trimmedCode = generateSequentialSku(formCategory, inventory.map(i => i.code || ''), allCategories);
+    } else {
+      // التحقق الصارم في حال أدخل المستخدم كوداً يدوياً مخصصاً
+      const duplicateConflict = inventory.find(
+        it => it && it.id !== editingItem?.id && (it.code || '').trim().toLowerCase() === trimmedCode.toLowerCase()
+      );
 
-    if (duplicateConflict) {
-      posSound.playErrorBeep();
-      alert(`⚠️ لا يمكن حفظ الصنف!\n\nكود الصنف (${trimmedCode}) مكرر ومستخدم بالفعل لصنف آخر:\n"${duplicateConflict.name}"\n\nقاعدة النظام: يجب ألا يتكرر كود الصنف نهائياً. يرجى الضغط على زر "توليد تلقائي" للحصول على الكود الشاغر التالي.`);
-      return;
+      if (duplicateConflict) {
+        posSound.playErrorBeep();
+        alert(`⚠️ لا يمكن حفظ الصنف!\n\nكود الصنف (${trimmedCode}) مكرر ومستخدم بالفعل لصنف آخر:\n"${duplicateConflict.name}"\n\nقاعدة النظام: يجب ألا يتكرر كود الصنف نهائياً. يمكنك ترك خانة الكود فارغة ليتم إصدار كود تسلسلي غير مكرر تلقائياً بعد الحفظ.`);
+        return;
+      }
     }
 
     const cleanedEntries = formBarcodeEntries.filter(e => e.barcode && e.barcode.trim());
@@ -1482,10 +1486,10 @@ export const InventoryView: React.FC = () => {
                     <div className="relative flex-1 min-w-0">
                       <input
                         type="text"
-                        required
+                        required={Boolean(editingItem)}
                         value={formCode}
                         onChange={e => setFormCode(e.target.value)}
-                        placeholder="الكود..."
+                        placeholder="تلقائي بعد الحفظ..."
                         className={`w-full border rounded-md p-1.5 pr-2.5 pl-8 font-mono text-xs font-bold text-center outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
                           !skuValidation.isUnique ? 'bg-rose-50 border-rose-400 text-rose-800' : 'bg-white border-slate-300 text-blue-700'
                         }`}

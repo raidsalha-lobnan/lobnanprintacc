@@ -672,6 +672,14 @@ function getEntityRecordTimestamp(item: any): number {
   return 0;
 }
 
+function isTestSyncProbeItem(item: any): boolean {
+  if (!item) return false;
+  const id = String(item.id || '');
+  const code = String(item.code || '');
+  const name = String(item.name || '');
+  return id === 'inv-probe-sync-1' || id === 'inv-test-full-1' || code === 'ITEM-9999' || name === 'صنف تجربة المزامنة' || name === 'صنف فحص المزامنة الشاملة';
+}
+
 function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
   entityName: string,
   localItems: T[],
@@ -681,8 +689,8 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
   const map = new Map<string, T>();
   const unpushedDeltas: T[] = [];
 
-  const safeServerItems = Array.isArray(serverItems) ? serverItems.filter(i => i && typeof i === 'object' && i.id != null) : [];
-  const safeLocalItems = Array.isArray(localItems) ? localItems.filter(i => i && typeof i === 'object' && i.id != null) : [];
+  const safeServerItems = Array.isArray(serverItems) ? serverItems.filter(i => i && typeof i === 'object' && i.id != null && !isTestSyncProbeItem(i)) : [];
+  const safeLocalItems = Array.isArray(localItems) ? localItems.filter(i => i && typeof i === 'object' && i.id != null && !isTestSyncProbeItem(i)) : [];
 
   // 1. Load server items
   for (const sItem of safeServerItems) {
@@ -718,7 +726,7 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
     }
   }
 
-  const merged = Array.from(map.values()).filter(it => it && typeof it === 'object');
+  const merged = Array.from(map.values()).filter(it => it && typeof it === 'object' && !isTestSyncProbeItem(it));
   return { merged, unpushedDeltas };
 }
 
@@ -1791,7 +1799,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             map.set(k, it);
           }
         }
-        const merged = Array.from(map.values());
+        const merged = Array.from(map.values()).filter(it => !isTestSyncProbeItem(it));
         if (sortFn) merged.sort(sortFn);
         try { localStorage.setItem(`${STORAGE_KEY}_${storageKeySuffix}`, JSON.stringify(merged)); } catch {}
         return merged;
@@ -2073,6 +2081,34 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => {
       try { unsubDeltas(); } catch {}
     };
+  }, [isLocalOnlyMode]);
+
+  // Active deletion & permanent filtering of test sync items from Firestore cloud database
+  useEffect(() => {
+    try {
+      if (db && !isLocalOnlyMode) {
+        deleteDoc(doc(db, 'inventory', 'inv-probe-sync-1')).catch(() => {});
+        deleteDoc(doc(db, 'inventory', 'inv-test-full-1')).catch(() => {});
+        deleteDoc(doc(db, 'lobnan_accounting_db', 'inv-probe-sync-1')).catch(() => {});
+        deleteDoc(doc(db, 'lobnan_accounting_db', 'inv-test-full-1')).catch(() => {});
+      }
+      // Ensure local deletedDocs tombstone registry registers them so sync engines ignore them
+      const deletedDocs = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
+      let updated = false;
+      if (Array.isArray(deletedDocs)) {
+        if (!deletedDocs.some((d: any) => d && d.id === 'inv-probe-sync-1')) {
+          deletedDocs.push({ col: 'inventory', id: 'inv-probe-sync-1' });
+          updated = true;
+        }
+        if (!deletedDocs.some((d: any) => d && d.id === 'inv-test-full-1')) {
+          deletedDocs.push({ col: 'inventory', id: 'inv-test-full-1' });
+          updated = true;
+        }
+        if (updated) {
+          localStorage.setItem('accounting_deleted_docs', JSON.stringify(deletedDocs));
+        }
+      }
+    } catch {}
   }, [isLocalOnlyMode]);
 
   // تنظيف وتصفير تلقائي لمرة واحدة لفواتير المبيعات التجريبية والقديمة مع استرجاع المخزون
@@ -3511,7 +3547,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateCompany = (id: string, updated: Partial<Company>) => {
     setCompanies(prev => {
       const existing = prev.find(c => c.id === id);
-      const merged: Company = existing ? { ...existing, ...updated } : ({ ...updated, id } as Company);
+      const merged: Company = existing ? { ...existing, ...updated, updatedAt: new Date().toISOString() } : ({ ...updated, id, updatedAt: new Date().toISOString() } as Company);
       const next = prev.map(c => (c.id === id ? merged : c));
       try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(next)); } catch {}
       pushDeltaToServer('companies', 'upsert', merged);
@@ -3533,6 +3569,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       deleteDoc(doc(db, 'companies', id)).catch(e => console.warn('Could not delete company in cloud:', e));
       return next;
     });
+    registerDeletedDoc('companies', id);
     return { success: true };
   };
 
@@ -3541,7 +3578,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const newBranch: Branch = {
       ...branch,
       id: `br-${Date.now()}`,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     setBranches(prev => {
       const next = [...prev, newBranch];
@@ -3557,7 +3595,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateBranch = (id: string, updated: Partial<Branch>) => {
     setBranches(prev => {
       const existing = prev.find(b => b.id === id);
-      const merged: Branch = existing ? { ...existing, ...updated } : ({ ...updated, id } as Branch);
+      const merged: Branch = existing ? { ...existing, ...updated, updatedAt: new Date().toISOString() } : ({ ...updated, id, updatedAt: new Date().toISOString() } as Branch);
       const next = prev.map(b => (b.id === id ? merged : b));
       try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(next)); } catch {}
       pushDeltaToServer('branches', 'upsert', merged);
@@ -3579,6 +3617,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       deleteDoc(doc(db, 'branches', id)).catch(e => console.warn('Could not delete branch in cloud:', e));
       return next;
     });
+    registerDeletedDoc('branches', id);
     if (activeBranchId === id) {
       const remaining = branches.filter(b => b.id !== id);
       if (remaining.length > 0) setActiveBranchId(remaining[0].id);
@@ -3595,7 +3634,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       branchName: wh.branchName || branch?.name,
       status: wh.status || 'active',
       warehouseType: wh.warehouseType || 'general_main',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     setWarehouses(prev => {
       const next = [...prev, newWh];
@@ -3610,7 +3650,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (wh.branchId) {
       setBranches(prev => prev.map(b => {
         if (b.id === wh.branchId && !b.warehouseIds.includes(newWh.id)) {
-          const updatedB = { ...b, warehouseIds: [...b.warehouseIds, newWh.id] };
+          const updatedB = { ...b, warehouseIds: [...b.warehouseIds, newWh.id], updatedAt: new Date().toISOString() };
           setDoc(doc(db, 'branches', b.id), cleanDocForFirestore(updatedB)).catch(() => {});
           return updatedB;
         }
@@ -3624,7 +3664,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateWarehouse = (id: string, updated: Partial<Warehouse>) => {
     setWarehouses(prev => {
       const existing = prev.find(w => w.id === id);
-      let nextWh: Warehouse = existing ? { ...existing, ...updated } : ({ ...updated, id } as Warehouse);
+      let nextWh: Warehouse = existing ? { ...existing, ...updated, updatedAt: new Date().toISOString() } : ({ ...updated, id, updatedAt: new Date().toISOString() } as Warehouse);
       if (updated.branchId) {
         const b = branches.find(br => br.id === updated.branchId);
         nextWh.branchName = b?.name || nextWh.branchName;
@@ -3641,7 +3681,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (updated.branchId) {
       setBranches(prev => prev.map(b => {
         if (b.id === updated.branchId && !b.warehouseIds.includes(id)) {
-          const updatedB = { ...b, warehouseIds: [...b.warehouseIds, id] };
+          const updatedB = { ...b, warehouseIds: [...b.warehouseIds, id], updatedAt: new Date().toISOString() };
           setDoc(doc(db, 'branches', b.id), cleanDocForFirestore(updatedB)).catch(() => {});
           return updatedB;
         }
@@ -3662,10 +3702,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       deleteDoc(doc(db, 'warehouses', id)).catch(e => console.warn('Could not delete warehouse in cloud:', e));
       return next;
     });
+    registerDeletedDoc('warehouses', id);
     setBranches(prev => prev.map(b => {
       const updatedB = {
         ...b,
-        warehouseIds: b.warehouseIds.filter(wId => wId !== id)
+        warehouseIds: b.warehouseIds.filter(wId => wId !== id),
+        updatedAt: new Date().toISOString()
       };
       setDoc(doc(db, 'branches', b.id), cleanDocForFirestore(updatedB)).catch(() => {});
       return updatedB;
@@ -4094,9 +4136,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const newRole: Role = {
       ...role,
       id: `role-${Date.now()}`,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     setRoles(prev => [...prev, newRole]);
+    pushDeltaToServer('roles', 'upsert', newRole);
     setDoc(doc(db, 'roles', newRole.id), cleanDocForFirestore(newRole)).catch(() => {});
     return newRole;
   };
@@ -4105,18 +4149,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let finalRole: Role | null = null;
     setRoles(prev => prev.map(r => {
       if (r.id === id) {
-        finalRole = { ...r, ...updated };
+        finalRole = { ...r, ...updated, updatedAt: new Date().toISOString() };
         return finalRole;
       }
       return r;
     }));
     if (finalRole) {
+      pushDeltaToServer('roles', 'upsert', finalRole);
       setDoc(doc(db, 'roles', id), cleanDocForFirestore(finalRole)).catch(() => {});
     }
   };
 
   const deleteRole = (id: string) => {
     setRoles(prev => prev.filter(r => r.id !== id));
+    pushDeltaToServer('roles', 'delete', { id, _deleted: true });
+    registerDeletedDoc('roles', id);
     deleteDoc(doc(db, 'roles', id)).catch(e => console.warn('Could not delete role in cloud:', e));
     return { success: true };
   };
@@ -4126,7 +4173,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const newUser: SystemUser = {
       ...user,
       id: `user-${Date.now()}`,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     setUsers(prev => {
       const next = [...prev, newUser];
@@ -4137,6 +4185,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
 
     // Immediate Firestore persistence so user can log in immediately from any browser/device
+    pushDeltaToServer('users', 'upsert', newUser);
     setDoc(doc(db, 'users', newUser.id), newUser).catch(e => {
       console.warn('Direct save user to cloud note:', e);
     });
@@ -4146,12 +4195,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const updateUser = (id: string, updated: Partial<SystemUser>) => {
     setUsers(prev => {
-      const next = prev.map(u => (u.id === id ? { ...u, ...updated } : u));
+      const next = prev.map(u => (u.id === id ? { ...u, ...updated, updatedAt: new Date().toISOString() } : u));
       try {
         localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(next));
       } catch (e) {}
       const target = next.find(u => u.id === id);
       if (target) {
+        pushDeltaToServer('users', 'upsert', target);
         setDoc(doc(db, 'users', id), target).catch(e => {
           console.warn('Direct update user in cloud note:', e);
         });
@@ -4171,6 +4221,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       } catch (e) {}
       return next;
     });
+    pushDeltaToServer('users', 'delete', { id, _deleted: true });
+    registerDeletedDoc('users', id);
     deleteDoc(doc(db, 'users', id)).catch(e => console.warn('Could not delete user in cloud:', e));
     if (currentUserId === id) {
       const remaining = users.filter(u => u.id !== id);
@@ -4505,11 +4557,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setTreasuries(prev =>
       prev.map(t => {
         if (t.id === id) {
-          const updatedTreasury = { ...t, ...updated };
+          const updatedTreasury = { ...t, ...updated, updatedAt: new Date().toISOString() };
           // If name changed, keep linked chart of account name updated
           if (updated.name && updated.name !== t.name) {
-            setAccounts(accs => accs.map(a => a.code === t.accountCode ? { ...a, name: updated.name! } : a));
+            setAccounts(accs => accs.map(a => a.code === t.accountCode ? { ...a, name: updated.name!, updatedAt: new Date().toISOString() } : a));
           }
+          pushDeltaToServer('treasuries', 'upsert', updatedTreasury);
           setDoc(doc(db, 'treasuries', id), cleanDocForFirestore(updatedTreasury)).catch(() => {});
           return updatedTreasury;
         }
@@ -4532,6 +4585,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     setTreasuries(prev => prev.filter(t => t.id !== id));
+    pushDeltaToServer('treasuries', 'delete', { id, _deleted: true });
+    registerDeletedDoc('treasuries', id);
     deleteDoc(doc(db, 'treasuries', id)).catch(e => console.warn('Could not delete treasury in cloud:', e));
     return { success: true, message: `تم حذف الخزنة (${target.name}) بنجاح` };
   };
@@ -5616,10 +5671,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const today = new Date().toISOString().split('T')[0];
     const time = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
 
-    // Enforce SKU uniqueness: ensure item.code never duplicates any existing item
+    // Enforce SKU uniqueness: ensure item.code never duplicates any existing item and is issued safely upon save
     let uniqueCode = (item.code || '').trim();
-    const isDuplicate = inventory.some(it => (it.code || '').trim().toLowerCase() === uniqueCode.toLowerCase());
-    if (!uniqueCode || isDuplicate) {
+    const isAutoOrEmpty = !uniqueCode || uniqueCode === 'تلقائي بعد الحفظ' || uniqueCode.includes('تلقائي');
+    const isDuplicate = !isAutoOrEmpty && inventory.some(it => (it.code || '').trim().toLowerCase() === uniqueCode.toLowerCase());
+    if (isAutoOrEmpty || isDuplicate) {
       uniqueCode = generateSequentialSku(item.category, inventory.map(i => i.code || ''), settings.categories);
     }
 
@@ -6717,12 +6773,19 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // 2. الفحص الصارم لرقم الفاتورة ومنع تكرار أي رقم فاتورة مطلقاً
-    let invoiceNumber = oldInvoice ? oldInvoice.invoiceNumber : extraOptions?.invoiceNumber;
+    // 2. الفحص الصارم لرقم الفاتورة ومنع تكرار أي رقم فاتورة مطلقاً - إصدار الرقم بعد إتمام الحفظ
+    let invoiceNumber = oldInvoice ? oldInvoice.invoiceNumber : undefined;
+
+    // إذا كان هناك رقم مؤكد تم توريده من الترحيل السحابي الفوري ولم يكن مكرراً مع فاتورة أخرى:
+    if (!invoiceNumber && extraOptions?.invoiceNumber && !invoices.some(inv => inv.id !== invId && inv.invoiceNumber && inv.invoiceNumber.trim() === extraOptions.invoiceNumber!.trim())) {
+      invoiceNumber = extraOptions.invoiceNumber;
+    }
+
+    // إذا لم يتحدد رقم (فاتورة جديدة أو رقم متضارب)، يتم توليد الرقم التسلسلي الجديد فورياً عند الحفظ
     if (!invoiceNumber) {
       let maxNum = 0;
       invoices.forEach(inv => {
-        if (inv.invoiceNumber) {
+        if (inv.invoiceNumber && inv.id !== invId) {
           const matched = inv.invoiceNumber.match(/\d+/g);
           if (matched && matched.length > 0) {
             const num = parseInt(matched[matched.length - 1], 10);
@@ -6732,27 +6795,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
       });
-      invoiceNumber = `INV-${String(maxNum + 1).padStart(4, '0')}`;
-    }
-
-    // التحقق النهائي من عدم وجود أي فاتورة سابقة تحمل نفس رقم الفاتورة للعمليات الجديدة
-    if (!oldInvoice) {
-      const isNumDuplicate = invoices.some(inv => inv.invoiceNumber && inv.invoiceNumber.trim() === invoiceNumber.trim() && inv.id !== invId);
-      if (isNumDuplicate) {
-        let maxNum = 0;
-        invoices.forEach(inv => {
-          if (inv.invoiceNumber) {
-            const matched = inv.invoiceNumber.match(/\d+/g);
-            if (matched && matched.length > 0) {
-              const num = parseInt(matched[matched.length - 1], 10);
-              if (!isNaN(num) && num > maxNum && num < 1000000) {
-                maxNum = num;
-              }
-            }
-          }
-        });
-        invoiceNumber = `INV-${String(maxNum + 1).padStart(4, '0')}`;
+      let nextSeq = maxNum + 1;
+      let candidate = `INV-${String(nextSeq).padStart(4, '0')}`;
+      while (invoices.some(inv => inv.id !== invId && inv.invoiceNumber && inv.invoiceNumber.trim() === candidate.trim())) {
+        nextSeq++;
+        candidate = `INV-${String(nextSeq).padStart(4, '0')}`;
       }
+      invoiceNumber = candidate;
     }
     const today = extraOptions?.date || new Date().toISOString().split('T')[0];
     const appliedTaxRate = extraOptions?.taxRate !== undefined ? extraOptions.taxRate : settings.vatRate;
@@ -7412,7 +7461,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     return {
       id: extraOptions?.editingInvoiceId || `inv-pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      invoiceNumber: extraOptions?.invoiceNumber || `INV-${String(invoices.length + 1).padStart(4, '0')}`,
+      invoiceNumber: extraOptions?.editingInvoiceId
+        ? (invoices.find(inv => inv.id === extraOptions.editingInvoiceId)?.invoiceNumber || '')
+        : (extraOptions?.invoiceNumber || ''),
       date: extraOptions?.date || new Date().toISOString().split('T')[0],
       type: 'pos',
       customerId,
@@ -8806,7 +8857,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const createPurchaseInvoice = (invoiceData: Omit<PurchaseInvoice, 'id' | 'invoiceNumber'>) => {
     const id = 'pur-' + Date.now();
-    const invoiceNumber = `PUR-${new Date().getFullYear()}-${String(purchases.length + 1).padStart(4, '0')}`;
+    const curYear = new Date().getFullYear();
+    const purPrefix = `PUR-${curYear}-`;
+    let maxPurSeq = 0;
+    purchases.forEach(p => {
+      if (p.invoiceNumber && p.invoiceNumber.startsWith(purPrefix)) {
+        const seq = parseInt(p.invoiceNumber.substring(purPrefix.length), 10);
+        if (!isNaN(seq) && seq > maxPurSeq) maxPurSeq = seq;
+      }
+    });
+    let nextPurSeq = maxPurSeq + 1;
+    let invoiceNumber = `${purPrefix}${String(nextPurSeq).padStart(4, '0')}`;
+    while (purchases.some(p => p.invoiceNumber === invoiceNumber)) {
+      nextPurSeq++;
+      invoiceNumber = `${purPrefix}${String(nextPurSeq).padStart(4, '0')}`;
+    }
     
     // Multi-currency handling for purchases
     const exchangeRate = invoiceData.exchangeRate || 1.0;
@@ -9161,7 +9226,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const createPurchaseReturn = (returnData: Omit<PurchaseReturn, 'id' | 'returnNumber' | 'createdAt'>): PurchaseReturn => {
     const id = 'prn-' + Date.now();
-    const returnNumber = `PRN-${new Date().getFullYear()}-${String(purchaseReturns.length + 1).padStart(4, '0')}`;
+    const curYear = new Date().getFullYear();
+    const prnPrefix = `PRN-${curYear}-`;
+    let maxPrnSeq = 0;
+    purchaseReturns.forEach(r => {
+      if (r.returnNumber && r.returnNumber.startsWith(prnPrefix)) {
+        const seq = parseInt(r.returnNumber.substring(prnPrefix.length), 10);
+        if (!isNaN(seq) && seq > maxPrnSeq) maxPrnSeq = seq;
+      }
+    });
+    let nextPrnSeq = maxPrnSeq + 1;
+    let returnNumber = `${prnPrefix}${String(nextPrnSeq).padStart(4, '0')}`;
+    while (purchaseReturns.some(r => r.returnNumber === returnNumber)) {
+      nextPrnSeq++;
+      returnNumber = `${prnPrefix}${String(nextPrnSeq).padStart(4, '0')}`;
+    }
     const today = returnData.date || new Date().toISOString().split('T')[0];
     const exchangeRate = returnData.exchangeRate || 1.0;
     const baseTotalAmount = Number((returnData.totalAmount * exchangeRate).toFixed(2));
@@ -9296,7 +9375,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const createSalesReturn = (returnData: Omit<SalesReturn, 'id' | 'returnNumber' | 'createdAt'>): SalesReturn => {
     const id = 'srn-' + Date.now();
-    const returnNumber = `SR-${new Date().getFullYear()}-${String(salesReturns.length + 1).padStart(4, '0')}`;
+    const curYear = new Date().getFullYear();
+    const srPrefix = `SR-${curYear}-`;
+    let maxSrSeq = 0;
+    salesReturns.forEach(r => {
+      if (r.returnNumber && r.returnNumber.startsWith(srPrefix)) {
+        const seq = parseInt(r.returnNumber.substring(srPrefix.length), 10);
+        if (!isNaN(seq) && seq > maxSrSeq) maxSrSeq = seq;
+      }
+    });
+    let nextSrSeq = maxSrSeq + 1;
+    let returnNumber = `${srPrefix}${String(nextSrSeq).padStart(4, '0')}`;
+    while (salesReturns.some(r => r.returnNumber === returnNumber)) {
+      nextSrSeq++;
+      returnNumber = `${srPrefix}${String(nextSrSeq).padStart(4, '0')}`;
+    }
     const today = returnData.date || new Date().toISOString().split('T')[0];
     const exchangeRate = returnData.exchangeRate || 1.0;
     const baseTotalAmount = Number((returnData.totalAmount * exchangeRate).toFixed(2));

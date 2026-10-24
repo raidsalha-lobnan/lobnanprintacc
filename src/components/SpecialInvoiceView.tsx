@@ -140,14 +140,6 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [customerName, customerPhone, customerAddress, items, notes, discount, tax, date]);
 
-  // Initialization
-  useEffect(() => {
-    if (!invoiceNumber) {
-      const year = new Date().getFullYear();
-      const count = invoices.length + 1;
-      setInvoiceNumber(`INV-${year}-${String(count).padStart(4, '0')}`);
-    }
-  }, [invoices.length]);
 
   useEffect(() => {
     if (settings) {
@@ -342,7 +334,7 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
     }
 
     const res = await addPosInvoiceOnline({
-      invoiceNumber,
+      invoiceNumber: invoiceNumber.trim() || undefined,
       date,
       customerId: selectedCustomerId || undefined,
       customerName: customerName || 'عميل نقدي',
@@ -376,7 +368,9 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
       return;
     }
 
-    alert('تم ترحيل وحفظ الفاتورة بنجاح في السيرفر وسجل المبيعات 🟢');
+    const assignedNumber = res.invoice?.invoiceNumber || invoiceNumber;
+    setInvoiceNumber(assignedNumber);
+    alert(`تم ترحيل وحفظ الفاتورة بنجاح في السيرفر وسجل المبيعات برقم (#${assignedNumber}) 🟢`);
   };
   return (
     <>
@@ -451,6 +445,7 @@ export const SpecialInvoiceView: React.FC<SpecialInvoiceViewProps> = ({ onClose 
                   type="text" 
                   value={invoiceNumber}
                   onChange={(e) => setInvoiceNumber(e.target.value)}
+                  placeholder="تلقائي بعد الحفظ"
                   className="w-full text-center font-bold text-lg outline-none bg-transparent"
                 />
               </div>

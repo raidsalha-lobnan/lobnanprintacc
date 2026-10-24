@@ -11,12 +11,24 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
   const map = new Map<string, Invoice>();
   const deletedIds = new Set<string>();
 
+  try {
+    const delList = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
+    if (Array.isArray(delList)) {
+      delList.forEach((d: any) => {
+        if (d && d.id) {
+          deletedIds.add(String(d.id));
+          if (d.col === 'invoices') deletedIds.add(String(d.id));
+        }
+      });
+    }
+  } catch {}
+
   // 1. Load valid local invoices into map
   if (Array.isArray(localInvoices)) {
     for (const inv of localInvoices) {
       if (inv && typeof inv === 'object' && inv.id != null) {
         const key = String(inv.id);
-        if ((inv as any)._deleted || (inv as any).deletedAt) {
+        if ((inv as any)._deleted || (inv as any).deletedAt || deletedIds.has(key)) {
           deletedIds.add(key);
         } else {
           map.set(key, { ...inv });

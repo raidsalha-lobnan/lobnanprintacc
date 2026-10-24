@@ -208,6 +208,14 @@ const ALL_SYNC_ENTITIES = [
 const syncCache: Record<string, any[]> = {};
 const syncTimestamps: Record<string, number> = {};
 
+function isTestSyncProbeItem(item: any): boolean {
+  if (!item) return false;
+  const id = String(item.id || '');
+  const code = String(item.code || '');
+  const name = String(item.name || '');
+  return id === 'inv-probe-sync-1' || id === 'inv-test-full-1' || code === 'ITEM-9999' || name === 'صنف تجربة المزامنة' || name === 'صنف فحص المزامنة الشاملة';
+}
+
 function loadEntityData(entity: string): any[] {
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
   let existingData: any[] = [];
@@ -245,17 +253,19 @@ function loadEntityData(entity: string): any[] {
     } catch {}
   }
 
+  existingData = existingData.filter(it => !isTestSyncProbeItem(it));
   syncCache[entity] = existingData;
   syncTimestamps[entity] = fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : Date.now();
   return existingData;
 }
 
 function saveEntityData(entity: string, data: any[]) {
-  syncCache[entity] = data;
+  const cleanData = (data || []).filter(it => !isTestSyncProbeItem(it));
+  syncCache[entity] = cleanData;
   syncTimestamps[entity] = Date.now();
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
   try {
-    fs.writeFileSync(filePath, JSON.stringify(data), 'utf8');
+    fs.writeFileSync(filePath, JSON.stringify(cleanData), 'utf8');
   } catch (err) {
     console.error(`Failed to save sync entity ${entity}:`, err);
   }

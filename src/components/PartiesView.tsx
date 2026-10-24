@@ -965,10 +965,10 @@ export const PartiesView: React.FC = () => {
                     value={
                       editingPartyId
                         ? (parties.find(p => p.id === editingPartyId)?.code || '')
-                        : generateSequentialPartyCode(partyType, parties)
+                        : 'تلقائي بعد الحفظ'
                     }
                     className="w-full bg-white border border-blue-300 rounded px-1.5 py-0.5 font-mono text-xs font-black text-blue-900 cursor-not-allowed text-center shadow-inner h-7"
-                    title="رقم تسلسلي آلي محمي من التعديل والتكرار"
+                    title="يتم توليد الرقم التسلسلي آلياً فور إتمام الحفظ لمنع التكرار بين الأجهزة"
                   />
                 </div>
 

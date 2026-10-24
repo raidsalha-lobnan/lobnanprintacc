@@ -32,6 +32,7 @@ export interface Branch {
   notes?: string;
   isMain?: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type WarehouseType =
@@ -62,6 +63,7 @@ export interface Warehouse {
   notes?: string;
   isDefault?: boolean;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export type WarehouseOperationType =
@@ -117,6 +119,7 @@ export interface WarehouseOperation {
   notes?: string;                       // الملاحظات
   status: 'completed' | 'cancelled';    // حالة المستند
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type PermissionKey =
@@ -210,6 +213,7 @@ export interface Role {
   allowedPriceTier?: AllowedPriceTierScope;
   defaultPriceTier?: PriceTierKey;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface SystemUser {
@@ -230,6 +234,7 @@ export interface SystemUser {
   avatarColor?: string;
   lastLogin?: string;
   createdAt: string;
+  updatedAt?: string;
   // إعدادات وصلاحيات أسعار البيع
   allowedPriceTier?: AllowedPriceTierScope; // 'all' (الكل) أو 'price1' (سعر 1 فقط) أو 'price2' أو 'price3'
   defaultPriceTier?: PriceTierKey;          // فئة السعر الافتراضية للكاشير والفواتير
