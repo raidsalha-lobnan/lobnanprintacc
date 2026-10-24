@@ -438,13 +438,7 @@ interface PosFullDraftData {
 }
 
 const getInitialPosDraft = (): PosFullDraftData => {
-  try {
-    const raw = localStorage.getItem(POS_FULL_DRAFT_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') return parsed;
-    }
-  } catch {}
+  // عند فتح شاشة الكاشير دائماً تكون كأنها فاتورة جديدة نظيفة دون استرجاع مسودات قديمة
   return {};
 };
 
@@ -659,20 +653,8 @@ const getInitialPosDraft = (): PosFullDraftData => {
     'representative' | 'tax' | 'additional' | 'discount' | 'notes' | 'shipping' | 'details' | 'currency' | null
   >(null);
 
-  // Table Lines State - حفظ واسترجاع مسودة الكاشير لضمان عدم ضياع الأصناف عند التحديث
-
-
-    const [tableLines, setTableLines] = useState<PosTableLine[]>(() => {
-    if (Array.isArray(savedPosDraft.tableLines) && savedPosDraft.tableLines.length > 0) {
-      return savedPosDraft.tableLines;
-    }
-    try {
-      const saved = localStorage.getItem('pos_active_draft_lines');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
+  // Table Lines State - تبدأ دائماً كفاتورة جديدة فارغة عند فتح شاشة الكاشير
+  const [tableLines, setTableLines] = useState<PosTableLine[]>(() => {
     return [
       {
         id: generateUniqueLineId(),
@@ -1335,6 +1317,9 @@ const getInitialPosDraft = (): PosFullDraftData => {
         break;
       case 'held_invoices_list':
         setIsHeldInvoicesOpen(true);
+        break;
+      case 'new_invoice':
+        handleStartNewInvoice();
         break;
       case 'clear_invoice':
         handleClearInvoice();
@@ -2955,6 +2940,34 @@ const getInitialPosDraft = (): PosFullDraftData => {
     }
   };
 
+  // عند فتح شاشة الكاشير دائماً تكون كأنها فاتورة جديدة
+  useEffect(() => {
+    try {
+      localStorage.removeItem(POS_FULL_DRAFT_KEY);
+      localStorage.removeItem('pos_active_draft_lines');
+    } catch {}
+
+    if (!editingPosInvoiceId && !currentEditingInvoiceIdRef.current) {
+      handleClearInvoiceDirect(true);
+    }
+  }, []);
+
+  // البدء بفاتورة جديدة فوراً وتفريغ الشاشة (جديد Ctrl+N)
+  const handleStartNewInvoice = () => {
+    handleClearInvoiceDirect(true);
+    posSound.beep();
+    try {
+      localStorage.removeItem(POS_FULL_DRAFT_KEY);
+      localStorage.removeItem('pos_active_draft_lines');
+    } catch {}
+    setTimeout(() => {
+      if (customerInputRef.current) {
+        customerInputRef.current.focus();
+        customerInputRef.current.select();
+      }
+    }, 50);
+  };
+
   // Focus customer input and clear entered customer name (Space key shortcut)
   const handleFocusAndClearCustomer = useCallback(() => {
     setSelectedCustomerId('');
@@ -3050,7 +3063,12 @@ const getInitialPosDraft = (): PosFullDraftData => {
       }
 
       // 3. Fallback standard shortcuts
-      if (matchKeyboardShortcut(e, 'Ctrl+S')) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N' || e.code === 'KeyN' || matchKeyboardShortcut(e, 'Ctrl+N'))) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleStartNewInvoice();
+        return;
+      } else if (matchKeyboardShortcut(e, 'Ctrl+S')) {
         e.preventDefault();
         e.stopPropagation();
         handleSaveInvoice('none', true);
@@ -3206,9 +3224,35 @@ const getInitialPosDraft = (): PosFullDraftData => {
             <div className="flex items-center gap-1.5 flex-nowrap">
               {/* مجموعة أزرار شريط الأدوات العلوي مع أداة التنقل والتعداد التسلسلي المصغرة لفواتير اليوم المحدد */}
               {(() => {
-                const toolbarButtons = posButtons
+                let toolbarButtons = posButtons
                   .filter(b => b.location === 'top_toolbar' && b.isVisible)
                   .sort((a, b) => a.order - b.order);
+
+                // Ensure 'جديد' (Ctrl+N) is always present directly before 'إلغاء'
+                if (!toolbarButtons.some(b => b.actionType === 'new_invoice' || b.id === 'btn_top_new')) {
+                  const newBtn: PosCustomButton = {
+                    id: 'btn_top_new',
+                    label: 'جديد',
+                    subLabel: 'فاتورة جديدة',
+                    shortcut: 'Ctrl+N',
+                    iconName: 'Plus',
+                    actionType: 'new_invoice',
+                    colorScheme: 'emerald',
+                    location: 'top_toolbar',
+                    order: 0,
+                    isVisible: true
+                  };
+                  const cancelIdx = toolbarButtons.findIndex(b => b.actionType === 'clear_invoice' || b.id === 'btn_top_cancel');
+                  if (cancelIdx >= 0) {
+                    toolbarButtons = [
+                      ...toolbarButtons.slice(0, cancelIdx),
+                      newBtn,
+                      ...toolbarButtons.slice(cancelIdx)
+                    ];
+                  } else {
+                    toolbarButtons = [newBtn, ...toolbarButtons];
+                  }
+                }
                 
                 const hasNavFirst = toolbarButtons.some(b => b.actionType === 'nav_first');
 
@@ -3227,7 +3271,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                             onNavNext={handleNavNext}
                             onNavLast={handleNavLast}
                             onJumpToIndex={handleJumpToInvoiceIndex}
-                            onNewInvoice={() => handleClearInvoiceDirect(true)}
+                            onNewInvoice={handleStartNewInvoice}
                           />
                         );
                       }
@@ -3263,7 +3307,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                         onNavNext={handleNavNext}
                         onNavLast={handleNavLast}
                         onJumpToIndex={handleJumpToInvoiceIndex}
-                        onNewInvoice={() => handleClearInvoiceDirect(true)}
+                        onNewInvoice={handleStartNewInvoice}
                       />
                     )}
                   </>

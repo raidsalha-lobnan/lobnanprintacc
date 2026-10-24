@@ -103,6 +103,8 @@ export function renderPosIcon(iconName: string, className: string = 'w-4 h-4') {
       return <Scan className={className} />;
     case 'Zap':
       return <Zap className={className} />;
+    case 'Plus':
+      return <Plus className={className} />;
     default:
       return <Tag className={className} />;
   }
@@ -111,6 +113,9 @@ export function renderPosIcon(iconName: string, className: string = 'w-4 h-4') {
 // Get tailwind classes based on color scheme and location
 export function getButtonColorClasses(color: PosButtonColorScheme, location: string, isEditMode: boolean = false) {
   if (location === 'top_toolbar') {
+    if (color === 'emerald') {
+      return 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 hover:text-emerald-950 border border-emerald-300 hover:border-emerald-500 shadow-2xs hover:shadow-xs';
+    }
     return 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-blue-400 shadow-2xs hover:shadow-xs';
   }
 
@@ -236,11 +241,15 @@ export const PosCustomButtonRenderer: React.FC<PosCustomButtonRendererProps> = (
       >
         {renderPosIcon(
           button.iconName,
-          isTopToolbar ? 'w-3.5 h-3.5 text-blue-600' : 'w-4 h-4'
+          isTopToolbar ? (button.colorScheme === 'emerald' ? 'w-3.5 h-3.5 text-emerald-700' : 'w-3.5 h-3.5 text-blue-600') : 'w-4 h-4'
         )}
         <span>{button.label}</span>
-        {button.shortcut && !isTopToolbar && (
-          <span className="hidden lg:flex text-[9px] opacity-90 font-mono px-1.5 py-0.5 bg-black/20 rounded font-black tracking-tight items-center justify-center">
+        {button.shortcut && (
+          <span className={`text-[9px] font-mono px-1 py-0.2 rounded font-black tracking-tight flex items-center justify-center ${
+            isTopToolbar
+              ? (button.colorScheme === 'emerald' ? 'bg-emerald-200/70 text-emerald-900 border border-emerald-300' : 'bg-slate-100 text-slate-700 border border-slate-200')
+              : 'hidden lg:flex opacity-90 bg-black/20 text-white'
+          }`}>
             {button.shortcut.replace(/Enter/ig, '↵')}
           </span>
         )}

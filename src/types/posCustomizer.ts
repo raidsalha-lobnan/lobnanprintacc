@@ -1,6 +1,7 @@
 import { LucideIcon } from 'lucide-react';
 
 export type PosButtonActionType =
+  | 'new_invoice'            // Ctrl+N فاتورة جديدة
   | 'save_invoice'           // F5 حفظ الفاتورة
   | 'save_and_print'         // Alt+C حفظ وطباعة حراري
   | 'save_and_print_a4_custom'// حفظ وطباعة A4 تصميم 2
@@ -146,6 +147,18 @@ export const DEFAULT_POS_BUTTONS: PosCustomButton[] = [
     isVisible: true
   },
   // --- TOP TOOLBAR ---
+  {
+    id: 'btn_top_new',
+    label: 'جديد',
+    subLabel: 'فاتورة جديدة',
+    shortcut: 'Ctrl+N',
+    iconName: 'Plus',
+    actionType: 'new_invoice',
+    colorScheme: 'emerald',
+    location: 'top_toolbar',
+    order: 0,
+    isVisible: true
+  },
   {
     id: 'btn_top_cancel',
     label: 'إلغاء',
@@ -322,7 +335,7 @@ export function loadPosCustomButtons(userId?: string, adminFallback?: PosCustomB
 
     // Always enforce Alt+C for thermal print button (حراري)
     let modified = false;
-    const migrated = buttons.map(btn => {
+    let migrated = buttons.map(btn => {
       if (btn.id === 'btn_f10_print' || btn.label === 'حراري' || btn.actionType === 'save_and_print') {
         if (btn.shortcut !== 'Alt+C' || btn.label !== 'حراري' || btn.subLabel !== 'حفظ وطباعة حراري') {
           modified = true;
@@ -336,6 +349,29 @@ export function loadPosCustomButtons(userId?: string, adminFallback?: PosCustomB
       }
       return btn;
     });
+
+    // Ensure 'btn_top_new' (جديد Ctrl+N) is present before 'btn_top_cancel'
+    if (!migrated.some(b => b.id === 'btn_top_new' || b.actionType === 'new_invoice')) {
+      const cancelIdx = migrated.findIndex(b => b.id === 'btn_top_cancel' || b.actionType === 'clear_invoice');
+      const newBtn: PosCustomButton = {
+        id: 'btn_top_new',
+        label: 'جديد',
+        subLabel: 'فاتورة جديدة',
+        shortcut: 'Ctrl+N',
+        iconName: 'Plus',
+        actionType: 'new_invoice',
+        colorScheme: 'emerald',
+        location: 'top_toolbar',
+        order: 0,
+        isVisible: true
+      };
+      if (cancelIdx >= 0) {
+        migrated.splice(cancelIdx, 0, newBtn);
+      } else {
+        migrated.unshift(newBtn);
+      }
+      modified = true;
+    }
 
     if (modified) {
       savePosCustomButtons(migrated, userId);
