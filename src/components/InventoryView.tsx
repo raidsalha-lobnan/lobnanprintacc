@@ -1059,10 +1059,10 @@ export const InventoryView: React.FC = () => {
                     <div className="flex items-center justify-between font-mono">
                       <span className="text-[10px] text-slate-400 font-light font-sans">سعر البيع:</span>
                       <span className="font-bold text-blue-600 text-xs">
-                        {item.sellingPrice.toLocaleString('ar-SA')} ₪
+                        {(Number(item.sellingPrice) || 0).toLocaleString('ar-SA')} ₪
                         {selectedCurrencyCode !== 'ILS' && (
                           <span className="text-[10px] text-emerald-600 font-normal mr-1">
-                            (≈ {(item.sellingPrice / dailyExchangeRate).toFixed(1)} {activeCurrency.symbol})
+                            (≈ {((Number(item.sellingPrice) || 0) / (dailyExchangeRate || 1)).toFixed(1)} {activeCurrency.symbol})
                           </span>
                         )}
                       </span>
@@ -1244,20 +1244,20 @@ export const InventoryView: React.FC = () => {
                         </td>
                         <td className="p-2.5 text-slate-600">{item.unit}</td>
                         <td className="p-2.5 font-mono font-semibold text-slate-700">
-                          <div>{item.purchasePrice.toFixed(2)} ₪</div>
+                          <div>{(Number(item.purchasePrice) || 0).toFixed(2)} ₪</div>
                           {selectedCurrencyCode !== 'ILS' && (
                             <div className="text-[10px] text-blue-600 font-bold">
-                              ≈ {(item.purchasePrice / dailyExchangeRate).toFixed(2)} {activeCurrency.symbol}
+                              ≈ {((Number(item.purchasePrice) || 0) / (dailyExchangeRate || 1)).toFixed(2)} {activeCurrency.symbol}
                             </div>
                           )}
                         </td>
                         <td className="p-2.5 font-mono text-slate-900">
                           <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                            <span className="font-extrabold text-slate-950">{item.sellingPrice.toFixed(2)} ₪</span>
+                            <span className="font-extrabold text-slate-950">{(Number(item.sellingPrice) || 0).toFixed(2)} ₪</span>
                             
                             {selectedCurrencyCode !== 'ILS' && (
                               <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1 rounded">
-                                ≈ {(item.sellingPrice / dailyExchangeRate).toFixed(2)} {activeCurrency.symbol}
+                                ≈ {((Number(item.sellingPrice) || 0) / (dailyExchangeRate || 1)).toFixed(2)} {activeCurrency.symbol}
                               </span>
                             )}
 
@@ -1931,19 +1931,21 @@ export const InventoryView: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-amber-100 font-sans">
                         {formCustomerSpecialPrices.map((entry, idx) => {
-                          const diff = entry.price - formSellingPrice;
+                          const entryPrice = Number(entry?.price ?? 0);
+                          const basePrice = Number(formSellingPrice || 0);
+                          const diff = entryPrice - basePrice;
                           return (
-                            <tr key={`inv-sp-ent-${entry.customerId || idx}-${idx}`} className="hover:bg-amber-50/50">
+                            <tr key={`inv-sp-ent-${entry?.customerId || idx}-${idx}`} className="hover:bg-amber-50/50">
                               <td className="p-2 font-bold text-slate-800">
-                                {entry.customerName}
-                                {entry.customerCode && (
+                                {entry?.customerName || 'عميل'}
+                                {entry?.customerCode && (
                                   <span className="text-[10px] font-mono text-slate-500 mr-1">
                                     ({entry.customerCode})
                                   </span>
                                 )}
                               </td>
                               <td className="p-2 font-mono font-bold text-amber-900">
-                                {entry.price.toFixed(2)} ₪
+                                {entryPrice.toFixed(2)} ₪
                               </td>
                               <td className="p-2 text-[11px] font-mono">
                                 {diff === 0 ? (
@@ -1959,7 +1961,7 @@ export const InventoryView: React.FC = () => {
                                 )}
                               </td>
                               <td className="p-2 text-[11px] text-slate-600">
-                                {entry.notes || '-'}
+                                {entry?.notes || '-'}
                               </td>
                               <td className="p-2 text-center">
                                 <button
@@ -2143,11 +2145,11 @@ export const InventoryView: React.FC = () => {
             <div className="grid grid-cols-3 gap-2 my-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
               <div>
                 <span className="text-slate-500 block text-[10px]">سعر التكلفة:</span>
-                <span className="font-bold font-mono text-slate-800">{viewingSpecialPricesItem.purchasePrice.toFixed(2)} ₪</span>
+                <span className="font-bold font-mono text-slate-800">{(Number(viewingSpecialPricesItem.purchasePrice) || 0).toFixed(2)} ₪</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[10px]">سعر بيع 1 (أساسي):</span>
-                <span className="font-bold font-mono text-blue-600">{viewingSpecialPricesItem.sellingPrice.toFixed(2)} ₪</span>
+                <span className="font-bold font-mono text-blue-600">{(Number(viewingSpecialPricesItem.sellingPrice) || 0).toFixed(2)} ₪</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[10px]">فئات أخرى:</span>
@@ -2172,19 +2174,21 @@ export const InventoryView: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {viewingSpecialPricesItem.customerSpecialPrices?.map((sp, idx) => {
-                    const diff = sp.price - viewingSpecialPricesItem.sellingPrice;
+                    const spPrice = Number(sp?.price ?? 0);
+                    const baseSelling = Number(viewingSpecialPricesItem?.sellingPrice ?? 0);
+                    const diff = spPrice - baseSelling;
                     return (
-                      <tr key={`inv-sp-row-${sp.customerId || idx}-${idx}`} className="hover:bg-amber-50/40">
+                      <tr key={`inv-sp-row-${sp?.customerId || idx}-${idx}`} className="hover:bg-amber-50/40">
                         <td className="p-2.5 font-bold text-slate-800">
-                          {sp.customerName}
-                          {sp.customerCode && (
+                          {sp?.customerName || 'عميل'}
+                          {sp?.customerCode && (
                             <span className="text-[10px] text-slate-400 font-mono mr-1">
                               ({sp.customerCode})
                             </span>
                           )}
                         </td>
                         <td className="p-2.5 font-mono font-bold text-amber-900">
-                          {sp.price.toFixed(2)} ₪
+                          {spPrice.toFixed(2)} ₪
                         </td>
                         <td className="p-2.5 font-mono text-[11px]">
                           {diff === 0 ? (
@@ -2196,7 +2200,7 @@ export const InventoryView: React.FC = () => {
                           )}
                         </td>
                         <td className="p-2.5 text-slate-500 text-[11px]">
-                          {sp.notes || '-'}
+                          {sp?.notes || '-'}
                         </td>
                       </tr>
                     );

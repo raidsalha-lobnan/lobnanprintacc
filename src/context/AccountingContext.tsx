@@ -759,13 +759,13 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
           }
         } catch (e) {}
       }
-      // Check inventory for inv-1 STAT-0001
+      // Check inventory for inv-1 STAT-0001 or sync probe test items
       const rawInv = localStorage.getItem(`${STORAGE_KEY}_inventory`);
-      if (rawInv && (rawInv.includes('STAT-0001') || rawInv.includes('دفتر سلك جامعي') || rawInv.includes('inv-1'))) {
+      if (rawInv && (rawInv.includes('STAT-0001') || rawInv.includes('دفتر سلك جامعي') || rawInv.includes('inv-1') || rawInv.includes('inv-probe-sync-1') || rawInv.includes('inv-test-full-1') || rawInv.includes('صنف تجربة المزامنة') || rawInv.includes('صنف فحص المزامنة الشاملة'))) {
         try {
           const parsed = JSON.parse(rawInv);
           if (Array.isArray(parsed)) {
-            const cleaned = parsed.filter((i: any) => i && i.id !== 'inv-1' && !i.code?.includes('STAT-'));
+            const cleaned = parsed.filter((i: any) => i && i.id !== 'inv-1' && !i.code?.includes('STAT-') && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة');
             localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(cleaned));
           }
         } catch (e) {}
@@ -1032,7 +1032,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (data && typeof data === 'object') {
               if (Array.isArray(data.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], data.invoices));
               if (Array.isArray(data.parties)) setParties(prev => mergeEntityLists(prev || [], data.parties));
-              if (Array.isArray(data.inventory)) setInventory(prev => mergeEntityLists(prev || [], data.inventory));
+              if (Array.isArray(data.inventory)) setInventory(prev => mergeEntityLists(prev || [], data.inventory.filter((i: any) => i && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة')));
               if (Array.isArray(data.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], data.printOrders));
               if (Array.isArray(data.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], data.vouchers));
               if (Array.isArray(data.purchases)) setPurchases(prev => mergeEntityLists(prev || [], data.purchases));
@@ -1053,7 +1053,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
           if (Array.isArray(fsData.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], fsData.invoices));
           if (Array.isArray(fsData.parties)) setParties(prev => mergeEntityLists(prev || [], fsData.parties));
-          if (Array.isArray(fsData.inventory)) setInventory(prev => mergeEntityLists(prev || [], fsData.inventory));
+          if (Array.isArray(fsData.inventory)) setInventory(prev => mergeEntityLists(prev || [], fsData.inventory.filter((i: any) => i && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة')));
           if (Array.isArray(fsData.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], fsData.vouchers));
           if (Array.isArray(fsData.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], fsData.printOrders));
           if (Array.isArray(fsData.purchases)) setPurchases(prev => mergeEntityLists(prev || [], fsData.purchases));
@@ -1094,7 +1094,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const [inventory, setInventory] = useState<InventoryItem[]>(() => {
     const loaded = safeLoadArray(`${STORAGE_KEY}_inventory`, initialInventory);
-    const mapped = loaded.map(it => {
+    const filtered = loaded.filter(it => it && it.id !== 'inv-probe-sync-1' && it.id !== 'inv-test-full-1' && it.name !== 'صنف تجربة المزامنة' && it.name !== 'صنف فحص المزامنة الشاملة');
+    const mapped = filtered.map(it => {
       if (!it) return it;
       if (
         it.code === 'PRI-0009' ||

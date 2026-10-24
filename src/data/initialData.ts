@@ -442,19 +442,6 @@ export const initialInventory: InventoryItem[] = ([
     "barcode": "",
     "name": "بلوزة لاكوست أسود مع طباعة",
     "code": "TEX-0005"
-  },
-  {
-    "id": "inv-probe-sync-1",
-    "name": "صنف تجربة المزامنة",
-    "category": "print",
-    "sellingPrice": 20
-  },
-  {
-    "id": "inv-test-full-1",
-    "code": "ITEM-9999",
-    "name": "صنف فحص المزامنة الشاملة",
-    "category": "print",
-    "sellingPrice": 100
   }
 ]) as any;
 export const initialParties: Party[] = ([
