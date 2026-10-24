@@ -1304,7 +1304,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
         handleQuickPayCash('none');
         break;
       case 'pay_cash_and_print':
-        handleQuickPayCash('prompt');
+        handleQuickPayCash('thermal-direct');
         break;
       case 'pay_cash_and_print_a4_custom':
         handleQuickPayCash('a4-custom-direct');
@@ -2160,7 +2160,16 @@ const getInitialPosDraft = (): PosFullDraftData => {
   });
 
   // Save Invoice Action (Strict Online Synchronous Posting)
-  const handleSaveInvoice = async (printMode: 'none' | 'prompt' | 'thermal-direct' | 'a4-direct' | 'a4-custom-direct' = 'none', isExplicitSave: boolean = false) => {
+  const handleSaveInvoice = async (
+    printMode: 'none' | 'prompt' | 'thermal-direct' | 'a4-direct' | 'a4-custom-direct' = 'none',
+    isExplicitSave: boolean = false,
+    forcedPayment?: {
+      method: PaymentMethod;
+      cashAmount?: number;
+      bankAmount?: number;
+      treasuryCode?: string;
+    }
+  ) => {
     // 0. Active non-empty lines filter
     const activeLines = tableLines.filter(l => (l.itemName && l.itemName.trim() !== '') || l.unitPrice > 0 || l.quantity > 0);
     if (activeLines.length === 0 || calculatedTotalAmount <= 0) {
@@ -2270,17 +2279,25 @@ const getInitialPosDraft = (): PosFullDraftData => {
       };
     });
 
-    const cashVal = parseFloat(cashAmountInput) || 0;
-    const bankVal = parseFloat(bankAmountInput) || 0;
+    const cashVal = forcedPayment && forcedPayment.cashAmount !== undefined
+      ? forcedPayment.cashAmount
+      : (parseFloat(cashAmountInput) || 0);
+    const bankVal = forcedPayment && forcedPayment.bankAmount !== undefined
+      ? forcedPayment.bankAmount
+      : (parseFloat(bankAmountInput) || 0);
     const cBase = cashVal * (cashExchangeRate || 1.0);
     const bBase = bankVal * (bankExchangeRate || 1.0);
     const tPaidBase = cBase + bBase;
 
-    let effectiveMethod: PaymentMethod = 'credit';
-    if (cBase > 0 && bBase === 0) effectiveMethod = 'cash';
-    else if (bBase > 0 && cBase === 0) effectiveMethod = 'card';
-    else if (cBase > 0 && bBase > 0) effectiveMethod = 'cash';
-    else effectiveMethod = 'credit';
+    let effectiveMethod: PaymentMethod = forcedPayment ? forcedPayment.method : 'credit';
+    if (!forcedPayment) {
+      if (cBase > 0 && bBase === 0) effectiveMethod = 'cash';
+      else if (bBase > 0 && cBase === 0) effectiveMethod = 'card';
+      else if (cBase > 0 && bBase > 0) effectiveMethod = 'cash';
+      else effectiveMethod = 'credit';
+    }
+
+    const effectiveTreasuryCode = forcedPayment?.treasuryCode || (bBase > cBase ? bankTreasuryCode : cashTreasuryCode);
 
     setIsPostingCloudInvoice(true);
     onlineInvoicePostingService.stageInvoiceDraft({
@@ -2318,14 +2335,14 @@ const getInitialPosDraft = (): PosFullDraftData => {
         subCustomerId: subCustomerId || undefined,
         subCustomerName: subCustomerName || undefined,
         subCustomerPhone: subCustomerPhone || undefined,
-        treasuryAccountCode: bBase > cBase ? bankTreasuryCode : cashTreasuryCode,
+        treasuryAccountCode: effectiveTreasuryCode,
         currency: activeCurrency.code,
         currencySymbol: activeCurrency.symbol,
         exchangeRate: customExchangeRate > 0 ? customExchangeRate : 1.0,
         cashPaidAmount: cashVal,
         cashCurrency: cashCurrencyCode,
         cashExchangeRate: cashExchangeRate,
-        cashTreasuryCode: cashTreasuryCode,
+        cashTreasuryCode: (forcedPayment && forcedPayment.method === 'cash' ? forcedPayment.treasuryCode : cashTreasuryCode) || '1101',
         bankPaidAmount: bankVal,
         bankCurrency: bankCurrencyCode,
         bankExchangeRate: bankExchangeRate,
@@ -2460,7 +2477,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
   };
   handleSaveInvoiceRef.current = handleSaveInvoice;
 
-  // Direct Pay Cash (زر دفع يتم احتساب الفاتورة كمدفوعة وبالعملة الرئيسية للبرنامج والصندوق الرئيسي وهو الشيكل)
+  // Direct Pay Cash (زر دفع وسداد الفاتورة نقداً بصندوق النقدية وحفظها)
   const handleQuickPayCash = (printMode: 'none' | 'prompt' | 'thermal-direct' | 'a4-direct' | 'a4-custom-direct' = 'none') => {
     const validLines = tableLines.filter(
       l => (l.itemName && l.itemName.trim() !== '') || l.unitPrice > 0 || l.total > 0
@@ -2476,20 +2493,25 @@ const getInitialPosDraft = (): PosFullDraftData => {
     setCashCurrencyCode('ILS');
     setCashExchangeRate(1.0);
 
-    // 2. Force Main Cash Treasury (الصندوق الرئيسي 1101)
-    const mainCashTreasury = treasuries?.find(t => t.type === 'cash_box' || t.isDefault)?.accountCode || '1101';
+    // 2. Force Main Cash Treasury (صندوق النقدية 1101)
+    const mainCashTreasury = treasuries?.find(t => t.type === 'cash_box' || t.isDefault)?.accountCode || cashTreasuryCode || '1101';
     setCashTreasuryCode(mainCashTreasury);
     setSelectedTreasuryCode(mainCashTreasury);
 
-    // 3. Mark invoice as fully paid
+    // 3. Mark invoice state as fully paid
     setPaymentMethod('cash');
     setCashAmountInput(String(calculatedTotalAmount));
     setBankAmountInput('0');
 
     posSound.playCashBeep();
-    setTimeout(() => {
-      handleSaveInvoice(printMode);
-    }, 60);
+
+    // 4. Save invoice immediately with direct full cash payment in cash treasury
+    handleSaveInvoice(printMode, true, {
+      method: 'cash',
+      cashAmount: calculatedTotalAmount,
+      bankAmount: 0,
+      treasuryCode: mainCashTreasury
+    });
   };
 
   // Direct Pay Visa / Card
@@ -2499,9 +2521,13 @@ const getInitialPosDraft = (): PosFullDraftData => {
     const req = Number((calculatedTotalAmount / rate).toFixed(2));
     setBankAmountInput(String(req));
     setCashAmountInput('0');
-    setTimeout(() => {
-      handleSaveInvoice(printMode);
-    }, 50);
+    const bTreasury = treasuries?.find(t => t.type === 'bank_account' || t.type === 'pos_terminal')?.accountCode || bankTreasuryCode || '1102';
+    handleSaveInvoice(printMode, true, {
+      method: 'card',
+      cashAmount: 0,
+      bankAmount: req,
+      treasuryCode: bTreasury
+    });
   };
 
   // معاينة وطباعة تفاصيل الفاتورة ومراجعة بنودها مع العميل قبل الحفظ أو السداد
