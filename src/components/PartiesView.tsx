@@ -29,10 +29,13 @@ import {
   Copy,
   Check,
   Link as LinkIcon,
-  Tag
+  Tag,
+  Scale,
+  RefreshCw
 } from 'lucide-react';
 import { generateSequentialPartyCode } from '../utils/partyUtils';
 import { CustomerSpecialPricesModal } from './pos/CustomerSpecialPricesModal';
+import { BalanceReconciliationModal } from './BalanceReconciliationModal';
 import { posSound } from '../utils/audio';
 
 export const PartiesView: React.FC = () => {
@@ -46,8 +49,12 @@ export const PartiesView: React.FC = () => {
     createPaymentVoucher,
     treasuries,
     settings,
-    stats
+    stats,
+    reconcileAllPartyBalances
   } = useAccounting();
+
+  // Balance Reconciliation Modal State
+  const [showReconciliationModal, setShowReconciliationModal] = useState(false);
 
   // Filters and View Mode
   const [filterCategory, setFilterCategory] = useState<'all' | 'customer' | 'supplier' | 'debtor' | 'creditor' | 'exceeded' | 'subCustomer'>('all');
@@ -368,6 +375,14 @@ export const PartiesView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowReconciliationModal(true)}
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition-colors cursor-pointer"
+            title="فتح شاشة مطابقة ومراجعة كافة الأرصدة مع دفاتر العمليات والمستندات"
+          >
+            <Scale className="w-3.5 h-3.5 text-amber-400" />
+            <span>مراجعة الأرصدة ⚖️</span>
+          </button>
           <button
             onClick={() => handleOpenAddModal('customer')}
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition-colors cursor-pointer"
@@ -1489,6 +1504,12 @@ export const PartiesView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Balance Reconciliation Modal */}
+      <BalanceReconciliationModal
+        isOpen={showReconciliationModal}
+        onClose={() => setShowReconciliationModal(false)}
+      />
     </div>
   );
 };

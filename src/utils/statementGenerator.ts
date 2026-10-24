@@ -233,12 +233,12 @@ export function generateAccountStatement(params: {
 
       // Immediate payment received on invoice (سداد فوري - مقبوضات)
       const paidInInv = inv.basePaidAmount !== undefined ? inv.basePaidAmount : (inv.paidAmount || 0);
-      if (paidInInv > 0 && inv.paymentMethod !== 'credit') {
+      if (paidInInv > 0) {
         const pmtMethodLabel =
           inv.paymentMethod === 'cash' ? 'نقداً (الصندوق)' :
           inv.paymentMethod === 'card' ? 'بطاقة/شبكة' :
           inv.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' :
-          inv.paymentMethod === 'cheque' ? 'شيك بنكي' : 'سداد مع الفاتورة';
+          (inv.paymentMethod as string) === 'cheque' ? 'شيك بنكي' : 'سداد مع الفاتورة';
 
         allTx.push({
           id: `${inv.id}-pmt`,
@@ -1437,3 +1437,194 @@ export function exportEmployeeStatementToCSV(statement: EmployeeStatementResult,
   link.click();
   document.body.removeChild(link);
 }
+
+// ----------------------------------------------------------------------
+// BALANCE RECONCILIATION HELPERS (أدوات دمج ومطابقة الأرصدة)
+// ----------------------------------------------------------------------
+
+export interface PartyReconciliationResult {
+  partyId: string;
+  partyName: string;
+  partyCode: string;
+  partyType: 'customer' | 'supplier' | 'both';
+  isSubCustomer?: boolean;
+  openingBalance: number;
+  openingBalanceType: 'debit' | 'credit';
+  totalDebit: number;
+  totalCredit: number;
+  calculatedBalance: number;
+  storedBalance: number;
+  discrepancy: number; // storedBalance - calculatedBalance
+  hasMismatch: boolean;
+  mismatchReason: string;
+  breakdown: {
+    openingDebit: number;
+    openingCredit: number;
+    invoicesDebit: number;
+    invoicesCredit: number;
+    purchasesCredit: number;
+    purchasesDebit: number;
+    vouchersReceiptCredit: number;
+    vouchersReceiptDebit: number;
+    vouchersPaymentDebit: number;
+    vouchersPaymentCredit: number;
+    salesReturnsCredit: number;
+    purchaseReturnsDebit: number;
+    printOrdersDebit: number;
+    printOrdersCredit: number;
+    debtClearingsDebit: number;
+    debtClearingsCredit: number;
+    journalNet: number;
+  };
+}
+
+export function calculatePartyTrueBalance(
+  party: Party,
+  invoices: Invoice[],
+  vouchers: PaymentVoucher[],
+  purchases: PurchaseInvoice[] = [],
+  purchaseReturns: PurchaseReturn[] = [],
+  salesReturns: SalesReturn[] = [],
+  printOrders: PrintJobOrder[] = [],
+  journalEntries: JournalEntry[] = [],
+  debtClearings: DebtClearingRecord[] = []
+): number {
+  const stmt = generateAccountStatement({
+    party,
+    invoices,
+    vouchers,
+    purchases,
+    purchaseReturns,
+    salesReturns,
+    printOrders,
+    journalEntries,
+    debtClearings
+  });
+  return Number(stmt.closingBalance.toFixed(2));
+}
+
+export function getPartyBalanceReconciliation(
+  party: Party,
+  invoices: Invoice[],
+  vouchers: PaymentVoucher[],
+  purchases: PurchaseInvoice[] = [],
+  purchaseReturns: PurchaseReturn[] = [],
+  salesReturns: SalesReturn[] = [],
+  printOrders: PrintJobOrder[] = [],
+  journalEntries: JournalEntry[] = [],
+  debtClearings: DebtClearingRecord[] = []
+): PartyReconciliationResult {
+  const stmt = generateAccountStatement({
+    party,
+    invoices,
+    vouchers,
+    purchases,
+    purchaseReturns,
+    salesReturns,
+    printOrders,
+    journalEntries,
+    debtClearings
+  });
+
+  const calculatedBalance = Number(stmt.closingBalance.toFixed(2));
+  const storedBalance = Number((party.balance || 0).toFixed(2));
+  const diff = Number((storedBalance - calculatedBalance).toFixed(2));
+  const hasMismatch = Math.abs(diff) >= 0.01;
+
+  let mismatchReason = '';
+  if (hasMismatch) {
+    if (diff > 0) {
+      mismatchReason = `توجد زيادة في الرصيد المسجل بقاعدة البيانات (${storedBalance.toLocaleString('ar-SA')} ر.س) مقارنة بالرصيد المحسوب الفعلي (${calculatedBalance.toLocaleString('ar-SA')} ر.س) بفارق قدره (+${Math.abs(diff).toLocaleString('ar-SA')} ر.س).`;
+    } else {
+      mismatchReason = `يوجد نقص في الرصيد المسجل بقاعدة البيانات (${storedBalance.toLocaleString('ar-SA')} ر.س) مقارنة بالرصيد المحسوب الفعلي (${calculatedBalance.toLocaleString('ar-SA')} ر.س) بفارق قدره (-${Math.abs(diff).toLocaleString('ar-SA')} ر.س).`;
+    }
+  } else {
+    mismatchReason = 'الرصيد متطابق تماماً مع جميع فواتير البيع والمشتريات وسندات القبض والصرف والرصيد الافتتاحي.';
+  }
+
+  let openingDebit = 0;
+  let openingCredit = 0;
+  let invoicesDebit = 0;
+  let invoicesCredit = 0;
+  let purchasesCredit = 0;
+  let purchasesDebit = 0;
+  let vouchersReceiptCredit = 0;
+  let vouchersReceiptDebit = 0;
+  let vouchersPaymentDebit = 0;
+  let vouchersPaymentCredit = 0;
+  let salesReturnsCredit = 0;
+  let purchaseReturnsDebit = 0;
+  let printOrdersDebit = 0;
+  let printOrdersCredit = 0;
+  let debtClearingsDebit = 0;
+  let debtClearingsCredit = 0;
+  let journalNet = 0;
+
+  stmt.rows.forEach(r => {
+    if (r.type === 'opening') {
+      openingDebit += r.debit;
+      openingCredit += r.credit;
+    } else if (r.type === 'invoice') {
+      invoicesDebit += r.debit;
+      invoicesCredit += r.credit;
+    } else if (r.type === 'purchase') {
+      purchasesDebit += r.debit;
+      purchasesCredit += r.credit;
+    } else if (r.type === 'receipt') {
+      vouchersReceiptDebit += r.debit;
+      vouchersReceiptCredit += r.credit;
+    } else if (r.type === 'payment') {
+      vouchersPaymentDebit += r.debit;
+      vouchersPaymentCredit += r.credit;
+    } else if (r.type === 'sales_return') {
+      salesReturnsCredit += r.credit;
+    } else if (r.type === 'purchase_return') {
+      purchaseReturnsDebit += r.debit;
+    } else if (r.type === 'print_order') {
+      printOrdersDebit += r.debit;
+      printOrdersCredit += r.credit;
+    } else if (r.type === 'clearance') {
+      debtClearingsDebit += r.debit;
+      debtClearingsCredit += r.credit;
+    } else if (r.type === 'journal') {
+      journalNet += (r.debit - r.credit);
+    }
+  });
+
+  return {
+    partyId: party.id,
+    partyName: party.name,
+    partyCode: party.code || '',
+    partyType: party.type,
+    isSubCustomer: party.isSubCustomer,
+    openingBalance: Number(party.openingBalance || 0),
+    openingBalanceType: party.openingBalanceType || 'debit',
+    totalDebit: stmt.totalDebit,
+    totalCredit: stmt.totalCredit,
+    calculatedBalance,
+    storedBalance,
+    discrepancy: diff,
+    hasMismatch,
+    mismatchReason,
+    breakdown: {
+      openingDebit,
+      openingCredit,
+      invoicesDebit,
+      invoicesCredit,
+      purchasesCredit,
+      purchasesDebit,
+      vouchersReceiptCredit,
+      vouchersReceiptDebit,
+      vouchersPaymentDebit,
+      vouchersPaymentCredit,
+      salesReturnsCredit,
+      purchaseReturnsDebit,
+      printOrdersDebit,
+      printOrdersCredit,
+      debtClearingsDebit,
+      debtClearingsCredit,
+      journalNet
+    }
+  };
+}
+

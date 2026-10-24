@@ -114,6 +114,7 @@ import { generateSqlDump, downloadSqlFile, syncWithWebServer } from '../utils/sq
 import { generateSequentialSku } from '../utils/barcodeGenerator';
 import { generateSequentialPartyCode } from '../utils/partyUtils';
 import { isInvoiceAccountingEligible, computeInvoicePaymentStatus } from '../utils/invoiceStatusUtils';
+import { calculatePartyTrueBalance } from '../utils/statementGenerator';
 import { deleteFileFromGoogleDrive } from '../services/googleDriveService';
 import {
   getCachedSyncToken,
@@ -213,6 +214,7 @@ interface AccountingContextType {
   deleteParty: (id: string) => { success: boolean; message?: string };
   selectedPartyForStatement: Party | null;
   setSelectedPartyForStatement: (party: Party | null) => void;
+  reconcileAllPartyBalances: () => { updatedCount: number; mismatchedCount: number };
   selectedEmployeeForStatement: Employee | null;
   setSelectedEmployeeForStatement: (employee: Employee | null) => void;
 
@@ -10521,6 +10523,45 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const reconcileAllPartyBalances = (): { updatedCount: number; mismatchedCount: number } => {
+    let updatedCount = 0;
+    let mismatchedCount = 0;
+
+    setParties(prevParties => {
+      const nextParties = prevParties.map(party => {
+        const trueBal = calculatePartyTrueBalance(
+          party,
+          invoices,
+          vouchers,
+          purchases,
+          purchaseReturns,
+          salesReturns,
+          printOrders,
+          journalEntries,
+          debtClearings
+        );
+        const storedBal = Number((party.balance || 0).toFixed(2));
+        if (Math.abs(storedBal - trueBal) >= 0.01) {
+          mismatchedCount++;
+          updatedCount++;
+          const updatedParty = { ...party, balance: trueBal };
+          setDoc(doc(db, 'parties', party.id), cleanDocForFirestore(updatedParty)).catch(() => {});
+          return updatedParty;
+        }
+        return party;
+      });
+
+      if (updatedCount > 0) {
+        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(nextParties)); } catch {}
+        pushToServerSync('parties', nextParties);
+        broadcastEntityChange('parties', nextParties);
+      }
+      return nextParties;
+    });
+
+    return { updatedCount, mismatchedCount };
+  };
+
   const forcePushAndPullSync = async (): Promise<{ success: boolean; message: string; invoicesCount: number }> => {
     try {
       const res = await forceSyncNow();
@@ -10575,6 +10616,7 @@ return (
         deleteParty,
         selectedPartyForStatement,
         setSelectedPartyForStatement,
+        reconcileAllPartyBalances,
         selectedEmployeeForStatement,
         setSelectedEmployeeForStatement,
         debtClearings,
