@@ -1448,9 +1448,10 @@ const getInitialPosDraft = (): PosFullDraftData => {
   // Sync customer code and balance when customer selection changes
   useEffect(() => {
     if (currentCustomer) {
-      setCustomerName(currentCustomer.name);
       setCustomerCode(currentCustomer.code || '');
-      // Removed auto-filling of customCustomerText based on user request
+      if (!customerName || customerName === 'عميل كاشير نقدي' || customerName === 'زبون نقدي') {
+        setCustomerName(currentCustomer.name);
+      }
     }
   }, [selectedCustomerId, currentCustomer]);
 
@@ -2722,15 +2723,26 @@ const getInitialPosDraft = (): PosFullDraftData => {
 
   const loadInvoiceToScreen = (inv: Invoice) => {
     if (!inv) return;
+    const invCustId = inv.customerId || '';
+    setSelectedCustomerId(invCustId);
+    if (invCustId) {
+      const matchedParty = parties.find(p => p.id === invCustId);
+      setCustomerCode(matchedParty?.code || '');
+    } else {
+      setCustomerCode('');
+    }
     setCustomerName(inv.customerName || 'زبون نقدي');
-    if (inv.customerId) setSelectedCustomerId(inv.customerId);
-    if (inv.customCustomerText) setCustomCustomerText(inv.customCustomerText);
-    if (inv.subCustomerId) setSubCustomerId(inv.subCustomerId);
-    if (inv.subCustomerName) setSubCustomerName(inv.subCustomerName);
-    if (inv.subCustomerPhone) setSubCustomerPhone(inv.subCustomerPhone);
+    setCustomCustomerText(inv.customCustomerText || '');
+    setSubCustomerId(inv.subCustomerId || '');
+    setSubCustomerName(inv.subCustomerName || '');
+    setSubCustomerPhone(inv.subCustomerPhone || '');
     if (inv.notes) setInvoiceNotes(inv.notes); else setInvoiceNotes('');
     if (inv.paymentNotes) setPaymentNotes(inv.paymentNotes); else setPaymentNotes('');
     if (inv.workflowStatus) setInvoiceWorkflowStatus(inv.workflowStatus);
+
+    try {
+      localStorage.removeItem('alnoor_last_focused_element');
+    } catch {}
     
     setInvoiceSeqNumber((inv.invoiceNumber || '').replace(/\D/g, '') || '1');
     if (inv.date) setInvoiceDate(inv.date);
@@ -2959,31 +2971,11 @@ const getInitialPosDraft = (): PosFullDraftData => {
     try {
       localStorage.removeItem(POS_FULL_DRAFT_KEY);
       localStorage.removeItem('pos_active_draft_lines');
+      localStorage.removeItem('alnoor_last_focused_element');
     } catch {}
-    setTimeout(() => {
-      if (customerInputRef.current) {
-        customerInputRef.current.focus();
-        customerInputRef.current.select();
-      }
-    }, 50);
   };
 
-  // Focus customer input and clear entered customer name (Space key shortcut)
-  const handleFocusAndClearCustomer = useCallback(() => {
-    setSelectedCustomerId('');
-    setCustomerName('');
-    setCustomerCode('');
-    setSubCustomerId('');
-    setSubCustomerName('');
-    setSubCustomerPhone('');
-    setCustomCustomerText('');
-    setTimeout(() => {
-      if (customerInputRef.current) {
-        customerInputRef.current.focus();
-        customerInputRef.current.select();
-      }
-    }, 20);
-  }, []);
+
 
   // Clear / Void Invoice (إلغاء)
   const handleClearInvoice = () => {
@@ -3036,33 +3028,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
         return;
       }
 
-      // 2. Space key shortcut: Focus customer input and clear entered customer name
-      if (e.key === ' ' || e.code === 'Space') {
-        const target = e.target as HTMLElement | null;
-        const isTypingText =
-          target &&
-          (target.tagName === 'TEXTAREA' ||
-            (target.tagName === 'INPUT' &&
-              (target as HTMLInputElement).type === 'text' &&
-              target !== customerInputRef.current &&
-              target !== barcodeInputRef.current &&
-              !(target as HTMLInputElement).readOnly));
-
-        if (!isTypingText) {
-          if (target === customerInputRef.current) {
-            if (customerName === 'عميل كاشير نقدي' || customerName === 'عميل نقدي' || selectedCustomerId) {
-              e.preventDefault();
-              handleFocusAndClearCustomer();
-            }
-          } else {
-            e.preventDefault();
-            handleFocusAndClearCustomer();
-          }
-          return;
-        }
-      }
-
-      // 3. Fallback standard shortcuts
+      // 2. Fallback standard shortcuts
       if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N' || e.code === 'KeyN' || matchKeyboardShortcut(e, 'Ctrl+N'))) {
         e.preventDefault();
         e.stopPropagation();
@@ -3106,7 +3072,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
     };
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [posButtons, handleSaveInvoice, handleHoldInvoice, handleExecuteButtonAction, handleAddNewRow, handleQuickPayCash, handleFocusAndClearCustomer, customerName, selectedCustomerId]);
+  }, [posButtons, handleSaveInvoice, handleHoldInvoice, handleExecuteButtonAction, handleAddNewRow, handleQuickPayCash, customerName, selectedCustomerId]);
 
   const isPhone = useIsMobile(768);
   const [forceDesktopMode, setForceDesktopMode] = useState<boolean>(() => {
@@ -3786,7 +3752,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                 value={customerName}
                 entityType={posTargetType}
                 showCode={false}
-                clearOnFocus={true}
+                clearOnFocus={false}
                 inputRef={customerInputRef}
                 inputClassName="text-[14px] font-bold h-9 w-[324.631px]"
                 placeholder={

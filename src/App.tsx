@@ -311,6 +311,8 @@ const MainLayout: React.FC = () => {
         if (!raw) return true;
         const info = JSON.parse(raw);
         if (!info || Date.now() - (info.timestamp || 0) > 300000) return true; // ignore if older than 5 minutes
+        if (info.placeholder && info.placeholder.includes('العميل')) return true; // do not auto-focus customer combobox
+        if (info.activeTab && info.activeTab !== activeTab) return true; // do not restore across different tabs
 
         let target: HTMLElement | null = null;
         if (info.id) {

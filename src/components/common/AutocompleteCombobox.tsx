@@ -405,16 +405,6 @@ export const AutocompleteCombobox: React.FC<AutocompleteComboboxProps> = ({
       }
     } else if (e.key === 'Escape') {
       setIsOpen(false);
-    } else if (e.key === ' ' || e.code === 'Space') {
-      // If default customer name is present, clear it on Space so cashier can type fresh name directly
-      if (inputText === 'عميل كاشير نقدي' || inputText === 'عميل نقدي') {
-        e.preventDefault();
-        setInputText('');
-        if (onChangeText) onChangeText('');
-        onSelect({ id: '', name: '' });
-        setIsOpen(true);
-        updatePosition();
-      }
     }
   };
 
@@ -462,16 +452,11 @@ export const AutocompleteCombobox: React.FC<AutocompleteComboboxProps> = ({
               try {
                 e.currentTarget.value = '';
               } catch {}
+              setIsOpen(true);
+            } else if (!inputText) {
+              setIsOpen(true);
             }
-            setIsOpen(true);
             updatePosition();
-          }}
-          onMouseDown={() => {
-            if (clearOnFocus && activeInputRef.current && document.activeElement !== activeInputRef.current) {
-              setInputText('');
-              if (onChangeText) onChangeText('');
-              onSelect({ id: '', name: '' });
-            }
           }}
           onKeyDown={handleKeyDown}
           className={`w-full bg-white border border-slate-300 rounded-lg pr-8 pl-14 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium disabled:bg-slate-100 disabled:cursor-not-allowed ${inputClassName}`}
