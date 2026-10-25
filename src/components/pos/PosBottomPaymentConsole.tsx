@@ -150,6 +150,44 @@ export const PosBottomPaymentConsole: React.FC<PosBottomPaymentConsoleProps> = (
   onExchangeRateChange,
   onChangeNotes
 }) => {
+  // Fallback default treasuries if none supplied
+  const defaultTreasuriesList: TreasuryAccount[] = React.useMemo(() => [
+    { id: 'tr-1101', accountCode: '1101', name: 'الصندوق النقدي الرئيسي (الكاشير)', type: 'cash_box', balance: 0, currency: 'ILS', isDefault: true },
+    { id: 'tr-1102', accountCode: '1102', name: 'حساب البنك الأهلي / بطاقات Visa', type: 'bank_account', balance: 0, currency: 'ILS', isDefault: false }
+  ], []);
+
+  const effectiveTreasuries = React.useMemo(() => {
+    return (treasuries && treasuries.length > 0) ? treasuries : defaultTreasuriesList;
+  }, [treasuries, defaultTreasuriesList]);
+
+  const cashTreasuryOptions = React.useMemo(() => {
+    const cashList = effectiveTreasuries.filter(t => t.type === 'cash_box' || t.isDefault);
+    const baseList = cashList.length > 0 ? cashList : effectiveTreasuries;
+    if (cashTreasuryCode && !baseList.some(t => t.id === cashTreasuryCode || t.accountCode === cashTreasuryCode)) {
+      const selectedObj = effectiveTreasuries.find(t => t.id === cashTreasuryCode || t.accountCode === cashTreasuryCode);
+      if (selectedObj) return [selectedObj, ...baseList];
+    }
+    return baseList;
+  }, [effectiveTreasuries, cashTreasuryCode]);
+
+  const bankTreasuryOptions = React.useMemo(() => {
+    const bankList = effectiveTreasuries.filter(t => t.type !== 'cash_box');
+    const baseList = bankList.length > 0 ? bankList : effectiveTreasuries;
+    if (bankTreasuryCode && !baseList.some(t => t.id === bankTreasuryCode || t.accountCode === bankTreasuryCode)) {
+      const selectedObj = effectiveTreasuries.find(t => t.id === bankTreasuryCode || t.accountCode === bankTreasuryCode);
+      if (selectedObj) return [selectedObj, ...baseList];
+    }
+    return baseList;
+  }, [effectiveTreasuries, bankTreasuryCode]);
+
+  const selectedCashTreasuryObj = React.useMemo(() => {
+    return cashTreasuryOptions.find(t => t.id === cashTreasuryCode || t.accountCode === cashTreasuryCode) || cashTreasuryOptions[0];
+  }, [cashTreasuryOptions, cashTreasuryCode]);
+
+  const selectedBankTreasuryObj = React.useMemo(() => {
+    return bankTreasuryOptions.find(t => t.id === bankTreasuryCode || t.accountCode === bankTreasuryCode) || bankTreasuryOptions[0];
+  }, [bankTreasuryOptions, bankTreasuryCode]);
+
   // Resolve effective currency and exchange rate (Default ILS and 1.0)
   const currentInvCurrencyCode = invoiceCurrencyCode || selectedCurrencyCode || 'ILS';
   const currentInvRate = invoiceExchangeRate ?? customExchangeRate ?? 1.0;
@@ -447,13 +485,17 @@ export const PosBottomPaymentConsole: React.FC<PosBottomPaymentConsoleProps> = (
           {/* الصندوق */}
           <div className="flex-1 min-w-[90px] flex items-center gap-1">
             <select
-              value={cashTreasuryCode}
-              onChange={e => onChangeCashTreasury(e.target.value)}
+              value={selectedCashTreasuryObj?.id || cashTreasuryCode}
+              onChange={e => {
+                const selectedId = e.target.value;
+                const found = effectiveTreasuries.find(t => t.id === selectedId || t.accountCode === selectedId);
+                onChangeCashTreasury(found ? (found.accountCode || found.id) : selectedId);
+              }}
               className="w-full bg-white text-slate-900 font-bold px-1.5 py-0.5 rounded text-[11px] border border-slate-300 cursor-pointer shadow-2xs truncate"
               title="الصندوق أو الخزنة النقدية المستلمة"
             >
-              {treasuries.map(t => (
-                <option key={t.id} value={t.accountCode}>
+              {cashTreasuryOptions.map(t => (
+                <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
               ))}
@@ -534,13 +576,17 @@ export const PosBottomPaymentConsole: React.FC<PosBottomPaymentConsoleProps> = (
           {/* الصندوق / الحساب البنكي */}
           <div className="flex-1 min-w-[90px] flex items-center gap-1">
             <select
-              value={bankTreasuryCode}
-              onChange={e => onChangeBankTreasury(e.target.value)}
+              value={selectedBankTreasuryObj?.id || bankTreasuryCode}
+              onChange={e => {
+                const selectedId = e.target.value;
+                const found = effectiveTreasuries.find(t => t.id === selectedId || t.accountCode === selectedId);
+                onChangeBankTreasury(found ? (found.accountCode || found.id) : selectedId);
+              }}
               className="w-full bg-white text-slate-900 font-bold px-1.5 py-0.5 rounded text-[11px] border border-slate-300 cursor-pointer shadow-2xs truncate"
               title="الحساب البنكي أو نقطة البيع / الشبكة"
             >
-              {treasuries.filter(t => t.type !== 'cash_box').map(t => (
-                <option key={t.id} value={t.accountCode}>
+              {bankTreasuryOptions.map(t => (
+                <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
               ))}

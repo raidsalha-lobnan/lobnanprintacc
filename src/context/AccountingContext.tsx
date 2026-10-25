@@ -682,6 +682,23 @@ function isTestSyncProbeItem(item: any): boolean {
   return id === 'inv-probe-sync-1' || id === 'inv-test-full-1' || code === 'ITEM-9999' || name === 'صنف تجربة المزامنة' || name === 'صنف فحص المزامنة الشاملة';
 }
 
+function isTestSyncProbeParty(p: any): boolean {
+  if (!p) return false;
+  const id = String(p.id || '').toLowerCase();
+  const code = String(p.code || '').toLowerCase();
+  const name = String(p.name || '').toLowerCase();
+  return (
+    id.includes('probe') ||
+    id.includes('test-sync') ||
+    id.includes('9999') ||
+    code.includes('9999') ||
+    name.includes('فحص المزامنة') ||
+    name.includes('تجربة المزامنة') ||
+    name.includes('اختبار المزامنة') ||
+    name.includes('9999')
+  );
+}
+
 function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
   entityName: string,
   localItems: T[],
@@ -758,13 +775,13 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
           localStorage.removeItem(k);
         }
       });
-      // Check parties for pt-1 Riyadh demo
+      // Check parties for pt-1 Riyadh demo or test sync probe party 9999
       const rawParties = localStorage.getItem(`${STORAGE_KEY}_parties`);
-      if (rawParties && (rawParties.includes('info@alsahab.com') || rawParties.includes('حي المعذر') || rawParties.includes('pt-1'))) {
+      if (rawParties && (rawParties.includes('info@alsahab.com') || rawParties.includes('حي المعذر') || rawParties.includes('pt-1') || rawParties.includes('9999') || rawParties.includes('فحص المزامنة'))) {
         try {
           const parsed = JSON.parse(rawParties);
           if (Array.isArray(parsed)) {
-            const cleaned = parsed.filter((p: any) => p && p.id !== 'pt-1' && !p.email?.includes('alsahab.com'));
+            const cleaned = parsed.filter((p: any) => p && p.id !== 'pt-1' && !p.email?.includes('alsahab.com') && !isTestSyncProbeParty(p));
             localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(cleaned));
           }
         } catch (e) {}
@@ -1034,13 +1051,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const fsData = await fetchFullDatabaseFromFirestore();
         if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
           if (Array.isArray(fsData.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], fsData.invoices));
-          if (Array.isArray(fsData.parties)) setParties(prev => mergeEntityLists(prev || [], fsData.parties));
+          if (Array.isArray(fsData.parties)) setParties(prev => mergeEntityLists(prev || [], fsData.parties.filter((p: any) => !isTestSyncProbeParty(p))));
           if (Array.isArray(fsData.inventory)) setInventory(prev => mergeEntityLists(prev || [], fsData.inventory.filter((i: any) => i && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة')));
           if (Array.isArray(fsData.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], fsData.vouchers));
           if (Array.isArray(fsData.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], fsData.printOrders));
           if (Array.isArray(fsData.purchases)) setPurchases(prev => mergeEntityLists(prev || [], fsData.purchases));
           if (Array.isArray(fsData.accounts)) setAccounts(prev => mergeEntityLists(prev || [], fsData.accounts));
-          if (Array.isArray(fsData.treasuries)) setTreasuries(prev => mergeEntityLists(prev || [], fsData.treasuries));
+          if (Array.isArray(fsData.treasuries)) setTreasuries(prev => ensureUniqueTreasuryAccountCodes(mergeEntityLists(prev || [], fsData.treasuries)));
           if (Array.isArray(fsData.employees)) setEmployees(prev => mergeEntityLists(prev || [], fsData.employees));
           if (Array.isArray(fsData.branches)) setBranches(prev => mergeEntityLists(prev || [], fsData.branches));
           if (Array.isArray(fsData.warehouses)) setWarehouses(prev => mergeEntityLists(prev || [], fsData.warehouses));
@@ -1096,7 +1113,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Deduplicate any accidental duplicate cash customer records & purge invalid phantom records
     const seenGenericCash = new Set<string>();
     const cleanedRaw = raw.filter(p => {
-      if (!p || !p.id || !p.name || !p.name.trim() || p.id.startsWith('emp-')) return false;
+      if (!p || !p.id || !p.name || !p.name.trim() || p.id.startsWith('emp-') || isTestSyncProbeParty(p)) return false;
       const trimmed = (p.name || '').trim();
       const isGeneric = trimmed === 'زبون نقدي' || trimmed === 'عميل نقدي' || trimmed === 'عميل كاشير نقدي' || trimmed === 'زبون عام';
       if (isGeneric) {
@@ -1216,8 +1233,26 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return safeLoadArray(`${STORAGE_KEY}_payrollSheets`, initialPayrollSheets);
   });
 
+  const ensureUniqueTreasuryAccountCodes = (list: Treasury[]): Treasury[] => {
+    if (!list || list.length === 0) return list;
+    const seenCodes = new Set<string>();
+    return list.map((t, idx) => {
+      let code = t.accountCode?.trim();
+      if (!code || seenCodes.has(code)) {
+        let nextNum = 1101 + idx;
+        while (seenCodes.has(String(nextNum)) || list.some((other, oIdx) => oIdx !== idx && other.accountCode === String(nextNum))) {
+          nextNum++;
+        }
+        code = String(nextNum);
+      }
+      seenCodes.add(code);
+      return { ...t, accountCode: code };
+    });
+  };
+
   const [treasuries, setTreasuries] = useState<Treasury[]>(() => {
-    return safeLoadArray(`${STORAGE_KEY}_treasuries`, initialTreasuries);
+    const loaded = safeLoadArray(`${STORAGE_KEY}_treasuries`, initialTreasuries);
+    return ensureUniqueTreasuryAccountCodes(loaded);
   });
 
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
