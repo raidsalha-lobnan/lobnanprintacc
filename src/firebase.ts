@@ -24,7 +24,8 @@ import {
   query,
   where,
   orderBy,
-  limit
+  limit,
+  getDocFromServer
 } from 'firebase/firestore';
 
 import firebaseConfig from '../firebase-applet-config.json';
@@ -78,5 +79,6 @@ export {
   query,
   where,
   orderBy,
-  limit
+  limit,
+  getDocFromServer
 };

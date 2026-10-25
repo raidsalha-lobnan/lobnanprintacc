@@ -9,6 +9,7 @@ import {
   fetchFullDatabaseFromFirestore
 } from '../services/firebaseFirestoreSyncService';
 import { FirebaseConnectionDiagnostic } from './FirebaseConnectionDiagnostic';
+import { FirebaseQuotaModal } from './FirebaseQuotaModal';
 import {
   RefreshCw,
   Cloud,
@@ -87,6 +88,7 @@ export const SyncAuditStatementView: React.FC = () => {
   const [isConnectingDrive, setIsConnectingDrive] = useState(false);
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; seq?: number; ms?: number; message: string } | null>(null);
+  const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
 
   // Database Preview Modal State
   const [showDatabasePreviewModal, setShowDatabasePreviewModal] = useState(false);
@@ -438,10 +440,24 @@ export const SyncAuditStatementView: React.FC = () => {
 
           {/* Quick Action Commands */}
           <div className="flex items-center gap-2 flex-wrap print:hidden">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300">
+            <div 
+              onClick={() => setIsQuotaModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 cursor-pointer hover:bg-emerald-100 transition"
+              title="انقر لعرض حاسبة حصة فايربيس السحابية"
+            >
               <Cloud className="w-4 h-4 text-emerald-600 animate-pulse" />
               <span>مزامنة Firebase Firestore سحابية حية 100% ✅</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsQuotaModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-lg shadow-xs transition active:translate-y-px cursor-pointer"
+              title="عرض حاسبة الاستهلاك اليومي ورابط منصة فايربيس والعداد التنازلي للتجديد"
+            >
+              <Database className="w-3.5 h-3.5 text-slate-900" />
+              <span>مؤشر حصة فايربيس</span>
+            </button>
 
             <button
               type="button"
@@ -1080,6 +1096,12 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Firebase Quota & Operations Monitor Modal */}
+      <FirebaseQuotaModal
+        isOpen={isQuotaModalOpen}
+        onClose={() => setIsQuotaModalOpen(false)}
+      />
     </div>
   );
 };

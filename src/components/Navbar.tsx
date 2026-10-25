@@ -54,7 +54,7 @@ import {
 } from 'lucide-react';
 import { CalculatorModal } from './pos/CalculatorModal';
 import { AboutAppModal } from './AboutAppModal';
-
+import { FirebaseQuotaModal } from './FirebaseQuotaModal';
 import { LocalDatabaseModal } from './LocalDatabaseModal';
 import { ServerOff } from 'lucide-react';
 
@@ -113,6 +113,7 @@ export const Navbar: React.FC = () => {
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isLocalDbModalOpen, setIsLocalDbModalOpen] = useState(false);
+  const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ message: string; success: boolean } | null>(null);
 
   const isSessionAdmin = Boolean(
@@ -455,6 +456,14 @@ export const Navbar: React.FC = () => {
           icon: Activity,
           badge: pendingSyncCount > 0 ? `${pendingSyncCount} معلق` : null,
           badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+        },
+        {
+          id: 'action_firebase_quota',
+          label: '7. مؤشر وحاسبة استهلاك حصة فايربيس السحابية',
+          sublabel: 'متابعة استهلاك العمليات اليومية (50k/20k) وميعاد التجديد 12:00 ظهراً',
+          icon: Database,
+          badge: 'مباشر',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
         }
       ]
     },
@@ -603,6 +612,11 @@ export const Navbar: React.FC = () => {
       setOpenDropdownId(null);
       return;
     }
+    if (itemId === 'action_firebase_quota') {
+      setIsQuotaModalOpen(true);
+      setOpenDropdownId(null);
+      return;
+    }
     setActiveTab(itemId);
     setOpenDropdownId(null);
   };
@@ -736,10 +750,14 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Center: Real-time Cloud System Indicator */}
-        <div className="hidden lg:flex items-center gap-2 text-[10.5px] text-blue-100 bg-black/20 px-2 py-0.5 rounded-xs border border-white/15">
+        <div 
+          onClick={() => setIsQuotaModalOpen(true)}
+          className="hidden lg:flex items-center gap-2 text-[10.5px] text-blue-100 bg-black/20 hover:bg-black/40 cursor-pointer px-2 py-0.5 rounded-xs border border-white/15 transition"
+          title="مؤشر استهلاك حصة فايربيس السحابية وميعاد التجديد 12:00 ظهراً"
+        >
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span>خادم سحابي نشط</span>
-          <span className="text-blue-300 font-mono">({todayArabic})</span>
+          <span className="text-amber-300 font-mono font-bold bg-black/30 px-1 rounded-xs border border-amber-400/30">حصة فايربيس</span>
         </div>
 
         {/* Left (in RTL): Classic Windows Window Controls (─, ▢, ✕) */}
@@ -1285,6 +1303,12 @@ export const Navbar: React.FC = () => {
       <LocalDatabaseModal
         isOpen={isLocalDbModalOpen}
         onClose={() => setIsLocalDbModalOpen(false)}
+      />
+
+      {/* Firebase Quota & Operations Monitor Modal */}
+      <FirebaseQuotaModal
+        isOpen={isQuotaModalOpen}
+        onClose={() => setIsQuotaModalOpen(false)}
       />
 
       {/* Mobile Navigation Hub / Modal */}
