@@ -1026,39 +1026,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   }, []);
 
-  // 100% Automatic Master Database Hydration on Startup (Merging Server Master Snapshot & Firestore)
+  // 100% Automatic Master Database Hydration on Startup from Firestore
   useEffect(() => {
     const autoHydrateMasterDb = async () => {
       try {
-        // 1. Fetch Master Server Snapshot first (contains complete master records)
-        let res = await fetch('/api/sync/master-snapshot').catch(() => null);
-        if (!res || !res.ok) {
-          res = await fetch('/master_drive_database_snapshot.json').catch(() => null);
-        }
-        if (res && res.ok) {
-          const text = await res.text().catch(() => '');
-          if (text && !text.trim().startsWith('<')) {
-            const data = JSON.parse(text);
-            if (data && typeof data === 'object') {
-              if (Array.isArray(data.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], data.invoices));
-              if (Array.isArray(data.parties)) setParties(prev => mergeEntityLists(prev || [], data.parties));
-              if (Array.isArray(data.inventory)) setInventory(prev => mergeEntityLists(prev || [], data.inventory.filter((i: any) => i && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة')));
-              if (Array.isArray(data.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], data.printOrders));
-              if (Array.isArray(data.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], data.vouchers));
-              if (Array.isArray(data.purchases)) setPurchases(prev => mergeEntityLists(prev || [], data.purchases));
-              if (Array.isArray(data.accounts)) setAccounts(prev => mergeEntityLists(prev || [], data.accounts));
-              if (Array.isArray(data.treasuries)) setTreasuries(prev => mergeEntityLists(prev || [], data.treasuries));
-              if (Array.isArray(data.employees)) setEmployees(prev => mergeEntityLists(prev || [], data.employees));
-              if (Array.isArray(data.branches)) setBranches(prev => mergeEntityLists(prev || [], data.branches));
-              if (Array.isArray(data.warehouses)) setWarehouses(prev => mergeEntityLists(prev || [], data.warehouses));
-              if (data.settings && typeof data.settings === 'object') {
-                setSettings(prev => ({ ...prev, ...data.settings }));
-              }
-            }
-          }
-        }
-
-        // 2. Fetch & Merge Firestore Cloud Database
+        // Fetch & Merge Firestore Cloud Database ONLY (No static mock snapshot Injection)
         const fsData = await fetchFullDatabaseFromFirestore();
         if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
           if (Array.isArray(fsData.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], fsData.invoices));
