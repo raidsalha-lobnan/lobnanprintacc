@@ -26,7 +26,10 @@ import {
   Copy,
   Check,
   Plus,
-  PlusCircle
+  PlusCircle,
+  Trash2,
+  Trash,
+  Square
 } from 'lucide-react';
 import { posSound } from '../utils/audio';
 import { InvoiceStatusHistoryModal } from './pos/InvoiceStatusHistoryModal';
@@ -107,6 +110,9 @@ export const PrintOrdersView: React.FC = () => {
     setSelectedInvoiceForPrint,
     setSelectedJobForPrint,
     printOrders,
+    deletePrintOrder,
+    deleteMultiplePrintOrders,
+    deleteAllPrintOrders,
     currentUser,
     hasPermission,
     setActiveTab
@@ -120,12 +126,22 @@ export const PrintOrdersView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedInvoiceId, setCopiedInvoiceId] = useState<string | null>(null);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
 
   const toggleExpand = (id: string) => {
     const newSet = new Set(expandedInvoices);
     if(newSet.has(id)) newSet.delete(id);
     else newSet.add(id);
     setExpandedInvoices(newSet);
+  };
+
+  const toggleSelectOrder = (id: string) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // Modals state
@@ -312,6 +328,56 @@ export const PrintOrdersView: React.FC = () => {
     setInitialStatusForHistory(target);
   };
 
+  const handleSelectAll = () => {
+    if (selectedOrderIds.size === workshopInvoices.length && workshopInvoices.length > 0) {
+      setSelectedOrderIds(new Set());
+    } else {
+      setSelectedOrderIds(new Set(workshopInvoices.map((inv) => inv.id)));
+    }
+  };
+
+  const handleDeleteSingle = (inv: Invoice) => {
+    if (
+      window.confirm(
+        `هل أنت متأكد من حذف أمر الطباعة/التشغيل رقم (${inv.invoiceNumber}) نهائياً؟\n\nتنبيه: سيتم إزالة أمر الشغيل فقط ولن يتم التأثير إطلاقاً على فواتير المبيعات المسجلة.`
+      )
+    ) {
+      posSound.click();
+      deletePrintOrder(inv.id);
+      setSelectedOrderIds((prev) => {
+        const next = new Set(prev);
+        next.delete(inv.id);
+        return next;
+      });
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedOrderIds.size === 0) return;
+    if (
+      window.confirm(
+        `هل أنت متأكد من حذف ${selectedOrderIds.size} من أوامر الطباعة والتشغيل المحددة نهائياً؟\n\nتنبيه: لن يتم التأثير على أي فواتير مبيعات مسجلة حالياً.`
+      )
+    ) {
+      posSound.click();
+      deleteMultiplePrintOrders(Array.from(selectedOrderIds));
+      setSelectedOrderIds(new Set());
+    }
+  };
+
+  const handleZeroAll = () => {
+    if (workshopInvoices.length === 0 && printOrders.length === 0) {
+      alert('لا توجد أوامر طباعة أو تشغيل لتصفيرها.');
+      return;
+    }
+    const confirmMsg = `تأكيد هام ومؤكد:\n\nهل أنت متأكد من تصفير وتطهير كافة أوامر الطباعة والتشغيل والورشة نهائياً؟\n\n- سيتم حذف وتصفير جميع أوامر الشغيل الحالية نهائياً وعدم استرجاعها.\n- نؤكد لك أنه لن يتم المساس أو التأثير على أي من فواتير المبيعات أو المبالغ الحسابية المسجلة إطلاقاً.`;
+    if (window.confirm(confirmMsg)) {
+      posSound.beep();
+      deleteAllPrintOrders();
+      setSelectedOrderIds(new Set());
+    }
+  };
+
   // Render an individual invoice card containing ONLY requested fields:
   // - رقم الفاتورة
   // - اسم العميل (الزبون)
@@ -340,9 +406,16 @@ export const PrintOrdersView: React.FC = () => {
         }`}
       >
         <div className="space-y-3">
-          {/* Top Row: Compact Header with Invoice, Status, Customer, and Notes */}
+          {/* Top Row: Compact Header with Selection Checkbox, Invoice, Status, Customer, and Notes */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
             <div className="flex items-center gap-2 flex-wrap flex-1">
+              <input
+                type="checkbox"
+                checked={selectedOrderIds.has(invoice.id)}
+                onChange={() => toggleSelectOrder(invoice.id)}
+                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer accent-blue-600 shrink-0"
+                title="تحديد هذا الأمر للحذف أو الإجراءات الجماعية"
+              />
               <button
                 type="button"
                 onClick={() => handleCopyNumber(invoice.invoiceNumber, invoice.id)}
@@ -664,6 +737,17 @@ export const PrintOrdersView: React.FC = () => {
               <span>{isReadyForDelivery ? 'مكتمل وجاهز' : 'مكتمل وجاهز'}</span>
             </button>
 
+            {/* Single Order Delete Button */}
+            <button
+              type="button"
+              onClick={() => handleDeleteSingle(invoice)}
+              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+              title="حذف أمر الطباعة والتشغيل هذا نهائياً دون التأثير على فواتير المبيعات"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              <span>حذف</span>
+            </button>
+
             {/* Mark as Delivered (تسليم للعميل واعتماد حالة الفاتورة تم التسليم) */}
             {isReadyForDelivery && hasPermission('edit_invoices') && (
               <button
@@ -720,6 +804,51 @@ export const PrintOrdersView: React.FC = () => {
             >
               <PlusCircle className="w-4 h-4" />
               <span>+ أمر جديد</span>
+            </button>
+
+            {/* Select All Toggle Button */}
+            {workshopInvoices.length > 0 && (
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className={`font-bold text-xs px-2.5 py-1.5 rounded-lg border flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
+                  selectedOrderIds.size > 0 && selectedOrderIds.size === workshopInvoices.length
+                    ? 'bg-blue-100 text-blue-800 border-blue-300'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300'
+                }`}
+                title="تحديد أو إلغاء تحديد كافة أوامر التشغيل والورشة"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
+                <span>
+                  {selectedOrderIds.size === workshopInvoices.length && workshopInvoices.length > 0
+                    ? 'إلغاء التحديد'
+                    : 'تحديد الكل'}
+                </span>
+              </button>
+            )}
+
+            {/* Batch Delete Selected Orders Button */}
+            {selectedOrderIds.size > 0 && (
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs px-3 py-1.5 rounded-lg border border-rose-300 flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+                title="حذف الأوامر المحددة نهائياً دون التأثير على فواتير المبيعات"
+              >
+                <Trash className="w-3.5 h-3.5 text-rose-700" />
+                <span>حذف المحدد ({selectedOrderIds.size})</span>
+              </button>
+            )}
+
+            {/* Zero / Purge All Print Orders Button */}
+            <button
+              type="button"
+              onClick={handleZeroAll}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm px-3 py-1.5 rounded-lg shadow-sm hover:shadow flex items-center gap-1.5 transition-all cursor-pointer shrink-0 active:scale-95"
+              title="تصفير وتطهير كافة أوامر الطباعة والورشة نهائياً (بدون التأثير على فواتير المبيعات المسجلة)"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>تصفير الأوامر</span>
             </button>
 
             {/* Search Input */}

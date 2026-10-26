@@ -278,6 +278,9 @@ interface AccountingContextType {
   updatePrintOrderStatus: (id: string, newStatus: PrintJobOrder['status']) => void;
   updatePrintOrder: (id: string, updates: Partial<PrintJobOrder>) => void;
   collectPrintOrderPayment: (id: string, amount: number, paymentMethod: PaymentMethod) => void;
+  deletePrintOrder: (id: string) => { success: boolean; message?: string };
+  deleteMultiplePrintOrders: (ids: string[]) => { success: boolean; count: number };
+  deleteAllPrintOrders: () => { success: boolean; count: number };
   
   invoices: Invoice[];
   createPosSale: (
@@ -9109,6 +9112,93 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }));
   };
 
+  const deletePrintOrder = (id: string): { success: boolean; message?: string } => {
+    const isStandalone = printOrders.some(po => po.id === id);
+    if (isStandalone) {
+      setPrintOrders(prev => {
+        const next = prev.filter(po => po.id !== id);
+        broadcastEntityChange('printOrders', next);
+        try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      try {
+        deleteDoc(doc(db, 'printOrders', id)).catch(err => {
+          console.warn('Firestore delete print order notice:', err);
+        });
+      } catch (e) {}
+    } else {
+      setInvoices(prev => prev.map(inv => {
+        if (inv.id === id) {
+          return {
+            ...inv,
+            workflowStatus: 'delivered',
+            isWorkshopVisible: false
+          };
+        }
+        return inv;
+      }));
+    }
+    return { success: true, message: 'تم حذف أمر الطباعة والتشغيل بنجاح دون التأثير على فواتير المبيعات' };
+  };
+
+  const deleteMultiplePrintOrders = (ids: string[]): { success: boolean; count: number } => {
+    if (!Array.isArray(ids) || ids.length === 0) return { success: false, count: 0 };
+    const idSet = new Set(ids);
+
+    setPrintOrders(prev => {
+      const next = prev.filter(po => !idSet.has(po.id));
+      broadcastEntityChange('printOrders', next);
+      try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+
+    ids.forEach(id => {
+      try {
+        deleteDoc(doc(db, 'printOrders', id)).catch(() => {});
+      } catch (e) {}
+    });
+
+    setInvoices(prev => prev.map(inv => {
+      if (idSet.has(inv.id)) {
+        return {
+          ...inv,
+          workflowStatus: 'delivered',
+          isWorkshopVisible: false
+        };
+      }
+      return inv;
+    }));
+
+    return { success: true, count: ids.length };
+  };
+
+  const deleteAllPrintOrders = (): { success: boolean; count: number } => {
+    const count = printOrders.length;
+
+    setPrintOrders([]);
+    broadcastEntityChange('printOrders', []);
+    try { localStorage.removeItem(`${STORAGE_KEY}_printOrders`); } catch {}
+
+    printOrders.forEach(po => {
+      try {
+        deleteDoc(doc(db, 'printOrders', po.id)).catch(() => {});
+      } catch (e) {}
+    });
+
+    setInvoices(prev => prev.map(inv => {
+      if (inv.workflowStatus && inv.workflowStatus !== 'new' && inv.workflowStatus !== 'delivered') {
+        return {
+          ...inv,
+          workflowStatus: 'delivered',
+          isWorkshopVisible: false
+        };
+      }
+      return inv;
+    }));
+
+    return { success: true, count };
+  };
+
   const createPurchaseInvoice = (invoiceData: Omit<PurchaseInvoice, 'id' | 'invoiceNumber'>) => {
     const id = 'pur-' + Date.now();
     const curYear = new Date().getFullYear();
@@ -10071,6 +10161,20 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         summary.deletedPrintOrders = deletedDocMap.printOrders.length;
         return toKeep;
       });
+
+      // Clear workshop status on invoices without deleting the actual sales invoices
+      if (!options.resetInvoices) {
+        setInvoices(prev => prev.map(inv => {
+          if (inv.workflowStatus && inv.workflowStatus !== 'new' && inv.workflowStatus !== 'delivered' && isTargetDate(inv.date)) {
+            return {
+              ...inv,
+              workflowStatus: 'delivered',
+              isWorkshopVisible: false
+            };
+          }
+          return inv;
+        }));
+      }
     }
 
     // 8. Stock Movements (حركات المخزون: صرف، قبض/توريد، جرد وتعديل، بيع وشراء، تبديل ومناقلات)
@@ -10918,6 +11022,9 @@ return (
         updatePrintOrderStatus,
         updatePrintOrder,
         collectPrintOrderPayment,
+        deletePrintOrder,
+        deleteMultiplePrintOrders,
+        deleteAllPrintOrders,
         invoices,
         createPosSale,
         postPosSaleOnline,
