@@ -749,6 +749,112 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
   return { merged, unpushedDeltas };
 }
 
+export function auditAndRecalculateTreasuries(
+  treasuriesList: Treasury[],
+  activeInvoices: Invoice[],
+  activeVouchers: PaymentVoucher[],
+  deletedDocIds?: Set<string>
+): Treasury[] {
+  if (!Array.isArray(treasuriesList)) return [];
+
+  const validInvNums = new Set<string>();
+  const validInvIds = new Set<string>();
+  if (Array.isArray(activeInvoices)) {
+    activeInvoices.forEach(inv => {
+      if (inv) {
+        if (inv.id) validInvIds.add(String(inv.id));
+        if (inv.invoiceNumber) validInvNums.add(String(inv.invoiceNumber).toUpperCase());
+      }
+    });
+  }
+
+  const validVchNums = new Set<string>();
+  const validVchIds = new Set<string>();
+  if (Array.isArray(activeVouchers)) {
+    activeVouchers.forEach(v => {
+      if (v) {
+        if (v.id) validVchIds.add(String(v.id));
+        if (v.voucherNumber) validVchNums.add(String(v.voucherNumber).toUpperCase());
+      }
+    });
+  }
+
+  function extractInvNum(str?: string): string | null {
+    if (!str) return null;
+    const match = String(str).match(/INV-\d+/i);
+    return match ? match[0].toUpperCase() : null;
+  }
+
+  return treasuriesList.map(t => {
+    if (!t) return t;
+    const originalTxns = Array.isArray(t.transactions) ? t.transactions : [];
+
+    const cleanTxns = originalTxns.filter(tx => {
+      if (!tx) return false;
+      const refId = String(tx.referenceId || '');
+      const txId = String(tx.id || '');
+
+      if (deletedDocIds && (deletedDocIds.has(refId) || deletedDocIds.has(txId))) {
+        return false;
+      }
+
+      // Check if transaction belongs to an invoice
+      const invNum = extractInvNum(tx.description) || extractInvNum(tx.voucherNumber);
+      if (invNum) {
+        if (!validInvNums.has(invNum)) {
+          return false; // Invoice deleted -> purge transaction
+        }
+      }
+      if (refId.startsWith('inv-') || refId.startsWith('INV-')) {
+        if (!validInvIds.has(refId) && (!invNum || !validInvNums.has(invNum))) {
+          return false;
+        }
+      }
+
+      // Check if transaction belongs to a payment voucher
+      if (refId.startsWith('vch-') || refId.startsWith('PV-') || refId.startsWith('WTH-') || refId.startsWith('RCT-')) {
+        const vNum = tx.voucherNumber || tx.referenceId;
+        if (!validVchIds.has(refId) && (!vNum || !validVchNums.has(String(vNum).toUpperCase()))) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Recalculate running balance and currency balances from scratch
+    let runningBase = 0;
+    const currMap: Record<string, number> = { ILS: 0 };
+
+    const sortedOldestFirst = [...cleanTxns].reverse();
+    const recomputedOldest = sortedOldestFirst.map(tx => {
+      const curr = tx.currency || 'ILS';
+      const rate = tx.exchangeRate || 1.0;
+      const amt = tx.amount || 0;
+      const isDep = tx.type === 'deposit' || (tx.type as string) === 'transfer_in';
+
+      const dCurr = isDep ? amt : -amt;
+      const dBase = isDep ? (tx.baseAmount !== undefined ? tx.baseAmount : amt * rate) : -(tx.baseAmount !== undefined ? tx.baseAmount : amt * rate);
+
+      currMap[curr] = Number(((currMap[curr] || 0) + dCurr).toFixed(2));
+      runningBase = Number((runningBase + dBase).toFixed(2));
+
+      return {
+        ...tx,
+        balanceAfter: runningBase,
+        balanceAfterCurrency: currMap[curr]
+      };
+    });
+
+    return {
+      ...t,
+      balance: runningBase,
+      currencyBalances: currMap,
+      transactions: recomputedOldest.reverse()
+    };
+  });
+}
+
 // One-time self-purging of old mock demo entries from browser localStorage
 (() => {
   try {
@@ -1050,14 +1156,28 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Fetch & Merge Firestore Cloud Database ONLY (No static mock snapshot Injection)
         const fsData = await fetchFullDatabaseFromFirestore();
         if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
-          if (Array.isArray(fsData.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], fsData.invoices));
+          let updatedInvoicesList: Invoice[] = invoices || [];
+          let updatedVouchersList: PaymentVoucher[] = vouchers || [];
+
+          if (Array.isArray(fsData.invoices)) {
+            updatedInvoicesList = mergeInvoicesWithUpsertAndConflictResolution(invoices || [], fsData.invoices);
+            setInvoices(updatedInvoicesList);
+          }
           if (Array.isArray(fsData.parties)) setParties(prev => mergeEntityLists(prev || [], fsData.parties.filter((p: any) => !isTestSyncProbeParty(p))));
           if (Array.isArray(fsData.inventory)) setInventory(prev => mergeEntityLists(prev || [], fsData.inventory.filter((i: any) => i && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة')));
-          if (Array.isArray(fsData.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], fsData.vouchers));
+          if (Array.isArray(fsData.vouchers)) {
+            updatedVouchersList = mergeEntityLists(vouchers || [], fsData.vouchers);
+            setVouchers(updatedVouchersList);
+          }
           if (Array.isArray(fsData.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], fsData.printOrders));
           if (Array.isArray(fsData.purchases)) setPurchases(prev => mergeEntityLists(prev || [], fsData.purchases));
           if (Array.isArray(fsData.accounts)) setAccounts(prev => mergeEntityLists(prev || [], fsData.accounts));
-          if (Array.isArray(fsData.treasuries)) setTreasuries(prev => ensureUniqueTreasuryAccountCodes(mergeEntityLists(prev || [], fsData.treasuries)));
+          if (Array.isArray(fsData.treasuries)) {
+            setTreasuries(prev => {
+              const merged = ensureUniqueTreasuryAccountCodes(mergeEntityLists(prev || [], fsData.treasuries));
+              return auditAndRecalculateTreasuries(merged, updatedInvoicesList, updatedVouchersList);
+            });
+          }
           if (Array.isArray(fsData.employees)) setEmployees(prev => mergeEntityLists(prev || [], fsData.employees));
           if (Array.isArray(fsData.branches)) setBranches(prev => mergeEntityLists(prev || [], fsData.branches));
           if (Array.isArray(fsData.warehouses)) setWarehouses(prev => mergeEntityLists(prev || [], fsData.warehouses));
@@ -1270,7 +1390,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const [treasuries, setTreasuries] = useState<Treasury[]>(() => {
     const loaded = safeLoadArray(`${STORAGE_KEY}_treasuries`, initialTreasuries);
-    return ensureUniqueTreasuryAccountCodes(loaded);
+    const loadedInvoices = safeLoadArray(`${STORAGE_KEY}_invoices`, initialInvoices);
+    const loadedVouchers = safeLoadArray(`${STORAGE_KEY}_vouchers`, initialVouchers);
+    const audited = auditAndRecalculateTreasuries(loaded, loadedInvoices, loadedVouchers);
+    return ensureUniqueTreasuryAccountCodes(audited);
   });
 
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
@@ -8262,31 +8385,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // 9. تسوية الصناديق في حال تم دفع مبالغ
-    if (target && (target.paidAmount || target.cashPaidAmount || target.bankPaidAmount)) {
-      const paid = target.paidAmount || (Number(target.cashPaidAmount || 0) + Number(target.bankPaidAmount || 0));
-      if (paid > 0) {
-        setTreasuries(prev => {
-          const updated = prev.map(t => {
-            const cleanTxns = (t.transactions || []).filter(tx => {
-              return !(tx.referenceId === id || (target && tx.description?.includes(target.invoiceNumber)));
-            });
-            if (cleanTxns.length !== (t.transactions || []).length) {
-              return {
-                ...t,
-                balance: Number(Math.max(0, (t.balance || 0) - paid).toFixed(2)),
-                transactions: cleanTxns
-              };
-            }
-            return t;
-          });
-          try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(updated)); } catch {}
-          pushToServerSync('treasuries', updated);
-          broadcastEntityChange('treasuries', updated);
-          return updated;
-        });
-      }
-    }
+    // 9. تسوية وتطهير حركات الخزنات والصناديق التابعة للفاتورة المحذوفة وإعادة احتساب الأرصدة بدقة
+    setTreasuries(prevTreasuries => {
+      const remainingInvoices = invoices.filter(inv => inv.id !== id);
+      const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, remainingInvoices, vouchers);
+      try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(auditedTreasuries)); } catch {}
+      pushToServerSync('treasuries', auditedTreasuries);
+      broadcastEntityChange('treasuries', auditedTreasuries);
+      auditedTreasuries.forEach(t => {
+        setDoc(doc(db, 'treasuries', t.id), cleanDocForFirestore(t)).catch(() => {});
+      });
+      return auditedTreasuries;
+    });
   };
 
   /**
@@ -8491,41 +8601,19 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // 7. تسوية أرصدة وحركات الصناديق النقدية والبنكية
+    // 7. تسوية وتطهير أرصدة وحركات الصناديق النقدية والبنكية
     let adjustedTreasuriesCount = 0;
     if (revertTreasuryBalances) {
-      setTreasuries(prev => {
-        const updated = prev.map(t => {
-          let removedAmount = 0;
-          const cleanTxns = (t.transactions || []).filter(tx => {
-            const isSale = (tx as any).referenceType === 'pos_sale' || (tx as any).type === 'pos_sale';
-            const matchesInv = ((tx as any).referenceId && invoiceIds.has((tx as any).referenceId)) ||
-                               ((tx as any).voucherNumber && invoiceNumbers.has((tx as any).voucherNumber)) ||
-                               (tx.description && (
-                                 tx.description.includes('فاتورة مبيعات') ||
-                                 Array.from(invoiceNumbers).some(num => tx.description?.includes(num))
-                               ));
-            if (isSale || matchesInv) {
-              removedAmount += (tx.amount || 0);
-              return false;
-            }
-            return true;
-          });
-
-          if (removedAmount > 0 || cleanTxns.length !== (t.transactions || []).length) {
-            adjustedTreasuriesCount++;
-            return {
-              ...t,
-              balance: Number(Math.max(0, (t.balance || 0) - removedAmount).toFixed(2)),
-              transactions: cleanTxns
-            };
-          }
-          return t;
+      setTreasuries(prevTreasuries => {
+        const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, [], vouchers);
+        adjustedTreasuriesCount = auditedTreasuries.length;
+        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(auditedTreasuries)); } catch {}
+        pushToServerSync('treasuries', auditedTreasuries);
+        broadcastEntityChange('treasuries', auditedTreasuries);
+        auditedTreasuries.forEach(t => {
+          setDoc(doc(db, 'treasuries', t.id), cleanDocForFirestore(t)).catch(() => {});
         });
-        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(updated)); } catch {}
-        pushToServerSync('treasuries', updated);
-        broadcastEntityChange('treasuries', updated);
-        return updated;
+        return auditedTreasuries;
       });
     }
 
@@ -9345,14 +9433,27 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const deletePaymentVoucher = (id: string) => {
+    let remainingVouchers: PaymentVoucher[] = [];
     setVouchers(prev => {
-      const next = prev.filter(v => v.id !== id);
+      remainingVouchers = prev.filter(v => v.id !== id);
       pushDeltaToServer('vouchers', 'delete', { id, _deleted: true });
-      broadcastEntityChange('vouchers', next);
-      return next;
+      broadcastEntityChange('vouchers', remainingVouchers);
+      return remainingVouchers;
     });
     registerDeletedDoc('vouchers', id);
     deleteDoc(doc(db, 'vouchers', id)).catch(() => {});
+
+    // Audit and purge linked transactions from treasuries and recalculate balances
+    setTreasuries(prevTreasuries => {
+      const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, invoices, remainingVouchers);
+      try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(auditedTreasuries)); } catch {}
+      pushToServerSync('treasuries', auditedTreasuries);
+      broadcastEntityChange('treasuries', auditedTreasuries);
+      auditedTreasuries.forEach(t => {
+        setDoc(doc(db, 'treasuries', t.id), cleanDocForFirestore(t)).catch(() => {});
+      });
+      return auditedTreasuries;
+    });
   };
 
   const deletePurchaseInvoice = (id: string) => {
