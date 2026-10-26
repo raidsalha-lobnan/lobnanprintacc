@@ -581,12 +581,19 @@ export const TreasuriesView: React.FC = () => {
                   {/* Multi-currency distinct list */}
                   <div className="space-y-1">
                     {(() => {
-                      const balances = treasury.currencyBalances && Object.keys(treasury.currencyBalances).length > 0
-                        ? Object.entries(treasury.currencyBalances).filter(([_, amt]) => (amt as number) !== 0)
-                        : [['ILS', treasury.balance || 0]];
-
+                      const curBal = { ...(treasury.currencyBalances || {}) };
+                      let foreignVal = 0;
+                      Object.entries(curBal).forEach(([cCode, cAmt]) => {
+                        if (cCode !== 'ILS') {
+                          const cRate = currencies.find(c => c.code === cCode)?.rateAgainstBase || 1.0;
+                          foreignVal += (Number(cAmt) || 0) * cRate;
+                        }
+                      });
+                      curBal['ILS'] = Number(((treasury.balance || 0) - foreignVal).toFixed(2));
+                      
+                      const balances = Object.entries(curBal).filter(([_, amt]) => (amt as number) !== 0);
                       if (balances.length === 0) {
-                        balances.push(['ILS', 0]);
+                        balances.push(['ILS', treasury.balance || 0]);
                       }
 
                       return balances.map(([currCode, amt]) => {

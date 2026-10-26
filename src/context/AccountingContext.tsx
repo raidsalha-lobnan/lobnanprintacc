@@ -1232,6 +1232,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const ensureUniqueTreasuryAccountCodes = (list: Treasury[]): Treasury[] => {
     if (!list || list.length === 0) return list;
     const seenCodes = new Set<string>();
+    const accs = accounts || [];
     return list.map((t, idx) => {
       let code = t.accountCode?.trim();
       if (!code || seenCodes.has(code)) {
@@ -1242,7 +1243,28 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         code = String(nextNum);
       }
       seenCodes.add(code);
-      return { ...t, accountCode: code };
+
+      const matchedAcc = accs.find(a => a.code === code);
+      const targetBal = matchedAcc ? matchedAcc.balance : t.balance;
+      const curBal = { ...(t.currencyBalances || {}) };
+
+      let foreignVal = 0;
+      Object.entries(curBal).forEach(([cCode, cAmt]) => {
+        if (cCode !== 'ILS') {
+          const cRate = (settings?.currencies || defaultCurrencies).find(c => c.code === cCode)?.rateAgainstBase || 1.0;
+          foreignVal += (Number(cAmt) || 0) * cRate;
+        }
+      });
+
+      const ilsAmount = Number((targetBal - foreignVal).toFixed(2));
+      curBal['ILS'] = ilsAmount;
+
+      return {
+        ...t,
+        accountCode: code,
+        balance: targetBal,
+        currencyBalances: curBal
+      };
     });
   };
 
@@ -3313,28 +3335,56 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [settings, accounts, treasuries, journalEntries, inventory, parties, employees, printOrders, invoices, purchases, purchaseReturns, salesReturns, vouchers, employeeAdvances, employeeDeductions, employeeIncentives, payrollSheets, stockMovements, companies, branches, warehouses, warehouseOperations, activeWarehouseId, roles, users, activeCompanyId, activeBranchId, currentUserId]);
 
-  // Keep treasury balances synchronized with their Chart of Accounts assets without trigger loops
+  // Keep treasury balances & currency sub-balances synchronized with Chart of Accounts assets
   useEffect(() => {
+    const activeCurrencies = settings.currencies && settings.currencies.length > 0 ? settings.currencies : defaultCurrencies;
     let hasDifference = false;
     for (const t of treasuries) {
       const acc = accounts.find(a => a.code === t.accountCode);
-      if (acc && acc.balance !== t.balance) {
-        hasDifference = true;
-        break;
+      if (acc) {
+        const curBal = t.currencyBalances || {};
+        let foreignTotal = 0;
+        Object.entries(curBal).forEach(([cCode, cAmt]) => {
+          if (cCode !== 'ILS') {
+            const cRate = activeCurrencies.find(c => c.code === cCode)?.rateAgainstBase || 1.0;
+            foreignTotal += (Number(cAmt) || 0) * cRate;
+          }
+        });
+        const expectedIls = Number((acc.balance - foreignTotal).toFixed(2));
+        const currentIls = Number((curBal['ILS'] || 0).toFixed(2));
+        if (acc.balance !== t.balance || currentIls !== expectedIls || !t.currencyBalances) {
+          hasDifference = true;
+          break;
+        }
       }
     }
     if (hasDifference) {
       setTreasuries(prev =>
         prev.map(t => {
           const acc = accounts.find(a => a.code === t.accountCode);
-          if (acc && acc.balance !== t.balance) {
-            return { ...t, balance: acc.balance };
+          if (acc) {
+            const newBal = acc.balance;
+            const curBal = { ...(t.currencyBalances || {}) };
+            let foreignTotal = 0;
+            Object.entries(curBal).forEach(([cCode, cAmt]) => {
+              if (cCode !== 'ILS') {
+                const cRate = activeCurrencies.find(c => c.code === cCode)?.rateAgainstBase || 1.0;
+                foreignTotal += (Number(cAmt) || 0) * cRate;
+              }
+            });
+            const expectedIls = Number((newBal - foreignTotal).toFixed(2));
+            curBal['ILS'] = expectedIls;
+            return {
+              ...t,
+              balance: newBal,
+              currencyBalances: curBal
+            };
           }
           return t;
         })
       );
     }
-  }, [accounts]);
+  }, [accounts, settings.currencies]);
 
   // One-time data consistency and SKU migration (TEX-0001 for جاليه سيلكون)
   useEffect(() => {
