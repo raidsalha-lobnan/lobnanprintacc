@@ -785,8 +785,12 @@ export function auditAndRecalculateTreasuries(
     return match ? match[0].toUpperCase() : null;
   }
 
+  const BANK_NET_KEYWORDS = ['شبكة', 'بنك', 'بنكي', 'تحصيل شبكة', 'حوالة', 'شيك', 'بطاقة', 'فيزا', 'ماستر', 'صراف'];
+
   return treasuriesList.map(t => {
     if (!t) return t;
+    const isCashBox = t.type === 'cash_box' || t.accountCode === '1101' || t.name?.includes('خزينة') || t.name?.includes('صندوق');
+
     const originalTxns = Array.isArray(t.transactions) ? t.transactions : [];
 
     const cleanTxns = originalTxns.filter(tx => {
@@ -819,6 +823,20 @@ export function auditAndRecalculateTreasuries(
         }
       }
 
+      // Strict Treasury Isolation Rule
+      if (tx.treasuryId && tx.treasuryId !== t.id && tx.treasuryId !== t.accountCode) {
+        return false;
+      }
+
+      const txText = `${tx.description || ''} ${tx.paymentMethod || ''} ${tx.notes || ''}`.toLowerCase();
+      const hasBankNetKeyword = BANK_NET_KEYWORDS.some(kw => txText.includes(kw));
+
+      if (isCashBox && t.accountCode === '1101' && !t.name?.includes('شبكة')) {
+        if (hasBankNetKeyword) {
+          return false; // exclude bank/network entries from main cash box
+        }
+      }
+
       return true;
     });
 
@@ -830,17 +848,23 @@ export function auditAndRecalculateTreasuries(
     const recomputedOldest = sortedOldestFirst.map(tx => {
       const curr = tx.currency || 'ILS';
       const rate = tx.exchangeRate || 1.0;
-      const amt = tx.amount || 0;
+      const rawAmt = typeof tx.amount === 'number' ? tx.amount : 0;
+      const magAmt = Math.abs(rawAmt);
+      const rawBaseAmt = typeof tx.baseAmount === 'number' ? tx.baseAmount : (magAmt * rate);
+      const magBaseAmt = Math.abs(rawBaseAmt);
+
       const isDep = tx.type === 'deposit' || (tx.type as string) === 'transfer_in';
 
-      const dCurr = isDep ? amt : -amt;
-      const dBase = isDep ? (tx.baseAmount !== undefined ? tx.baseAmount : amt * rate) : -(tx.baseAmount !== undefined ? tx.baseAmount : amt * rate);
+      const dCurr = isDep ? magAmt : -magAmt;
+      const dBase = isDep ? magBaseAmt : -magBaseAmt;
 
       currMap[curr] = Number(((currMap[curr] || 0) + dCurr).toFixed(2));
       runningBase = Number((runningBase + dBase).toFixed(2));
 
       return {
         ...tx,
+        amount: magAmt, // normalize displayed amount to positive magnitude
+        baseAmount: magBaseAmt,
         balanceAfter: runningBase,
         balanceAfterCurrency: currMap[curr]
       };

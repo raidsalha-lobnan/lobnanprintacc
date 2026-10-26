@@ -633,6 +633,8 @@ export interface TreasuryTransaction {
   contraAccountName?: string;
   actualCurrency?: string;
   actualAmount?: number;
+  paymentMethod?: string;
+  notes?: string;
 }
 
 export interface Treasury {
