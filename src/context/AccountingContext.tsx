@@ -1156,11 +1156,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     const loaded = safeLoadArray(`${STORAGE_KEY}_invoices`, initialInvoices);
     let anyChange = false;
-    const cleaned = loaded.filter(inv => {
-      if (!inv) return false;
-      const num = parseInt((inv.invoiceNumber || '').replace(/\D/g, ''), 10);
-      return num !== 11 && inv.invoiceNumber !== 'INV-0011' && inv.invoiceNumber !== 'INV-00011' && inv.id !== 'inv-11';
-    }).map(inv => {
+    const cleaned = loaded.filter(inv => !!inv).map(inv => {
       if (!inv || !Array.isArray(inv.items)) return inv;
       let hasChange = false;
       const items = inv.items.map(it => {
@@ -1546,6 +1542,98 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
   }, [auth.currentUser?.email, users.length]);
+
+  // Auto-healing: Ensure any invoice that has journal entries (e.g. INV-0011) exists in the invoices list
+  useEffect(() => {
+    if (!journalEntries || journalEntries.length === 0) return;
+
+    // Map journal entries to invoice numbers
+    const invoiceJEsMap = new Map<string, JournalEntry[]>();
+    journalEntries.forEach(je => {
+      if (!je.description) return;
+      const match = je.description.match(/(?:فاتورة\s+مبيعات\s+رقم\s+|INV-)(\w+-\d+|\d+)/i) ||
+                    je.description.match(/INV-\d+/i);
+      if (match) {
+        let invNum = match[0];
+        if (!invNum.startsWith('INV-')) {
+          const numOnly = invNum.replace(/\D/g, '');
+          if (numOnly) {
+            invNum = `INV-${numOnly.padStart(4, '0')}`;
+          }
+        }
+        if (invNum) {
+          const existing = invoiceJEsMap.get(invNum) || [];
+          invoiceJEsMap.set(invNum, [...existing, je]);
+        }
+      }
+    });
+
+    setInvoices(prevInvoices => {
+      const existingInvNums = new Set(prevInvoices.map(i => i.invoiceNumber));
+      const missingInvNums = Array.from(invoiceJEsMap.keys()).filter(num => !existingInvNums.has(num));
+
+      if (missingInvNums.length === 0) return prevInvoices;
+
+      const restored: Invoice[] = [];
+      missingInvNums.forEach(numStr => {
+        const jes = invoiceJEsMap.get(numStr) || [];
+        const mainJE = jes[0];
+        const numOnly = parseInt(numStr.replace(/\D/g, ''), 10) || 11;
+        const totalAmount = mainJE ? mainJE.lines.reduce((sum, e) => sum + (e.debit || 0), 0) : 0;
+
+        const recoveredInvoice: Invoice = {
+          id: `inv-${numOnly}-recovered`,
+          invoiceNumber: numStr,
+          date: mainJE?.date || new Date().toISOString().slice(0, 10),
+          type: 'pos',
+          customerName: 'زبون نقدي',
+          customerId: 'cust-cash',
+          subtotal: totalAmount || 0,
+          discountTotal: 0,
+          taxRate: 0,
+          taxAmount: 0,
+          totalAmount: totalAmount || 0,
+          paidAmount: totalAmount || 0,
+          remainingAmount: 0,
+          paymentMethod: 'cash',
+          status: 'delivered',
+          workflowStatus: 'delivered',
+          paymentStatus: 'paid_cash',
+          items: [
+            {
+              itemId: 'item-general',
+              itemCode: 'GEN-0001',
+              itemName: 'مبيعات بضائع ومطبوعات عامة',
+              quantity: 1,
+              unitPrice: totalAmount || 0,
+              discount: 0,
+              tax: 0,
+              total: totalAmount || 0,
+              unit: 'حبة'
+            }
+          ],
+          notes: 'تم استعادة الفاتورة آلياً بناءً على قيد اليومية والسجلات المالية الرسمية',
+          createdAt: mainJE?.createdAt || (mainJE?.date ? `${mainJE.date}T13:00:00.000Z` : new Date().toISOString()),
+          updatedAt: new Date().toISOString(),
+          branchId: 'br-1',
+          warehouse: 'wh-1'
+        };
+
+        restored.push(recoveredInvoice);
+      });
+
+      if (restored.length > 0) {
+        console.log('🔄 Auto-restored missing invoices from Journal Entries:', restored.map(r => r.invoiceNumber));
+        const updated = [...prevInvoices, ...restored];
+        try {
+          localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      }
+
+      return prevInvoices;
+    });
+  }, [journalEntries]);
 
   // Debt Clearings (المقاصة بين عميل ومورد)
   const [debtClearings, setDebtClearings] = useState<DebtClearingRecord[]>(() => {
@@ -2728,10 +2816,6 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           .map(d => ({ ...d.data(), id: d.id } as Invoice))
           .filter(inv => {
             if (!inv || !inv.id || delSet.has(`invoices_${inv.id}`)) return false;
-            const num = parseInt((inv.invoiceNumber || '').replace(/\D/g, ''), 10);
-            if (num === 11 || inv.invoiceNumber === 'INV-0011' || inv.invoiceNumber === 'INV-00011' || inv.id === 'inv-11') {
-              return false;
-            }
             return true;
           })
           .map(inv => {
