@@ -1017,6 +1017,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       try {
         localStorage.setItem('accounting_is_local_only_mode', String(next));
       } catch {}
+      if (!next && navigator.onLine) {
+        resetQuotaExceeded();
+        setTimeout(() => {
+          if (fetchFromFirebaseRef.current) fetchFromFirebaseRef.current();
+          if (syncToFirebaseRef.current) syncToFirebaseRef.current(true);
+        }, 100);
+      }
       return next;
     });
   };
@@ -1150,9 +1157,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const handleOnline = async () => {
       setIsOnline(true);
-      console.log('Online event: internet connection restored 🟢');
+      resetQuotaExceeded();
+      setIsLocalOnlyMode(false);
+      try {
+        localStorage.setItem('accounting_is_local_only_mode', 'false');
+      } catch {}
+      console.log('Online event: internet connection restored 🟢 - Re-enabling Cloud Sync');
       if (fetchFromFirebaseRef.current) {
         await fetchFromFirebaseRef.current();
+      }
+      if (syncToFirebaseRef.current) {
+        await syncToFirebaseRef.current(true);
       }
     };
     const handleOffline = () => {
@@ -1162,10 +1177,37 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Periodic Auto-Recovery Watchdog for Cloud Sync
+    const watchdogInterval = setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        setIsOnline(true);
+        const quotaExceeded = isFirestoreQuotaExceeded();
+        const savedLocalOnly = localStorage.getItem('accounting_is_local_only_mode') === 'true';
+
+        if (savedLocalOnly || quotaExceeded) {
+          console.log('🌐 Connection online: Auto-restoring Cloud Sync...');
+          resetQuotaExceeded();
+          setIsLocalOnlyMode(false);
+          try {
+            localStorage.setItem('accounting_is_local_only_mode', 'false');
+          } catch {}
+          if (fetchFromFirebaseRef.current) {
+            fetchFromFirebaseRef.current().catch(() => {});
+          }
+          if (syncToFirebaseRef.current) {
+            syncToFirebaseRef.current(true).catch(() => {});
+          }
+        }
+      } else {
+        setIsOnline(false);
+      }
+    }, 8000);
+
     return () => {
       if (syncChannelRef.current) {
         try { syncChannelRef.current.close(); } catch {}
       }
+      clearInterval(watchdogInterval);
       window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -2677,6 +2719,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Manual immediate sync trigger with user feedback
   const forceSyncNow = async (): Promise<{ success: boolean; message: string }> => {
     setIsFirebaseSyncing(true);
+    if (navigator.onLine) {
+      resetQuotaExceeded();
+      setIsLocalOnlyMode(false);
+      try {
+        localStorage.setItem('accounting_is_local_only_mode', 'false');
+      } catch {}
+    }
     try {
       console.log('🚀 Executing Forced Master Sync with Central Server & Google Drive...');
 
