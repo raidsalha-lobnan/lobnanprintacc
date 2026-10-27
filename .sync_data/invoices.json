@@ -2388,5 +2388,38 @@
     "workflowStatus": "delivered",
     "notes": "فاتورة مبيعات مدخلة رقم 28",
     "createdAt": "2026-10-01T12:00:00.000Z"
+  },
+  {
+    "id": "inv-pos-seq-29",
+    "invoiceNumber": "INV-0029",
+    "date": "2026-10-01",
+    "time": "12:00",
+    "customerId": "cust-cash",
+    "customerName": "زبون نقدي",
+    "items": [
+      {
+        "itemId": "item-gen-1",
+        "itemCode": "ITM-001",
+        "itemName": "مبيعات بضائع ومطبوعات عامة",
+        "quantity": 1,
+        "unitPrice": 100,
+        "totalPrice": 100,
+        "unit": "حبة"
+      }
+    ],
+    "subtotal": 100,
+    "taxAmount": 0,
+    "taxRate": 0,
+    "discountTotal": 0,
+    "totalAmount": 100,
+    "paidAmount": 100,
+    "remainingAmount": 0,
+    "paymentStatus": "paid",
+    "paymentMethod": "cash",
+    "type": "pos",
+    "status": "completed",
+    "workflowStatus": "delivered",
+    "notes": "فاتورة مبيعات مدخلة رقم 29",
+    "createdAt": "2026-10-01T12:00:00.000Z"
   }
 ]

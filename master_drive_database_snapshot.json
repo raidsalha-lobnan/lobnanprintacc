@@ -17823,6 +17823,39 @@
       "workflowStatus": "delivered",
       "notes": "فاتورة مبيعات مدخلة رقم 28",
       "createdAt": "2026-10-01T12:00:00.000Z"
+    },
+    {
+      "id": "inv-pos-seq-29",
+      "invoiceNumber": "INV-0029",
+      "date": "2026-10-01",
+      "time": "12:00",
+      "customerId": "cust-cash",
+      "customerName": "زبون نقدي",
+      "items": [
+        {
+          "itemId": "item-gen-1",
+          "itemCode": "ITM-001",
+          "itemName": "مبيعات بضائع ومطبوعات عامة",
+          "quantity": 1,
+          "unitPrice": 100,
+          "totalPrice": 100,
+          "unit": "حبة"
+        }
+      ],
+      "subtotal": 100,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "discountTotal": 0,
+      "totalAmount": 100,
+      "paidAmount": 100,
+      "remainingAmount": 0,
+      "paymentStatus": "paid",
+      "paymentMethod": "cash",
+      "type": "pos",
+      "status": "completed",
+      "workflowStatus": "delivered",
+      "notes": "فاتورة مبيعات مدخلة رقم 29",
+      "createdAt": "2026-10-01T12:00:00.000Z"
     }
   ],
   "purchases": [],
@@ -17969,8 +18002,8 @@
           "referenceId": "inv-pos-1793020045623-ph08n",
           "paymentMethod": "cash",
           "notes": "",
-          "balanceAfter": 690,
-          "balanceAfterCurrency": 690
+          "balanceAfter": 790,
+          "balanceAfterCurrency": 790
         },
         {
           "id": "tx-vch-vch-inv-held-1791150066417",
@@ -17990,8 +18023,8 @@
           "referenceType": "receipt",
           "referenceId": "vch-inv-held-1791150066417",
           "paymentMethod": "card",
-          "balanceAfter": 290,
-          "balanceAfterCurrency": 290
+          "balanceAfter": 390,
+          "balanceAfterCurrency": 390
         },
         {
           "id": "tx-vch-vch-inv-held-1791150012608",
@@ -18011,8 +18044,8 @@
           "referenceType": "receipt",
           "referenceId": "vch-inv-held-1791150012608",
           "paymentMethod": "card",
-          "balanceAfter": 287,
-          "balanceAfterCurrency": 287
+          "balanceAfter": 387,
+          "balanceAfterCurrency": 387
         },
         {
           "id": "tx-vch-vch-inv-inv-pos-1791225511753",
@@ -18032,8 +18065,8 @@
           "referenceType": "receipt",
           "referenceId": "vch-inv-inv-pos-1791225511753",
           "paymentMethod": "card",
-          "balanceAfter": 277,
-          "balanceAfterCurrency": 277
+          "balanceAfter": 377,
+          "balanceAfterCurrency": 377
         },
         {
           "id": "tx-vch-vch-inv-inv-pos-1791224352314",
@@ -18053,8 +18086,31 @@
           "referenceType": "receipt",
           "referenceId": "vch-inv-inv-pos-1791224352314",
           "paymentMethod": "card",
-          "balanceAfter": 225,
-          "balanceAfterCurrency": 225
+          "balanceAfter": 325,
+          "balanceAfterCurrency": 325
+        },
+        {
+          "id": "tx-inv-cash-inv-pos-seq-29",
+          "treasuryId": "treasury-cash-main",
+          "treasuryName": "الصندوق النقدي (الخزينة الرئيسية)",
+          "date": "2026-10-01",
+          "time": "12:00",
+          "type": "deposit",
+          "amount": 100,
+          "currency": "ILS",
+          "currencySymbol": "₪",
+          "exchangeRate": 1,
+          "baseCurrency": "ILS",
+          "baseAmount": 100,
+          "voucherNumber": "INV-0029",
+          "partyName": "زبون نقدي",
+          "description": "تحصيل نقدي - فاتورة مبيعات رقم INV-0029 (زبون نقدي)",
+          "referenceType": "pos_sale",
+          "referenceId": "inv-pos-seq-29",
+          "paymentMethod": "cash",
+          "notes": "فاتورة مبيعات مدخلة رقم 29",
+          "balanceAfter": 323,
+          "balanceAfterCurrency": 323
         },
         {
           "id": "tx-inv-cash-inv-pos-seq-28",
@@ -18166,9 +18222,9 @@
           "balanceAfterCurrency": 10
         }
       ],
-      "balance": 690,
+      "balance": 790,
       "currencyBalances": {
-        "ILS": 690
+        "ILS": 790
       }
     },
     {

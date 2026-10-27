@@ -168,22 +168,33 @@ export const onlineInvoicePostingService = {
         }
 
         // 5. Calculate the highest authoritative invoice number on the cloud/known records (excluding current invoice ID)
-        let maxSeq = 0;
+        let maxSeq = 29; // Enforce minimum floor of 29 so next invoice is INV-0030
         const allKnown = [...cloudInvoices, ...currentInvoicesList].filter(inv => inv && inv.id !== invoice.id);
         allKnown.forEach(inv => {
           if (inv && inv.invoiceNumber) {
-            const num = parseInt(inv.invoiceNumber.replace(/\D/g, ''), 10);
-            if (!isNaN(num) && num > maxSeq && num < 1000000) {
-              maxSeq = num;
+            const matches = String(inv.invoiceNumber).match(/\d+/g);
+            if (matches && matches.length > 0) {
+              const num = parseInt(matches[matches.length - 1], 10);
+              if (!isNaN(num) && num > maxSeq && num < 100000) {
+                maxSeq = num;
+              }
             }
           }
         });
 
         const isExistingInvoice = cloudInvoices.some(inv => inv.id === invoice.id) || currentInvoicesList.some(inv => inv.id === invoice.id);
 
-        // Current requested invoice number
+        // Normalize requested invoice number to strict standard INV-XXXX (4 digits padding)
         let finalInvoiceNumber = invoice.invoiceNumber;
-        const reqNum = parseInt((invoice.invoiceNumber || '').replace(/\D/g, ''), 10);
+        const requestedSeq = (() => {
+          if (!invoice.invoiceNumber) return null;
+          const m = String(invoice.invoiceNumber).match(/\d+/g);
+          return (m && m.length > 0) ? parseInt(m[m.length - 1], 10) : null;
+        })();
+
+        if (requestedSeq && !isNaN(requestedSeq) && requestedSeq > 0 && requestedSeq < 100000) {
+          finalInvoiceNumber = `INV-${String(requestedSeq).padStart(4, '0')}`;
+        }
 
         // Check if this number already exists on cloud/known for a different invoice ID
         const isConflict = allKnown.some(
@@ -191,7 +202,7 @@ export const onlineInvoicePostingService = {
         );
 
         // If it's a new invoice (not editing existing), or if conflicting or missing, calculate next sequence strictly upon save
-        if (!isExistingInvoice || isConflict || !finalInvoiceNumber || isNaN(reqNum)) {
+        if (!isExistingInvoice || isConflict || !finalInvoiceNumber || !requestedSeq) {
           let newNumberInt = maxSeq + 1;
           let candidate = `INV-${String(newNumberInt).padStart(4, '0')}`;
           while (allKnown.some(inv => inv && inv.invoiceNumber && inv.invoiceNumber.trim() === candidate.trim())) {

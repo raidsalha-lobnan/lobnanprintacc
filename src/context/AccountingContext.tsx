@@ -7214,23 +7214,33 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // 2. الفحص الصارم لرقم الفاتورة ومنع تكرار أي رقم فاتورة مطلقاً - إصدار الرقم بعد إتمام الحفظ
+    // 2. الفحص الصارم لرقم الفاتورة ومنع تكرار أي رقم فاتورة مطلقاً - اعتماد الترقيم التسلسلي القياسي INV-XXXX
     let invoiceNumber = oldInvoice ? oldInvoice.invoiceNumber : undefined;
 
-    // إذا كان هناك رقم مؤكد تم توريده من الترحيل السحابي الفوري ولم يكن مكرراً مع فاتورة أخرى:
-    if (!invoiceNumber && extraOptions?.invoiceNumber && !invoices.some(inv => inv.id !== invId && inv.invoiceNumber && inv.invoiceNumber.trim() === extraOptions.invoiceNumber!.trim())) {
-      invoiceNumber = extraOptions.invoiceNumber;
+    function normalizeSeqNumber(rawStr?: string): string | undefined {
+      if (!rawStr) return undefined;
+      const matched = String(rawStr).match(/\d+/g);
+      if (!matched || matched.length === 0) return undefined;
+      const num = parseInt(matched[matched.length - 1], 10);
+      if (isNaN(num) || num <= 0 || num > 100000) return undefined;
+      return `INV-${String(num).padStart(4, '0')}`;
     }
 
-    // إذا لم يتحدد رقم (فاتورة جديدة أو رقم متضارب)، يتم توليد الرقم التسلسلي الجديد فورياً عند الحفظ
+    if (!invoiceNumber && extraOptions?.invoiceNumber) {
+      const normalizedCandidate = normalizeSeqNumber(extraOptions.invoiceNumber);
+      if (normalizedCandidate && !invoices.some(inv => inv.id !== invId && inv.invoiceNumber && inv.invoiceNumber.trim() === normalizedCandidate.trim())) {
+        invoiceNumber = normalizedCandidate;
+      }
+    }
+
     if (!invoiceNumber) {
-      let maxNum = 0;
+      let maxNum = 29; // الحد الأدنى للترقيم هو 29 فاتورة مدخلة، بحيث تكون الفاتورة التالية 0030 حتماً
       invoices.forEach(inv => {
-        if (inv.invoiceNumber && inv.id !== invId) {
+        if (inv && inv.invoiceNumber && inv.id !== invId) {
           const matched = inv.invoiceNumber.match(/\d+/g);
           if (matched && matched.length > 0) {
             const num = parseInt(matched[matched.length - 1], 10);
-            if (!isNaN(num) && num > maxNum && num < 1000000) {
+            if (!isNaN(num) && num > maxNum && num < 100000) {
               maxNum = num;
             }
           }
