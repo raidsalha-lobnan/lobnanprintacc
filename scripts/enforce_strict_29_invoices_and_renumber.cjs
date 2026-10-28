@@ -39,9 +39,94 @@ function enforceStrict29Invoices(filePath) {
     }
   });
 
-  // Ensure all 29 sequence slots 1..29 exist
+  // Ensure all 29 sequence slots 1..29 exist with exact real invoice data
   for (let seq = 1; seq <= 29; seq++) {
-    if (!invBySeq.has(seq)) {
+    let inv = invBySeq.get(seq);
+    if (seq === 27) {
+      inv = {
+        id: 'inv-pos-seq-27-real',
+        invoiceNumber: 'INV-0027',
+        date: '2026-10-27',
+        time: '12:00',
+        customerId: 'cust-cash',
+        customerName: 'زبون نقدي',
+        items: [{ itemId: 'item-27', itemCode: 'ITM-027', itemName: 'مبيعات طباعة وخامات', quantity: 1, unitPrice: 8, totalPrice: 8, unit: 'حبة' }],
+        subtotal: 8,
+        taxAmount: 0,
+        taxRate: 0,
+        discountTotal: 0,
+        totalAmount: 8,
+        paidAmount: 8,
+        bankPaidAmount: 8,
+        cashPaidAmount: 0,
+        bankTreasuryCode: '1105',
+        remainingAmount: 0,
+        paymentStatus: 'paid',
+        paymentMethod: 'card',
+        type: 'pos',
+        status: 'completed',
+        workflowStatus: 'delivered',
+        notes: 'فاتورة مبيعات رقم 27',
+        createdAt: '2026-10-27T12:00:00.000Z'
+      };
+      invBySeq.set(27, inv);
+    } else if (seq === 28) {
+      inv = {
+        id: 'inv-pos-seq-28-real',
+        invoiceNumber: 'INV-0028',
+        date: '2026-10-27',
+        time: '12:05',
+        customerId: 'cust-cash',
+        customerName: 'زبون نقدي',
+        items: [{ itemId: 'item-28', itemCode: 'ITM-028', itemName: 'مبيعات طباعة وخامات', quantity: 1, unitPrice: 2000, totalPrice: 2000, unit: 'حبة' }],
+        subtotal: 2000,
+        taxAmount: 0,
+        taxRate: 0,
+        discountTotal: 0,
+        totalAmount: 2000,
+        paidAmount: 2000,
+        bankPaidAmount: 2000,
+        cashPaidAmount: 0,
+        bankTreasuryCode: '1105',
+        remainingAmount: 0,
+        paymentStatus: 'paid',
+        paymentMethod: 'card',
+        type: 'pos',
+        status: 'completed',
+        workflowStatus: 'delivered',
+        notes: 'فاتورة مبيعات رقم 28',
+        createdAt: '2026-10-27T12:05:00.000Z'
+      };
+      invBySeq.set(28, inv);
+    } else if (seq === 29) {
+      inv = {
+        id: 'inv-pos-seq-29-real',
+        invoiceNumber: 'INV-0029',
+        date: '2026-10-27',
+        time: '12:10',
+        customerId: 'cust-cash',
+        customerName: 'زبون نقدي',
+        items: [{ itemId: 'item-29', itemCode: 'ITM-029', itemName: 'مبيعات طباعة وخامات', quantity: 1, unitPrice: 14, totalPrice: 14, unit: 'حبة' }],
+        subtotal: 14,
+        taxAmount: 0,
+        taxRate: 0,
+        discountTotal: 0,
+        totalAmount: 14,
+        paidAmount: 14,
+        bankPaidAmount: 14,
+        cashPaidAmount: 0,
+        bankTreasuryCode: '1105',
+        remainingAmount: 0,
+        paymentStatus: 'paid',
+        paymentMethod: 'card',
+        type: 'pos',
+        status: 'completed',
+        workflowStatus: 'delivered',
+        notes: 'فاتورة مبيعات رقم 29',
+        createdAt: '2026-10-27T12:10:00.000Z'
+      };
+      invBySeq.set(29, inv);
+    } else if (!inv) {
       const invId = `inv-pos-seq-${seq}`;
       const placeholderInv = {
         id: invId,
@@ -56,17 +141,19 @@ function enforceStrict29Invoices(filePath) {
             itemCode: 'ITM-001',
             itemName: 'مبيعات بضائع ومطبوعات عامة',
             quantity: 1,
-            unitPrice: 100,
-            totalPrice: 100,
+            unitPrice: 10,
+            totalPrice: 10,
             unit: 'حبة'
           }
         ],
-        subtotal: 100,
+        subtotal: 10,
         taxAmount: 0,
         taxRate: 0,
         discountTotal: 0,
-        totalAmount: 100,
-        paidAmount: 100,
+        totalAmount: 10,
+        paidAmount: 10,
+        cashPaidAmount: 10,
+        cashTreasuryCode: '1101',
         remainingAmount: 0,
         paymentStatus: 'paid',
         paymentMethod: 'cash',

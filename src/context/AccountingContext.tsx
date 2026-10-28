@@ -789,9 +789,13 @@ export function auditAndRecalculateTreasuries(
   const defaultCash = tByCode.get('1101') || treasuriesList.find(t => t.type === 'cash_box' || t.isDefault) || treasuriesList[0];
 
   function getTargetTreasury(codeOrId?: string, isBank = false, notesText = ''): Treasury {
-    if (codeOrId) {
-      if (tById.has(codeOrId)) return tById.get(codeOrId)!;
-      if (tByCode.has(codeOrId)) return tByCode.get(codeOrId)!;
+    let resolvedCode = codeOrId;
+    if (resolvedCode === '1102') {
+      resolvedCode = '1105'; // Map legacy ghost code 1102 to Bank of Palestine (1105)
+    }
+    if (resolvedCode) {
+      if (tByCode.has(resolvedCode)) return tByCode.get(resolvedCode)!;
+      if (tById.has(resolvedCode)) return tById.get(resolvedCode)!;
     }
     if (notesText) {
       const lower = notesText.toLowerCase();
@@ -840,7 +844,7 @@ export function auditAndRecalculateTreasuries(
       const bankAmt = typeof inv.bankPaidAmount === 'number' ? Math.abs(inv.bankPaidAmount) : (inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer' || (inv.paymentMethod as string) === 'e_wallet' ? paidAmt : 0);
 
       if (cashAmt > 0) {
-        const target = getTargetTreasury(inv.cashTreasuryCode || (inv as any).treasuryAccountCode, false, `${inv.notes || ''}`);
+        const target = getTargetTreasury(inv.cashTreasuryCode || ((inv as any).treasuryAccountCode === '1101' ? '1101' : undefined), false, `${inv.notes || ''}`);
         addTx(target, {
           id: `tx-inv-cash-${inv.id}`,
           treasuryId: target.id,
@@ -865,7 +869,7 @@ export function auditAndRecalculateTreasuries(
       }
 
       if (bankAmt > 0) {
-        const target = getTargetTreasury(inv.bankTreasuryCode || (inv as any).treasuryAccountCode, true, `${inv.notes || ''}`);
+        const target = getTargetTreasury(inv.bankTreasuryCode || ((inv as any).treasuryAccountCode !== '1101' ? (inv as any).treasuryAccountCode : '1105'), true, `${inv.notes || ''}`);
         addTx(target, {
           id: `tx-inv-bank-${inv.id}`,
           treasuryId: target.id,
@@ -7619,7 +7623,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         );
       }
       if (bankVal > 0) {
-        const bCode = extraOptions?.bankTreasuryCode || '1102';
+        const bCode = extraOptions?.bankTreasuryCode || '1105';
         adjustTreasuryBalance(
           bCode,
           bankVal,
@@ -7637,7 +7641,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         );
       }
       if (cashVal === 0 && bankVal === 0 && effectivePaidAmount > 0) {
-        const tCode = extraOptions?.treasuryAccountCode || (paymentMethod === 'card' ? '1102' : '1101');
+        const tCode = extraOptions?.treasuryAccountCode || (paymentMethod === 'cash' ? '1101' : '1105');
         adjustTreasuryBalance(
           tCode,
           effectivePaidAmount,
