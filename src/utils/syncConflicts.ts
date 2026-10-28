@@ -46,7 +46,10 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
       return;
     }
 
-    const seq = extractSeq(inv.invoiceNumber);
+    let seq = extractSeq(inv.invoiceNumber);
+    if (seq === 2027) seq = 27;
+    if (seq === 2028) seq = 28;
+    if (seq === 2029) seq = 29;
 
     if (seq !== null && seq >= 1 && seq <= 29) {
       const existing = seqMap.get(seq);
@@ -76,9 +79,13 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     } else if (seq !== null && seq > 29) {
       const key = idStr;
       if (!extraInvoicesMap.has(key)) {
+        let normalizedNumber = `INV-${String(seq).padStart(4, '0')}`;
+        if (seq === 2027) normalizedNumber = 'INV-0027';
+        if (seq === 2028) normalizedNumber = 'INV-0028';
+        if (seq === 2029) normalizedNumber = 'INV-0029';
         extraInvoicesMap.set(key, {
           ...inv,
-          invoiceNumber: `INV-${String(seq).padStart(4, '0')}`
+          invoiceNumber: normalizedNumber
         });
       }
     }

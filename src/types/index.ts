@@ -625,7 +625,7 @@ export interface TreasuryTransaction {
   voucherNumber?: string; // رقم السند مثل RC-1 أو PV-1 أو INV-...
   partyName?: string; // اسم العميل أو المورد أو المستفيد
   description: string;
-  referenceType?: 'pos_sale' | 'invoice' | 'print_order' | 'advance' | 'payroll' | 'expense' | 'transfer' | 'manual' | 'opening' | 'receipt' | 'payment';
+  referenceType?: 'pos_sale' | 'invoice' | 'print_order' | 'advance' | 'payroll' | 'expense' | 'purchase' | 'purchase_return' | 'sales_return' | 'transfer' | 'manual' | 'opening' | 'receipt' | 'payment';
   referenceId?: string;
   targetTreasuryId?: string;
   targetTreasuryName?: string;

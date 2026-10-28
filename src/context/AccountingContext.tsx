@@ -929,19 +929,80 @@ export function auditAndRecalculateTreasuries(
     });
   }
 
+  // 3. Purchases
+  if (Array.isArray(activePurchases)) {
+    activePurchases.forEach(pur => {
+      if (!pur) return;
+      const paidAmt = typeof pur.paidAmount === 'number' ? Math.abs(pur.paidAmount) : (pur.paymentMethod === 'cash' ? Math.abs(pur.totalAmount || 0) : 0);
+      if (paidAmt <= 0) return;
+      const target = getTargetTreasury((pur as any).treasuryAccountCode || (pur.paymentMethod === 'cash' ? '1101' : '1105'), pur.paymentMethod !== 'cash', `${pur.notes || ''}`);
+      addTx(target, {
+        id: `tx-pur-${pur.id}`,
+        treasuryId: target.id,
+        treasuryName: target.name,
+        date: pur.date || '2026-10-01',
+        type: 'withdrawal',
+        amount: paidAmt,
+        currency: pur.currency || 'ILS',
+        currencySymbol: pur.currencySymbol || '₪',
+        exchangeRate: pur.exchangeRate || 1.0,
+        baseCurrency: 'ILS',
+        baseAmount: paidAmt * (pur.exchangeRate || 1.0),
+        voucherNumber: pur.invoiceNumber || pur.supplierInvoiceNumber,
+        partyName: pur.supplierName || 'مورد',
+        description: `سداد فاتورة مشتريات رقم ${pur.invoiceNumber || ''} (${pur.supplierName || 'مورد'})`,
+        referenceType: 'purchase',
+        referenceId: pur.id,
+        paymentMethod: pur.paymentMethod || 'cash',
+        balanceAfter: 0
+      });
+    });
+  }
+
+  // 4. Expenses
+  if (Array.isArray(activeExpenses)) {
+    activeExpenses.forEach(exp => {
+      if (!exp) return;
+      const amt = typeof exp.amount === 'number' ? Math.abs(exp.amount) : 0;
+      if (amt <= 0) return;
+      const target = getTargetTreasury(exp.treasuryAccountCode || (exp.paymentMethod === 'cash' ? '1101' : '1105'), exp.paymentMethod !== 'cash', `${exp.notes || ''} ${exp.categoryName || ''}`);
+      addTx(target, {
+        id: `tx-exp-${exp.id}`,
+        treasuryId: target.id,
+        treasuryName: target.name,
+        date: exp.date || '2026-10-01',
+        type: 'withdrawal',
+        amount: amt,
+        currency: exp.currency || 'ILS',
+        currencySymbol: exp.currencySymbol || '₪',
+        exchangeRate: exp.exchangeRate || 1.0,
+        baseCurrency: 'ILS',
+        baseAmount: amt * (exp.exchangeRate || 1.0),
+        voucherNumber: exp.voucherNumber || exp.taxInvoiceNumber || exp.id,
+        partyName: exp.beneficiary || 'مصروفات',
+        description: `مصروف: ${exp.notes || exp.expenseAccountName || 'مصروف تشغيلي'}`,
+        referenceType: 'expense',
+        referenceId: exp.id,
+        paymentMethod: exp.paymentMethod || 'cash',
+        balanceAfter: 0
+      });
+    });
+  }
+
   // Re-calculate running balance for each treasury
   return treasuriesList.map(t => {
     if (!t) return t;
     const rawTxns = txMap.get(t.id) || [];
 
-    // Keep manual transfers if present in t.transactions
+    // Keep all pre-existing transactions in t.transactions if not in rawTxns
     if (Array.isArray(t.transactions)) {
       t.transactions.forEach(existingTx => {
-        if (!existingTx) return;
-        if (existingTx.referenceType === 'transfer' || existingTx.referenceType === 'manual' || existingTx.type === 'transfer_in' || existingTx.type === 'transfer_out') {
-          if (!rawTxns.some(x => x.id === existingTx.id)) {
-            rawTxns.push(existingTx);
-          }
+        if (!existingTx || !existingTx.id) return;
+        if (deletedDocIds && (deletedDocIds.has(existingTx.id) || (existingTx.referenceId && deletedDocIds.has(existingTx.referenceId)))) {
+          return;
+        }
+        if (!rawTxns.some(x => x.id === existingTx.id)) {
+          rawTxns.push(existingTx);
         }
       });
     }
@@ -1421,8 +1482,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const loaded = safeLoadArray(`${STORAGE_KEY}_invoices`, initialInvoices);
-    const merged = mergeInvoicesWithUpsertAndConflictResolution(loaded, initialInvoices);
+    const loaded = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, []);
+    let baseInvoices = loaded;
+    if (!baseInvoices || baseInvoices.length === 0) {
+      baseInvoices = initialInvoices || [];
+    }
+    const merged = mergeInvoicesWithUpsertAndConflictResolution(baseInvoices, []);
 
     try {
       localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged));
@@ -1517,9 +1582,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const [treasuries, setTreasuries] = useState<Treasury[]>(() => {
     const loaded = safeLoadArray(`${STORAGE_KEY}_treasuries`, initialTreasuries);
-    const loadedInvoices = safeLoadArray(`${STORAGE_KEY}_invoices`, initialInvoices);
-    const loadedVouchers = safeLoadArray(`${STORAGE_KEY}_vouchers`, initialVouchers);
-    const audited = auditAndRecalculateTreasuries(loaded, loadedInvoices, loadedVouchers);
+    const loadedInvoices = safeLoadArray(`${STORAGE_KEY}_invoices`, []);
+    const loadedVouchers = safeLoadArray(`${STORAGE_KEY}_vouchers`, []);
+    const loadedPurchases = safeLoadArray(`${STORAGE_KEY}_purchases`, []);
+    const loadedExpenses = safeLoadArray(`${STORAGE_KEY}_expenses`, []);
+    const invList = loadedInvoices.length > 0 ? loadedInvoices : initialInvoices;
+    const audited = auditAndRecalculateTreasuries(loaded, invList, loadedVouchers, undefined, loadedPurchases, loadedExpenses);
     return ensureUniqueTreasuryAccountCodes(audited);
   });
 
