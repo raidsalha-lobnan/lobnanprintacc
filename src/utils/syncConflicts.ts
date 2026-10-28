@@ -28,6 +28,10 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     if (!matches || matches.length === 0) return null;
     const lastNum = parseInt(matches[matches.length - 1], 10);
     if (isNaN(lastNum) || lastNum <= 0) return null;
+    if (lastNum === 2027) return 27;
+    if (lastNum === 2028) return 28;
+    if (lastNum === 2029) return 29;
+    if (lastNum >= 2001 && lastNum <= 2099) return lastNum - 2000;
     return lastNum;
   }
 
