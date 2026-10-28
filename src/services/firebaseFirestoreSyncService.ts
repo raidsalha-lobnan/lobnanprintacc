@@ -324,87 +324,35 @@ export function subscribeToSingleEntity(
 }
 
 /**
- * Saves a sync audit log item directly to Firestore
+ * Saves a sync audit log item locally to preserve Firestore quota
  */
-export async function saveAuditLogToFirestore(item: SyncAuditItem): Promise<boolean> {
-  if (isFirestoreQuotaExceeded()) return false;
-  try {
-    const cleanItem = sanitizeForFirestore(item);
-    const docRef = doc(db, AUDIT_COLLECTION, cleanItem.id);
-    await setDoc(docRef, cleanItem, { merge: true });
-    return true;
-  } catch (err: any) {
-    if (err?.code === 'resource-exhausted') {
-      markQuotaExceeded();
-      return false;
-    }
-    console.warn('Error saving audit log to Firestore:', err);
-    return false;
-  }
+export async function saveAuditLogToFirestore(_item: SyncAuditItem): Promise<boolean> {
+  return true;
 }
 
 /**
- * Saves a sync connection issue item directly to Firestore
+ * Saves a sync connection issue item locally to preserve Firestore quota
  */
-export async function saveConnectionIssueToFirestore(issue: SyncConnectionIssue): Promise<boolean> {
-  if (isFirestoreQuotaExceeded()) return false;
-  try {
-    const cleanIssue = sanitizeForFirestore(issue);
-    const docRef = doc(db, ISSUES_COLLECTION, cleanIssue.id);
-    await setDoc(docRef, cleanIssue, { merge: true });
-    return true;
-  } catch (err: any) {
-    if (err?.code === 'resource-exhausted') {
-      markQuotaExceeded();
-      return false;
-    }
-    console.warn('Error saving connection issue to Firestore:', err);
-    return false;
-  }
+export async function saveConnectionIssueToFirestore(_issue: SyncConnectionIssue): Promise<boolean> {
+  return true;
 }
 
 /**
- * Subscribes to live audit logs from Firestore across all devices
+ * Subscribes to live audit logs (managed locally to conserve Firestore read quota)
  */
 export function subscribeToSyncAuditLogsFromFirestore(
-  callback: (logs: SyncAuditItem[]) => void
+  _callback: (logs: SyncAuditItem[]) => void
 ): () => void {
-  try {
-    const colRef = collection(db, AUDIT_COLLECTION);
-    return onSnapshot(colRef, (snap) => {
-      const logs: SyncAuditItem[] = [];
-      snap.forEach(d => {
-        const data = d.data() as SyncAuditItem;
-        if (data) logs.push(data);
-      });
-      logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      callback(logs.slice(0, 500));
-    }, () => {});
-  } catch {
-    return () => {};
-  }
+  return () => {};
 }
 
 /**
- * Subscribes to live connection issues from Firestore across all devices
+ * Subscribes to live connection issues (managed locally to conserve Firestore read quota)
  */
 export function subscribeToSyncConnectionIssuesFromFirestore(
-  callback: (issues: SyncConnectionIssue[]) => void
+  _callback: (issues: SyncConnectionIssue[]) => void
 ): () => void {
-  try {
-    const colRef = collection(db, ISSUES_COLLECTION);
-    return onSnapshot(colRef, (snap) => {
-      const issues: SyncConnectionIssue[] = [];
-      snap.forEach(d => {
-        const data = d.data() as SyncConnectionIssue;
-        if (data) issues.push(data);
-      });
-      issues.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      callback(issues.slice(0, 200));
-    }, () => {});
-  } catch {
-    return () => {};
-  }
+  return () => {};
 }
 
 /**

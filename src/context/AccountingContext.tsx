@@ -1277,52 +1277,26 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Periodic Auto-Recovery Watchdog for Cloud Sync
-    const watchdogInterval = setInterval(() => {
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        setIsOnline(true);
-        const quotaExceeded = isFirestoreQuotaExceeded();
-        const savedLocalOnly = localStorage.getItem('accounting_is_local_only_mode') === 'true';
-
-        if (savedLocalOnly || quotaExceeded) {
-          console.log('🌐 Connection online: Auto-restoring Cloud Sync...');
-          resetQuotaExceeded();
-          setIsLocalOnlyMode(false);
-          try {
-            localStorage.setItem('accounting_is_local_only_mode', 'false');
-          } catch {}
-          if (fetchFromFirebaseRef.current) {
-            fetchFromFirebaseRef.current().catch(() => {});
-          }
-          if (syncToFirebaseRef.current) {
-            syncToFirebaseRef.current(true).catch(() => {});
-          }
-        }
-      } else {
-        setIsOnline(false);
-      }
-    }, 8000);
-
     return () => {
       if (syncChannelRef.current) {
         try { syncChannelRef.current.close(); } catch {}
       }
-      clearInterval(watchdogInterval);
       window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-
-
-
-
   }, []);
 
-  // 100% Automatic Master Database Hydration on Startup from Firestore
+  // Smart Master Database Hydration: Only fetch if local data is completely empty to conserve Firestore quota
   useEffect(() => {
     const autoHydrateMasterDb = async () => {
       try {
-        // Fetch & Merge Firestore Cloud Database ONLY (No static mock snapshot Injection)
+        const hasLocalData = (invoices && invoices.length > 0) || (localStorage.getItem(`${STORAGE_KEY}_invoices`));
+        if (hasLocalData) {
+          // Local data is already present; skip heavy full 16-collection Firestore fetch to protect free tier quota
+          return;
+        }
+
         const fsData = await fetchFullDatabaseFromFirestore();
         if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
           let updatedInvoicesList: Invoice[] = invoices || [];
