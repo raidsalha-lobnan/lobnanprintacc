@@ -184,6 +184,8 @@ export const onlineInvoicePostingService = {
 
         const isExistingInvoice = cloudInvoices.some(inv => inv.id === invoice.id) || currentInvoicesList.some(inv => inv.id === invoice.id);
 
+        let finalInvoiceNumber = invoice.invoiceNumber || '';
+
         // Normalize requested invoice number to strict standard INV-XXXX (4 digits padding)
         let requestedSeq = (() => {
           if (!invoice.invoiceNumber) return null;

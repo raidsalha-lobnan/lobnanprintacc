@@ -245,9 +245,9 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
                             {inv.paymentMethod === 'cash' ? 'نقدي' : (inv.paymentMethod === 'card' || inv.paymentMethod === 'bank_transfer') ? (inv.paymentMethod === 'bank_transfer' ? 'بنكي' : 'شبكة') : 'آجل'}
                           </span>
                         </td>
-                        <td className="p-2.5 text-left font-bold">{inv.totalAmount.toFixed(2)}</td>
-                        <td className="p-2.5 text-left text-emerald-600">{inv.paidAmount.toFixed(2)}</td>
-                        <td className="p-2.5 text-left text-rose-600 font-bold">{inv.remainingAmount.toFixed(2)}</td>
+                        <td className="p-2.5 text-left font-bold">{(Number(inv.totalAmount) || 0).toFixed(2)}</td>
+                        <td className="p-2.5 text-left text-emerald-600">{(Number(inv.paidAmount) || 0).toFixed(2)}</td>
+                        <td className="p-2.5 text-left text-rose-600 font-bold">{(Number(inv.remainingAmount) || 0).toFixed(2)}</td>
                         <td className="p-2.5 text-center">
                           <button
                             onClick={() => {

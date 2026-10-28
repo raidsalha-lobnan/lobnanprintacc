@@ -276,9 +276,9 @@ const DraggableDigitalDisplay = ({ amount }: { amount: number }) => {
             y="28" 
             textAnchor="middle" 
             className="fill-red-500 font-black font-mono tabular-nums tracking-tighter"
-            style={{ fontSize: amount.toFixed(2).length > 7 ? '22px' : '28px' }}
+            style={{ fontSize: (Number(amount) || 0).toFixed(2).length > 7 ? '22px' : '28px' }}
           >
-            {amount.toFixed(2)}
+            {(Number(amount) || 0).toFixed(2)}
           </text>
         </svg>
       </div>
@@ -4935,7 +4935,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
 
                       {/* 12. الإجمالي */}
                       <td className="px-2 py-1.5 text-left font-mono font-black text-sm text-[#1f4a7c] border-l border-b border-slate-300 bg-slate-50/70 select-none">
-                        {line.total.toFixed(2)}
+                        {(Number(line.total) || 0).toFixed(2)}
                       </td>
 
                       {/* 13. المرفقات */}
@@ -5046,11 +5046,11 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   title="مجموع بنود الفاتورة قبل الخصم والإضافات"
                 >
                   <span className="text-[10px] text-blue-200 font-sans font-bold">الإجمالي:</span>
-                  <span className="font-black text-xs sm:text-sm text-white">{calculatedSubtotal.toFixed(2)}</span>
+                  <span className="font-black text-xs sm:text-sm text-white">{(Number(calculatedSubtotal) || 0).toFixed(2)}</span>
                   <span className="text-[10px] text-blue-200 font-sans">₪</span>
                   {selectedCurrencyCode !== 'ILS' && (
                     <span className="text-[9px] text-amber-300 font-sans border-r border-blue-700 pr-1">
-                      ≈ {(calculatedSubtotal / (customExchangeRate || 1)).toFixed(2)} {activeCurrency.symbol}
+                      ≈ {((Number(calculatedSubtotal) || 0) / (customExchangeRate || 1)).toFixed(2)} {activeCurrency.symbol}
                     </span>
                   )}
                 </div>
@@ -5061,7 +5061,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   title="إجمالي الخصم الممنوح"
                 >
                   <span className="text-[10px] text-rose-500 font-sans font-bold">الخصم:</span>
-                  <span className="font-bold text-xs">{calculatedDiscountTotal.toFixed(2)}</span>
+                  <span className="font-bold text-xs">{(Number(calculatedDiscountTotal) || 0).toFixed(2)}</span>
                 </div>
 
                 {/* 5. الإضافي */}
@@ -5070,7 +5070,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   title="المصاريف أو الرسوم الإضافية"
                 >
                   <span className="text-[10px] text-amber-600 font-sans font-bold">الإضافي:</span>
-                  <span className="font-bold text-xs">{additionalCharges.toFixed(2)}</span>
+                  <span className="font-bold text-xs">{(Number(additionalCharges) || 0).toFixed(2)}</span>
                 </div>
 
                 {/* 6. الضريبة */}
@@ -5079,7 +5079,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   title="مبلغ ضريبة القيمة المضافة"
                 >
                   <span className="text-[10px] text-blue-500 font-sans font-bold">الضريبة:</span>
-                  <span className="font-bold text-xs">{calculatedTaxAmount.toFixed(2)}</span>
+                  <span className="font-bold text-xs">{(Number(calculatedTaxAmount) || 0).toFixed(2)}</span>
                 </div>
 
                 {/* 7. المدفوع */}
@@ -5088,7 +5088,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   title="المبلغ المدفوع فعلياً نقداً وبنكياً"
                 >
                   <span className="text-[10px] text-emerald-600 font-sans font-bold">المدفوع:</span>
-                  <span className="font-black text-xs text-emerald-700">{parsedPaidAmount.toFixed(2)}</span>
+                  <span className="font-black text-xs text-emerald-700">{(Number(parsedPaidAmount) || 0).toFixed(2)}</span>
                 </div>
 
                 {/* 8. المتبقي (بارز جداً لسرعة التحصيل) */}
@@ -5101,11 +5101,11 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   title="المبلغ المتبقي المطلوب سداده أو تسجليه ذمم آجل"
                 >
                   <span className="text-[10px] text-rose-100 font-sans font-bold">المتبقي:</span>
-                  <span className="font-black text-xs sm:text-sm tracking-wider">{calculatedRemaining.toFixed(2)}</span>
+                  <span className="font-black text-xs sm:text-sm tracking-wider">{(Number(calculatedRemaining) || 0).toFixed(2)}</span>
                   <span className="text-[10px] text-white font-sans">₪</span>
                   {selectedCurrencyCode !== 'ILS' && (
                     <span className="text-[9px] text-amber-200 font-sans border-r border-rose-400/50 pr-1">
-                      ≈ {(calculatedRemaining / (customExchangeRate || 1)).toFixed(2)} {activeCurrency.symbol}
+                      ≈ {((Number(calculatedRemaining) || 0) / (customExchangeRate || 1)).toFixed(2)} {activeCurrency.symbol}
                     </span>
                   )}
                 </div>

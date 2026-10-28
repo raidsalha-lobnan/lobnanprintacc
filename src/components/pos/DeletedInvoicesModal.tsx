@@ -224,7 +224,7 @@ export const DeletedInvoicesModal: React.FC<DeletedInvoicesModalProps> = ({
 
                         {/* 4. إجمالي المبلغ */}
                         <td className="p-3 text-left font-mono font-black text-sm text-slate-900">
-                          {inv.totalAmount.toFixed(2)}
+                          {(Number(inv.totalAmount) || 0).toFixed(2)}
                           <span className="text-[10px] text-slate-500 font-normal mr-1">
                             {inv.currencySymbol || settings.currency || '₪'}
                           </span>
@@ -353,7 +353,7 @@ export const DeletedInvoicesModal: React.FC<DeletedInvoicesModalProps> = ({
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-500">الإجمالي:</div>
-                  <div className="font-mono font-black text-blue-700">{viewInvoiceDetails.totalAmount.toFixed(2)} ₪</div>
+                  <div className="font-mono font-black text-blue-700">{(Number(viewInvoiceDetails.totalAmount) || 0).toFixed(2)} ₪</div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-500">طريقة الدفع:</div>
@@ -382,8 +382,8 @@ export const DeletedInvoicesModal: React.FC<DeletedInvoicesModalProps> = ({
                         <tr key={idx} className="hover:bg-slate-50">
                           <td className="p-2 font-sans font-bold text-slate-900">{it.itemName}</td>
                           <td className="p-2 text-center">{it.quantity} {it.unit || ''}</td>
-                          <td className="p-2 text-left">{it.unitPrice.toFixed(2)}</td>
-                          <td className="p-2 text-left font-bold text-blue-700">{it.total.toFixed(2)}</td>
+                          <td className="p-2 text-left">{(Number(it.unitPrice) || 0).toFixed(2)}</td>
+                          <td className="p-2 text-left font-bold text-blue-700">{(Number(it.total) || 0).toFixed(2)}</td>
                           <td className="p-2 font-sans text-slate-500 text-[11px]">{it.notes || '-'}</td>
                         </tr>
                       ))}

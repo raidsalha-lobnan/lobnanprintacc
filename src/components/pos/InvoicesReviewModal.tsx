@@ -188,10 +188,10 @@ export const InvoicesReviewModal: React.FC<InvoicesReviewModalProps> = ({
                         <td className="p-2.5 font-bold text-blue-700">{inv.invoiceNumber}</td>
                         <td className="p-2.5 text-slate-600 font-sans text-[11px]">{formatDateDisplay(inv.date)}</td>
                         <td className="p-2.5 font-sans font-semibold text-slate-800">{inv.customerName}</td>
-                        <td className="p-2.5 text-slate-600">{inv.items.length}</td>
-                        <td className="p-2.5 text-left font-bold">{inv.totalAmount.toFixed(2)}</td>
-                        <td className="p-2.5 text-left text-emerald-600">{inv.paidAmount.toFixed(2)}</td>
-                        <td className="p-2.5 text-left text-rose-600 font-bold">{inv.remainingAmount.toFixed(2)}</td>
+                        <td className="p-2.5 text-slate-600">{inv.items?.length || 0}</td>
+                        <td className="p-2.5 text-left font-bold">{(Number(inv.totalAmount) || 0).toFixed(2)}</td>
+                        <td className="p-2.5 text-left text-emerald-600">{(Number(inv.paidAmount) || 0).toFixed(2)}</td>
+                        <td className="p-2.5 text-left text-rose-600 font-bold">{(Number(inv.remainingAmount) || 0).toFixed(2)}</td>
                         <td className="p-2.5 text-center font-sans">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                             inv.paymentMethod === 'credit' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -261,7 +261,7 @@ export const InvoicesReviewModal: React.FC<InvoicesReviewModalProps> = ({
         {/* Footer */}
         <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs">
           <span className="text-slate-500">
-            إجمالي قيمة الفواتير المعروضة: <span className="font-bold text-slate-800 font-mono">{filtered.reduce((s, i) => s + i.totalAmount, 0).toFixed(2)} {settings.currency}</span>
+            إجمالي قيمة الفواتير المعروضة: <span className="font-bold text-slate-800 font-mono">{filtered.reduce((s, i) => s + (Number(i.totalAmount) || 0), 0).toFixed(2)} {settings.currency}</span>
           </span>
           <button
             onClick={onClose}

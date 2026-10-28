@@ -689,19 +689,19 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
 
                         {/* الإجمالي */}
                         <td className="py-2 px-2 text-center whitespace-nowrap font-mono font-bold text-slate-800 text-xs align-middle">
-                          {inv.totalAmount.toFixed(2)}
+                          {(Number(inv.totalAmount) || 0).toFixed(2)}
                         </td>
 
                         {/* المدفوع */}
                         <td className="py-2 px-2 text-center whitespace-nowrap font-mono font-semibold text-emerald-700 text-xs align-middle">
-                          {inv.paidAmount.toFixed(2)}
+                          {(Number(inv.paidAmount) || 0).toFixed(2)}
                         </td>
 
                         {/* الباقي */}
                         <td className="py-2 px-2 text-center whitespace-nowrap font-mono align-middle">
                           {hasRemaining ? (
                             <span className="font-black text-rose-700 bg-rose-50 border border-rose-200 px-1 py-0.5 rounded text-xs inline-block">
-                              {inv.remainingAmount.toFixed(2)}
+                              {(Number(inv.remainingAmount) || 0).toFixed(2)}
                             </span>
                           ) : (
                             <span className="font-semibold text-emerald-600 text-xs">0.00</span>
@@ -797,15 +797,15 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
                 <div className="flex items-center gap-2 text-xs">
                   <div className="text-center">
                     <span className="text-[10px] text-slate-500 block leading-none">الإجمالي</span>
-                    <span className="font-black text-slate-900">{totals.total.toFixed(2)}</span>
+                    <span className="font-black text-slate-900">{(Number(totals.total) || 0).toFixed(2)}</span>
                   </div>
                   <div className="text-center">
                     <span className="text-[10px] text-emerald-600 block leading-none">المدفوع</span>
-                    <span className="font-black text-emerald-700">{totals.paid.toFixed(2)}</span>
+                    <span className="font-black text-emerald-700">{(Number(totals.paid) || 0).toFixed(2)}</span>
                   </div>
                   <div className="text-center">
                     <span className="text-[10px] text-rose-600 block leading-none">الباقي</span>
-                    <span className="font-black text-rose-700">{totals.remaining.toFixed(2)}</span>
+                    <span className="font-black text-rose-700">{(Number(totals.remaining) || 0).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -855,13 +855,13 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
                       dir="rtl"
                     >
                       <div className="w-[45px] text-center font-bold text-slate-800 shrink-0">
-                        {inv.totalAmount.toFixed(2)}
+                        {(Number(inv.totalAmount) || 0).toFixed(2)}
                       </div>
                       <div className="w-[45px] text-center font-bold text-emerald-700 shrink-0">
-                        {inv.paidAmount.toFixed(2)}
+                        {(Number(inv.paidAmount) || 0).toFixed(2)}
                       </div>
                       <div className="w-[45px] text-center font-black text-rose-700 shrink-0">
-                        {hasRemaining ? inv.remainingAmount.toFixed(2) : '0.00'}
+                        {hasRemaining ? (Number(inv.remainingAmount) || 0).toFixed(2) : '0.00'}
                       </div>
                     </div>
                   </div>
@@ -964,19 +964,19 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
               <div>
                 <span className="text-[9px] text-slate-400 font-light block">إجمالي الفاتورة:</span>
                 <span className="font-bold text-slate-900">
-                  {collectingInvoice.totalAmount.toFixed(2)}
+                  {(Number(collectingInvoice.totalAmount) || 0).toFixed(2)}
                 </span>
               </div>
               <div>
                 <span className="text-[9px] text-slate-400 font-light block">المدفوع سابقاً:</span>
                 <span className="font-bold text-emerald-700">
-                  {collectingInvoice.paidAmount.toFixed(2)}
+                  {(Number(collectingInvoice.paidAmount) || 0).toFixed(2)}
                 </span>
               </div>
               <div className="bg-rose-50 rounded-lg p-1 border border-rose-200">
                 <span className="text-[10px] text-rose-600 block font-bold">المتبقي المطلوب:</span>
                 <span className="font-black text-rose-700">
-                  {collectingInvoice.remainingAmount.toFixed(2)}
+                  {(Number(collectingInvoice.remainingAmount) || 0).toFixed(2)}
                 </span>
               </div>
             </div>
