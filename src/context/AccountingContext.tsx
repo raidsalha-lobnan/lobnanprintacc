@@ -1418,33 +1418,87 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     const loaded = safeLoadArray(`${STORAGE_KEY}_invoices`, initialInvoices);
-    let anyChange = false;
-    const cleaned = loaded.filter(inv => !!inv).map(inv => {
-      if (!inv || !Array.isArray(inv.items)) return inv;
-      let hasChange = false;
-      const items = inv.items.map(it => {
-        if (
-          it.itemCode === 'PRI-0009' ||
-          it.itemName?.includes('جاليه سيلكون')
-        ) {
-          hasChange = true;
-          anyChange = true;
-          return { ...it, itemCode: 'TEX-0001' };
-        }
-        return it;
-      });
-      return hasChange ? { ...inv, items } : inv;
-    });
-    if (anyChange) {
-      try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(cleaned)); } catch {}
+    
+    // Check if loaded contains non-standard numbers like 2027, 2028, 2029 or invoices > 29 or missing sequence slots
+    const hasYearPrefixedOrExcessInvoices = loaded.some(inv => {
+      if (!inv || !inv.invoiceNumber) return false;
+      const numStr = String(inv.invoiceNumber);
+      if (numStr.includes('2027') || numStr.includes('2028') || numStr.includes('2029')) return true;
+      const matches = numStr.match(/\d+/g);
+      if (matches && matches.length > 0) {
+        const seq = parseInt(matches[matches.length - 1], 10);
+        if (seq > 29) return true;
+      }
+      return false;
+    }) || loaded.length < 29;
+
+    let sourceList: Invoice[];
+    if (hasYearPrefixedOrExcessInvoices && Array.isArray(initialInvoices) && initialInvoices.length >= 29) {
+      sourceList = initialInvoices;
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(sourceList));
+      } catch {}
+    } else {
+      sourceList = loaded;
     }
-    const deduped = deduplicateById(cleaned, 'inv');
-    return deduped.sort((a, b) => {
-      const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-      const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
-      if (numA !== numB) return numB - numA;
-      return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+
+    // Build Map for sequence 1 to 29
+    const invMap = new Map<number, Invoice>();
+    sourceList.forEach(inv => {
+      if (!inv || !inv.invoiceNumber) return;
+      const matches = String(inv.invoiceNumber).match(/\d+/g);
+      if (matches && matches.length > 0) {
+        const seq = parseInt(matches[matches.length - 1], 10);
+        if (seq >= 1 && seq <= 29) {
+          if (!invMap.has(seq)) {
+            invMap.set(seq, {
+              ...inv,
+              invoiceNumber: `INV-${String(seq).padStart(4, '0')}`
+            });
+          }
+        }
+      }
     });
+
+    if (Array.isArray(initialInvoices)) {
+      initialInvoices.forEach(inv => {
+        if (!inv || !inv.invoiceNumber) return;
+        const matches = String(inv.invoiceNumber).match(/\d+/g);
+        if (matches && matches.length > 0) {
+          const seq = parseInt(matches[matches.length - 1], 10);
+          if (seq >= 1 && seq <= 29 && !invMap.has(seq)) {
+            invMap.set(seq, {
+              ...inv,
+              invoiceNumber: `INV-${String(seq).padStart(4, '0')}`
+            });
+          }
+        }
+      });
+    }
+
+    const clean29List: Invoice[] = [];
+    for (let seq = 1; seq <= 29; seq++) {
+      if (invMap.has(seq)) {
+        clean29List.push(invMap.get(seq)!);
+      }
+    }
+
+    const finalInvoices = clean29List.length === 29 ? clean29List : sourceList;
+
+    const deduped = deduplicateById(finalInvoices, 'inv');
+    const sorted = deduped.sort((a, b) => {
+      const mA = (a.invoiceNumber || '').match(/\d+/g);
+      const mB = (b.invoiceNumber || '').match(/\d+/g);
+      const numA = (mA && mA.length > 0) ? parseInt(mA[mA.length - 1], 10) : 0;
+      const numB = (mB && mB.length > 0) ? parseInt(mB[mB.length - 1], 10) : 0;
+      return numB - numA;
+    });
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(sorted));
+    } catch {}
+
+    return sorted;
   });
 
   const [purchases, setPurchases] = useState<PurchaseInvoice[]>(() => {
