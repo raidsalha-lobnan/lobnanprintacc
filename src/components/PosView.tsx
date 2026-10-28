@@ -520,7 +520,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
         name: c.name,
         code: c.code,
         subText: c.phone ? `هاتف: ${c.phone}` : (c.address || undefined),
-        badge: c.balance ? `${c.balance.toFixed(2)} ₪` : undefined,
+        badge: (Number(c.balance) || 0) !== 0 ? `${(Number(c.balance) || 0).toFixed(2)} ₪` : undefined,
         extraSearchCorpus: `${c.phone || ''} ${c.address || ''}`,
         raw: c
       }));
@@ -530,7 +530,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
         name: s.name,
         code: s.code,
         subText: s.phone ? `هاتف: ${s.phone}` : 'مورد معتمد',
-        badge: s.balance ? `${Math.abs(s.balance).toFixed(2)} ₪` : undefined,
+        badge: (Number(s.balance) || 0) !== 0 ? `${Math.abs(Number(s.balance) || 0).toFixed(2)} ₪` : undefined,
         extraSearchCorpus: `${s.phone || ''}`,
         raw: s
       }));
@@ -3964,7 +3964,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
               {subCustomerId ? 'رصيد الفرعي:' : 'الرصيد:'}
             </span>
             <span className="font-mono font-black text-red-600 text-[14px] sm:text-base w-[113.2px]">
-              {((subCustomerId ? parties.find(p => p.id === subCustomerId)?.balance : currentCustomer?.balance) ?? currentCustomer?.balance ?? 0).toFixed(2)} ₪
+              {(Number(subCustomerId ? parties.find(p => p.id === subCustomerId)?.balance : currentCustomer?.balance) || Number(currentCustomer?.balance) || 0).toFixed(2)} ₪
             </span>
             {subCustomerId && (
               <button
@@ -5315,16 +5315,16 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   <div className="flex gap-2 flex-wrap">
                     {(selectedCurrencyCode === 'USD' ? [3.65, 3.68, 3.70, 3.72, 3.75] :
                       selectedCurrencyCode === 'JOD' ? [5.15, 5.18, 5.20, 5.22, 5.25] :
-                      selectedCurrencyCode === 'EUR' ? [3.95, 4.00, 4.05, 4.10] : [activeCurrency.rateAgainstBase]).map(r => (
+                      selectedCurrencyCode === 'EUR' ? [3.95, 4.00, 4.05, 4.10] : [activeCurrency?.rateAgainstBase || 1]).map(r => (
                       <button
-                        key={r}
+                        key={r ?? '1'}
                         type="button"
-                        onClick={() => handleExchangeRateChange(r)}
+                        onClick={() => handleExchangeRateChange(r || 1)}
                         className={`px-1.5 py-0.5 text-xs font-mono font-bold rounded-lg border cursor-pointer transition-colors ${
                           customExchangeRate === r ? 'bg-amber-100 border-amber-500 text-amber-900' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
                         }`}
                       >
-                        {r.toFixed(2)} ₪
+                        {(Number(r) || 1).toFixed(2)} ₪
                       </button>
                     ))}
                   </div>

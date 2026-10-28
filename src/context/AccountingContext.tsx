@@ -762,6 +762,26 @@ export function auditAndRecalculateTreasuries(
 ): Treasury[] {
   if (!Array.isArray(treasuriesList)) return [];
 
+  // Load deletedDocIds set if not explicitly passed
+  let delSet = deletedDocIds;
+  if (!delSet) {
+    delSet = new Set<string>();
+    try {
+      const delList = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
+      if (Array.isArray(delList)) {
+        delList.forEach((d: any) => {
+          if (d && d.id) delSet!.add(String(d.id));
+        });
+      }
+    } catch {}
+  }
+
+  // Active Sets for fast lookup
+  const activeInvoiceIds = new Set((activeInvoices || []).filter(i => i && i.id).map(i => String(i.id)));
+  const activeVoucherIds = new Set((activeVouchers || []).filter(v => v && v.id).map(v => String(v.id)));
+  const activePurchaseIds = new Set((activePurchases || []).filter(p => p && p.id).map(p => String(p.id)));
+  const activeExpenseIds = new Set((activeExpenses || []).filter(e => e && e.id).map(e => String(e.id)));
+
   const tByCode = new Map<string, Treasury>();
   const tById = new Map<string, Treasury>();
 
@@ -824,7 +844,7 @@ export function auditAndRecalculateTreasuries(
   function addTx(target: Treasury, tx: TreasuryTransaction) {
     if (!target) return;
     const list = txMap.get(target.id) || [];
-    if (deletedDocIds && (deletedDocIds.has(tx.id) || (tx.referenceId && deletedDocIds.has(tx.referenceId)))) {
+    if (delSet && (delSet.has(tx.id) || (tx.referenceId && delSet.has(tx.referenceId)))) {
       return;
     }
     list.push(tx);
@@ -834,7 +854,7 @@ export function auditAndRecalculateTreasuries(
   // 1. Invoices
   if (Array.isArray(activeInvoices)) {
     activeInvoices.forEach(inv => {
-      if (!inv) return;
+      if (!inv || delSet.has(inv.id)) return;
       const paidAmt = typeof inv.paidAmount === 'number' ? Math.abs(inv.paidAmount) : (Math.abs(inv.totalAmount || 0));
       if (paidAmt <= 0) return;
 
@@ -898,7 +918,7 @@ export function auditAndRecalculateTreasuries(
   // 2. Vouchers
   if (Array.isArray(activeVouchers)) {
     activeVouchers.forEach(v => {
-      if (!v) return;
+      if (!v || delSet.has(v.id)) return;
       const amt = typeof v.amount === 'number' ? Math.abs(v.amount) : 0;
       if (amt <= 0) return;
 
@@ -932,7 +952,7 @@ export function auditAndRecalculateTreasuries(
   // 3. Purchases
   if (Array.isArray(activePurchases)) {
     activePurchases.forEach(pur => {
-      if (!pur) return;
+      if (!pur || delSet.has(pur.id)) return;
       const paidAmt = typeof pur.paidAmount === 'number' ? Math.abs(pur.paidAmount) : (pur.paymentMethod === 'cash' ? Math.abs(pur.totalAmount || 0) : 0);
       if (paidAmt <= 0) return;
       const target = getTargetTreasury((pur as any).treasuryAccountCode || (pur.paymentMethod === 'cash' ? '1101' : '1105'), pur.paymentMethod !== 'cash', `${pur.notes || ''}`);
@@ -962,7 +982,7 @@ export function auditAndRecalculateTreasuries(
   // 4. Expenses
   if (Array.isArray(activeExpenses)) {
     activeExpenses.forEach(exp => {
-      if (!exp) return;
+      if (!exp || delSet.has(exp.id)) return;
       const amt = typeof exp.amount === 'number' ? Math.abs(exp.amount) : 0;
       if (amt <= 0) return;
       const target = getTargetTreasury(exp.treasuryAccountCode || (exp.paymentMethod === 'cash' ? '1101' : '1105'), exp.paymentMethod !== 'cash', `${exp.notes || ''} ${exp.categoryName || ''}`);
@@ -994,13 +1014,34 @@ export function auditAndRecalculateTreasuries(
     if (!t) return t;
     const rawTxns = txMap.get(t.id) || [];
 
-    // Keep all pre-existing transactions in t.transactions if not in rawTxns
+    // Keep pre-existing manual/transfer/opening transactions ONLY if valid and not deleted
     if (Array.isArray(t.transactions)) {
       t.transactions.forEach(existingTx => {
         if (!existingTx || !existingTx.id) return;
-        if (deletedDocIds && (deletedDocIds.has(existingTx.id) || (existingTx.referenceId && deletedDocIds.has(existingTx.referenceId)))) {
+
+        // Skip if directly marked in delSet
+        if (delSet && (delSet.has(existingTx.id) || (existingTx.referenceId && delSet.has(existingTx.referenceId)))) {
           return;
         }
+
+        // Check if existingTx belongs to an entity (invoice, voucher, purchase, expense)
+        const refType = existingTx.referenceType;
+        const refId = existingTx.referenceId;
+        const isInvTx = refType === 'pos_sale' || refType === 'invoice' || existingTx.id.startsWith('tx-inv-');
+        const isVchTx = refType === 'receipt' || refType === 'payment' || existingTx.id.startsWith('tx-vch-');
+        const isPurTx = refType === 'purchase' || existingTx.id.startsWith('tx-pur-');
+        const isExpTx = refType === 'expense' || existingTx.id.startsWith('tx-exp-');
+
+        if (isInvTx) {
+          if (!refId || !activeInvoiceIds.has(refId)) return;
+        } else if (isVchTx) {
+          if (!refId || !activeVoucherIds.has(refId)) return;
+        } else if (isPurTx) {
+          if (!refId || !activePurchaseIds.has(refId)) return;
+        } else if (isExpTx) {
+          if (!refId || !activeExpenseIds.has(refId)) return;
+        }
+
         if (!rawTxns.some(x => x.id === existingTx.id)) {
           rawTxns.push(existingTx);
         }
@@ -3611,56 +3652,56 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [settings, accounts, treasuries, journalEntries, inventory, parties, employees, printOrders, invoices, purchases, purchaseReturns, salesReturns, vouchers, employeeAdvances, employeeDeductions, employeeIncentives, payrollSheets, stockMovements, companies, branches, warehouses, warehouseOperations, activeWarehouseId, roles, users, activeCompanyId, activeBranchId, currentUserId]);
 
+  // Continuous reactive reconciliation of treasuries against active invoices, vouchers, purchases, and expenses
+  useEffect(() => {
+    if (isInitialMount.current) return;
+    setTreasuries(prevTreasuries => {
+      const audited = auditAndRecalculateTreasuries(prevTreasuries, invoices, vouchers, undefined, purchases, expenses);
+      let changed = false;
+      if (audited.length !== prevTreasuries.length) {
+        changed = true;
+      } else {
+        for (let i = 0; i < audited.length; i++) {
+          if (
+            audited[i].balance !== prevTreasuries[i].balance ||
+            (audited[i].transactions?.length || 0) !== (prevTreasuries[i].transactions?.length || 0)
+          ) {
+            changed = true;
+            break;
+          }
+        }
+      }
+      if (changed) {
+        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(audited)); } catch {}
+        return audited;
+      }
+      return prevTreasuries;
+    });
+  }, [invoices, vouchers, purchases, expenses]);
+
   // Keep treasury balances & currency sub-balances synchronized with Chart of Accounts assets
   useEffect(() => {
     const activeCurrencies = settings.currencies && settings.currencies.length > 0 ? settings.currencies : defaultCurrencies;
     let hasDifference = false;
     for (const t of treasuries) {
       const acc = accounts.find(a => a.code === t.accountCode);
-      if (acc) {
-        const curBal = t.currencyBalances || {};
-        let foreignTotal = 0;
-        Object.entries(curBal).forEach(([cCode, cAmt]) => {
-          if (cCode !== 'ILS') {
-            const cRate = activeCurrencies.find(c => c.code === cCode)?.rateAgainstBase || 1.0;
-            foreignTotal += (Number(cAmt) || 0) * cRate;
-          }
-        });
-        const expectedIls = Number((acc.balance - foreignTotal).toFixed(2));
-        const currentIls = Number((curBal['ILS'] || 0).toFixed(2));
-        if (acc.balance !== t.balance || currentIls !== expectedIls || !t.currencyBalances) {
-          hasDifference = true;
-          break;
-        }
+      if (acc && acc.balance !== t.balance) {
+        hasDifference = true;
+        break;
       }
     }
     if (hasDifference) {
-      setTreasuries(prev =>
-        prev.map(t => {
-          const acc = accounts.find(a => a.code === t.accountCode);
-          if (acc) {
-            const newBal = acc.balance;
-            const curBal = { ...(t.currencyBalances || {}) };
-            let foreignTotal = 0;
-            Object.entries(curBal).forEach(([cCode, cAmt]) => {
-              if (cCode !== 'ILS') {
-                const cRate = activeCurrencies.find(c => c.code === cCode)?.rateAgainstBase || 1.0;
-                foreignTotal += (Number(cAmt) || 0) * cRate;
-              }
-            });
-            const expectedIls = Number((newBal - foreignTotal).toFixed(2));
-            curBal['ILS'] = expectedIls;
-            return {
-              ...t,
-              balance: newBal,
-              currencyBalances: curBal
-            };
+      setAccounts(prevAccs =>
+        prevAccs.map(acc => {
+          const matchedT = treasuries.find(t => t.accountCode === acc.code);
+          if (matchedT && acc.balance !== matchedT.balance) {
+            return { ...acc, balance: matchedT.balance };
           }
-          return t;
+          return acc;
         })
       );
     }
-  }, [accounts, settings.currencies]);
+  }, [treasuries]);
 
   // One-time data consistency and SKU migration (TEX-0001 for جاليه سيلكون)
   useEffect(() => {
@@ -8554,7 +8595,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // 9. تسوية وتطهير حركات الخزنات والصناديق التابعة للفاتورة المحذوفة وإعادة احتساب الأرصدة بدقة
     setTreasuries(prevTreasuries => {
       const remainingInvoices = invoices.filter(inv => inv.id !== id);
-      const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, remainingInvoices, vouchers);
+      const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, remainingInvoices, vouchers, undefined, purchases, expenses);
       try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(auditedTreasuries)); } catch {}
       pushToServerSync('treasuries', auditedTreasuries);
       broadcastEntityChange('treasuries', auditedTreasuries);
@@ -8771,7 +8812,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let adjustedTreasuriesCount = 0;
     if (revertTreasuryBalances) {
       setTreasuries(prevTreasuries => {
-        const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, [], vouchers);
+        const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, [], vouchers, undefined, purchases, expenses);
         adjustedTreasuriesCount = auditedTreasuries.length;
         try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(auditedTreasuries)); } catch {}
         pushToServerSync('treasuries', auditedTreasuries);
@@ -9698,7 +9739,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Audit and purge linked transactions from treasuries and recalculate balances
     setTreasuries(prevTreasuries => {
-      const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, invoices, remainingVouchers);
+      const auditedTreasuries = auditAndRecalculateTreasuries(prevTreasuries, invoices, remainingVouchers, undefined, purchases, expenses);
       try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(auditedTreasuries)); } catch {}
       pushToServerSync('treasuries', auditedTreasuries);
       broadcastEntityChange('treasuries', auditedTreasuries);
@@ -10874,9 +10915,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Calculate live stats
   const cashAcc = accounts.find(a => a.code === '1101');
-  const bankAcc = accounts.find(a => a.code === '1102');
+  const bankAcc = accounts.find(a => a.code === '1105') || accounts.find(a => a.code === '1102');
   const customerAcc = accounts.find(a => a.code === '1201');
   const supplierAcc = accounts.find(a => a.code === '2101');
+
+  const cashTreasuriesList = treasuries.filter(t => t.type === 'cash_box' || t.isDefault || t.accountCode === '1101');
+  const bankTreasuriesList = treasuries.filter(t => t.type !== 'cash_box' && !t.isDefault && t.accountCode !== '1101');
+
+  const liveCashBalance = cashTreasuriesList.reduce((sum, t) => sum + (t.balance || 0), 0);
+  const liveBankBalance = bankTreasuriesList.reduce((sum, t) => sum + (t.balance || 0), 0);
 
   const totalRevAccs = accounts.filter(a => a.type === 'revenue').reduce((acc, a) => acc + a.balance, 0);
   const totalExpAccs = accounts.filter(a => a.type === 'expense').reduce((acc, a) => acc + a.balance, 0);
@@ -10916,8 +10963,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     printRevenue: printRevAcc,
     bookstoreRevenue: bookRevAcc,
     netProfit: totalRevAccs - totalExpAccs,
-    cashBalance: cashAcc ? cashAcc.balance : 0,
-    bankBalance: bankAcc ? bankAcc.balance : 0,
+    cashBalance: liveCashBalance,
+    bankBalance: liveBankBalance,
     customerReceivables: customerAcc ? customerAcc.balance : 0,
     supplierPayables: supplierAcc ? supplierAcc.balance : 0,
     inventoryTotalValue: Math.round(inventoryTotalValue),
