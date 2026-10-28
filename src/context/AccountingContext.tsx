@@ -3407,12 +3407,30 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 8. Live Treasuries (الصناديق والخزائن)
       const unsubTreasuries = onSnapshot(collection(db, 'treasuries'), (snapshot) => {
-        // Live sync processing
+        if (snapshot.metadata.hasPendingWrites) return;
         const docs = snapshot.docs.map(d => d.data() as Treasury).filter(t => t && t.id);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.accountCode || '').localeCompare(b.accountCode || '') || (a.name || '').localeCompare(b.name || ''));
-          setTreasuries(docs);
-          try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(docs)); } catch {}
+          setTreasuries(prev => {
+            // Check if docs is materially different from prev
+            if (docs.length === prev.length) {
+              let isIdentical = true;
+              for (let i = 0; i < docs.length; i++) {
+                const matched = prev.find(p => p.id === docs[i].id);
+                if (
+                  !matched ||
+                  Math.abs((matched.balance || 0) - (docs[i].balance || 0)) > 0.005 ||
+                  (matched.transactions?.length || 0) !== (docs[i].transactions?.length || 0)
+                ) {
+                  isIdentical = false;
+                  break;
+                }
+              }
+              if (isIdentical) return prev;
+            }
+            try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(docs)); } catch {}
+            return docs;
+          });
         }
       }, (e) => console.debug('Live treasuries sync:', e));
       unsubs.push(unsubTreasuries);
@@ -3452,12 +3470,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 12. Live Accounts (شجرة الحسابات)
       const unsubAccounts = onSnapshot(collection(db, 'accounts'), (snapshot) => {
-        // Live sync processing
+        if (snapshot.metadata.hasPendingWrites) return;
         const docs = snapshot.docs.map(d => d.data() as Account).filter(a => a && a.code);
         if (docs.length > 0) {
           docs.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
-          setAccounts(docs);
-          try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(docs)); } catch {}
+          setAccounts(prev => {
+            if (docs.length === prev.length) {
+              let isIdentical = true;
+              for (let i = 0; i < docs.length; i++) {
+                const matched = prev.find(p => p.code === docs[i].code);
+                if (!matched || Math.abs((matched.balance || 0) - (docs[i].balance || 0)) > 0.005) {
+                  isIdentical = false;
+                  break;
+                }
+              }
+              if (isIdentical) return prev;
+            }
+            try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(docs)); } catch {}
+            return docs;
+          });
         }
       }, (e) => console.debug('Live accounts sync:', e));
       unsubs.push(unsubAccounts);
@@ -3662,10 +3693,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         changed = true;
       } else {
         for (let i = 0; i < audited.length; i++) {
-          if (
-            audited[i].balance !== prevTreasuries[i].balance ||
-            (audited[i].transactions?.length || 0) !== (prevTreasuries[i].transactions?.length || 0)
-          ) {
+          const prevItem = prevTreasuries.find(p => p.id === audited[i].id);
+          if (!prevItem) {
+            changed = true;
+            break;
+          }
+          const prevBal = Number(Number(prevItem.balance || 0).toFixed(2));
+          const auditedBal = Number(Number(audited[i].balance || 0).toFixed(2));
+          const prevTxLen = prevItem.transactions?.length || 0;
+          const auditedTxLen = audited[i].transactions?.length || 0;
+          if (Math.abs(prevBal - auditedBal) > 0.005 || prevTxLen !== auditedTxLen) {
             changed = true;
             break;
           }
@@ -3681,11 +3718,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Keep treasury balances & currency sub-balances synchronized with Chart of Accounts assets
   useEffect(() => {
-    const activeCurrencies = settings.currencies && settings.currencies.length > 0 ? settings.currencies : defaultCurrencies;
     let hasDifference = false;
     for (const t of treasuries) {
       const acc = accounts.find(a => a.code === t.accountCode);
-      if (acc && acc.balance !== t.balance) {
+      if (acc && Math.abs((acc.balance || 0) - (t.balance || 0)) > 0.005) {
         hasDifference = true;
         break;
       }
@@ -3694,8 +3730,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setAccounts(prevAccs =>
         prevAccs.map(acc => {
           const matchedT = treasuries.find(t => t.accountCode === acc.code);
-          if (matchedT && acc.balance !== matchedT.balance) {
-            return { ...acc, balance: matchedT.balance };
+          if (matchedT && Math.abs((acc.balance || 0) - (matchedT.balance || 0)) > 0.005) {
+            return { ...acc, balance: Number((matchedT.balance || 0).toFixed(2)) };
           }
           return acc;
         })
@@ -10922,8 +10958,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const cashTreasuriesList = treasuries.filter(t => t.type === 'cash_box' || t.isDefault || t.accountCode === '1101');
   const bankTreasuriesList = treasuries.filter(t => t.type !== 'cash_box' && !t.isDefault && t.accountCode !== '1101');
 
-  const liveCashBalance = cashTreasuriesList.reduce((sum, t) => sum + (t.balance || 0), 0);
-  const liveBankBalance = bankTreasuriesList.reduce((sum, t) => sum + (t.balance || 0), 0);
+  const liveCashBalance = Math.round(cashTreasuriesList.reduce((sum, t) => sum + (t.balance || 0), 0) * 100) / 100;
+  const liveBankBalance = Math.round(bankTreasuriesList.reduce((sum, t) => sum + (t.balance || 0), 0) * 100) / 100;
 
   const totalRevAccs = accounts.filter(a => a.type === 'revenue').reduce((acc, a) => acc + a.balance, 0);
   const totalExpAccs = accounts.filter(a => a.type === 'expense').reduce((acc, a) => acc + a.balance, 0);
