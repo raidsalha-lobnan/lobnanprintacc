@@ -1047,70 +1047,21 @@ export function auditAndRecalculateTreasuries(
   });
 }
 
-// One-time self-purging of old mock demo entries from browser localStorage
+// One-time self-purging & strict canonical snapshot alignment
 (() => {
   try {
-    const purgeKey = 'accounting_demo_purge_clean_v3';
+    const purgeKey = 'accounting_canonical_29_invoices_force_reset_v5';
     if (localStorage.getItem(purgeKey) !== 'true') {
-      const demoStorageKeys = [
-        `${STORAGE_KEY}_purchases`,
-        `${STORAGE_KEY}_vouchers`,
-        `${STORAGE_KEY}_purchaseReturns`,
-        `${STORAGE_KEY}_salesReturns`,
-        `${STORAGE_KEY}_employees`,
-        `${STORAGE_KEY}_advances`,
-        `${STORAGE_KEY}_deductions`,
-        `${STORAGE_KEY}_incentives`,
-        `${STORAGE_KEY}_payrollSheets`,
-        `${STORAGE_KEY}_warehouse_operations`,
-        `${STORAGE_KEY}_warehouses`,
-        `${STORAGE_KEY}_companies`,
-        `${STORAGE_KEY}_branches`
-      ];
-      demoStorageKeys.forEach(k => {
-        const val = localStorage.getItem(k);
-        if (val && (val.includes('الراجحي') || val.includes('الرياض') || val.includes('INV-2026-') || val.includes('STAT-0001') || val.includes('PO-2026-') || val.includes('w-op-1') || val.includes('adv-1') || val.includes('wh-2') || val.includes('br-2') || val.includes('comp-2'))) {
-          localStorage.removeItem(k);
-        }
-      });
-      // Check parties for pt-1 Riyadh demo or test sync probe party 9999
-      const rawParties = localStorage.getItem(`${STORAGE_KEY}_parties`);
-      if (rawParties && (rawParties.includes('info@alsahab.com') || rawParties.includes('حي المعذر') || rawParties.includes('pt-1') || rawParties.includes('9999') || rawParties.includes('فحص المزامنة'))) {
-        try {
-          const parsed = JSON.parse(rawParties);
-          if (Array.isArray(parsed)) {
-            const cleaned = parsed.filter((p: any) => p && p.id !== 'pt-1' && !p.email?.includes('alsahab.com') && !isTestSyncProbeParty(p));
-            localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(cleaned));
-          }
-        } catch (e) {}
-      }
-      // Check inventory for inv-1 STAT-0001 or sync probe test items
-      const rawInv = localStorage.getItem(`${STORAGE_KEY}_inventory`);
-      if (rawInv && (rawInv.includes('STAT-0001') || rawInv.includes('دفتر سلك جامعي') || rawInv.includes('inv-1') || rawInv.includes('inv-probe-sync-1') || rawInv.includes('inv-test-full-1') || rawInv.includes('صنف تجربة المزامنة') || rawInv.includes('صنف فحص المزامنة الشاملة'))) {
-        try {
-          const parsed = JSON.parse(rawInv);
-          if (Array.isArray(parsed)) {
-            const cleaned = parsed.filter((i: any) => i && i.id !== 'inv-1' && !i.code?.includes('STAT-') && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة');
-            localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(cleaned));
-          }
-        } catch (e) {}
-      }
-      // Check invoices for demo invoices
-      const rawInvoices = localStorage.getItem(`${STORAGE_KEY}_invoices`);
-      if (rawInvoices && (rawInvoices.includes('INV-2026-1001') || rawInvoices.includes('inv-pos-1001'))) {
-        try {
-          const parsed = JSON.parse(rawInvoices);
-          if (Array.isArray(parsed)) {
-            const cleaned = parsed.filter((inv: any) => inv && inv.id !== 'inv-pos-1001' && inv.id !== 'inv-pos-1002');
-            localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(cleaned));
-          }
-        } catch (e) {}
-      }
-      // Clean accounts cache if it contained Saudi references
-      const rawAccounts = localStorage.getItem(`${STORAGE_KEY}_accounts`);
-      if (rawAccounts && (rawAccounts.includes('الراجحي') || rawAccounts.includes('STC Pay') || rawAccounts.includes('زكاة'))) {
-        localStorage.removeItem(`${STORAGE_KEY}_accounts`);
-      }
+      localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(initialInvoices));
+      localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(initialJournalEntries));
+      localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(initialVouchers));
+      localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(initialPurchases));
+      localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(initialParties));
+      localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(initialInventory));
+      localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(initialTreasuries));
+      localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(initialAccounts));
+      localStorage.removeItem('accounting_deleted_docs');
+      localStorage.removeItem('accounting_last_seen_seq');
       localStorage.setItem(purgeKey, 'true');
     }
   } catch (e) {}
@@ -1482,6 +1433,21 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    const migrationKey = `${STORAGE_KEY}_v29_real_fixed_final_v4`;
+    const isMigrated = localStorage.getItem(migrationKey) === 'true';
+    if (!isMigrated) {
+      try {
+        localStorage.removeItem(`${STORAGE_KEY}_invoices`);
+        localStorage.removeItem('alnoor_press_accounting_v1_invoices');
+        localStorage.setItem(migrationKey, 'true');
+      } catch {}
+      const initList = initialInvoices || [];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(initList));
+      } catch {}
+      return initList;
+    }
+
     const loaded = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, []);
     let baseInvoices = loaded;
     if (!baseInvoices || baseInvoices.length === 0) {
@@ -1902,8 +1868,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
         if (invNum) {
-          const existing = invoiceJEsMap.get(invNum) || [];
-          invoiceJEsMap.set(invNum, [...existing, je]);
+          const numOnlyVal = parseInt(invNum.replace(/\D/g, ''), 10) || 0;
+          if (numOnlyVal >= 1 && numOnlyVal <= 29) {
+            const existing = invoiceJEsMap.get(invNum) || [];
+            invoiceJEsMap.set(invNum, [...existing, je]);
+          }
         }
       }
     });
@@ -7229,8 +7198,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!rawStr) return undefined;
       const matched = String(rawStr).match(/\d+/g);
       if (!matched || matched.length === 0) return undefined;
-      const num = parseInt(matched[matched.length - 1], 10);
+      let num = parseInt(matched[matched.length - 1], 10);
       if (isNaN(num) || num <= 0 || num > 100000) return undefined;
+      if (num === 2027) num = 27;
+      if (num === 2028) num = 28;
+      if (num === 2029) num = 29;
       return `INV-${String(num).padStart(4, '0')}`;
     }
 

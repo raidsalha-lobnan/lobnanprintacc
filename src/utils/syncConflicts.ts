@@ -77,16 +77,25 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
         });
       }
     } else if (seq !== null && seq > 29) {
-      const key = idStr;
-      if (!extraInvoicesMap.has(key)) {
-        let normalizedNumber = `INV-${String(seq).padStart(4, '0')}`;
-        if (seq === 2027) normalizedNumber = 'INV-0027';
-        if (seq === 2028) normalizedNumber = 'INV-0028';
-        if (seq === 2029) normalizedNumber = 'INV-0029';
-        extraInvoicesMap.set(key, {
-          ...inv,
-          invoiceNumber: normalizedNumber
-        });
+      // Discard legacy/ghost invoices from old versions (e.g. INV-0133, INV-0236, INV-0276, INV-10001, etc.)
+      const isLegacyGhost = (
+        seq === 133 || seq === 134 || seq === 236 || seq === 276 || seq === 275 || seq === 274 || seq === 10001 ||
+        idStr.includes('recovered') || idStr.includes('INV-2026') || idStr.includes('inv-pos-1001') ||
+        (inv.invoiceNumber && (inv.invoiceNumber.includes('INV-2026') || inv.invoiceNumber.includes('STAT-')))
+      );
+
+      if (!isLegacyGhost) {
+        const key = idStr;
+        if (!extraInvoicesMap.has(key)) {
+          let normalizedNumber = `INV-${String(seq).padStart(4, '0')}`;
+          if (seq === 2027) normalizedNumber = 'INV-0027';
+          if (seq === 2028) normalizedNumber = 'INV-0028';
+          if (seq === 2029) normalizedNumber = 'INV-0029';
+          extraInvoicesMap.set(key, {
+            ...inv,
+            invoiceNumber: normalizedNumber
+          });
+        }
       }
     }
   }

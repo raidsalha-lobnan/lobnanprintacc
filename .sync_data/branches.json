@@ -1,1 +1,28 @@
-[{"warehouseIds":["wh-1"],"treasuryIds":["1102","1105","1101"],"createdAt":"2024-01-01","address":"غزة - الشيخ رضوان - مفترق الغزالي","name":"الفرع الرئيسي  Main Branch","bankAccountIds":["1102","1103"],"branchNumber":"1","id":"br-1","notes":"الإدارة المركزية، معرض البيع الرئيسي، ونقطة خدمة كبار العملاء","isMain":true,"manager":"م. رائد صالحة","phone":"0592840352","branchCode":"BR-01","companyId":"comp-1","status":"active"}]
+[
+  {
+    "warehouseIds": [
+      "wh-1"
+    ],
+    "treasuryIds": [
+      "1102",
+      "1105",
+      "1101"
+    ],
+    "createdAt": "2024-01-01",
+    "address": "غزة - الشيخ رضوان - مفترق الغزالي",
+    "name": "الفرع الرئيسي  Main Branch",
+    "bankAccountIds": [
+      "1102",
+      "1103"
+    ],
+    "branchNumber": "1",
+    "id": "br-1",
+    "notes": "الإدارة المركزية، معرض البيع الرئيسي، ونقطة خدمة كبار العملاء",
+    "isMain": true,
+    "manager": "م. رائد صالحة",
+    "phone": "0592840352",
+    "branchCode": "BR-01",
+    "companyId": "comp-1",
+    "status": "active"
+  }
+]

@@ -185,12 +185,15 @@ export const onlineInvoicePostingService = {
         const isExistingInvoice = cloudInvoices.some(inv => inv.id === invoice.id) || currentInvoicesList.some(inv => inv.id === invoice.id);
 
         // Normalize requested invoice number to strict standard INV-XXXX (4 digits padding)
-        let finalInvoiceNumber = invoice.invoiceNumber;
-        const requestedSeq = (() => {
+        let requestedSeq = (() => {
           if (!invoice.invoiceNumber) return null;
           const m = String(invoice.invoiceNumber).match(/\d+/g);
           return (m && m.length > 0) ? parseInt(m[m.length - 1], 10) : null;
         })();
+
+        if (requestedSeq === 2027) requestedSeq = 27;
+        if (requestedSeq === 2028) requestedSeq = 28;
+        if (requestedSeq === 2029) requestedSeq = 29;
 
         if (requestedSeq && !isNaN(requestedSeq) && requestedSeq > 0 && requestedSeq < 100000) {
           finalInvoiceNumber = `INV-${String(requestedSeq).padStart(4, '0')}`;

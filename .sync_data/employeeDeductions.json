@@ -1,1 +1,11 @@
-[{"amount":150,"date":"2026-09-02","status":"pending","employeeName":"كريم أحمد طارق","employeeId":"emp-2","reason":"خصم تأخير متكرر عن موعد بدء وردية تجهيز ملفات الفرز والطباعة","id":"ded-1"}]
+[
+  {
+    "amount": 150,
+    "date": "2026-09-02",
+    "status": "pending",
+    "employeeName": "كريم أحمد طارق",
+    "employeeId": "emp-2",
+    "reason": "خصم تأخير متكرر عن موعد بدء وردية تجهيز ملفات الفرز والطباعة",
+    "id": "ded-1"
+  }
+]
