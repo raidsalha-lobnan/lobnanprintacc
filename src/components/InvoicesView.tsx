@@ -45,38 +45,68 @@ export const InvoicesView: React.FC = () => {
     deleteInvoice
   } = useAccounting();
 
-  const getInvoiceTreasuryName = (inv: Invoice) => {
-    const rawInv = inv as any;
-    if (rawInv.treasuryName) return rawInv.treasuryName;
-    if (rawInv.treasuryId) {
-      const match = treasuries.find(t => t.id === rawInv.treasuryId || t.accountCode === rawInv.treasuryId);
-      if (match) return match.name;
+  interface InvoiceTreasuryDisplay {
+    label: string;
+    badgeClass: string;
+    iconType: 'cash' | 'bank' | 'wallet' | 'credit';
+  }
+
+  const getInvoiceTreasuryDisplay = (inv: Invoice): InvoiceTreasuryDisplay => {
+    const isCredit = inv.paymentMethod === 'credit' || (!inv.paidAmount && (inv.remainingAmount ?? inv.totalAmount) === inv.totalAmount);
+
+    if (isCredit) {
+      return {
+        label: 'آجل (ذمم مدينة)',
+        badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+        iconType: 'credit'
+      };
     }
-    if (rawInv.treasuryAccountCode) {
-      const match = treasuries.find(t => t.accountCode === rawInv.treasuryAccountCode || t.id === rawInv.treasuryAccountCode);
-      if (match) return match.name;
+
+    const hasCash = (inv.cashPaidAmount && inv.cashPaidAmount > 0) || inv.paymentMethod === 'cash';
+    const hasBank = (inv.bankPaidAmount && inv.bankPaidAmount > 0) || inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer';
+
+    // Split payment (مختلط: نقد + شبكة)
+    if (hasCash && hasBank && (inv.cashPaidAmount || 0) > 0 && (inv.bankPaidAmount || 0) > 0) {
+      return {
+        label: `نقد (${inv.cashPaidAmount}₪) + شبكة (${inv.bankPaidAmount}₪)`,
+        badgeClass: 'bg-purple-50 text-purple-800 border-purple-200',
+        iconType: 'bank'
+      };
     }
-    if (inv.cashTreasuryCode) {
-      const match = treasuries.find(t => t.accountCode === inv.cashTreasuryCode || t.id === inv.cashTreasuryCode);
-      if (match) return match.name;
+
+    // Pure Cash
+    if (inv.paymentMethod === 'cash' || (hasCash && !hasBank)) {
+      const cashCode = inv.cashTreasuryCode || (inv as any).treasuryAccountCode || '1101';
+      const match = treasuries.find(t => t.accountCode === cashCode || t.id === cashCode);
+      const name = match ? match.name : 'الصندوق النقدي (الخزينة الرئيسية)';
+      return {
+        label: name,
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        iconType: 'cash'
+      };
     }
-    if (inv.bankTreasuryCode) {
-      const match = treasuries.find(t => t.accountCode === inv.bankTreasuryCode || t.id === inv.bankTreasuryCode);
-      if (match) return match.name;
+
+    // Pure Card / Bank / Electronic / Digital Wallet
+    if (inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer' || hasBank) {
+      const bankCode = inv.bankTreasuryCode || (inv as any).treasuryAccountCode || '1105';
+      let match = treasuries.find(t => t.accountCode === bankCode || t.id === bankCode);
+      if (!match && bankCode === '1102') {
+        match = treasuries.find(t => t.accountCode === '1105');
+      }
+      const name = match ? match.name : 'بنك فلسطين - ماهر صالحة 0599992615';
+      const isWallet = bankCode === '1103' || bankCode === '1104' || name.includes('باي') || name.includes('محفظة');
+      return {
+        label: name,
+        badgeClass: isWallet ? 'bg-cyan-50 text-cyan-800 border-cyan-200' : 'bg-blue-50 text-blue-800 border-blue-200',
+        iconType: isWallet ? 'wallet' : 'bank'
+      };
     }
-    if (inv.paymentMethod === 'cash') {
-      const defaultCash = treasuries.find(t => t.accountCode === '1101' || t.type === 'cash_box' || t.isDefault);
-      return defaultCash?.name || 'الخزينة الرئيسية';
-    }
-    if (inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer' || (inv.paymentMethod as string) === 'bank') {
-      const bankT = treasuries.find(t => t.accountCode === '1105' || t.type === 'bank_account' || t.name?.includes('بنك'));
-      return bankT?.name || 'بنك فلسطين / شبكة';
-    }
-    if (inv.paymentMethod === 'credit' || (inv.remainingAmount ?? inv.totalAmount) === inv.totalAmount) {
-      return 'آجل (بدون صندوق)';
-    }
-    const defaultCash = treasuries.find(t => t.type === 'cash_box' || t.isDefault);
-    return defaultCash?.name || 'الخزينة الرئيسية';
+
+    return {
+      label: 'آجل (ذمم مدينة)',
+      badgeClass: 'bg-slate-100 text-slate-500 border-slate-200',
+      iconType: 'credit'
+    };
   };
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -332,10 +362,21 @@ export const InvoicesView: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-2 px-2 text-center whitespace-nowrap align-middle">
-                    <span className="text-[11px] bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-md font-medium inline-flex items-center gap-1 shadow-2xs">
-                      <Wallet className="w-3 h-3 text-amber-600 shrink-0" />
-                      <span>{getInvoiceTreasuryName(inv)}</span>
-                    </span>
+                    {(() => {
+                      const tInfo = getInvoiceTreasuryDisplay(inv);
+                      return (
+                        <span
+                          className={`text-[11px] border px-2 py-0.5 rounded-md font-semibold inline-flex items-center gap-1 shadow-2xs max-w-[210px] truncate ${tInfo.badgeClass}`}
+                          title={tInfo.label}
+                        >
+                          {tInfo.iconType === 'cash' && <Banknote className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                          {tInfo.iconType === 'bank' && <CreditCard className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                          {tInfo.iconType === 'wallet' && <Wallet className="w-3.5 h-3.5 text-cyan-600 shrink-0" />}
+                          {tInfo.iconType === 'credit' && <span className="text-slate-400 font-bold px-0.5">—</span>}
+                          <span className="truncate">{tInfo.label}</span>
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="py-2 px-2 text-center font-mono font-semibold text-slate-600 whitespace-nowrap align-middle w-28 min-w-[105px] max-w-[110px]">
                     {((inv.subtotal || 0) - (inv.discountTotal || 0)).toLocaleString('ar-SA')} {inv.currencySymbol || settings.currency}

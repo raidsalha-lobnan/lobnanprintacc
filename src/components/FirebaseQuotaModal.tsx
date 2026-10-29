@@ -73,11 +73,9 @@ export const FirebaseQuotaModal: React.FC<FirebaseQuotaModalProps> = ({ isOpen, 
   };
 
   const handleResetLocalTracker = () => {
-    if (window.confirm('هل تريد إعادة تعيين العداد المحلي ومسح حالة الإغلاق السحابي لغايات الفحص والاختبار؟')) {
-      firebaseQuotaTracker.resetCurrentTracker();
-      setLiveVerificationResult(null);
-      setStats(firebaseQuotaTracker.getStats());
-    }
+    firebaseQuotaTracker.resetCurrentTracker();
+    setLiveVerificationResult(null);
+    setStats(firebaseQuotaTracker.getStats());
   };
 
   const getStatusBadge = (percent: number, isExceeded: boolean) => {

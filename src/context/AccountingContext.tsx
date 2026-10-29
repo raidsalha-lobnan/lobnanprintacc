@@ -2965,7 +2965,22 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
       try {
-        // Pre-fetch: do not push unhydrated state to cloud. Cloud database is authoritative.
+        // Optimization: On initial load, the real-time onSnapshot listeners mounted immediately below
+        // automatically receive and stream the authoritative documents from Firestore.
+        // Skipping redundant upfront mass getDocs across 25 collections saves thousands of Firestore read units per session!
+        if (isInitial) {
+          try {
+            const settingsSnap = await getDoc(doc(db, 'settings', 'global'));
+            if (settingsSnap.exists()) {
+              setSettings(prev => ({ ...prev, ...(settingsSnap.data() as any) }));
+            }
+          } catch (e: any) {
+            console.debug('Global settings initial sync notice:', e?.message || e);
+          }
+          isInitialMount.current = false;
+          isCloudHydratedRef.current = true;
+          return;
+        }
 
         const collectionsToFetch = [
           'accounts', 'treasuries', 'parties', 'employees', 'invoices',
