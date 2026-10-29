@@ -21,7 +21,8 @@ import {
   Trash2,
   ShieldAlert,
   Edit3,
-  CalendarCheck
+  CalendarCheck,
+  Wallet
 } from 'lucide-react';
 import { InvoiceStatusHistoryModal } from './pos/InvoiceStatusHistoryModal';
 import { DraftInvoicesQueueModal } from './pos/DraftInvoicesQueueModal';
@@ -35,6 +36,7 @@ export const InvoicesView: React.FC = () => {
   const {
     invoices,
     deletedInvoices,
+    treasuries,
     setSelectedInvoiceForPrint,
     setSelectedInvoiceForLifecycle,
     settings,
@@ -42,6 +44,40 @@ export const InvoicesView: React.FC = () => {
     setEditingPosInvoiceId,
     deleteInvoice
   } = useAccounting();
+
+  const getInvoiceTreasuryName = (inv: Invoice) => {
+    const rawInv = inv as any;
+    if (rawInv.treasuryName) return rawInv.treasuryName;
+    if (rawInv.treasuryId) {
+      const match = treasuries.find(t => t.id === rawInv.treasuryId || t.accountCode === rawInv.treasuryId);
+      if (match) return match.name;
+    }
+    if (rawInv.treasuryAccountCode) {
+      const match = treasuries.find(t => t.accountCode === rawInv.treasuryAccountCode || t.id === rawInv.treasuryAccountCode);
+      if (match) return match.name;
+    }
+    if (inv.cashTreasuryCode) {
+      const match = treasuries.find(t => t.accountCode === inv.cashTreasuryCode || t.id === inv.cashTreasuryCode);
+      if (match) return match.name;
+    }
+    if (inv.bankTreasuryCode) {
+      const match = treasuries.find(t => t.accountCode === inv.bankTreasuryCode || t.id === inv.bankTreasuryCode);
+      if (match) return match.name;
+    }
+    if (inv.paymentMethod === 'cash') {
+      const defaultCash = treasuries.find(t => t.accountCode === '1101' || t.type === 'cash_box' || t.isDefault);
+      return defaultCash?.name || 'الخزينة الرئيسية';
+    }
+    if (inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer' || (inv.paymentMethod as string) === 'bank') {
+      const bankT = treasuries.find(t => t.accountCode === '1105' || t.type === 'bank_account' || t.name?.includes('بنك'));
+      return bankT?.name || 'بنك فلسطين / شبكة';
+    }
+    if (inv.paymentMethod === 'credit' || (inv.remainingAmount ?? inv.totalAmount) === inv.totalAmount) {
+      return 'آجل (بدون صندوق)';
+    }
+    const defaultCash = treasuries.find(t => t.type === 'cash_box' || t.isDefault);
+    return defaultCash?.name || 'الخزينة الرئيسية';
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
@@ -232,18 +268,19 @@ export const InvoicesView: React.FC = () => {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
-            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr className="whitespace-nowrap">
                 <th className="py-2.5 px-3">رقم الفاتورة</th>
                 <th className="py-2.5 px-3">التاريخ</th>
-                <th className="py-2.5 px-3">العميل</th>
+                <th className="py-2.5 px-3 min-w-[220px] max-w-[340px]">العميل</th>
                 <th className="py-2.5 px-3">النوع</th>
                 <th className="py-2.5 px-3">طريقة الدفع</th>
-                <th className="py-2.5 px-3">المجموع قبل الضريبة</th>
-                <th className="py-2.5 px-3">الضريبة ({settings.vatRate}%)</th>
-                <th className="py-2.5 px-3">الإجمالي</th>
+                <th className="py-2.5 px-2 text-center">الصندوق / الخزينة</th>
+                <th className="py-2.5 px-2 text-center w-28 min-w-[105px] max-w-[110px]">قبل الضريبة</th>
+                <th className="py-2.5 px-2 text-center w-28 min-w-[105px] max-w-[110px]">الضريبة ({settings.vatRate}%)</th>
+                <th className="py-2.5 px-2 text-center w-28 min-w-[105px] max-w-[110px]">الإجمالي</th>
                 <th className="py-2.5 px-3">الحالة</th>
-                <th className="py-2.5 px-3 text-center">الإجراءات</th>
+                <th className="py-2.5 px-2 text-center shrink-0">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -262,7 +299,7 @@ export const InvoicesView: React.FC = () => {
                     </button>
                   </td>
                   <td className="py-2 px-3 text-slate-500 whitespace-nowrap font-mono text-[11px] align-middle">{formatDateDisplay(inv.date)}</td>
-                   <td className="py-2 px-3 font-bold text-slate-900 whitespace-nowrap max-w-[200px] truncate align-middle" title={inv.subCustomerName ? `${inv.customerName} / ${inv.subCustomerName}` : inv.customerName}>
+                  <td className="py-2 px-3 font-bold text-slate-900 whitespace-nowrap min-w-[220px] max-w-[340px] truncate align-middle" title={inv.subCustomerName ? `${inv.customerName} / ${inv.subCustomerName}` : inv.customerName}>
                     {inv.subCustomerName ? `${inv.customerName} / ${inv.subCustomerName}` : inv.customerName}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap align-middle">
@@ -294,13 +331,19 @@ export const InvoicesView: React.FC = () => {
                       )}
                     </span>
                   </td>
-                  <td className="py-2 px-3 font-mono font-semibold text-slate-600 whitespace-nowrap align-middle">
+                  <td className="py-2 px-2 text-center whitespace-nowrap align-middle">
+                    <span className="text-[11px] bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-md font-medium inline-flex items-center gap-1 shadow-2xs">
+                      <Wallet className="w-3 h-3 text-amber-600 shrink-0" />
+                      <span>{getInvoiceTreasuryName(inv)}</span>
+                    </span>
+                  </td>
+                  <td className="py-2 px-2 text-center font-mono font-semibold text-slate-600 whitespace-nowrap align-middle w-28 min-w-[105px] max-w-[110px]">
                     {((inv.subtotal || 0) - (inv.discountTotal || 0)).toLocaleString('ar-SA')} {inv.currencySymbol || settings.currency}
                   </td>
-                  <td className="py-2 px-3 font-mono text-slate-500 whitespace-nowrap align-middle">
-                    {(inv.taxAmount || 0).toLocaleString('ar-SA')}
+                  <td className="py-2 px-2 text-center font-mono text-slate-500 whitespace-nowrap align-middle w-28 min-w-[105px] max-w-[110px]">
+                    {(inv.taxAmount || 0).toLocaleString('ar-SA')} {inv.currencySymbol || settings.currency}
                   </td>
-                  <td className="py-2 px-3 font-mono font-bold text-slate-900 text-sm whitespace-nowrap align-middle">
+                  <td className="py-2 px-2 text-center font-mono font-bold text-slate-900 text-xs whitespace-nowrap align-middle w-28 min-w-[105px] max-w-[110px]">
                     {(inv.totalAmount || 0).toLocaleString('ar-SA')} {inv.currencySymbol || settings.currency}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap align-middle">
@@ -326,30 +369,30 @@ export const InvoicesView: React.FC = () => {
                       );
                     })()}
                   </td>
-                  <td className="py-2 px-3 text-center whitespace-nowrap align-middle">
+                  <td className="py-2 px-2 text-center whitespace-nowrap align-middle shrink-0">
                     <div className="flex items-center justify-center gap-1 whitespace-nowrap">
                       <button
                         onClick={() => setSelectedInvoiceForStatus(inv)}
-                        className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors border border-blue-200"
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[10.5px] font-semibold cursor-pointer transition-colors border border-blue-200"
                         title={`سجل توثيق حالات الفاتورة (${inv.statusHistory?.length || 1})`}
                       >
-                        <History className="w-3.5 h-3.5 text-blue-600" />
+                        <History className="w-3 h-3 text-blue-600" />
                         <span>سجل الحالة</span>
                       </button>
                       <button
                         onClick={() => setSelectedInvoiceForLifecycle(inv)}
-                        className="flex items-center gap-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold cursor-pointer transition-colors border border-emerald-200"
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded text-[10.5px] font-semibold cursor-pointer transition-colors border border-emerald-200"
                         title="عرض مسار الحركة الآلية للعملية (7 مراحل)"
                       >
-                        <GitBranch className="w-3.5 h-3.5 text-emerald-600" />
+                        <GitBranch className="w-3 h-3 text-emerald-600" />
                         <span>مسار الحركة</span>
                       </button>
                       <button
                         onClick={() => setSelectedInvoiceForPrint(inv)}
-                        className="flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors border border-indigo-200"
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[10.5px] font-semibold cursor-pointer transition-colors border border-indigo-200"
                         title="طباعة الفاتورة"
                       >
-                        <Printer className="w-3.5 h-3.5" />
+                        <Printer className="w-3 h-3 text-indigo-600" />
                         <span>طباعة</span>
                       </button>
                       <button
@@ -358,10 +401,10 @@ export const InvoicesView: React.FC = () => {
                             deleteInvoice(inv.id);
                           }
                         }}
-                        className="flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors border border-rose-200"
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded text-[10.5px] font-semibold cursor-pointer transition-colors border border-rose-200"
                         title="حذف الفاتورة ونقلها إلى سلة المحذوفات"
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <Trash2 className="w-3 h-3 text-rose-600" />
                         <span>حذف</span>
                       </button>
                     </div>

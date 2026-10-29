@@ -88,8 +88,8 @@ function getStoredQuota(): StoredQuota {
 
   return {
     periodKey: currentKey,
-    reads: 420,
-    writes: 15,
+    reads: 0,
+    writes: 0,
     deletes: 0
   };
 }
@@ -100,20 +100,25 @@ function saveStoredQuota(data: StoredQuota) {
   } catch {}
 }
 
+export const GOOGLE_CLOUD_METRICS_URL = `https://console.cloud.google.com/firestore/usage?project=${FIREBASE_PROJECT_ID}`;
+
 export const firebaseQuotaTracker = {
   trackRead: (count: number = 1) => {
+    if (count <= 0) return;
     const quota = getStoredQuota();
     quota.reads += count;
     saveStoredQuota(quota);
   },
 
   trackWrite: (count: number = 1) => {
+    if (count <= 0) return;
     const quota = getStoredQuota();
     quota.writes += count;
     saveStoredQuota(quota);
   },
 
   trackDelete: (count: number = 1) => {
+    if (count <= 0) return;
     const quota = getStoredQuota();
     quota.deletes += count;
     saveStoredQuota(quota);
@@ -146,22 +151,30 @@ export const firebaseQuotaTracker = {
     return false;
   },
 
-  // Perform a live test against Google Cloud Firestore to check if quota is currently blocked
-  verifyLiveQuotaStatus: async (): Promise<{ isBlocked: boolean; message: string }> => {
+  // Perform a live test against Google Cloud Firestore to check if quota is currently blocked & measure latency
+  verifyLiveQuotaStatus: async (): Promise<{ isBlocked: boolean; message: string; latencyMs?: number }> => {
+    const startTime = Date.now();
     try {
       const testDoc = doc(db, 'lobnan_accounting_db', 'settings');
       await getDocFromServer(testDoc);
+      const latencyMs = Date.now() - startTime;
+      firebaseQuotaTracker.trackRead(1);
       // If read succeeded, server is not quota blocked
       try { localStorage.removeItem(STORAGE_KEY_BLOCKED); } catch {}
-      return { isBlocked: false, message: 'الاتصال بالسيرفر السحابي يعمل بشكل طبيعي 🟢' };
+      return { 
+        isBlocked: false, 
+        message: `الاتصال بالسيرفر السحابي يعمل بشكل ممتاز 🟢 (زمن الاستجابة: ${latencyMs}ms)`,
+        latencyMs 
+      };
     } catch (err: any) {
+      const latencyMs = Date.now() - startTime;
       const msg = err?.message || '';
       const isQuotaErr = err?.code === 'resource-exhausted' || msg.includes('Quota limit exceeded') || msg.includes('gone over your daily usage limits') || msg.includes('Quota exceeded');
       if (isQuotaErr) {
         firebaseQuotaTracker.setBlockedByServer('You have gone over your daily usage limits');
-        return { isBlocked: true, message: 'You have gone over your daily usage limits' };
+        return { isBlocked: true, message: 'You have gone over your daily usage limits', latencyMs };
       }
-      return { isBlocked: firebaseQuotaTracker.checkIsBlockedByServer(), message: msg };
+      return { isBlocked: firebaseQuotaTracker.checkIsBlockedByServer(), message: msg, latencyMs };
     }
   },
 
