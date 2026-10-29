@@ -3778,6 +3778,30 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
+  // One-time automated cloud purge for print orders and linked items
+  useEffect(() => {
+    try {
+      const purgeDone = localStorage.getItem('accounting_printOrders_purged_v2');
+      if (!purgeDone) {
+        setPrintOrders([]);
+        try { localStorage.removeItem(`${STORAGE_KEY}_printOrders`); } catch {}
+        try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify([])); } catch {}
+
+        getDocs(collection(db, 'printOrders')).then(snapshot => {
+          snapshot.docs.forEach(d => {
+            registerDeletedDoc('printOrders', d.id);
+            deleteDoc(doc(db, 'printOrders', d.id)).catch(() => {});
+          });
+          localStorage.setItem('accounting_printOrders_purged_v2', 'true');
+        }).catch(() => {
+          localStorage.setItem('accounting_printOrders_purged_v2', 'true');
+        });
+      }
+    } catch (e) {
+      console.warn('PrintOrders cloud purge notice:', e);
+    }
+  }, []);
+
   // Helper accessors and CRUD for Multi-Company, Multi-Branch & Granular RBAC
   const currentUser: SystemUser = React.useMemo(() => {
     return users.find(u => u.id === currentUserId) || users[0] || {
@@ -9391,26 +9415,78 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const deleteAllPrintOrders = (): { success: boolean; count: number } => {
     const count = printOrders.length;
 
+    // 1. Purge state & localStorage
     setPrintOrders([]);
     broadcastEntityChange('printOrders', []);
+    try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify([])); } catch {}
     try { localStorage.removeItem(`${STORAGE_KEY}_printOrders`); } catch {}
 
+    // 2. Register deleted docs and delete local print orders from Firestore
     printOrders.forEach(po => {
       try {
+        registerDeletedDoc('printOrders', po.id);
         deleteDoc(doc(db, 'printOrders', po.id)).catch(() => {});
       } catch (e) {}
     });
 
+    // Also fetch and delete ALL documents directly in Firestore collection 'printOrders' in case there are orphaned ones
+    try {
+      getDocs(collection(db, 'printOrders')).then(snapshot => {
+        snapshot.docs.forEach(d => {
+          registerDeletedDoc('printOrders', d.id);
+          deleteDoc(doc(db, 'printOrders', d.id)).catch(() => {});
+        });
+      }).catch(() => {});
+    } catch (e) {}
+
+    // 3. Purge related vouchers (سندات مرتبطة بأوامر التشغيل والطباعة)
+    setVouchers(prevVouchers => {
+      const remainingVouchers = prevVouchers.filter(v => {
+        const isLinkedToPrintOrder =
+          v.relatedDocType === 'printOrder' ||
+          (v.notes && (v.notes.includes('امر تشغيل') || v.notes.includes('JOB-') || v.notes.includes('أمر طباعة')));
+        if (isLinkedToPrintOrder) {
+          registerDeletedDoc('vouchers', v.id);
+          deleteDoc(doc(db, 'vouchers', v.id)).catch(() => {});
+          return false;
+        }
+        return true;
+      });
+      try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(remainingVouchers)); } catch {}
+      return remainingVouchers;
+    });
+
+    // 4. Purge related stockMovements (حركات مخزنية مرتبطة)
+    setStockMovements(prevMovements => {
+      const remainingMovements = prevMovements.filter(sm => {
+        const isLinked =
+          sm.referenceType === 'printOrder' ||
+          (sm.notes && (sm.notes.includes('امر تشغيل') || sm.notes.includes('JOB-')));
+        if (isLinked) {
+          registerDeletedDoc('stockMovements', sm.id);
+          deleteDoc(doc(db, 'stockMovements', sm.id)).catch(() => {});
+          return false;
+        }
+        return true;
+      });
+      try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(remainingMovements)); } catch {}
+      return remainingMovements;
+    });
+
+    // 5. Clean linked invoices
     setInvoices(prev => prev.map(inv => {
       if (inv.workflowStatus && inv.workflowStatus !== 'new' && inv.workflowStatus !== 'delivered') {
         return {
           ...inv,
           workflowStatus: 'delivered',
-          isWorkshopVisible: false
+          isWorkshopVisible: false,
+          productionOrderNumber: undefined
         };
       }
       return inv;
     }));
+
+    pushDeltaToServer('printOrders', 'delete', { id: 'all', _deleted: true });
 
     return { success: true, count };
   };
