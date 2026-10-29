@@ -827,7 +827,7 @@ export function auditAndRecalculateTreasuries(
         const jawwal = tByCode.get('1103');
         if (jawwal) return jawwal;
       }
-      if (lower.includes('بنك فلسطين') || lower.includes('ماهر صالحة')) {
+      if (lower.includes('بنك فلسطين') || lower.includes('ماهر صالحة') || lower.includes('شبكة') || lower.includes('card') || lower.includes('فيزا') || lower.includes('ماستر')) {
         const bank = tByCode.get('1105');
         if (bank) return bank;
       }
@@ -919,12 +919,36 @@ export function auditAndRecalculateTreasuries(
   if (Array.isArray(activeVouchers)) {
     activeVouchers.forEach(v => {
       if (!v || delSet.has(v.id)) return;
+
+      // DO NOT duplicate invoice collections: sales invoice payments are already routed and audited in Section 1!
+      if (
+        v.id.startsWith('vch-inv-') ||
+        v.voucherNumber?.startsWith('RCT-INV-') ||
+        v.relatedDocType === 'invoice' ||
+        v.relatedDocType === 'pos_sale' ||
+        (v.description && v.description.includes('سند تحصيل فوري لفاتورة مبيعات'))
+      ) {
+        return;
+      }
+
       const amt = typeof v.amount === 'number' ? Math.abs(v.amount) : 0;
       if (amt <= 0) return;
 
       const isReceipt = v.type === 'receipt';
-      const isBank = v.paymentMethod === 'bank_transfer' || v.paymentMethod === 'cheque';
-      const target = getTargetTreasury(v.treasuryAccountCode || v.accountCode, isBank, `${v.description || ''} ${v.partyName || ''}`);
+      const isBank =
+        v.paymentMethod === 'card' ||
+        v.paymentMethod === 'bank_transfer' ||
+        v.paymentMethod === 'cheque' ||
+        (v.paymentMethod as string) === 'electronic' ||
+        (v.paymentMethod as string) === 'e_wallet' ||
+        (v.paymentMethod as string) === 'bank' ||
+        (v.paymentMethod as string) === 'pos';
+
+      const target = getTargetTreasury(
+        v.treasuryAccountCode || (v.accountCode !== '1201' && v.accountCode !== '2101' ? v.accountCode : undefined),
+        isBank,
+        `${v.description || ''} ${v.partyName || ''}`
+      );
 
       addTx(target, {
         id: `tx-vch-${v.id}`,
@@ -7722,6 +7746,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           amount: effectiveBasePaidAmount,
           paymentMethod: paymentMethod === 'credit' ? 'cash' : (paymentMethod as any),
           accountCode: '1201',
+          treasuryAccountCode: paymentMethod === 'cash' ? (extraOptions?.cashTreasuryCode || '1101') : (extraOptions?.bankTreasuryCode || '1105'),
+          relatedDocType: 'pos_sale',
+          relatedDocId: invId,
           description: `سند تحصيل فوري لفاتورة مبيعات رقم ${invoiceNumber}`
         };
         setVouchers(prev => [newReceiptVoucher, ...prev]);

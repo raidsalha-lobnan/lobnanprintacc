@@ -518,10 +518,12 @@ export interface PaymentVoucher {
   partyId: string;
   partyName: string;
   amount: number;
-  paymentMethod: 'cash' | 'bank_transfer' | 'cheque';
+  paymentMethod: 'cash' | 'bank_transfer' | 'cheque' | 'card' | 'electronic' | 'e_wallet' | 'pos';
   accountCode: string; // الحساب المقابل (الصندوق / البنك)
   description: string;
   referenceInvoiceId?: string;
+  relatedDocType?: string;
+  relatedDocId?: string;
   employeeId?: string; // معرف الموظف المرتبط بالسند
   currency?: string;          // e.g. 'ILS', 'USD', 'JOD', 'EUR'
   currencySymbol?: string;    // e.g. '₪', '$', 'د.أ', '€'
