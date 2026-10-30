@@ -368,6 +368,8 @@ export interface Invoice {
   bankPaidAmount?: number;
   cashTreasuryCode?: string;
   bankTreasuryCode?: string;
+  treasuryAccountCode?: string;
+  taxTotal?: number;
   isAccountingPosted?: boolean; // هل تم ترحيل القيود وحركات المخزون؟
   postedAt?: string;
   deletedAt?: string;          // وقت وتاريخ الحذف (في سلة المحذوفات)

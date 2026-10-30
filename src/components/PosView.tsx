@@ -1744,16 +1744,21 @@ const getInitialPosDraft = (): PosFullDraftData => {
     });
   }, [inventory, pricingTier, calculateLineValues, getItemPriceForCustomer]);
 
-  // Re-evaluate line prices automatically whenever customer changes across POS
+  // Re-evaluate line prices automatically whenever customer changes across POS (only during new sales when customer is manually switched, never when editing/loading an existing invoice)
+  const isInvoiceLoadingRef = useRef<boolean>(false);
   const prevPricingCustIdRef = useRef(effectivePricingCustomerId);
   useEffect(() => {
+    if (isInvoiceLoadingRef.current || editingPosInvoiceId || currentEditingInvoiceIdRef.current) {
+      prevPricingCustIdRef.current = effectivePricingCustomerId;
+      return;
+    }
     if (prevPricingCustIdRef.current !== effectivePricingCustomerId) {
       prevPricingCustIdRef.current = effectivePricingCustomerId;
       if (tableLines.length > 0) {
         setTableLines(prev => applyCustomerPricingToLines(effectivePricingCustomerObj, prev));
       }
     }
-  }, [effectivePricingCustomerId, effectivePricingCustomerObj, applyCustomerPricingToLines, tableLines.length]);
+  }, [effectivePricingCustomerId, effectivePricingCustomerObj, applyCustomerPricingToLines, tableLines.length, editingPosInvoiceId]);
 
   // 10-second Inactivity timer: automatically returns focus to barcode input when in Barcode Hand Mode
   const resetInactivityTimer = useCallback(() => {
@@ -2486,6 +2491,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
     if (currentEditingInvoiceIdRef.current || editingPosInvoiceId) {
       setEditingPosInvoiceId(null);
       currentEditingInvoiceIdRef.current = null;
+      lastLoadedInvoiceIdRef.current = null;
       // setActiveTab('invoices'); // Removed so the screen stays as is
     }
   };
@@ -2761,23 +2767,29 @@ const getInitialPosDraft = (): PosFullDraftData => {
   };
   const [currentNavInvoiceIndex, setCurrentNavInvoiceIndex] = useState<number>(-1);
 
+  const lastLoadedInvoiceIdRef = useRef<string | null>(null);
+
   const loadInvoiceToScreen = (inv: Invoice) => {
     if (!inv) return;
+    isInvoiceLoadingRef.current = true;
+    currentEditingInvoiceIdRef.current = inv.id;
+    lastLoadedInvoiceIdRef.current = inv.id;
+
     const invCustId = inv.customerId || '';
     setSelectedCustomerId(invCustId);
     if (invCustId) {
       const matchedParty = parties.find(p => p.id === invCustId);
-      setCustomerCode(matchedParty?.code || '');
+      setCustomerCode(matchedParty?.code || (inv as any).customerCode || '');
     } else {
-      setCustomerCode('');
+      setCustomerCode((inv as any).customerCode || '');
     }
     setCustomerName(inv.customerName || 'زبون نقدي');
     setCustomCustomerText(inv.customCustomerText || '');
     setSubCustomerId(inv.subCustomerId || '');
     setSubCustomerName(inv.subCustomerName || '');
     setSubCustomerPhone(inv.subCustomerPhone || '');
-    if (inv.notes) setInvoiceNotes(inv.notes); else setInvoiceNotes('');
-    if (inv.paymentNotes) setPaymentNotes(inv.paymentNotes); else setPaymentNotes('');
+    setInvoiceNotes(inv.notes || '');
+    setPaymentNotes(inv.paymentNotes || '');
     if (inv.workflowStatus) setInvoiceWorkflowStatus(inv.workflowStatus);
 
     try {
@@ -2786,18 +2798,31 @@ const getInitialPosDraft = (): PosFullDraftData => {
     
     setInvoiceSeqNumber((inv.invoiceNumber || '').replace(/\D/g, '') || '1');
     if (inv.date) setInvoiceDate(inv.date);
-    setAdditionalCharges(inv.additionalCharges || 0);
-    setOverallDiscount(inv.discountTotal || 0);
+    setAdditionalCharges(Number(inv.additionalCharges) || 0);
+    setOverallDiscount(Number(inv.discountTotal) || 0);
     if (inv.paymentMethod) setPaymentMethod(inv.paymentMethod);
+
+    if (inv.cashTreasuryCode) {
+      setCashTreasuryCode(inv.cashTreasuryCode);
+    } else if (inv.treasuryAccountCode && inv.paymentMethod === 'cash') {
+      setCashTreasuryCode(inv.treasuryAccountCode);
+    }
+
+    if (inv.bankTreasuryCode) {
+      setBankTreasuryCode(inv.bankTreasuryCode);
+    } else if (inv.treasuryAccountCode && (inv.paymentMethod === 'card' || inv.paymentMethod === 'bank_transfer')) {
+      setBankTreasuryCode(inv.treasuryAccountCode);
+    }
+
     if (inv.cashPaidAmount !== undefined || inv.bankPaidAmount !== undefined) {
-      setCashAmountInput(String(inv.cashPaidAmount || 0));
-      setBankAmountInput(String(inv.bankPaidAmount || 0));
+      setCashAmountInput(String(Number(inv.cashPaidAmount) || 0));
+      setBankAmountInput(String(Number(inv.bankPaidAmount) || 0));
     } else {
       if (inv.paymentMethod === 'card' || inv.paymentMethod === 'bank_transfer') {
-        setBankAmountInput(String(inv.paidAmount || 0));
+        setBankAmountInput(String(Number(inv.paidAmount) || 0));
         setCashAmountInput('0');
       } else if (inv.paymentMethod === 'cash') {
-        setCashAmountInput(String(inv.paidAmount || 0));
+        setCashAmountInput(String(Number(inv.paidAmount) || 0));
         setBankAmountInput('0');
       } else {
         setCashAmountInput('0');
@@ -2809,6 +2834,16 @@ const getInitialPosDraft = (): PosFullDraftData => {
     }
     if (inv.exchangeRate) {
       setCustomExchangeRate(inv.exchangeRate);
+    }
+
+    const effectiveTaxAmount = Number(inv.taxAmount !== undefined ? inv.taxAmount : inv.taxTotal) || 0;
+    if (typeof inv.taxRate === 'number') {
+      setTaxRate(inv.taxRate);
+      setTaxEnabled(inv.taxRate > 0 || effectiveTaxAmount > 0);
+    } else if (effectiveTaxAmount === 0) {
+      setTaxEnabled(false);
+    } else {
+      setTaxEnabled(true);
     }
 
     const rawItems = Array.isArray(inv.items) ? inv.items : [];
@@ -2834,49 +2869,73 @@ const getInitialPosDraft = (): PosFullDraftData => {
         }
       ]);
       setEditingPosInvoiceId(inv.id);
+      setTimeout(() => {
+        isInvoiceLoadingRef.current = false;
+      }, 100);
       return;
     }
 
-    const loadedLines: PosTableLine[] = rawItems.map((it, idx) => {
-      const invItem = inventory.find(i => i.id === it.itemId || (it.itemCode && i.code === it.itemCode));
-      const isSq = isSquareMeterUnit(it.unit);
-      const hasDims = isSq && Boolean(it.hasDimensions || (it.length && it.width && (it.length > 0 && it.width > 0)));
+    const loadedLines: PosTableLine[] = rawItems.map((it: any, idx) => {
+      const invItem = inventory.find(i => (it.itemId && i.id === it.itemId) || (it.itemCode && i.code === it.itemCode));
+      const hasDims = Boolean(it.hasDimensions || (Number(it.length) > 0 && Number(it.width) > 0));
+      const lengthVal = Number(it.length) || (hasDims ? 1 : 0);
+      const widthVal = Number(it.width) || (hasDims ? 1 : 0);
+      const countVal = Number(it.count) || 1;
+      const qtyVal = Number(it.quantity !== undefined ? it.quantity : it.qty) || 1;
+      const unitPriceVal = Number(it.unitPrice !== undefined ? it.unitPrice : it.price) || 0;
+      const discountVal = Number(it.discount) || 0;
+      const taxVal = Number(it.tax) || 0;
+      const calculatedLineTotal = it.total !== undefined 
+        ? Number(it.total) 
+        : (it.totalPrice !== undefined 
+            ? Number(it.totalPrice) 
+            : Math.max(0, (qtyVal * unitPriceVal) - discountVal + taxVal));
+
       return {
-        id: 'loaded-' + idx,
+        id: 'loaded-' + (it.id || idx),
         itemCode: it.itemCode || invItem?.code || '',
         barcode: it.barcode || invItem?.barcode || '',
-        itemName: it.itemName,
+        itemName: it.itemName || invItem?.name || '',
         description: it.description || '',
         notes: it.notes || '',
         hasDimensions: hasDims,
-        length: hasDims ? (it.length || 0) : 0,
-        width: hasDims ? (it.width || 0) : 0,
-        count: hasDims ? (it.count || 1) : 1,
-        quantity: it.quantity,
-        unit: it.unit || (hasDims ? 'م²' : 'حبة'),
-        unitPrice: it.unitPrice,
-        discount: it.discount || 0,
-        tax: it.tax || 0,
-        taxRate: it.taxRate,
-        total: it.total,
+        length: lengthVal,
+        width: widthVal,
+        count: countVal,
+        quantity: qtyVal,
+        unit: it.unit || (hasDims ? 'م²' : (invItem?.unit || 'حبة')),
+        unitPrice: unitPriceVal,
+        discount: discountVal,
+        tax: taxVal,
+        taxRate: it.taxRate !== undefined ? Number(it.taxRate) : undefined,
+        total: Number(calculatedLineTotal) || 0,
         attachments: it.attachments || [],
         imageThumbnail: it.imageThumbnail || invItem?.imageUrl || '',
-        inventoryItemId: it.itemId
+        inventoryItemId: it.itemId || invItem?.id
       };
     });
 
     setTableLines(loadedLines);
+    if (loadedLines.length > 0) {
+      setActiveRowId(loadedLines[0].id);
+    }
     setEditingPosInvoiceId(inv.id);
+    setTimeout(() => {
+      isInvoiceLoadingRef.current = false;
+    }, 100);
   };
 
-  
   // Handle Edit Mode from InvoicesView
   useEffect(() => {
-    if (currentEditingInvoiceIdRef.current || editingPosInvoiceId) {
-      const invToEdit = invoices.find(inv => inv.id === editingPosInvoiceId);
-      if (invToEdit) {
-        loadInvoiceToScreen(invToEdit);
+    if (editingPosInvoiceId) {
+      if (lastLoadedInvoiceIdRef.current !== editingPosInvoiceId) {
+        const invToEdit = invoices.find(inv => inv.id === editingPosInvoiceId);
+        if (invToEdit) {
+          loadInvoiceToScreen(invToEdit);
+        }
       }
+    } else {
+      lastLoadedInvoiceIdRef.current = null;
     }
   }, [editingPosInvoiceId, invoices]);
 
@@ -2947,6 +3006,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
   const handleClearInvoiceDirect = (silent = false) => {
     setEditingPosInvoiceId(null);
     currentEditingInvoiceIdRef.current = null;
+    lastLoadedInvoiceIdRef.current = null;
     setTableLines([
       {
         id: generateUniqueLineId(),

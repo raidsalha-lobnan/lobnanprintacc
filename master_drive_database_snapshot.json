@@ -13134,7 +13134,8 @@
           "notes": "ستاند 60×160",
           "barcode": "",
           "attachments": [],
-          "itemId": "inv-1790461128067"
+          "itemId": "inv-1790461128067",
+          "totalPrice": 120
         }
       ],
       "branchId": "br-1",
@@ -13241,7 +13242,8 @@
           "barcode": "",
           "discount": 0,
           "tax": 0,
-          "description": ""
+          "description": "",
+          "totalPrice": 350
         }
       ],
       "userId": "usr-1",
@@ -13309,7 +13311,8 @@
           "category": "print_raw",
           "description": "",
           "itemName": "مقوى A4  مطبوع",
-          "taxRate": 0
+          "taxRate": 0,
+          "totalPrice": 3
         }
       ],
       "baseTotalAmount": 3,
@@ -13363,7 +13366,8 @@
           "discount": 0,
           "taxRate": 0,
           "quantity": 4,
-          "hasDimensions": false
+          "hasDimensions": false,
+          "totalPrice": 280
         },
         {
           "itemCode": "PRI-0005",
@@ -13384,7 +13388,8 @@
           "notes": "",
           "discount": 0,
           "total": 150,
-          "description": ""
+          "description": "",
+          "totalPrice": 150
         },
         {
           "count": 1,
@@ -13405,7 +13410,8 @@
           "itemId": "inv-1790637265942",
           "description": "",
           "itemCode": "PRI-0002",
-          "length": 0
+          "length": 0,
+          "totalPrice": 27
         }
       ],
       "subtotal": 457,
@@ -13480,7 +13486,8 @@
           "itemName": "بوستر ورقي مطبوع",
           "tax": 0,
           "notes": "",
-          "category": "print_raw"
+          "category": "print_raw",
+          "totalPrice": 75
         }
       ],
       "currencySymbol": "₪",
@@ -13575,7 +13582,8 @@
           "unitPrice": 100,
           "attachments": [],
           "itemCode": "TEX-0001",
-          "length": 0
+          "length": 0,
+          "totalPrice": 200
         },
         {
           "unit": "م²",
@@ -13596,7 +13604,8 @@
           "count": 1,
           "description": "",
           "barcode": "",
-          "discount": 0
+          "discount": 0,
+          "totalPrice": 100
         }
       ],
       "cashPaidAmount": 0,
@@ -13657,7 +13666,8 @@
           "description": "",
           "unitPrice": 25,
           "itemCode": "PRI-0005",
-          "length": 0
+          "length": 0,
+          "totalPrice": 50
         },
         {
           "discount": 0,
@@ -13678,7 +13688,8 @@
           "itemCode": "PRI-0001",
           "notes": "ستاند 60×160",
           "description": "",
-          "unit": "م²"
+          "unit": "م²",
+          "totalPrice": 200
         },
         {
           "attachments": [],
@@ -13699,7 +13710,8 @@
           "unit": "حبة",
           "width": 0,
           "discount": 0,
-          "itemId": "inv-1791143738103"
+          "itemId": "inv-1791143738103",
+          "totalPrice": 500
         }
       ],
       "paymentMethod": "credit",
@@ -13778,7 +13790,8 @@
           "unit": "حبة",
           "unitPrice": 1,
           "imageThumbnail": "",
-          "itemCode": "PRI-0010"
+          "itemCode": "PRI-0010",
+          "totalPrice": 8
         }
       ],
       "subtotal": 8,
@@ -13862,7 +13875,8 @@
           "total": 48,
           "unitPrice": 1,
           "discount": 0,
-          "itemCode": "PRI-0010"
+          "itemCode": "PRI-0010",
+          "totalPrice": 48
         }
       ],
       "subtotal": 48,
@@ -13946,7 +13960,8 @@
           "hasDimensions": false,
           "description": "",
           "count": 1,
-          "width": 0
+          "width": 0,
+          "totalPrice": 41
         }
       ],
       "subtotal": 41,
@@ -14030,7 +14045,8 @@
           "discount": 0,
           "length": 0,
           "description": "",
-          "itemId": "inv-1791146215437"
+          "itemId": "inv-1791146215437",
+          "totalPrice": 30
         }
       ],
       "subtotal": 30,
@@ -14154,7 +14170,8 @@
           "discount": 0,
           "attachments": [],
           "length": 0,
-          "taxRate": 0
+          "taxRate": 0,
+          "totalPrice": 3
         }
       ],
       "currency": "ILS",
@@ -14199,7 +14216,8 @@
           "taxRate": 0,
           "notes": "ورقتين ملصق باركود | اسامة ظاهر",
           "tax": 0,
-          "total": 10
+          "total": 10,
+          "totalPrice": 10
         }
       ],
       "cashPaidAmount": 0,
@@ -14279,7 +14297,8 @@
           "tax": 0,
           "width": 0,
           "discount": 0,
-          "count": 1
+          "count": 1,
+          "totalPrice": 10
         }
       ],
       "customerName": "زبون نقدي",
@@ -14360,7 +14379,8 @@
           "width": 1,
           "barcode": "",
           "itemCode": "PRI-0001",
-          "count": 1
+          "count": 1,
+          "totalPrice": 100
         },
         {
           "taxRate": 0,
@@ -14382,7 +14402,8 @@
           "unit": "حبة",
           "attachments": [],
           "tax": 0,
-          "barcode": ""
+          "barcode": "",
+          "totalPrice": 80
         },
         {
           "itemId": "inv-1791155625486",
@@ -14404,7 +14425,8 @@
           "hasDimensions": false,
           "quantity": 5,
           "tax": 0,
-          "attachments": []
+          "attachments": [],
+          "totalPrice": 100
         }
       ],
       "cashPaidAmount": 0,
@@ -14507,7 +14529,8 @@
           "width": 0,
           "imageThumbnail": "",
           "unitPrice": 2,
-          "unit": "حبة"
+          "unit": "حبة",
+          "totalPrice": 2
         }
       ],
       "updatedAt": "2026-10-27T09:15:32.707Z"
@@ -14536,7 +14559,8 @@
           "total": 15,
           "taxRate": 0,
           "itemId": "srv-delivery",
-          "notes": "خدمة توصيل مباشر"
+          "notes": "خدمة توصيل مباشر",
+          "totalPrice": 15
         },
         {
           "category": "cat_1791143583032",
@@ -14558,7 +14582,8 @@
           "tax": 0,
           "unitPrice": 30,
           "count": 1,
-          "attachments": []
+          "attachments": [],
+          "totalPrice": 30
         }
       ],
       "bankTreasuryCode": "1105",
@@ -14649,7 +14674,8 @@
           "category": "services",
           "hasDimensions": false,
           "itemName": "خدمة توصيل",
-          "unitPrice": 15
+          "unitPrice": 15,
+          "totalPrice": 15
         },
         {
           "taxRate": 0,
@@ -14671,7 +14697,8 @@
           "barcode": "",
           "count": 1,
           "width": 0,
-          "discount": 0
+          "discount": 0,
+          "totalPrice": 60
         }
       ],
       "representative": "مندوب المبيعات الرئيسي",
@@ -14738,7 +14765,8 @@
           "attachments": [],
           "quantity": 8,
           "count": 1,
-          "width": 0
+          "width": 0,
+          "totalPrice": 240
         },
         {
           "itemCode": "PRI-0002",
@@ -14760,7 +14788,8 @@
           "tax": 0,
           "total": 3,
           "quantity": 1,
-          "discount": 0
+          "discount": 0,
+          "totalPrice": 3
         },
         {
           "discount": 0,
@@ -14782,7 +14811,8 @@
           "itemCode": "PRI-0011",
           "width": 0,
           "count": 1,
-          "hasDimensions": false
+          "hasDimensions": false,
+          "totalPrice": 10
         }
       ],
       "statusHistory": [
@@ -14858,7 +14888,8 @@
           "itemName": "مقوى A4  مطبوع",
           "length": 0,
           "tax": 0,
-          "unitPrice": 3
+          "unitPrice": 3,
+          "totalPrice": 24
         },
         {
           "notes": "محمد زقوت",
@@ -14880,7 +14911,8 @@
           "itemName": "طباعة ورق A4 ",
           "category": "print_raw",
           "description": "",
-          "hasDimensions": false
+          "hasDimensions": false,
+          "totalPrice": 28
         }
       ],
       "cashPaidAmount": 0,
@@ -14958,7 +14990,8 @@
           "barcode": "",
           "description": "",
           "hasDimensions": false,
-          "taxRate": 0
+          "taxRate": 0,
+          "totalPrice": 400
         }
       ],
       "subtotal": 400,
@@ -15042,7 +15075,8 @@
           "itemId": "inv-1791146215437",
           "hasDimensions": false,
           "category": "print_raw",
-          "total": 3
+          "total": 3,
+          "totalPrice": 3
         }
       ],
       "subtotal": 3,
@@ -15126,7 +15160,8 @@
           "itemName": "طباعة ورق A4 ",
           "discount": 0,
           "unit": "حبة",
-          "itemCode": "PRI-0010"
+          "itemCode": "PRI-0010",
+          "totalPrice": 5
         }
       ],
       "subtotal": 5,
@@ -15210,7 +15245,8 @@
           "itemId": "inv-1791146215437",
           "unit": "حبة",
           "attachments": [],
-          "length": 0
+          "length": 0,
+          "totalPrice": 11
         }
       ],
       "subtotal": 11,
@@ -15294,7 +15330,8 @@
           "hasDimensions": false,
           "unitPrice": 1,
           "total": 2,
-          "category": "print_raw"
+          "category": "print_raw",
+          "totalPrice": 2
         }
       ],
       "subtotal": 2,
@@ -15378,7 +15415,8 @@
           "itemName": "طباعة ورق A4 ",
           "barcode": "",
           "quantity": 30,
-          "taxRate": 0
+          "taxRate": 0,
+          "totalPrice": 30
         }
       ],
       "subtotal": 30,
@@ -15449,7 +15487,8 @@
           "quantity": 1,
           "unitPrice": 8,
           "totalPrice": 8,
-          "unit": "حبة"
+          "unit": "حبة",
+          "total": 8
         }
       ],
       "subtotal": 8,
@@ -15485,7 +15524,8 @@
           "quantity": 1,
           "unitPrice": 2000,
           "totalPrice": 2000,
-          "unit": "حبة"
+          "unit": "حبة",
+          "total": 2000
         }
       ],
       "subtotal": 2000,
@@ -15521,7 +15561,8 @@
           "quantity": 1,
           "unitPrice": 14,
           "totalPrice": 14,
-          "unit": "حبة"
+          "unit": "حبة",
+          "total": 14
         }
       ],
       "subtotal": 14,

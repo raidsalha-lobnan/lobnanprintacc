@@ -413,6 +413,17 @@ export const InvoicesView: React.FC = () => {
                   <td className="py-2 px-2 text-center whitespace-nowrap align-middle shrink-0">
                     <div className="flex items-center justify-center gap-1 whitespace-nowrap">
                       <button
+                        onClick={() => {
+                          setEditingPosInvoiceId(inv.id);
+                          setActiveTab('pos');
+                        }}
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded text-[10.5px] font-semibold cursor-pointer transition-colors border border-amber-200"
+                        title="تعديل الفاتورة في شاشة الكاشير والمبيعات"
+                      >
+                        <Edit3 className="w-3 h-3 text-amber-600" />
+                        <span>تعديل</span>
+                      </button>
+                      <button
                         onClick={() => setSelectedInvoiceForStatus(inv)}
                         className="flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[10.5px] font-semibold cursor-pointer transition-colors border border-blue-200"
                         title={`سجل توثيق حالات الفاتورة (${inv.statusHistory?.length || 1})`}
