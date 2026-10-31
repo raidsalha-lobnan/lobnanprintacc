@@ -597,68 +597,154 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
       inflow: number;  // مقبوضات واردة بالعملة الأساسية (شيكل)
       outflow: number; // مدفوعات منصرفة بالعملة الأساسية (شيكل)
       notes: string;
+      timestamp?: number;
     }
 
     const rows: TreasuryRow[] = [];
+    const seenTxKeys = new Set<string>();
 
-    // 1. Vouchers (قبض وصرف)
-    vouchers.forEach(v => {
-      const isMatch = selectedTreasuryCode === 'all' || v.accountCode === selectedTreasuryCode || v.treasuryAccountCode === selectedTreasuryCode;
-      if (isMatch) {
-        const treasury = treasuries.find(t => t.accountCode === v.accountCode || t.accountCode === v.treasuryAccountCode);
-        const actualCurr = v.currency || 'ILS';
-        const rate = v.exchangeRate || 1.0;
-        const actualAmt = v.amount;
-        const baseAmt = v.baseAmount ?? (actualAmt * rate);
+    const getCleanDate = (d?: string) => {
+      if (!d) return '';
+      return d.split('T')[0];
+    };
+
+    // 1. Primary Source: All transactions recorded on the target treasuries (t.transactions)
+    targetTreasuries.forEach(t => {
+      (t.transactions || []).forEach(tx => {
+        const cleanDate = getCleanDate(tx.date);
+        const actualCurr = tx.currency || tx.actualCurrency || 'ILS';
+        const rate = Number(tx.exchangeRate) || 1.0;
+        const actualAmt = Math.abs(Number(tx.actualAmount !== undefined ? tx.actualAmount : tx.amount) || 0);
+        const baseAmt = Math.abs(Number(tx.baseAmount !== undefined ? tx.baseAmount : (actualAmt * rate)) || 0);
+        const isIncome = tx.type === 'deposit' || tx.type === 'transfer_in';
+
+        let opLabel = 'حركة مالية';
+        if (tx.referenceType === 'pos_sale' || tx.referenceType === 'invoice') {
+          opLabel = 'تحصيل مبيعات';
+        } else if (tx.type === 'transfer_in') {
+          opLabel = 'تحويل وارد';
+        } else if (tx.type === 'transfer_out') {
+          opLabel = 'تحويل صادر';
+        } else if (tx.referenceType === 'receipt' || (isIncome && (tx.voucherNumber?.startsWith('RCT-') || tx.voucherNumber?.startsWith('RC-')))) {
+          opLabel = 'سند قبض';
+        } else if (tx.referenceType === 'payment' || (!isIncome && (tx.voucherNumber?.startsWith('PV-') || tx.voucherNumber?.startsWith('PAY-')))) {
+          opLabel = 'سند صرف';
+        } else if (tx.referenceType === 'expense') {
+          opLabel = 'مصروفات نقدية';
+        } else if (tx.referenceType === 'purchase') {
+          opLabel = 'سداد مشتريات';
+        } else if (tx.referenceType === 'payroll') {
+          opLabel = 'صرف رواتب';
+        } else if (tx.referenceType === 'advance') {
+          opLabel = 'سلفة موظف';
+        } else {
+          opLabel = isIncome ? 'إيداع نقدي' : 'سحب نقدي';
+        }
+
+        const docNum = tx.voucherNumber || tx.referenceId || tx.id.slice(0, 10);
+        const party = tx.partyName || (tx.targetTreasuryName ? `إلى/من: ${tx.targetTreasuryName}` : '-');
+
+        // Deduplication tracking
+        const uniqueKey = `${t.accountCode}_${docNum}_${cleanDate}_${baseAmt}`;
+        seenTxKeys.add(uniqueKey);
+        if (docNum && docNum !== '-') seenTxKeys.add(`${t.accountCode}_${docNum}`);
 
         rows.push({
-          date: v.date,
-          treasuryName: treasury?.name || 'الخزينة',
-          type: v.type === 'receipt' ? 'سند قبض' : 'سند صرف',
-          docNumber: v.voucherNumber,
-          partyName: v.partyName || '-',
+          date: cleanDate,
+          treasuryName: t.name,
+          type: opLabel,
+          docNumber: docNum,
+          partyName: party,
           actualCurrency: actualCurr,
           actualAmount: actualAmt,
           exchangeRate: rate,
-          inflow: v.type === 'receipt' ? baseAmt : 0,
-          outflow: v.type === 'payment' ? baseAmt : 0,
-          notes: v.description || '-'
+          inflow: isIncome ? baseAmt : 0,
+          outflow: !isIncome ? baseAmt : 0,
+          notes: tx.description || '-',
+          timestamp: new Date(tx.date).getTime() || 0
         });
-      }
-    });
-
-    // 2. Treasury Internal Transfers (تحويلات الخزائن)
-    targetTreasuries.forEach(t => {
-      (t.transactions || []).forEach(tx => {
-        if (tx.referenceType === 'transfer' || tx.type === 'transfer_in' || tx.type === 'transfer_out') {
-          const actualCurr = tx.actualCurrency || 'ILS';
-          const rate = tx.exchangeRate || 1.0;
-          const actualAmt = tx.actualAmount ?? tx.amount;
-          const baseAmt = tx.baseAmount ?? (actualAmt * rate);
-          const isIncome = tx.type === 'transfer_in' || tx.type === 'deposit';
-
-          rows.push({
-            date: tx.date,
-            treasuryName: t.name,
-            type: tx.type === 'transfer_in' ? 'تحويل وارد' : 'تحويل صادر',
-            docNumber: tx.id.slice(0, 8),
-            partyName: tx.targetTreasuryName ? `طرف آخر: ${tx.targetTreasuryName}` : '-',
-            actualCurrency: actualCurr,
-            actualAmount: actualAmt,
-            exchangeRate: rate,
-            inflow: isIncome ? baseAmt : 0,
-            outflow: !isIncome ? baseAmt : 0,
-            notes: tx.description || 'تحويل مالي بين الصناديق'
-          });
-        }
       });
     });
 
+    // 2. Secondary Source: Sales Invoices with cash/card payment linked to target treasuries
+    invoices.forEach(inv => {
+      if ((inv.paidAmount || 0) <= 0) return;
+      
+      const invTreasuryCode = inv.treasuryAccountCode || 
+        (inv.paymentMethod === 'cash' ? (inv.cashTreasuryCode || '1101') : (inv.bankTreasuryCode || '1102'));
+      
+      const isMatch = selectedTreasuryCode === 'all' || selectedTreasuryCode === invTreasuryCode;
+      if (!isMatch) return;
+
+      const docNum = inv.invoiceNumber;
+      if (seenTxKeys.has(`${invTreasuryCode}_${docNum}`)) return;
+
+      const tObj = treasuries.find(t => t.accountCode === invTreasuryCode);
+      const cleanDate = getCleanDate(inv.date || inv.createdAt);
+      const curr = inv.currency || 'ILS';
+      const rate = Number(inv.exchangeRate) || 1.0;
+      const actualAmt = Number(inv.paidAmount) || 0;
+      const baseAmt = Number(inv.basePaidAmount) || (actualAmt * rate);
+
+      rows.push({
+        date: cleanDate,
+        treasuryName: tObj?.name || 'الصندوق',
+        type: 'تحصيل مبيعات (كاشير)',
+        docNumber: docNum,
+        partyName: inv.subCustomerName ? `${inv.customerName} / ${inv.subCustomerName}` : (inv.customerName || 'زبون نقدي'),
+        actualCurrency: curr,
+        actualAmount: actualAmt,
+        exchangeRate: rate,
+        inflow: baseAmt,
+        outflow: 0,
+        notes: inv.notes || inv.paymentNotes || `تحصيل فاتورة مبيعات رقم ${inv.invoiceNumber}`,
+        timestamp: new Date(inv.date || inv.createdAt || '').getTime() || 0
+      });
+    });
+
+    // 3. Secondary Source: Vouchers linked to target treasuries not already recorded
+    vouchers.forEach(v => {
+      const vTreasuryCode = v.treasuryAccountCode || v.accountCode;
+      const isMatch = selectedTreasuryCode === 'all' || selectedTreasuryCode === vTreasuryCode;
+      if (!isMatch) return;
+
+      const docNum = v.voucherNumber;
+      if (seenTxKeys.has(`${vTreasuryCode}_${docNum}`)) return;
+
+      const tObj = treasuries.find(t => t.accountCode === vTreasuryCode);
+      const cleanDate = getCleanDate(v.date);
+      const curr = v.currency || 'ILS';
+      const rate = Number(v.exchangeRate) || 1.0;
+      const actualAmt = Number(v.amount) || 0;
+      const baseAmt = Number(v.baseAmount) || (actualAmt * rate);
+      const isReceipt = v.type === 'receipt';
+
+      rows.push({
+        date: cleanDate,
+        treasuryName: tObj?.name || 'الخزينة',
+        type: isReceipt ? 'سند قبض' : 'سند صرف',
+        docNumber: docNum,
+        partyName: v.partyName || '-',
+        actualCurrency: curr,
+        actualAmount: actualAmt,
+        exchangeRate: rate,
+        inflow: isReceipt ? baseAmt : 0,
+        outflow: !isReceipt ? baseAmt : 0,
+        notes: v.description || '-',
+        timestamp: new Date(v.date).getTime() || 0
+      });
+    });
+
+    // Filter by date range
     const filtered = rows.filter(r => {
       if (fromDate && r.date < fromDate) return false;
       if (toDate && r.date > toDate) return false;
       return true;
-    }).sort((a, b) => b.date.localeCompare(a.date));
+    }).sort((a, b) => {
+      const cmp = b.date.localeCompare(a.date);
+      if (cmp !== 0) return cmp;
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
 
     const totalInflow = filtered.reduce((s, r) => s + r.inflow, 0);
     const totalOutflow = filtered.reduce((s, r) => s + r.outflow, 0);
@@ -698,7 +784,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
       targetHoldings,
       currencyMovements
     };
-  }, [treasuries, selectedTreasuryCode, vouchers, fromDate, toDate]);
+  }, [treasuries, selectedTreasuryCode, vouchers, invoices, fromDate, toDate]);
 
   // -------------------------------------------------------------
   // Financial Statements Data (Income & Balance Sheet)
