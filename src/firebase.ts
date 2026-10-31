@@ -25,7 +25,9 @@ import {
   where,
   orderBy,
   limit,
-  getDocFromServer
+  getDocFromServer,
+  persistentLocalCache,
+  persistentMultipleTabManager
 } from 'firebase/firestore';
 
 import firebaseConfig from '../firebase-applet-config.json';
@@ -44,28 +46,42 @@ export const auth = getAuth(app);
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    }),
     experimentalForceLongPolling: true
   }, firebaseConfig.firestoreDatabaseId);
 } catch {
   try {
     firestoreInstance = initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
     }, firebaseConfig.firestoreDatabaseId);
   } catch {
-    firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    try {
+      firestoreInstance = initializeFirestore(app, {
+        experimentalForceLongPolling: true
+      }, firebaseConfig.firestoreDatabaseId);
+    } catch {
+      firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    }
   }
 }
 
 export const db = firestoreInstance;
 
-console.log("Firestore initialized with database ID:", firebaseConfig.firestoreDatabaseId || '(default)');
+console.log("Firestore initialized with persistent local cache & database ID:", firebaseConfig.firestoreDatabaseId || '(default)');
 
 import { firebaseQuotaTracker } from './services/firebaseQuotaTracker';
 
 // Tracked wrappers for real-time accurate quota metering with preserved TypeScript overloaded signatures
-const trackedGetDoc = ((...args: any[]) => {
-  firebaseQuotaTracker.trackRead(1);
-  return (getDoc as any)(...args);
+const trackedGetDoc = (async (...args: any[]) => {
+  const snapshot = await (getDoc as any)(...args);
+  if (snapshot && snapshot.metadata?.fromCache !== true) {
+    firebaseQuotaTracker.trackRead(1);
+  }
+  return snapshot;
 }) as typeof getDoc;
 
 const trackedGetDocFromServer = ((...args: any[]) => {
@@ -75,10 +91,15 @@ const trackedGetDocFromServer = ((...args: any[]) => {
 
 const trackedGetDocs = (async (...args: any[]) => {
   const snapshot = await (getDocs as any)(...args);
-  if (snapshot && snapshot.docs) {
-    firebaseQuotaTracker.trackRead(snapshot.docs.length || 1);
-  } else {
-    firebaseQuotaTracker.trackRead(1);
+  if (snapshot) {
+    const fromCache = snapshot.metadata?.fromCache === true;
+    if (!fromCache) {
+      if (snapshot.docs) {
+        firebaseQuotaTracker.trackRead(snapshot.docs.length || 1);
+      } else {
+        firebaseQuotaTracker.trackRead(1);
+      }
+    }
   }
   return snapshot;
 }) as typeof getDocs;
@@ -107,13 +128,20 @@ const trackedOnSnapshot = ((...args: any[]) => {
     const originalCallback = args[callbackIndex];
     args[callbackIndex] = (snapshot: any) => {
       if (snapshot) {
-        if (typeof snapshot.docChanges === 'function') {
-          const changes = snapshot.docChanges();
-          if (changes && changes.length > 0) {
-            firebaseQuotaTracker.trackRead(changes.length);
+        // If snapshot data is served from local IndexedDB cache, 0 cloud quota is consumed!
+        const fromCache = snapshot.metadata?.fromCache === true;
+        if (!fromCache) {
+          if (typeof snapshot.docChanges === 'function') {
+            const changes = snapshot.docChanges();
+            if (changes && changes.length > 0) {
+              const serverChanges = changes.filter((c: any) => !c.doc?.metadata?.hasPendingWrites);
+              if (serverChanges.length > 0) {
+                firebaseQuotaTracker.trackRead(serverChanges.length);
+              }
+            }
+          } else if (snapshot.docs) {
+            firebaseQuotaTracker.trackRead(snapshot.docs.length);
           }
-        } else if (snapshot.docs) {
-          firebaseQuotaTracker.trackRead(snapshot.docs.length);
         }
       }
       return originalCallback(snapshot);

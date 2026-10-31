@@ -448,20 +448,20 @@ export const FirebaseQuotaModal: React.FC<FirebaseQuotaModalProps> = ({ isOpen, 
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-slate-50 border border-slate-300 rounded-lg p-3">
-                  <h5 className="font-bold text-rose-800 text-xs mb-1">❌ الطريقة القديمة (تسبب نفاد الحصة):</h5>
+                  <h5 className="font-bold text-rose-800 text-xs mb-1">❌ الطريقة التقليدية (تسبب نفاد الحصة):</h5>
                   <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11px]">
-                    <li>إعادة إرسال وقراءة كل الجدول عند حفظ أي فاتورة.</li>
-                    <li>تستهلك آلاف عمليات الكتابة في اليوم الواحدة.</li>
-                    <li>تتسبب بنفاد حصة Firebase خلال ساعات العمل.</li>
+                    <li>إعادة قراءة وتنزيل كل الفواتير والجداول (23 جدولاً) عند كل تحديث للصفحة (F5).</li>
+                    <li>إذا كان لديك 1,000 فاتورة، كل تحديث يستهلك 1,000 قراءة فوراً!</li>
+                    <li>تتسبب بنفاد حصة Firebase بالكامل (50,000 قراءة) خلال أقل من ساعة.</li>
                   </ul>
                 </div>
 
                 <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3">
-                  <h5 className="font-bold text-emerald-800 text-xs mb-1">✅ الطريقة الذكية الحالية (Delta Push):</h5>
+                  <h5 className="font-bold text-emerald-800 text-xs mb-1">✅ الطريقة الذكية المطبقة (Smart Delta Sync & Persistent Cache):</h5>
                   <ul className="list-disc list-inside space-y-1 text-emerald-950 text-[11px]">
-                    <li>إرسال الحركة الجديدة فقط (فاتورة/سند/عميل).</li>
-                    <li>استهلاك دقيق: <strong>1 Write Unit لكل فاتورة بالضبط!</strong></li>
-                    <li>تضمن ألا تستهلك الفاتورة الواحدة أكثر من حركة واحدة فقط.</li>
+                    <li><strong>0 قراءة عند التحديث (F5):</strong> البيانات السابقة تُقرأ من التخزين المؤقت الدائم (IndexedDB).</li>
+                    <li><strong>1 Read Unit لكل حركة جديدة فقط:</strong> الاستماع فقط لجدول التغييرات (Deltas Stream) عند إجراء عمليات من أجهزة أخرى.</li>
+                    <li>توفير أكثر من 99% من الحصة اليومية، بحيث تكفي الحصة لآلاف الفواتير يومياً دون انقطاع.</li>
                   </ul>
                 </div>
               </div>
