@@ -6,6 +6,7 @@ import {
   fuzzyMatchParties,
   fuzzyMatchEmployees,
   getDateRangeForPeriod,
+  parseCustomDateRange,
   generateStatementPdfBlob,
   generateTreasuryReportPdfBlob,
   generateSalesReportPdfBlob,
@@ -14,7 +15,14 @@ import {
 import { Party, Employee } from '../types';
 
 interface SessionState {
-  step: 'idle' | 'awaiting_customer_name' | 'awaiting_supplier_name' | 'awaiting_employee_name';
+  step:
+    | 'idle'
+    | 'awaiting_customer_name'
+    | 'awaiting_supplier_name'
+    | 'awaiting_employee_name'
+    | 'awaiting_custom_period';
+  targetPartyId?: string;
+  pendingDateRange?: { fromDate: string; toDate: string; label: string };
   lastActivity: number;
 }
 
@@ -106,8 +114,7 @@ export const TelegramBotIntegration: React.FC = () => {
 
     // Send Main Reports Menu
     const sendMainMenu = async (chatId: string) => {
-      updateSession(chatId, { step: 'idle' });
-      const currency = settingsRef.current.currency || '₪';
+      updateSession(chatId, { step: 'idle', targetPartyId: undefined, pendingDateRange: undefined });
       const facilityName = settingsRef.current.businessName || 'مطبعة ومكتبة لبنان';
 
       const menuText = `
@@ -146,10 +153,11 @@ export const TelegramBotIntegration: React.FC = () => {
     const sendPartyConfirmation = async (
       chatId: string,
       matches: { party: Party; score: number }[],
-      type: 'customer' | 'supplier'
+      type: 'customer' | 'supplier',
+      customRange?: { fromDate: string; toDate: string; label: string }
     ) => {
       const best = matches[0].party;
-      const currency = settingsRef.current.currency || '₪';
+      const currency = (settingsRef.current as any).currency || '₪';
       const typeLabel = type === 'customer' ? 'العميل' : 'المورد';
       const bal = best.balance || 0;
       const balText =
@@ -159,11 +167,16 @@ export const TelegramBotIntegration: React.FC = () => {
           ? `${Math.abs(bal).toFixed(2)} ${currency} (دائن / مستحق له)`
           : `0.00 ${currency} (خالص)`;
 
+      if (customRange) {
+        updateSession(chatId, { pendingDateRange: customRange });
+      }
+
       const text = `
 🔍 <b>نتيجة البحث عن ${typeLabel}:</b>
 هل تقصد: <b>${best.name}</b>؟
 📌 الرصيد الحالي: <b>${balText}</b>
 ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
+${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` : ''}
       `.trim();
 
       const inlineKeyboard: any[][] = [
@@ -191,9 +204,9 @@ ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
       });
     };
 
-    // Send period selection buttons for statement
+    // Send period selection buttons for statement (including custom from-to date selection)
     const sendPeriodSelection = async (chatId: string, party: Party) => {
-      const currency = settingsRef.current.currency || '₪';
+      const currency = (settingsRef.current as any).currency || '₪';
       const promptText = `
 ✅ <b>تم تحديد الحساب:</b>
 <b>${party.name}</b> (الرصيد: ${(party.balance || 0).toFixed(2)} ${currency})
@@ -206,12 +219,16 @@ ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
         replyMarkup: {
           inline_keyboard: [
             [
+              { text: '📅 اليوم فقط', callback_data: `period_today_${party.id}` },
               { text: '📅 هذا الشهر', callback_data: `period_this_month_${party.id}` },
-              { text: '🗓️ آخر 30 يوم', callback_data: `period_last_30_days_${party.id}` },
             ],
             [
+              { text: '🗓️ آخر 30 يوم', callback_data: `period_last_30_days_${party.id}` },
               { text: '📆 السنة الحالية', callback_data: `period_this_year_${party.id}` },
+            ],
+            [
               { text: '♾️ كافة الحركات', callback_data: `period_all_${party.id}` },
+              { text: '🎯 تحديد فترة مخصصة (من - إلى)', callback_data: `period_custom_${party.id}` },
             ],
             [{ text: '🔙 رجوع للقائمة', callback_data: 'menu_main' }],
           ],
@@ -219,11 +236,18 @@ ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
       });
     };
 
-    // Dispatch statement PDF
+    // Dispatch statement PDF (matching the exact on-screen format with nested item sub-tables)
     const dispatchStatementPdf = async (
       chatId: string,
       partyId: string,
-      period: 'this_month' | 'last_30_days' | 'this_year' | 'all'
+      period:
+        | 'today'
+        | 'this_month'
+        | 'last_month'
+        | 'last_30_days'
+        | 'this_year'
+        | 'all'
+        | { fromDate: string; toDate: string; label: string }
     ) => {
       const party = partiesRef.current.find(p => p.id === partyId);
       if (!party) {
@@ -231,10 +255,11 @@ ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
         return;
       }
 
-      const { fromDate, toDate, label: periodLabel } = getDateRangeForPeriod(period);
+      const { fromDate, toDate, label: periodLabel } =
+        typeof period === 'object' ? period : getDateRangeForPeriod(period);
 
       await TelegramService.sendMessage(
-        `⏳ <b>جاري تجهيز كشف الحساب التفصيلي...</b>\nالطرف: <b>${party.name}</b>\nالفترة: <b>${periodLabel}</b>\nيرجى الانتظار ثوانٍ معدودة.`,
+        `⏳ <b>جاري تجهيز كشف الحساب التفصيلي بالبنود الكاملة...</b>\nالطرف: <b>${party.name}</b>\nالفترة: <b>${periodLabel}</b>\nيرجى الانتظار لحظات معدودة.`,
         settingsRef.current,
         { chatId }
       );
@@ -266,7 +291,7 @@ ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
           periodLabel,
         });
 
-        const currency = settingsRef.current.currency || '₪';
+        const currency = (settingsRef.current as any).currency || '₪';
         const closingBal = statementResult.closingBalance || 0;
         const balLabel =
           closingBal > 0
@@ -276,17 +301,17 @@ ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
             : `خالص (0.00)`;
 
         const caption = `
-📄 <b>كشف حساب: ${party.name}</b>
+📄 <b>كشف حساب تفصيلي: ${party.name}</b>
 📅 الفترة: ${periodLabel}
 ➕ إجمالي السحوبات (مدين): ${statementResult.totalDebit.toFixed(2)} ${currency}
 ➖ إجمالي المقبوضات (دائن): ${statementResult.totalCredit.toFixed(2)} ${currency}
-🎯 صافي الرصيد المستحق: <b>${balLabel}</b>
+🎯 صافي الرصيد النهائي: <b>${balLabel}</b>
         `.trim();
 
         await TelegramService.sendDocument(blob, filename, caption, chatId, botToken);
 
         // Offer next actions
-        await TelegramService.sendMessage('هل ترغب في طلب كشف آخر؟', settingsRef.current, {
+        await TelegramService.sendMessage('هل ترغب في طلب كشف آخر أو تقرير جديد؟', settingsRef.current, {
           chatId,
           replyMarkup: {
             inline_keyboard: [
@@ -311,7 +336,7 @@ ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
     // Dispatch Treasury Report
     const dispatchTreasuryReport = async (chatId: string) => {
       const activeTreasuries = treasuriesRef.current;
-      const currency = settingsRef.current.currency || '₪';
+      const currency = (settingsRef.current as any).currency || '₪';
       const totalLiquidity = activeTreasuries.reduce((sum, t) => sum + (t.balance || 0), 0);
 
       const summaryLines = activeTreasuries
@@ -351,7 +376,7 @@ ${summaryLines}
     const dispatchSalesReport = async (chatId: string) => {
       const todayIso = new Date().toISOString().split('T')[0];
       const todayInvoices = invoicesRef.current.filter(inv => inv.date && inv.date.startsWith(todayIso));
-      const currency = settingsRef.current.currency || '₪';
+      const currency = (settingsRef.current as any).currency || '₪';
 
       const totalSales = todayInvoices.reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total || 0), 0);
       const paidSales = todayInvoices.reduce(
@@ -394,7 +419,7 @@ ${summaryLines}
     const dispatchInventoryReport = async (chatId: string) => {
       const items = inventoryRef.current;
       const lowStock = items.filter(it => it.category !== 'copy_scan' && it.stockQuantity <= it.minAlertQuantity);
-      const currency = settingsRef.current.currency || '₪';
+      const currency = (settingsRef.current as any).currency || '₪';
       const totalValuation = items.reduce((sum, it) => sum + it.stockQuantity * (it.purchasePrice || 0), 0);
 
       const preview = lowStock
@@ -435,7 +460,7 @@ ${preview ? `<b>أبرز النواقص:</b>\n${preview}\n${lowStock.length > 5 
     // Dispatch Expenses Report
     const dispatchExpensesReport = async (chatId: string) => {
       const allExpenses = expensesRef.current;
-      const currency = settingsRef.current.currency || '₪';
+      const currency = (settingsRef.current as any).currency || '₪';
       const currentMonthIso = new Date().toISOString().slice(0, 7);
 
       const thisMonthExpenses = allExpenses.filter(e => e.date && e.date.startsWith(currentMonthIso));
@@ -503,7 +528,7 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
         }
 
         if (data === 'menu_customer_statement' || data === 'retry_search_customer') {
-          updateSession(chatId, { step: 'awaiting_customer_name' });
+          updateSession(chatId, { step: 'awaiting_customer_name', targetPartyId: undefined, pendingDateRange: undefined });
           await TelegramService.sendMessage(
             '👤 <b>طلب كشف حساب عميل:</b>\nيرجى كتابة اسم العميل (أو جزء منه أو رقمه):',
             settingsRef.current,
@@ -518,7 +543,7 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
         }
 
         if (data === 'menu_supplier_statement' || data === 'retry_search_supplier') {
-          updateSession(chatId, { step: 'awaiting_supplier_name' });
+          updateSession(chatId, { step: 'awaiting_supplier_name', targetPartyId: undefined, pendingDateRange: undefined });
           await TelegramService.sendMessage(
             '🏢 <b>طلب كشف حساب مورد:</b>\nيرجى كتابة اسم المورد (أو جزء منه أو كوده):',
             settingsRef.current,
@@ -572,21 +597,56 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
           const partyId = data.replace('confirm_party_', '');
           const party = partiesRef.current.find(p => p.id === partyId);
           if (party) {
-            updateSession(chatId, { step: 'idle' });
-            await sendPeriodSelection(chatId, party);
+            // Check if there was already a pending custom date range
+            if (session.pendingDateRange) {
+              const pendingRange = session.pendingDateRange;
+              updateSession(chatId, { step: 'idle', pendingDateRange: undefined });
+              await dispatchStatementPdf(chatId, party.id, pendingRange);
+            } else {
+              updateSession(chatId, { step: 'idle' });
+              await sendPeriodSelection(chatId, party);
+            }
           } else {
             await TelegramService.sendMessage('❌ تعذر العثور على الطرف المحدد.', settingsRef.current, { chatId });
           }
           return;
         }
 
+        // Prompting for custom date range (من - إلى)
+        if (data.startsWith('period_custom_')) {
+          const targetPartyId = data.replace('period_custom_', '');
+          const party = partiesRef.current.find(p => p.id === targetPartyId);
+          if (party) {
+            updateSession(chatId, { step: 'awaiting_custom_period', targetPartyId });
+            await TelegramService.sendMessage(
+              `🎯 <b>تحديد فترة مخصصة لكشف الحساب:</b>\nالحساب: <b>${party.name}</b>\n\nيرجى كتابة أو إرسال تاريخ البداية والنهاية، مثلاً:\n<code>2026-10-01 إلى 2026-11-01</code>\nأو:\n<code>01-11-2026</code> (ليوم واحد فقط)\nأو:\n<code>من 01-10-2026 الى 31-10-2026</code>`,
+              settingsRef.current,
+              {
+                chatId,
+                replyMarkup: {
+                  inline_keyboard: [
+                    [
+                      { text: '📅 اليوم فقط', callback_data: `period_today_${party.id}` },
+                      { text: '📅 هذا الشهر', callback_data: `period_this_month_${party.id}` },
+                    ],
+                    [{ text: '❌ إلغاء ورجوع', callback_data: 'menu_main' }],
+                  ],
+                },
+              }
+            );
+          }
+          return;
+        }
+
         // Period selection for PDF generation
         if (data.startsWith('period_')) {
-          const parts = data.split('_'); // e.g. ['period', 'this', 'month', 'partyId'] or ['period', 'all', 'partyId']
-          let periodType: 'this_month' | 'last_30_days' | 'this_year' | 'all' = 'all';
+          let periodType: 'today' | 'this_month' | 'last_30_days' | 'this_year' | 'all' = 'all';
           let targetPartyId = '';
 
-          if (data.startsWith('period_this_month_')) {
+          if (data.startsWith('period_today_')) {
+            periodType = 'today';
+            targetPartyId = data.replace('period_today_', '');
+          } else if (data.startsWith('period_this_month_')) {
             periodType = 'this_month';
             targetPartyId = data.replace('period_this_month_', '');
           } else if (data.startsWith('period_last_30_days_')) {
@@ -643,23 +703,79 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
         return;
       }
 
-      // Check if user is in a specific awaiting step
-      if (session.step === 'awaiting_customer_name' || cleanText.startsWith('كشف حساب عميل ')) {
-        const query = cleanText.startsWith('كشف حساب عميل ')
-          ? cleanText.replace('كشف حساب عميل ', '').trim()
-          : cleanText;
-
-        const matches = fuzzyMatchParties(query, partiesRef.current, 'customer');
-
-        if (matches.length === 0) {
+      // Handling user typing custom dates (من - إلى)
+      if (session.step === 'awaiting_custom_period' && session.targetPartyId) {
+        const customRange = parseCustomDateRange(cleanText);
+        if (customRange) {
+          const partyId = session.targetPartyId;
+          updateSession(chatId, { step: 'idle', targetPartyId: undefined });
+          await dispatchStatementPdf(chatId, partyId, customRange);
+          return;
+        } else {
           await TelegramService.sendMessage(
-            `❌ عذراً، لم يتم العثور على أي عميل يطابق الاسم "<b>${query}</b>".\nيرجى إعادة كتابة الاسم بصيغة أخرى، أو النقر أدناه:`,
+            `⚠️ <b>تعذر فهم التاريخين المدخلين:</b> "<code>${cleanText}</code>"\n\nيرجى كتابتها بهذا الشكل:\n<code>2026-10-01 إلى 2026-11-01</code>\nأو:\n<code>01-11-2026</code> (ليوم واحد)\nأو اختيار فترة سريعة أدناه:`,
             settingsRef.current,
             {
               chatId,
               replyMarkup: {
                 inline_keyboard: [
-                  [{ text: '👤 إعادة المحاولة', callback_data: 'menu_customer_statement' }],
+                  [
+                    { text: '📅 اليوم فقط', callback_data: `period_today_${session.targetPartyId}` },
+                    { text: '📅 هذا الشهر', callback_data: `period_this_month_${session.targetPartyId}` },
+                  ],
+                  [{ text: '🏠 إلغاء ورجوع للقائمة', callback_data: 'menu_main' }],
+                ],
+              },
+            }
+          );
+          return;
+        }
+      }
+
+      // 3. Flexible statement detection: 'كشف قوافل غزة', 'كشف حساب ...', 'طلب كشف ...', or direct party names
+      const isStatementPrefix = /^(طلب\s+)?كشف(\s+حساب)?(\s+(عميل|مورد))?\s+/i.test(cleanText);
+      const isSupplierSpecific = /مورد/i.test(cleanText);
+
+      if (isStatementPrefix || session.step === 'awaiting_customer_name' || session.step === 'awaiting_supplier_name') {
+        const rawQuery = isStatementPrefix
+          ? cleanText.replace(/^(طلب\s+)?كشف(\s+حساب)?(\s+(عميل|مورد))?\s+/i, '').trim()
+          : cleanText;
+
+        const embeddedRange = parseCustomDateRange(rawQuery);
+        let query = rawQuery;
+        if (embeddedRange) {
+          query = rawQuery
+            .replace(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})|(\d{1,2}[-/.]\d{1,2}[-/.]\d{4})/g, '')
+            .replace(/\b(من|إلى|الى|تاريخ|فترة|يوم)\b/g, '')
+            .trim();
+        }
+
+        const filterType = isSupplierSpecific || session.step === 'awaiting_supplier_name'
+          ? 'supplier'
+          : session.step === 'awaiting_customer_name'
+          ? 'customer'
+          : 'all';
+
+        const matches = fuzzyMatchParties(query, partiesRef.current, filterType);
+
+        if (matches.length > 0) {
+          await sendPartyConfirmation(
+            chatId,
+            matches,
+            matches[0].party.type === 'supplier' ? 'supplier' : 'customer',
+            embeddedRange || undefined
+          );
+          return;
+        } else if (session.step !== 'idle') {
+          await TelegramService.sendMessage(
+            `❌ عذراً، لم يتم العثور على أي حساب يطابق الاسم "<b>${query}</b>".\nيرجى كتابة الاسم بصيغة أخرى، أو استخدام القائمة:`,
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [
+                  [{ text: '👤 كشف حساب عميل', callback_data: 'menu_customer_statement' }],
+                  [{ text: '🏢 كشف حساب مورد', callback_data: 'menu_supplier_statement' }],
                   [{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }],
                 ],
               },
@@ -667,56 +783,19 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
           );
           return;
         }
-
-        // We found matches! Ask user "هل تقصد ....." with inline buttons
-        await sendPartyConfirmation(chatId, matches, 'customer');
-        return;
       }
 
-      if (session.step === 'awaiting_supplier_name' || cleanText.startsWith('كشف حساب مورد ')) {
-        const query = cleanText.startsWith('كشف حساب مورد ')
-          ? cleanText.replace('كشف حساب مورد ', '').trim()
-          : cleanText;
-
-        const matches = fuzzyMatchParties(query, partiesRef.current, 'supplier');
-
-        if (matches.length === 0) {
-          await TelegramService.sendMessage(
-            `❌ عذراً، لم يتم العثور على أي مورد يطابق الاسم "<b>${query}</b>".\nيرجى إعادة كتابة الاسم بصيغة أخرى:`,
-            settingsRef.current,
-            {
-              chatId,
-              replyMarkup: {
-                inline_keyboard: [
-                  [{ text: '🏢 إعادة المحاولة', callback_data: 'menu_supplier_statement' }],
-                  [{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }],
-                ],
-              },
-            }
+      // Check if user directly typed a party name during idle state (e.g. 'قوافل غزة')
+      if (cleanText.length >= 2) {
+        const directMatches = fuzzyMatchParties(cleanText, partiesRef.current, 'all');
+        if (directMatches.length > 0 && directMatches[0].score >= 50) {
+          await sendPartyConfirmation(
+            chatId,
+            directMatches,
+            directMatches[0].party.type === 'supplier' ? 'supplier' : 'customer'
           );
           return;
         }
-
-        await sendPartyConfirmation(chatId, matches, 'supplier');
-        return;
-      }
-
-      // General "كشف حساب [الاسم]" direct phrase
-      if (cleanText.startsWith('كشف حساب ')) {
-        const query = cleanText.replace('كشف حساب ', '').trim();
-        const matches = fuzzyMatchParties(query, partiesRef.current, 'all');
-
-        if (matches.length === 0) {
-          await TelegramService.sendMessage(
-            `❌ لم يتم العثور على حساب باسم "<b>${query}</b>".`,
-            settingsRef.current,
-            { chatId }
-          );
-          return;
-        }
-
-        await sendPartyConfirmation(chatId, matches, 'customer');
-        return;
       }
 
       // Default fallback: prompt with main menu

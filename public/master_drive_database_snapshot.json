@@ -16,7 +16,7 @@
       "name": "الصندوق النقدي (الكاشير الرئيسي)",
       "id": "1101",
       "isSystem": true,
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": [],
       "items": []
     },
@@ -29,7 +29,7 @@
       "isSystem": true,
       "balance": 289,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": []
     },
     {
@@ -40,7 +40,7 @@
       "description": "متحصلات بطاقات الدفع الإلكتروني والفيزا",
       "type": "asset",
       "balance": 361,
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": [],
       "items": []
     },
@@ -52,7 +52,7 @@
       "id": "1104",
       "name": "سلف ومستحقات الموظفين",
       "type": "asset",
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": [],
       "items": []
     },
@@ -65,7 +65,7 @@
       "code": "1201",
       "isSystem": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "items": []
     },
     {
@@ -78,7 +78,7 @@
       "balance": -69842.8,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z"
+      "updatedAt": "2026-11-01T17:10:55.183Z"
     },
     {
       "id": "1302",
@@ -89,7 +89,7 @@
       "name": "مخزون خامات وأوراق وماكينات المطبعة",
       "type": "asset",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "items": []
     },
     {
@@ -101,7 +101,7 @@
       "isSystem": true,
       "code": "1501",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": []
     },
     {
@@ -113,7 +113,7 @@
       "id": "2101",
       "balance": 0,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "items": []
     },
     {
@@ -124,7 +124,7 @@
       "id": "2103",
       "name": "أمانات ضريبة القيمة المضافة (VAT)",
       "description": "صافي أمانات ضريبة القيمة المضافة",
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": [],
       "items": []
     },
@@ -137,7 +137,7 @@
       "type": "liability",
       "name": "أمانات ومستحقات خدمة التوصيل",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": []
     },
     {
@@ -148,7 +148,7 @@
       "description": "رأس المال المؤسس للمنشأة",
       "code": "3101",
       "isSystem": true,
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": [],
       "items": []
     },
@@ -160,7 +160,7 @@
       "isSystem": true,
       "description": "المسحوبات الشخصية وتغذية رأس المال الخاصة بالمالك",
       "code": "3102",
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": [],
       "items": []
     },
@@ -174,7 +174,7 @@
       "type": "equity",
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z"
+      "updatedAt": "2026-11-01T17:10:55.183Z"
     },
     {
       "code": "4101",
@@ -185,7 +185,7 @@
       "name": "إيرادات مبيعات المكتبة والقرطاسية",
       "isSystem": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "items": []
     },
     {
@@ -196,7 +196,7 @@
       "description": "إيرادات عقود الكروت والبروشورات واليافطات والطباعة",
       "code": "4102",
       "balance": 1300,
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": [],
       "items": []
     },
@@ -210,7 +210,7 @@
       "id": "4103",
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z"
+      "updatedAt": "2026-11-01T17:10:55.183Z"
     },
     {
       "name": "إيرادات متنوعة وأخرى",
@@ -221,7 +221,7 @@
       "code": "4201",
       "balance": 0,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "items": []
     },
     {
@@ -232,7 +232,7 @@
       "id": "5101",
       "type": "expense",
       "name": "تكلفة مبيعات القرطاسية والمطبوعات",
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "items": [],
       "payments": []
     },
@@ -244,7 +244,7 @@
       "isSystem": true,
       "type": "expense",
       "name": "تكلفة خامات وأحبار ومستهلكات الطباعة",
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "items": [],
       "payments": []
     },
@@ -258,7 +258,7 @@
       "balance": 0,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z"
+      "updatedAt": "2026-11-01T17:10:55.183Z"
     },
     {
       "id": "5202",
@@ -268,7 +268,7 @@
       "name": "إيجار المعرض والمطبعة",
       "type": "expense",
       "description": "إيجار المقر",
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": [],
       "items": []
     },
@@ -281,7 +281,7 @@
       "balance": 0,
       "name": "مصروفات الصيانة وقطع غيار الماكينات",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": []
     },
     {
@@ -293,7 +293,7 @@
       "balance": 0,
       "id": "5204",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z",
+      "updatedAt": "2026-11-01T17:10:55.183Z",
       "payments": []
     },
     {
@@ -306,7 +306,7 @@
       "code": "5205",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.018Z"
+      "updatedAt": "2026-11-01T17:10:55.183Z"
     }
   ],
   "journalEntries": [
@@ -20546,7 +20546,7 @@
           "notes": "مسجل بملف العميل"
         }
       ],
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "barcodeEntries": [],
       "_fromCloud": true,
       "imageUrl": null,
@@ -20588,7 +20588,7 @@
           "customerId": "pt-1791053034073"
         }
       ],
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "items": [],
       "sellingPrice3": null,
@@ -20614,7 +20614,7 @@
       "barcodeEntries": [],
       "unit": "حبة",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "_fromCloud": true,
       "warehouseStocks": {
@@ -20644,7 +20644,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.031Z"
+      "updatedAt": "2026-11-01T17:10:55.192Z"
     },
     {
       "description": "",
@@ -20670,7 +20670,7 @@
       },
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": []
     },
     {
@@ -20698,7 +20698,7 @@
       },
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": []
     },
     {
@@ -20723,7 +20723,7 @@
         "المستودع الرئيسي": 4
       },
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "payments": []
     },
@@ -20745,7 +20745,7 @@
       "barcodeEntries": [],
       "minAlertQuantity": 10,
       "isRawMaterial": true,
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "imageUrl": null,
       "payments": [],
       "customerSpecialPrices": [
@@ -20818,7 +20818,7 @@
       "name": "بوستر ورقي مطبوع",
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "warehouseStocks": {
         "المخزن الرئيسي": 1,
         "المستودع الرئيسي": 91
@@ -20909,7 +20909,7 @@
       "code": "PRI-0006",
       "barcode": "",
       "isFavorite": false,
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "payments": [],
       "_fromCloud": true
@@ -20931,7 +20931,7 @@
       "barcodeEntries": [],
       "purchasePrice": 25,
       "sellingPrice": 45,
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "warehouseStocks": {
         "المستودع الرئيسي": 38.1
@@ -21018,7 +21018,7 @@
       "description": "",
       "id": "inv-1791059489235",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "customerSpecialPrices": [
         {
           "customerName": "الجمعية الإسلامية - معسكر جباليا",
@@ -21059,7 +21059,7 @@
       "minAlertQuantity": 0,
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "warehouseStocks": {
         "المخزن الرئيسي": 4,
@@ -21088,7 +21088,7 @@
       "warehouseStocks": {
         "المستودع الرئيسي": 7
       },
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": []
     },
     {
@@ -21108,7 +21108,7 @@
       "minAlertQuantity": 0,
       "barcodeEntries": [],
       "name": "مضاريف 11×23 مع طباعة",
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "warehouseStocks": {
         "المستودع الرئيسي": 208
       },
@@ -21133,7 +21133,7 @@
       "purchasePrice": 2,
       "barcodeEntries": [],
       "isRawMaterial": true,
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "items": [],
       "warehouseStocks": {
@@ -21159,7 +21159,7 @@
       "id": "inv-1791703358416-v1kxk",
       "lastMovementDate": "2026-10-08",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "_fromCloud": true,
       "warehouseStocks": {
@@ -21184,7 +21184,7 @@
       "sellingPrice": 350,
       "sellingPrice2": 400,
       "minAlertQuantity": 0,
-      "updatedAt": "2026-10-31T09:06:40.031Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "warehouseStocks": {
         "المستودع الرئيسي": 1
@@ -21230,7 +21230,7 @@
       "payments": [],
       "imageUrl": null,
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "warehouseStocks": {
         "المستودع الرئيسي": 17
       },
@@ -21256,7 +21256,7 @@
       "warehouseStocks": {
         "المستودع الرئيسي": 5
       },
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -21284,7 +21284,7 @@
         "المستودع الرئيسي": 5
       },
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.032Z"
+      "updatedAt": "2026-11-01T17:10:55.192Z"
     },
     {
       "sellingPrice": 60,
@@ -21304,7 +21304,7 @@
       "minAlertQuantity": 0,
       "id": "inv-1791224533183",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "customerSpecialPrices": [
         {
           "customerName": "الجمعية الإسلامية - معسكر جباليا",
@@ -21341,7 +21341,7 @@
       "lastMovementDate": "2026-10-01",
       "stockQuantity": 0,
       "category": "cat_1791143583032",
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "warehouseStocks": {
         "المستودع الرئيسي": 5
       },
@@ -26302,7 +26302,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z"
+      "updatedAt": "2026-11-01T17:10:55.192Z"
     },
     {
       "id": "pt-1790461003689",
@@ -26328,7 +26328,7 @@
       "commercialRegister": "",
       "name": "الجمعية الإسلامية - مدينة بيت لاهيا",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "_fromCloud": true
     },
@@ -26354,7 +26354,7 @@
       "notes": "",
       "openingBalance": 411,
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "payments": []
     },
@@ -26390,7 +26390,7 @@
       "initialBalance": 0,
       "openingBalance": 0,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "_fromCloud": true
     },
@@ -26424,7 +26424,7 @@
       "openingBalance": 0,
       "initialBalance": 0,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -26448,7 +26448,7 @@
       "openingBalanceType": "debit",
       "creditLimit": 0,
       "code": "CUST-0006",
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -26468,7 +26468,7 @@
       "name": "فريق الشهيد أحمد ناصر",
       "openingBalanceDate": "2026-10-04",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "_fromCloud": true
     },
@@ -26488,7 +26488,7 @@
       "balance": 600,
       "creditLimit": 0,
       "phone": "",
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "_fromCloud": true,
       "items": []
@@ -26507,7 +26507,7 @@
       "openingBalance": 0,
       "initialBalance": 0,
       "creditLimit": 0,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -26529,7 +26529,7 @@
       "balance": 46,
       "creditLimit": 0,
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "payments": []
     },
@@ -26548,7 +26548,7 @@
       "specialPrices": {},
       "isSubCustomer": false,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "items": []
     },
@@ -26567,7 +26567,7 @@
       "openingBalanceDate": "2026-10-04",
       "creditLimit": 0,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -26586,7 +26586,7 @@
       "code": "CUST-0013",
       "initialBalance": 0,
       "openingBalance": 0,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "_fromCloud": true,
       "items": []
@@ -26607,7 +26607,7 @@
       "creditLimit": 0,
       "initialBalance": 0,
       "type": "customer",
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "_fromCloud": true,
       "items": []
@@ -26635,7 +26635,7 @@
       "isSubCustomer": false,
       "creditLimit": 0,
       "code": "CUST-0015",
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "items": [],
       "payments": []
@@ -26669,7 +26669,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z"
+      "updatedAt": "2026-11-01T17:10:55.192Z"
     },
     {
       "type": "customer",
@@ -26698,7 +26698,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z"
+      "updatedAt": "2026-11-01T17:10:55.192Z"
     },
     {
       "balance": 36,
@@ -26724,7 +26724,7 @@
       "commercialRegister": "",
       "email": "",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "items": []
     },
@@ -26752,7 +26752,7 @@
       "initialBalance": 0,
       "address": "",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "items": []
     },
@@ -26779,7 +26779,7 @@
       "commercialRegister": "",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": []
     },
     {
@@ -26807,7 +26807,7 @@
       "commercialRegister": "",
       "email": "",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -26833,7 +26833,7 @@
       "email": "",
       "type": "customer",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "_fromCloud": true
     },
@@ -26861,7 +26861,7 @@
       "contactPerson": "",
       "notes": "",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -26891,7 +26891,7 @@
       "balance": 200,
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": []
     },
     {
@@ -26910,7 +26910,7 @@
         "inv-1790461128067": 120,
         "inv-1791052957759": 120
       },
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -26926,7 +26926,7 @@
       "openingBalance": 0,
       "type": "customer",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.032Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "payments": []
     },
@@ -26942,7 +26942,7 @@
       "name": "غيث الخير - أبو عمر البراوي",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "payments": []
     },
     {
@@ -26961,7 +26961,7 @@
       },
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": []
     },
     {
@@ -26977,7 +26977,7 @@
       "type": "customer",
       "code": "CUST-0029",
       "name": "مسجد التوبة - دير البلح",
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -26995,7 +26995,7 @@
       "specialPrices": {
         "inv-1791059454989": 45
       },
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -27024,7 +27024,7 @@
       "items": [],
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.192Z"
     },
     {
       "balance": 2624,
@@ -27040,7 +27040,7 @@
       "name": "جمعية الشمال للتنمية والتطوير المجتمعي",
       "creditLimit": 0,
       "id": "pt-1791563706669",
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "items": [],
       "payments": []
@@ -27069,7 +27069,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.192Z"
     },
     {
       "taxNumber": "",
@@ -27094,7 +27094,7 @@
       "city": "",
       "type": "customer",
       "creditLimit": 0,
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -27123,7 +27123,7 @@
       "balance": 417,
       "phone": "",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.192Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -27151,7 +27151,7 @@
       "payments": [],
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.192Z"
     },
     {
       "balance": 15,
@@ -27169,7 +27169,7 @@
       "_fromCloud": true,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "openingBalanceType": "debit",
@@ -27184,7 +27184,7 @@
       "_fromCloud": true,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "balance": 0,
@@ -27202,7 +27202,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "name": "مدرسة جذور  التعليمية الخاصة",
@@ -27219,7 +27219,7 @@
         "inv-1791052957759": 130
       },
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -27239,7 +27239,7 @@
       },
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true
     },
     {
@@ -27256,7 +27256,7 @@
         "inv-1790637265942": 3
       },
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -27275,7 +27275,7 @@
       },
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -27290,7 +27290,7 @@
       "balance": 10,
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -27304,7 +27304,7 @@
       "code": "CUST-0047",
       "balance": 15,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -27324,7 +27324,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "name": "سماح أبو بركة",
@@ -27340,7 +27340,7 @@
         "inv-1791228730647": 5
       },
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -27357,7 +27357,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "name": "محمد المطوق",
@@ -27374,7 +27374,7 @@
       },
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -27391,7 +27391,7 @@
         "inv-1790637265942": 3
       },
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -27409,7 +27409,7 @@
         "inv-1791146215437": 3
       },
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -27426,7 +27426,7 @@
       "name": "رافع رمضان",
       "openingBalanceType": "debit",
       "openingBalanceDate": "2026-10-01",
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true,
       "items": []
@@ -27440,7 +27440,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "name": "مطبعة بكسل - أبو العبد مطر",
@@ -27457,7 +27457,7 @@
       "notes": "",
       "id": "pt-1791664778926",
       "code": "CUST-0054",
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "contactPerson": "",
       "items": [],
       "openingBalanceType": "debit",
@@ -27478,7 +27478,7 @@
       "isSubCustomer": true,
       "phone": "",
       "code": "SUB-0002",
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "id": "pt-sub-1792229388765",
       "balance": 957,
       "items": [],
@@ -27510,7 +27510,7 @@
       "name": "أحمد عيسى",
       "jobTitle": "مصمم",
       "department": "design",
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -27532,7 +27532,7 @@
       "jobTitle": "مصمم",
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "id": "emp-1791142539355",
@@ -27552,7 +27552,7 @@
       "allowances": 0,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "phone": "0599992615",
@@ -27571,7 +27571,7 @@
       "salaryType": "weekly",
       "allowances": 0,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -27590,7 +27590,7 @@
       "allowances": 0,
       "salaryType": "weekly",
       "salaryAmount": 300,
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "items": []
     },
@@ -27611,7 +27611,7 @@
       "department": "finishing",
       "paymentMethod": "bank_transfer",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -27630,7 +27630,7 @@
       "iban": "",
       "jobTitle": "مشرف عام",
       "id": "emp-1791142697668",
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "items": []
     },
@@ -27651,7 +27651,7 @@
       "code": "EMP-008",
       "phone": "+972 59-459-8881",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.033Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     }
   ],
@@ -27725,7 +27725,7 @@
       "id": "job-1791327643844",
       "customerName": "المبادرة الجزائرية الفلسطينية",
       "quantity": 2,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": [],
       "payments": []
@@ -27752,7 +27752,7 @@
       "customerName": "زبون نقدي",
       "id": "job-1791327611154",
       "deliveryDate": "2026-10-01",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -27781,7 +27781,7 @@
       "deliveryDate": "2026-10-01",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -27808,7 +27808,7 @@
       "totalPrice": 8,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true
     },
     {
@@ -27834,7 +27834,7 @@
       "remainingBalance": 0,
       "notes": "",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "items": []
     },
@@ -27861,7 +27861,7 @@
       "unitCost": 58.8,
       "paperType": "حسب مواصفات الفاتورة",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": []
     },
@@ -27890,7 +27890,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "createdAt": "2026-10-06",
@@ -27916,7 +27916,7 @@
       "quantity": 12,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true
     },
     {
@@ -27944,7 +27944,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "colorType": "ألوان كاملة",
@@ -27970,7 +27970,7 @@
       "depositPaid": 0,
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -27996,7 +27996,7 @@
       "createdAt": "2026-10-06",
       "status": "new",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -28023,7 +28023,7 @@
       "serviceType": "custom_print",
       "paperType": "حسب مواصفات الفاتورة",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -28052,7 +28052,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "status": "new",
@@ -28077,7 +28077,7 @@
       "customerName": "زبون نقدي",
       "id": "job-1791325312072",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "items": []
     },
@@ -28104,7 +28104,7 @@
       "colorType": "ألوان كاملة",
       "deliveryDate": "2026-10-01",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -28133,7 +28133,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "depositPaid": 9,
@@ -28160,7 +28160,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "createdAt": "2026-10-06",
@@ -28184,7 +28184,7 @@
       "depositPaid": 4,
       "customerId": "pt-1790460764568",
       "dimensions": "0 × 0 سم",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": [],
       "payments": []
@@ -28213,7 +28213,7 @@
       "customerId": "pt-1790460764568",
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true
     },
     {
@@ -28241,7 +28241,7 @@
       "_fromCloud": true,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "customerPhone": "",
@@ -28268,7 +28268,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "notes": "",
@@ -28293,7 +28293,7 @@
       "id": "job-1791325110574",
       "createdAt": "2026-10-06",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -28320,7 +28320,7 @@
       "customerPhone": "",
       "colorType": "ألوان كاملة",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -28347,7 +28347,7 @@
       "unitCost": 7,
       "createdAt": "2026-10-06",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -28374,7 +28374,7 @@
       "customerId": "pt-1790460764568",
       "customerPhone": "",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -28400,7 +28400,7 @@
       "quantity": 1,
       "title": "مقوى A4  مطبوع",
       "customerName": "يحيى خضر",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "items": [],
       "_fromCloud": true
@@ -28428,7 +28428,7 @@
       "orderNumber": "JOB-2026-0075",
       "quantity": 2,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -28454,7 +28454,7 @@
       "colorType": "ألوان كاملة",
       "id": "job-1791324774790",
       "associatedInvoiceId": "inv-pos-1791324774789",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -28484,7 +28484,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "id": "job-1791324707259",
@@ -28511,7 +28511,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "deliveryDate": "2026-10-01",
@@ -28535,7 +28535,7 @@
       "dimensions": "0 × 0 سم",
       "colorType": "ألوان كاملة",
       "title": "طباعة ورق A4 ",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true,
       "items": []
@@ -28564,7 +28564,7 @@
       "finishingOptions": [],
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -28592,7 +28592,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "finishingOptions": [],
@@ -28617,7 +28617,7 @@
       "remainingBalance": 285,
       "customerId": "pt-1791324255771",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -28646,7 +28646,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "depositPaid": 0,
@@ -28673,7 +28673,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "id": "job-1791324141652",
@@ -28698,7 +28698,7 @@
       "totalPrice": 29,
       "remainingBalance": 0,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -28724,7 +28724,7 @@
       "notes": "",
       "associatedInvoiceId": "inv-pos-1791324060523",
       "deliveryDate": "2026-10-01",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "items": [],
       "_fromCloud": true
@@ -28753,7 +28753,7 @@
       "deliveryDate": "2026-10-01",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -28780,7 +28780,7 @@
       "depositPaid": 6,
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -28807,7 +28807,7 @@
       "quantity": 1,
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -28832,7 +28832,7 @@
       "associatedInvoiceId": "inv-pos-1791235850596",
       "notes": "",
       "unitCost": 1.4,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "items": [],
       "_fromCloud": true
@@ -28861,7 +28861,7 @@
       "totalPrice": 70,
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -28889,7 +28889,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "remainingBalance": 0,
@@ -28913,7 +28913,7 @@
       "customerId": "pt-1790460764568",
       "finishingOptions": [],
       "dimensions": "0 × 0 سم",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -28941,7 +28941,7 @@
       "id": "job-1791235620853",
       "createdAt": "2026-10-05",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -28970,7 +28970,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "customerName": "زبون نقدي",
@@ -28995,7 +28995,7 @@
       "colorType": "ألوان كاملة",
       "notes": "أحمد المشهراوي",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": []
     },
@@ -29024,7 +29024,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "finishingOptions": [],
@@ -29051,7 +29051,7 @@
       "_fromCloud": true,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "id": "job-1791230944336",
@@ -29075,7 +29075,7 @@
       "deliveryDate": "2026-10-01",
       "finishingOptions": [],
       "paperType": "حسب مواصفات الفاتورة",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -29102,7 +29102,7 @@
       "customerId": "pt-1791153609820",
       "dimensions": "0 × 0 سم",
       "finishingOptions": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": [],
       "payments": []
@@ -29132,7 +29132,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "associatedInvoiceId": "inv-pos-1791227958515",
@@ -29157,7 +29157,7 @@
       "title": "مضاريف 11×23 مع طباعة",
       "createdAt": "2026-10-05",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -29184,7 +29184,7 @@
       "customerName": "مؤسسة 4TDK",
       "deliveryDate": "2026-10-01",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -29210,7 +29210,7 @@
       "orderNumber": "JOB-2026-0046",
       "serviceType": "custom_print",
       "paperType": "حسب مواصفات الفاتورة",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": [],
       "_fromCloud": true
@@ -29239,7 +29239,7 @@
       "id": "job-1791227958529",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -29266,7 +29266,7 @@
       "deliveryDate": "2026-10-01",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -29294,7 +29294,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "colorType": "ألوان كاملة",
@@ -29318,7 +29318,7 @@
       "createdAt": "2026-10-05",
       "customerPhone": "",
       "quantity": 1,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -29347,7 +29347,7 @@
       "totalPrice": 5,
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -29373,7 +29373,7 @@
       "customerId": "pt-1790460764568",
       "notes": "محمد زقوت",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -29400,7 +29400,7 @@
       "dimensions": "0 × 0 سم",
       "customerId": "pt-1791153609820",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -29426,7 +29426,7 @@
       "remainingBalance": 253,
       "quantity": 8,
       "createdAt": "2026-10-05",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true,
       "items": []
@@ -29455,7 +29455,7 @@
       "orderNumber": "JOB-2026-0037",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -29482,7 +29482,7 @@
       "title": "مطبوعات جلدية - جلد",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -29508,7 +29508,7 @@
       "remainingBalance": 75,
       "depositPaid": 0,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": []
     },
@@ -29535,7 +29535,7 @@
       "quantity": 1,
       "id": "job-1791224479414",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": []
     },
@@ -29561,7 +29561,7 @@
       "deliveryDate": "2026-10-01",
       "remainingBalance": 0,
       "id": "job-1791224382841",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -29590,7 +29590,7 @@
       "customerName": "جمعية قوافل الخير - غزة",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -29618,7 +29618,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "title": "طباعة ورق A4 ",
@@ -29645,7 +29645,7 @@
       "items": [],
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "title": "مقوى A4  مطبوع",
@@ -29669,7 +29669,7 @@
       "colorType": "ألوان كاملة",
       "id": "job-1791154373568",
       "unitCost": 3.5,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -29699,7 +29699,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "orderNumber": "JOB-2026-0027",
@@ -29724,7 +29724,7 @@
       "customerId": "pt-1790460764568",
       "title": "ختم دائري 4 سم قلاب",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -29751,7 +29751,7 @@
       "createdAt": "2026-10-04",
       "unitCost": 3.5,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": []
     },
@@ -29779,7 +29779,7 @@
       "dimensions": "0 × 0 سم",
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -29804,7 +29804,7 @@
       "serviceType": "custom_print",
       "customerName": "الجمعية الإسلامية - مدينة بيت لاهيا",
       "depositPaid": 0,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -29831,7 +29831,7 @@
       "status": "new",
       "associatedInvoiceId": "inv-pos-1791150772256",
       "totalPrice": 350,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -29858,7 +29858,7 @@
       "deliveryDate": "2026-10-04",
       "paperType": "حسب مواصفات الفاتورة",
       "remainingBalance": 0,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": [],
       "_fromCloud": true
@@ -29888,7 +29888,7 @@
       "payments": [],
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "orderNumber": "JOB-2026-0020",
@@ -29914,7 +29914,7 @@
       "customerName": "جمعية قوافل الخير - غزة",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -29940,7 +29940,7 @@
       "colorType": "ألوان كاملة",
       "customerName": "جمعية قوافل الخير - غزة",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -29967,7 +29967,7 @@
       "title": "مطبوعات جلدية - جلد",
       "remainingBalance": 120,
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -29994,7 +29994,7 @@
       "notes": "",
       "quantity": 4,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -30021,7 +30021,7 @@
       "createdAt": "2026-10-04",
       "customerId": "pt-1791059380400",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -30047,7 +30047,7 @@
       "unitCost": 3.5,
       "id": "job-1791147132628",
       "associatedInvoiceId": "inv-pos-1791146794821",
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -30076,7 +30076,7 @@
       "paperType": "حسب مواصفات الفاتورة",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -30103,7 +30103,7 @@
       "paperType": "حسب مواصفات الفاتورة",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -30129,7 +30129,7 @@
       "notes": "",
       "customerPhone": "",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": []
     },
@@ -30156,7 +30156,7 @@
       "orderNumber": "JOB-2026-0011",
       "remainingBalance": 300,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -30184,7 +30184,7 @@
       "deliveryDate": "2026-10-01",
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -30210,7 +30210,7 @@
       "customerId": "pt-1790460764568",
       "dimensions": "0 × 0 سم",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "items": []
     },
@@ -30238,7 +30238,7 @@
       "quantity": 2,
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": []
     },
     {
@@ -30264,7 +30264,7 @@
       "notes": "",
       "colorType": "ألوان كاملة",
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "_fromCloud": true
     },
@@ -30292,7 +30292,7 @@
       "colorType": "ألوان كاملة",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -30320,7 +30320,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z"
+      "updatedAt": "2026-11-01T17:10:55.193Z"
     },
     {
       "dimensions": "1 × 1 سم",
@@ -30345,7 +30345,7 @@
       "status": "new",
       "serviceType": "custom_print",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "items": [],
       "payments": []
     },
@@ -30372,7 +30372,7 @@
       "status": "new",
       "title": "خنم دائري 4سم قلاب",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -30399,7 +30399,7 @@
       "customerName": "الجمعية الإسلامية - مدينة بيت لاهيا",
       "totalPrice": 120,
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "_fromCloud": true,
       "items": []
     },
@@ -30427,7 +30427,7 @@
       "title": "مطبوعات جلدية - جلد",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "payments": []
     },
     {
@@ -30460,7 +30460,7 @@
           "itemId": "inv-1790637265942"
         }
       ],
-      "updatedAt": "2026-10-31T09:06:40.034Z",
+      "updatedAt": "2026-11-01T17:10:55.193Z",
       "id": "job-1792073325537",
       "_fromCloud": true,
       "notes": null,
@@ -30552,7 +30552,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "remainingAmount": 120,
       "totalAmount": 120,
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "customCustomerText": null,
       "subCustomerPhone": null,
       "paymentNotes": "لبنى أبو شمالة",
@@ -30637,7 +30637,7 @@
       "paymentStatus": "credit",
       "branchId": "br-1",
       "status": "unpaid",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerPhone": null,
       "paymentNotes": "مهند النواجحة",
       "_fromCloud": true
@@ -30716,7 +30716,7 @@
       "cashPaidAmount": 0,
       "taxRate": 0,
       "customerName": "يحيى خضر",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "paymentNotes": null,
       "subCustomerId": null,
       "subCustomerPhone": null,
@@ -30840,7 +30840,7 @@
       "baseTotalAmount": 457,
       "cashTreasuryCode": "1101",
       "userName": "م. رائد صالحة",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerName": null,
       "subCustomerId": null,
       "customCustomerText": null,
@@ -30922,7 +30922,7 @@
       "cashPaidAmount": 0,
       "customerId": "pt-1791059380400",
       "exchangeRate": 1,
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerId": null,
       "customCustomerText": null,
       "paymentNotes": null,
@@ -31025,7 +31025,7 @@
       "invoiceNumber": "INV-0006",
       "workflowStatus": "new",
       "status": "unpaid",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerName": null,
       "customCustomerText": null,
       "subCustomerId": null,
@@ -31149,7 +31149,7 @@
       "baseTotalAmount": 750,
       "currency": "ILS",
       "type": "pos",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerId": null,
       "subCustomerName": null,
       "paymentNotes": "جوال بي",
@@ -31239,7 +31239,7 @@
       "cashTreasuryCode": "1101",
       "branch": "الفرع الرئيسي  Main Branch",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.180Z"
     },
     {
       "id": "inv-pos-1793009073619-ahy08",
@@ -31323,7 +31323,7 @@
       "basePaidAmount": 48,
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.180Z"
     },
     {
       "id": "inv-pos-1793013272781-syedp",
@@ -31407,7 +31407,7 @@
       "additionalCharges": 0,
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.180Z"
     },
     {
       "id": "inv-pos-1793013292118-b5wmm",
@@ -31491,7 +31491,7 @@
       "bankPaidAmount": 30,
       "userId": "user-1789170883526",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.180Z"
     },
     {
       "basePaidAmount": 3,
@@ -31567,7 +31567,7 @@
       "currency": "ILS",
       "taxAmount": 0,
       "branchId": "br-1",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerPhone": null,
       "subCustomerName": null,
       "customCustomerText": null,
@@ -31649,7 +31649,7 @@
       "type": "pos",
       "workflowStatus": "new",
       "remainingAmount": 0,
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "paymentNotes": "اسماء صالحة",
@@ -31731,7 +31731,7 @@
       "userId": "usr-1",
       "representative": "مندوب المبيعات الرئيسي",
       "type": "pos",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "paymentNotes": "امين بركة",
       "customCustomerText": null,
       "subCustomerName": null,
@@ -31858,7 +31858,7 @@
       "workflowStatus": "new",
       "subtotal": 280,
       "paymentMethod": "credit",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "customCustomerText": null,
@@ -31941,7 +31941,7 @@
           "unit": "حبة"
         }
       ],
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "subCustomerName": null,
@@ -32046,7 +32046,7 @@
       "paymentStatus": "credit",
       "discountTotal": 0,
       "baseTotalAmount": 45,
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.719Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "paymentNotes": null,
@@ -32151,7 +32151,7 @@
       "date": "2026-10-01",
       "userName": "م. رائد صالحة",
       "warehouse": "المستودع الرئيسي",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.718Z",
       "subCustomerPhone": null,
       "customCustomerText": null,
       "subCustomerName": null,
@@ -32278,7 +32278,7 @@
       "date": "2026-10-01",
       "cashPaidAmount": 0,
       "notes": "",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.718Z",
       "subCustomerName": null,
       "subCustomerPhone": null,
       "paymentNotes": "جوال بي تاجر",
@@ -32383,7 +32383,7 @@
       "paymentMethod": "card",
       "notes": "محمد زقوت",
       "type": "pos",
-      "updatedAt": "2026-10-31T22:47:25.748Z",
+      "updatedAt": "2026-11-01T17:44:37.718Z",
       "customCustomerText": null,
       "subCustomerName": null,
       "subCustomerId": null,
@@ -32473,7 +32473,7 @@
       "isAccountingPosted": true,
       "branch": "الفرع الرئيسي  Main Branch",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.181Z"
     },
     {
       "id": "inv-pos-1793083952549-nybnv",
@@ -32557,7 +32557,7 @@
       "customCustomerText": null,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.181Z"
     },
     {
       "id": "inv-pos-1793083978779-vq65x",
@@ -32641,7 +32641,7 @@
       "subCustomerPhone": null,
       "paymentNotes": "علي مهنا",
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.181Z"
     },
     {
       "id": "inv-pos-1793084009596-x5kcy",
@@ -32725,7 +32725,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.181Z"
     },
     {
       "id": "inv-pos-1793084035003-pp2f0",
@@ -32809,7 +32809,7 @@
       "subCustomerId": null,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.181Z"
     },
     {
       "id": "inv-pos-1793086274830-jbmug",
@@ -32893,7 +32893,7 @@
       "additionalCharges": 0,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z"
+      "updatedAt": "2026-11-01T17:10:55.181Z"
     },
     {
       "id": "inv-pos-seq-27-real",
@@ -32963,7 +32963,7 @@
       "exchangeRate": 1,
       "warehouse": "المستودع الرئيسي",
       "userId": "usr-1",
-      "updatedAt": "2026-10-31T09:06:40.015Z",
+      "updatedAt": "2026-11-01T17:10:55.181Z",
       "_fromCloud": true
     },
     {
@@ -33034,7 +33034,7 @@
       "userName": "م. رائد صالحة",
       "userId": "usr-1",
       "warehouse": "المستودع الرئيسي",
-      "updatedAt": "2026-10-31T09:06:40.015Z",
+      "updatedAt": "2026-11-01T17:10:55.181Z",
       "_fromCloud": true
     },
     {
@@ -33105,7 +33105,7 @@
       "warehouse": "المستودع الرئيسي",
       "paymentNotes": "ميساء تمراز",
       "isAccountingPosted": true,
-      "updatedAt": "2026-10-31T09:06:40.015Z",
+      "updatedAt": "2026-11-01T17:10:55.181Z",
       "_fromCloud": true
     },
     {
@@ -34438,7 +34438,7 @@
       "paymentMethod": "card",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     },
     {
       "type": "receipt",
@@ -34453,7 +34453,7 @@
       "accountCode": "1201",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     },
     {
       "type": "receipt",
@@ -34468,7 +34468,7 @@
       "id": "vch-inv-inv-pos-1791225511753",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     },
     {
       "voucherNumber": "RCT-INV-0016",
@@ -34483,7 +34483,7 @@
       "paymentMethod": "card",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     },
     {
       "date": "2026-01-10",
@@ -34498,7 +34498,7 @@
       "description": "سند تحصيل فوري لفاتورة مبيعات رقم INV-0014",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     },
     {
       "type": "receipt",
@@ -34513,7 +34513,7 @@
       "accountCode": "1201",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     },
     {
       "voucherNumber": "RCT-INV-0012",
@@ -34528,7 +34528,7 @@
       "paymentMethod": "card",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     },
     {
       "partyId": "pt-1790460764568",
@@ -34543,7 +34543,7 @@
       "description": "سند تحصيل فوري لفاتورة مبيعات رقم INV-0010",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     },
     {
       "id": "vch-inv-inv-pos-1791146794821",
@@ -34558,7 +34558,7 @@
       "partyName": "زبون نقدي",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z"
+      "updatedAt": "2026-11-01T17:10:55.194Z"
     }
   ],
   "treasuries": [
@@ -34598,7 +34598,7 @@
       "payments": [],
       "createdAt": "2026-01-01",
       "notes": "الخزينة النقدية الرئيسية لمكتب المبيعات والكاشير والسيولة متعددة العملات (شيكل، دولار، دينار)",
-      "updatedAt": "2026-10-31T09:06:40.036Z",
+      "updatedAt": "2026-11-01T17:10:55.194Z",
       "items": [],
       "status": "active",
       "currencyBalances": {
@@ -34840,7 +34840,7 @@
       "status": "active",
       "createdAt": "2026-09-28",
       "items": [],
-      "updatedAt": "2026-10-31T09:06:40.036Z",
+      "updatedAt": "2026-11-01T17:10:55.194Z",
       "payments": [],
       "currencyBalances": {
         "ILS": 2112
@@ -35017,7 +35017,7 @@
       "accountNumber": null,
       "items": [],
       "notes": "رائد صالحة - ال باي - جوال باي - مال شات",
-      "updatedAt": "2026-10-31T09:06:40.036Z",
+      "updatedAt": "2026-11-01T17:10:55.194Z",
       "payments": [],
       "bankName": "الحساب البنكي",
       "status": "active"
@@ -35037,7 +35037,7 @@
       "items": [],
       "accountNumber": null,
       "notes": null,
-      "updatedAt": "2026-10-31T09:06:40.036Z",
+      "updatedAt": "2026-11-01T17:10:55.194Z",
       "currencyBalances": {
         "ILS": 0
       },
