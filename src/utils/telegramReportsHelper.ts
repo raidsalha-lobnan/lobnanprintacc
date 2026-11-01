@@ -1,10 +1,26 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Party, Employee, BusinessSettings, Treasury, Invoice, ExpenseItem, InventoryItem } from '../types';
-import { StatementResult } from './statementGenerator';
+import {
+  Party,
+  Employee,
+  BusinessSettings,
+  Treasury,
+  Invoice,
+  PurchaseInvoice,
+  ExpenseItem,
+  InventoryItem,
+  PaymentVoucher,
+  EmployeeAdvance,
+  EmployeeDeduction,
+  EmployeeIncentive,
+  PayrollSheet,
+} from '../types';
+import { StatementResult, generateEmployeeStatement } from './statementGenerator';
 import masterSnapshot from '../../master_drive_database_snapshot.json';
 
 const defaultLobnanBanner = (masterSnapshot as any)?.settings?.headerImageUrl || '';
+const defaultLobnanStamp = (masterSnapshot as any)?.settings?.stampUrl || '';
+const defaultLobnanSignature = (masterSnapshot as any)?.settings?.signatureUrl || '';
 
 /**
  * Normalizes Arabic text for flexible, error-tolerant comparison
@@ -738,6 +754,14 @@ export async function generateStatementPdfBlob(params: {
 
         <!-- 4. Bottom 4 Summary Cards -->
         ${bottomCardsHtml}
+
+        <!-- 5. Official Signatures and Lobnan Print Stamp -->
+        ${getReportSignaturesHtml({
+          rightLabel: 'المحاسب المسؤول',
+          centerLabel: isCustomer ? 'توقيع وختم العميل بالمطابقة' : 'مصادقة وختم المورد',
+          leftLabel: 'المدير المالي والاعتماد',
+          settings,
+        })}
       </div>
     </body>
     </html>
@@ -750,199 +774,753 @@ export async function generateStatementPdfBlob(params: {
   return { blob, filename };
 }
 
+/**
+ * Generates official report signature and stamp block
+ */
+export function getReportSignaturesHtml(params: {
+  rightLabel?: string;
+  centerLabel?: string;
+  leftLabel?: string;
+  settings?: BusinessSettings;
+}): string {
+  const {
+    rightLabel = 'المحاسب المسؤول',
+    centerLabel = 'المراجع والمحاسب',
+    leftLabel = 'المدير المالي والاعتماد',
+    settings,
+  } = params;
+
+  const stampUrl = settings?.stampUrl || defaultLobnanStamp;
+  const signatureUrl = settings?.signatureUrl || defaultLobnanSignature;
+
+  return `
+    <div style="margin-top: 22px; padding-top: 12px; border-top: 1px solid #cbd5e1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; text-align: center; font-size: 11px;">
+      <!-- Right: Preparation -->
+      <div style="display: flex; flex-direction: column; justify-content: space-between; min-height: 80px;">
+        <span style="font-weight: bold; color: #1e293b; font-size: 11.5px;">${rightLabel}</span>
+        <div style="border-bottom: 1px dashed #94a3b8; width: 75%; margin: 0 auto; height: 35px;"></div>
+      </div>
+
+      <!-- Center: Reviewer / Customer -->
+      <div style="display: flex; flex-direction: column; justify-content: space-between; min-height: 80px;">
+        <span style="font-weight: bold; color: #1e293b; font-size: 11.5px;">${centerLabel}</span>
+        <div style="border-bottom: 1px dashed #94a3b8; width: 75%; margin: 0 auto; height: 35px;"></div>
+      </div>
+
+      <!-- Left: Financial Manager & Official Stamp -->
+      <div style="display: flex; flex-direction: column; justify-content: space-between; min-height: 80px; position: relative;">
+        <span style="font-weight: bold; color: #1e293b; font-size: 11.5px;">${leftLabel}</span>
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 65px; position: relative;">
+          ${
+            stampUrl
+              ? `<img src="${stampUrl}" alt="Official Stamp" style="width: 78px; height: 78px; object-fit: contain; filter: contrast(1.15) saturate(1.1); transform: rotate(-4deg); mix-blend-mode: multiply;" />`
+              : ''
+          }
+          ${
+            signatureUrl
+              ? `<img src="${signatureUrl}" alt="Signature" style="position: absolute; bottom: 2px; max-height: 40px; max-width: 90px; object-fit: contain; mix-blend-mode: multiply; opacity: 0.85;" />`
+              : ''
+          }
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 /**
- * Generates an official treasury status & movements report as PDF
+ * Generates an official Customer Items Aggregated report (كشف مبيعات أصناف العميل)
  */
-export async function generateTreasuryReportPdfBlob(params: {
-  treasuries: Treasury[];
+export async function generateCustomerItemsPdfBlob(params: {
+  party: Party;
+  parentParty?: Party | null;
+  invoices: Invoice[];
   settings: BusinessSettings;
+  fromDate?: string;
+  toDate?: string;
 }): Promise<{ blob: Blob; filename: string }> {
-  const { treasuries, settings } = params;
+  const { party, parentParty, invoices, settings, fromDate, toDate } = params;
   const currency = settings.currency || '₪';
-  const totalBalance = treasuries.reduce((sum, t) => sum + (t.balance || 0), 0);
+  const displayName = getPartyFullDisplayName(party, parentParty);
 
-  const rowsHtml = treasuries
-    .map((t, idx) => {
-      const typeLabel =
-        t.type === 'cash_box'
-          ? 'صندوق نقدي'
-          : t.type === 'bank_account' || t.type === 'bank_app'
-          ? 'حساب بنكي'
-          : 'محفظة إلكترونية';
-      return `
-        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; border-bottom: 1px solid #cbd5e1;">
-          <td style="padding: 8px; text-align: center; border: 1px solid #cbd5e1;">${idx + 1}</td>
-          <td style="padding: 8px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold;">${t.name}</td>
-          <td style="padding: 8px; text-align: center; border: 1px solid #cbd5e1;">${typeLabel}</td>
-          <td style="padding: 8px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace;">${t.accountCode || '-'}</td>
-          <td style="padding: 8px; text-align: center; border: 1px solid #cbd5e1; font-weight: 800; color: ${(t.balance || 0) >= 0 ? '#047857' : '#b91c1c'}; font-size: 13px;">
-            ${(t.balance || 0).toFixed(2)} ${t.currency || currency}
-          </td>
-        </tr>
-      `;
-    })
-    .join('');
+  const displayFromDate = fromDate ? formatToDdMmYyyy(fromDate) : 'بداية التعامل';
+  const displayToDate = toDate ? formatToDdMmYyyy(toDate) : formatToDdMmYyyy(new Date().toISOString());
+
+  // Aggregate items
+  const map = new Map<string, {
+    itemName: string;
+    description?: string;
+    totalQuantity: number;
+    totalAmount: number;
+    lastDate: string;
+    invoiceCount: number;
+  }>();
+
+  invoices.forEach(inv => {
+    const isMatch = inv.customerId === party.id || inv.customerName === party.name;
+    if (!isMatch) return;
+    if (fromDate && inv.date < fromDate) return;
+    if (toDate && inv.date > toDate) return;
+
+    (inv.items || []).forEach(line => {
+      const key = line.itemId || line.itemName;
+      const name = line.itemName;
+      const qty = Number(line.quantity) || 1;
+      const lineTotal = Number(line.total) || (line.unitPrice * qty);
+
+      if (!map.has(key)) {
+        map.set(key, {
+          itemName: name,
+          description: line.notes || line.description || '',
+          totalQuantity: qty,
+          totalAmount: lineTotal,
+          lastDate: inv.date || '',
+          invoiceCount: 1,
+        });
+      } else {
+        const prev = map.get(key)!;
+        prev.totalQuantity += qty;
+        prev.totalAmount += lineTotal;
+        prev.invoiceCount += 1;
+        if (inv.date && inv.date > prev.lastDate) {
+          prev.lastDate = inv.date;
+        }
+      }
+    });
+  });
+
+  const items = Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  const totalQuantity = items.reduce((s, i) => s + i.totalQuantity, 0);
+  const totalAmount = items.reduce((s, i) => s + i.totalAmount, 0);
 
   const headerImageUrl = settings.headerImageUrl || (settings as any).letterheadUrl || defaultLobnanBanner;
   const headerBannerHtml = headerImageUrl
-    ? `<div style="width: 100%; text-align: center; margin-bottom: 8px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 140px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
+    ? `<div style="width: 100%; text-align: center; margin-bottom: 6px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 155px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
     : `<div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px;"><h2 style="margin: 0; color: #0f172a;">${settings.businessName || 'مطبعة ومكتبة لبنان'}</h2></div>`;
+
+  const rowsHtml = items.map((item, idx) => {
+    const avgPrice = item.totalQuantity > 0 ? item.totalAmount / item.totalQuantity : 0;
+    return `
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'}; border-bottom: 1px solid #cbd5e1;">
+        <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 32px;">${idx + 1}</td>
+        <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;">
+          ${item.itemName} ${item.description && item.description !== item.itemName ? `<span style="color: #64748b; font-weight: normal;"> / ${item.description}</span>` : ''}
+        </td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; color: #1e3a8a; font-family: monospace; width: 75px;">${item.totalQuantity}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; width: 75px;">${avgPrice.toFixed(2)}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 85px;">${item.totalAmount.toFixed(2)}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; width: 85px; font-size: 11px;">${item.lastDate || '-'}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; color: #2563eb; width: 65px;">${item.invoiceCount}</td>
+      </tr>
+    `;
+  }).join('');
 
   const htmlContent = `
     <!DOCTYPE html>
     <html dir="rtl" lang="ar">
     <head>
       <meta charset="UTF-8">
-      <title>كشف أرصدة الصناديق والخزائن</title>
+      <title>كشف مبيعات الأصناف للعميل - ${displayName}</title>
       <style>
         * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; direction: rtl; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 12px; background: #ffffff; color: #0f172a; direction: rtl; }
         .report-outer-container { border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px 16px; background: #ffffff; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
         th { background: #f1f5f9; color: #0f172a; padding: 6px 4px; font-size: 11.5px; border: 1px solid #94a3b8; text-align: center; font-weight: bold; }
-        .total-box { margin-top: 14px; padding: 10px 14px; background: #f8fafc; border: 1px solid #0f172a; border-radius: 6px; display: flex; justify-content: space-between; font-weight: bold; }
       </style>
     </head>
     <body>
       <div class="report-outer-container">
         ${headerBannerHtml}
-        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 10px;">
-          <h3 style="margin: 0; color: #1e3a8a; font-size: 15px; font-weight: 900;">تقرير أرصدة وحركات الصناديق والخزائن البنكية</h3>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}</p>
+        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px;">
+          <div style="font-size: 16px; font-weight: 900; color: #0f172a; line-height: 1.4;">
+            كشف مبيعات ومسحوبات الأصناف التراكمي: <span style="color: #1e3a8a;">${displayName}</span>
+          </div>
+          <div style="font-size: 12px; color: #475569; font-weight: 600; margin-top: 4px;">
+            من تاريخ: <span style="font-family: monospace;">${displayFromDate}</span> إلى تاريخ: <span style="font-family: monospace;">${displayToDate}</span>
+          </div>
         </div>
 
-        <table>
+        <!-- Summary Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+          <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 12px; text-align: center;">
+            <span style="font-size: 11px; color: #475569; font-weight: bold;">إجمالي قيمة المشتريات: </span>
+            <strong style="font-size: 14px; color: #1e3a8a; font-family: monospace;">${totalAmount.toFixed(2)} ${currency}</strong>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 12px; text-align: center;">
+            <span style="font-size: 11px; color: #475569; font-weight: bold;">إجمالي عدد الوحدات: </span>
+            <strong style="font-size: 14px; color: #047857; font-family: monospace;">${totalQuantity}</strong>
+          </div>
+        </div>
+
+        <table style="border: 1px solid #94a3b8;">
           <thead>
-            <tr>
-              <th style="width: 35px;">م</th>
-              <th>اسم الصندوق / الحساب البنكي</th>
-              <th style="width: 110px;">النوع</th>
-              <th style="width: 100px;">رقم الحساب</th>
-              <th style="width: 120px;">الرصيد الفعلي</th>
+            <tr style="background-color: #f1f5f9; color: #0f172a; font-weight: bold; border-bottom: 2px solid #94a3b8;">
+              <th style="width: 32px;">م</th>
+              <th>اسم الصنف والبيان</th>
+              <th style="width: 75px;">إجمالي الكمية</th>
+              <th style="width: 75px;">متوسط السعر</th>
+              <th style="width: 85px;">إجمالي القيمة</th>
+              <th style="width: 85px;">آخر سحب</th>
+              <th style="width: 65px;">الفواتير</th>
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml}
+            ${rowsHtml || '<tr><td colspan="7" style="padding: 16px; text-align: center; color: #64748b;">لا توجد مسحوبات أصناف مسجلة لهذا العميل خلال الفترة</td></tr>'}
           </tbody>
+          <tfoot style="background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #cbd5e1;">
+            <tr>
+              <td colspan="2" style="text-align: left; padding: 6px 12px; border: 1px solid #cbd5e1; font-size: 12px; color: #0f172a;">الإجمالي العام:</td>
+              <td style="text-align: center; font-weight: 800; color: #1e3a8a; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${totalQuantity}</td>
+              <td style="border: 1px solid #cbd5e1;"></td>
+              <td style="text-align: center; font-weight: 800; color: #0f172a; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${totalAmount.toFixed(2)} ${currency}</td>
+              <td colspan="2" style="border: 1px solid #cbd5e1;"></td>
+            </tr>
+          </tfoot>
         </table>
 
-        <div class="total-box">
-          <span>إجمالي السيولة النقدية والبنكية في كافة الخزائن:</span>
-          <span style="font-size: 15px; color: #047857; font-family: monospace;">${totalBalance.toFixed(2)} ${currency}</span>
-        </div>
+        ${getReportSignaturesHtml({
+          rightLabel: 'إعداد التقرير',
+          centerLabel: 'توقيع وختم العميل بالمطابقة',
+          leftLabel: 'المدير المالي والاعتماد',
+          settings,
+        })}
       </div>
     </body>
     </html>
   `;
 
   const blob = await renderHtmlToPdfBlob(htmlContent);
-  const filename = `تقرير_الخزائن_${new Date().toISOString().slice(0, 10)}.pdf`;
+  const safeName = party.name.replace(/[/\\?%*:|"<>]/g, '_');
+  const filename = `كشف_أصناف_${safeName}_${displayFromDate}_إلى_${displayToDate}.pdf`;
   return { blob, filename };
 }
 
 /**
- * Generates today's sales report as PDF
+ * Generates an official treasury movements & cash flow report as PDF
+ * Perfectly matches image_0bfa29be.png and ReportsView.tsx
  */
-export async function generateSalesReportPdfBlob(params: {
-  invoices: Invoice[];
+export async function generateTreasuryReportPdfBlob(params: {
+  treasuries: Treasury[];
+  vouchers?: PaymentVoucher[];
+  invoices?: Invoice[];
+  parties?: Party[];
   settings: BusinessSettings;
+  fromDate?: string;
+  toDate?: string;
+  selectedTreasuryCode?: string;
 }): Promise<{ blob: Blob; filename: string }> {
-  const { invoices, settings } = params;
-  const currency = settings.currency || '₪';
-  const todayIso = new Date().toISOString().split('T')[0];
+  const {
+    treasuries,
+    vouchers = [],
+    invoices = [],
+    parties = [],
+    settings,
+    fromDate,
+    toDate,
+    selectedTreasuryCode = 'all',
+  } = params;
 
-  const todayInvoices = invoices.filter(inv => inv.date && inv.date.startsWith(todayIso));
-  const totalSales = todayInvoices.reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total || 0), 0);
-  const paidSales = todayInvoices.reduce((sum, inv) => sum + (inv.paidAmount || (inv.paymentMethod === 'cash' ? inv.totalAmount : 0) || 0), 0);
-  const remainingSales = Math.max(0, totalSales - paidSales);
+  const currency = settings.currency || '₪';
+  const targetTreasuries = selectedTreasuryCode === 'all'
+    ? treasuries
+    : treasuries.filter(t => t.accountCode === selectedTreasuryCode);
+
+  const displayFromDate = fromDate ? formatToDdMmYyyy(fromDate) : 'بداية التعامل';
+  const displayToDate = toDate ? formatToDdMmYyyy(toDate) : formatToDdMmYyyy(new Date().toISOString());
+
+  // Collect and deduplicate movements
+  interface TreasuryMovementRow {
+    date: string;
+    treasuryName: string;
+    type: string;
+    docNumber: string;
+    partyName: string;
+    actualCurrency: string;
+    actualAmount: number;
+    exchangeRate: number;
+    inflow: number;
+    outflow: number;
+    notes: string;
+  }
+
+  const rows: TreasuryMovementRow[] = [];
+  const seenTxKeys = new Set<string>();
+
+  // 1. Transactions directly on target treasuries
+  targetTreasuries.forEach(t => {
+    (t.transactions || []).forEach(tx => {
+      const cleanDate = (tx.date || '').split('T')[0];
+      if (fromDate && cleanDate < fromDate) return;
+      if (toDate && cleanDate > toDate) return;
+
+      const actualCurr = tx.currency || tx.actualCurrency || 'ILS';
+      const rate = Number(tx.exchangeRate) || 1.0;
+      const actualAmt = Math.abs(Number(tx.actualAmount !== undefined ? tx.actualAmount : tx.amount) || 0);
+      const baseAmt = Math.abs(Number(tx.baseAmount !== undefined ? tx.baseAmount : actualAmt * rate) || 0);
+      const isIncome = tx.type === 'deposit' || tx.type === 'transfer_in';
+
+      let opLabel = isIncome ? 'إيداع نقدي' : 'سحب نقدي';
+      if (tx.referenceType === 'pos_sale' || tx.referenceType === 'invoice') opLabel = 'تحصيل مبيعات';
+      else if (tx.type === 'transfer_in') opLabel = 'تحويل وارد';
+      else if (tx.type === 'transfer_out') opLabel = 'تحويل صادر';
+      else if (tx.referenceType === 'receipt') opLabel = 'سند قبض';
+      else if (tx.referenceType === 'payment') opLabel = 'سند صرف';
+      else if (tx.referenceType === 'expense') opLabel = 'مصروفات نقدية';
+      else if (tx.referenceType === 'purchase') opLabel = 'سداد مشتريات';
+
+      const docNum = tx.voucherNumber || tx.referenceId || (tx.id || '').slice(0, 10) || '-';
+      const party = tx.partyName || (tx.targetTreasuryName ? `إلى/من: ${tx.targetTreasuryName}` : '-');
+
+      const uniqueKey = `${t.accountCode}_${docNum}_${cleanDate}_${baseAmt}`;
+      seenTxKeys.add(uniqueKey);
+      if (docNum && docNum !== '-') seenTxKeys.add(`${t.accountCode}_${docNum}`);
+
+      rows.push({
+        date: cleanDate,
+        treasuryName: t.name,
+        type: opLabel,
+        docNumber: docNum,
+        partyName: party,
+        actualCurrency: actualCurr,
+        actualAmount: actualAmt,
+        exchangeRate: rate,
+        inflow: isIncome ? baseAmt : 0,
+        outflow: !isIncome ? baseAmt : 0,
+        notes: tx.description || '-',
+      });
+    });
+  });
+
+  // 2. Vouchers linked to target treasuries not recorded yet
+  vouchers.forEach(v => {
+    const cleanDate = (v.date || '').split('T')[0];
+    if (fromDate && cleanDate < fromDate) return;
+    if (toDate && cleanDate > toDate) return;
+
+    const vTreasuryCode = v.treasuryAccountCode || v.accountCode;
+    const isMatch = selectedTreasuryCode === 'all' || selectedTreasuryCode === vTreasuryCode;
+    if (!isMatch) return;
+
+    const docNum = v.voucherNumber;
+    if (seenTxKeys.has(`${vTreasuryCode}_${docNum}`)) return;
+
+    const tObj = treasuries.find(t => t.accountCode === vTreasuryCode);
+    const isReceipt = v.type === 'receipt';
+    const curr = v.currency || 'ILS';
+    const rate = Number(v.exchangeRate) || 1.0;
+    const actualAmt = Number(v.amount) || 0;
+    const baseAmt = actualAmt * rate;
+
+    rows.push({
+      date: cleanDate,
+      treasuryName: tObj?.name || 'الصندوق',
+      type: isReceipt ? 'سند قبض' : 'سند صرف',
+      docNumber: docNum,
+      partyName: v.partyName || '-',
+      actualCurrency: curr,
+      actualAmount: actualAmt,
+      exchangeRate: rate,
+      inflow: isReceipt ? baseAmt : 0,
+      outflow: !isReceipt ? baseAmt : 0,
+      notes: v.description || '-',
+    });
+  });
+
+  rows.sort((a, b) => b.date.localeCompare(a.date));
+
+  const totalInflow = rows.reduce((s, r) => s + r.inflow, 0);
+  const totalOutflow = rows.reduce((s, r) => s + r.outflow, 0);
+  const netFlow = totalInflow - totalOutflow;
+
+  // Holdings in selected treasuries
+  const totalLiquidityILS = targetTreasuries.reduce((s, t) => s + (t.balance || 0), 0);
 
   const headerImageUrl = settings.headerImageUrl || (settings as any).letterheadUrl || defaultLobnanBanner;
   const headerBannerHtml = headerImageUrl
-    ? `<div style="width: 100%; text-align: center; margin-bottom: 8px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 140px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
+    ? `<div style="width: 100%; text-align: center; margin-bottom: 6px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 155px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
     : `<div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px;"><h2 style="margin: 0; color: #0f172a;">${settings.businessName || 'مطبعة ومكتبة لبنان'}</h2></div>`;
 
-  const rowsHtml = todayInvoices
-    .map((inv, idx) => {
-      const invTotal = inv.totalAmount || (inv as any).total || 0;
-      const invPaid = inv.paidAmount || (inv.paymentMethod === 'cash' ? invTotal : 0);
-      return `
-        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; border-bottom: 1px solid #cbd5e1;">
-          <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1;">${idx + 1}</td>
-          <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace;">${inv.invoiceNumber}</td>
-          <td style="padding: 6px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold;">${inv.customerName || 'زبون نقدي'}</td>
-          <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1;">${inv.paymentMethod === 'cash' ? 'نقدي' : inv.paymentMethod === 'credit' ? 'آجل' : 'شبكة/بنك'}</td>
-          <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace;">${invTotal.toFixed(2)}</td>
-          <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1; color: #047857; font-family: monospace;">${invPaid.toFixed(2)}</td>
-        </tr>
-      `;
-    })
-    .join('');
+  const rowsHtml = rows.map((r, idx) => `
+    <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'}; border-bottom: 1px solid #cbd5e1;">
+      <td style="padding: 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-size: 11px;">${r.date}</td>
+      <td style="padding: 4px 6px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold; font-size: 11px;">${r.treasuryName}</td>
+      <td style="padding: 4px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px;">${r.type}</td>
+      <td style="padding: 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #1e3a8a; font-size: 11px;">${r.docNumber}</td>
+      <td style="padding: 4px 6px; text-align: right; border: 1px solid #cbd5e1; font-size: 11px;">${r.partyName}</td>
+      <td style="padding: 4px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; font-size: 11px;">${r.actualAmount.toFixed(2)} ${r.actualCurrency === 'ILS' ? '₪' : r.actualCurrency}</td>
+      <td style="padding: 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-size: 10px; color: #64748b;">${r.exchangeRate.toFixed(4)}</td>
+      <td style="padding: 4px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #047857; font-size: 11px;">${r.inflow > 0 ? r.inflow.toFixed(2) : '-'}</td>
+      <td style="padding: 4px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #b91c1c; font-size: 11px;">${r.outflow > 0 ? r.outflow.toFixed(2) : '-'}</td>
+      <td style="padding: 4px 6px; text-align: right; border: 1px solid #cbd5e1; font-size: 10.5px; color: #475569; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.notes}</td>
+    </tr>
+  `).join('');
 
   const htmlContent = `
     <!DOCTYPE html>
     <html dir="rtl" lang="ar">
     <head>
       <meta charset="UTF-8">
-      <title>تقرير مبيعات اليوم</title>
+      <title>كشف حركات الصناديق والخزائن البنكية</title>
       <style>
         * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; direction: rtl; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 12px; background: #ffffff; color: #0f172a; direction: rtl; }
         .report-outer-container { border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px 16px; background: #ffffff; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
-        th { background: #f1f5f9; color: #0f172a; padding: 6px 4px; font-size: 11px; border: 1px solid #94a3b8; text-align: center; font-weight: bold; }
-        .summary-grid { display: flex; gap: 8px; margin-top: 14px; }
-        .stat-box { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+        th { background: #f1f5f9; color: #0f172a; padding: 5px 4px; font-size: 11px; border: 1px solid #94a3b8; text-align: center; font-weight: bold; }
       </style>
     </head>
     <body>
       <div class="report-outer-container">
         ${headerBannerHtml}
-        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 10px;">
-          <h3 style="margin: 0; color: #1e3a8a; font-size: 15px; font-weight: 900;">تقرير فواتير ومبيعات اليوم (${todayIso})</h3>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 10px;">
+          <div>
+            <span style="font-size: 10px; color: #0f766e; font-weight: bold; background: #f0fdfa; padding: 2px 6px; border-radius: 4px;">إدارة السيولة والخزائن</span>
+            <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-top: 2px;">كشف حركات الصناديق والحسابات البنكية</div>
+            <div style="font-size: 11px; color: #64748b; font-weight: 600;">تفاصيل التدفقات النقدية والعملات الفعلية وأسعار الصرف</div>
+            <div style="font-size: 11px; color: #475569; font-weight: bold; margin-top: 2px;">
+              من تاريخ: <span style="font-family: monospace;">${displayFromDate}</span> إلى تاريخ: <span style="font-family: monospace;">${displayToDate}</span>
+            </div>
+          </div>
+          
+          <div style="text-align: left; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 12px;">
+            <span style="font-size: 10.5px; color: #64748b; font-weight: bold; display: block;">الموجودات الفعلية في الصناديق المختارة:</span>
+            <strong style="font-size: 15px; color: #0f766e; font-family: monospace;">${totalLiquidityILS.toFixed(2)} ${currency}</strong>
+            <span style="font-size: 10px; color: #475569; display: block;">المعادل المحاسبي الإجمالي</span>
+          </div>
         </div>
 
-        <table>
+        <table style="border: 1px solid #94a3b8;">
           <thead>
-            <tr>
-              <th style="width: 32px;">م</th>
-              <th style="width: 90px;">رقم الفاتورة</th>
-              <th>اسم العميل</th>
-              <th style="width: 80px;">طريقة الدفع</th>
-              <th style="width: 85px;">الإجمالي (${currency})</th>
-              <th style="width: 85px;">المدفوع (${currency})</th>
+            <tr style="background-color: #f1f5f9; color: #0f172a; font-weight: bold; border-bottom: 2px solid #94a3b8;">
+              <th style="width: 75px;">التاريخ</th>
+              <th style="width: 90px;">الصندوق</th>
+              <th style="width: 75px;">العملية</th>
+              <th style="width: 70px;">المستند</th>
+              <th>الطرف / المستفيد</th>
+              <th style="width: 80px;">المبلغ الفعلي</th>
+              <th style="width: 50px;">الصرف</th>
+              <th style="width: 75px; color: #047857;">وارد (₪)</th>
+              <th style="width: 75px; color: #b91c1c;">منصرف (₪)</th>
+              <th style="width: 120px;">البيان والشرح</th>
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml || '<tr><td colspan="6" style="text-align: center; padding: 14px; color: #64748b;">لا توجد فواتير مبيعات مسجلة اليوم</td></tr>'}
+            ${rowsHtml || '<tr><td colspan="10" style="padding: 16px; text-align: center; color: #64748b;">لا توجد حركات مسجلة للصناديق خلال الفترة المحددة</td></tr>'}
           </tbody>
+          <tfoot style="background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #cbd5e1;">
+            <tr>
+              <td colspan="7" style="text-align: left; padding: 6px 12px; border: 1px solid #cbd5e1; font-size: 11.5px; color: #0f172a;">
+                إجمالي التدفقات المكافئة (شيكل) - صافي الحركة: <span style="font-family: monospace; color: ${netFlow >= 0 ? '#047857' : '#b91c1c'};">${netFlow.toFixed(2)} ₪</span>
+              </td>
+              <td style="text-align: center; font-weight: 800; color: #047857; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">+${totalInflow.toFixed(2)}</td>
+              <td style="text-align: center; font-weight: 800; color: #b91c1c; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">-${totalOutflow.toFixed(2)}</td>
+              <td style="border: 1px solid #cbd5e1;"></td>
+            </tr>
+          </tfoot>
         </table>
 
-        <div class="summary-grid">
-          <div class="stat-box">
-            <div style="font-size: 10px; color: #64748b;">عدد الفواتير</div>
-            <div style="font-size: 15px; font-weight: bold; color: #0f172a;">${todayInvoices.length}</div>
-          </div>
-          <div class="stat-box">
-            <div style="font-size: 10px; color: #64748b;">إجمالي مبيعات اليوم</div>
-            <div style="font-size: 15px; font-weight: bold; color: #047857; font-family: monospace;">${totalSales.toFixed(2)} ${currency}</div>
-          </div>
-          <div class="stat-box">
-            <div style="font-size: 10px; color: #64748b;">المدفوع نقداً/شبكة</div>
-            <div style="font-size: 15px; font-weight: bold; color: #1e3a8a; font-family: monospace;">${paidSales.toFixed(2)} ${currency}</div>
-          </div>
-          <div class="stat-box">
-            <div style="font-size: 10px; color: #64748b;">المتبقي آجل</div>
-            <div style="font-size: 15px; font-weight: bold; color: #b91c1c; font-family: monospace;">${remainingSales.toFixed(2)} ${currency}</div>
-          </div>
-        </div>
+        ${getReportSignaturesHtml({
+          rightLabel: 'مسؤول الصندوق',
+          centerLabel: 'المراجع الداخلي',
+          leftLabel: 'المدير المالي والاعتماد',
+          settings,
+        })}
       </div>
     </body>
     </html>
   `;
 
   const blob = await renderHtmlToPdfBlob(htmlContent);
-  const filename = `تقرير_مبيعات_اليوم_${todayIso}.pdf`;
+  const filename = `كشف_حركات_الصناديق_${displayFromDate}_إلى_${displayToDate}.pdf`;
+  return { blob, filename };
+}
+
+/**
+ * Generates today's / period sales report as PDF
+ */
+export async function generateSalesReportPdfBlob(params: {
+  invoices: Invoice[];
+  settings: BusinessSettings;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<{ blob: Blob; filename: string }> {
+  const { invoices, settings, fromDate, toDate } = params;
+  const currency = settings.currency || '₪';
+  const todayIso = new Date().toISOString().split('T')[0];
+
+  const targetFrom = fromDate || todayIso;
+  const targetTo = toDate || todayIso;
+
+  const displayFromDate = formatToDdMmYyyy(targetFrom);
+  const displayToDate = formatToDdMmYyyy(targetTo);
+
+  const filteredInvoices = invoices.filter(inv => {
+    const invDate = (inv.date || '').split('T')[0];
+    if (invDate < targetFrom) return false;
+    if (invDate > targetTo) return false;
+    return true;
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const totalSales = filteredInvoices.reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total || 0), 0);
+  const paidSales = filteredInvoices.reduce((sum, inv) => sum + (inv.paidAmount || (inv.paymentMethod === 'cash' ? inv.totalAmount : 0) || 0), 0);
+  const remainingSales = Math.max(0, totalSales - paidSales);
+
+  const headerImageUrl = settings.headerImageUrl || (settings as any).letterheadUrl || defaultLobnanBanner;
+  const headerBannerHtml = headerImageUrl
+    ? `<div style="width: 100%; text-align: center; margin-bottom: 6px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 155px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
+    : `<div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px;"><h2 style="margin: 0; color: #0f172a;">${settings.businessName || 'مطبعة ومكتبة لبنان'}</h2></div>`;
+
+  const rowsHtml = filteredInvoices.map((inv, idx) => {
+    const invTotal = inv.totalAmount || (inv as any).total || 0;
+    const invPaid = inv.paidAmount || (inv.paymentMethod === 'cash' ? invTotal : 0);
+    const invRemaining = Math.max(0, invTotal - invPaid);
+    const payMethod = inv.paymentMethod === 'cash' ? 'نقدي' : inv.paymentMethod === 'credit' ? 'آجل' : 'شبكة/بنك';
+
+    return `
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'}; border-bottom: 1px solid #cbd5e1;">
+        <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 32px;">${idx + 1}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 85px; color: #1e3a8a;">${inv.invoiceNumber}</td>
+        <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-size: 11px; width: 80px;">${inv.date || ''}</td>
+        <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;">${inv.customerName || 'زبون نقدي'}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px; width: 75px;">${payMethod}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 80px;">${invTotal.toFixed(2)}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; color: #047857; font-family: monospace; width: 80px;">${invPaid.toFixed(2)}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; color: #b91c1c; font-family: monospace; width: 80px;">${invRemaining.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8">
+      <title>تقرير فواتير ومبيعات الفترة</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 12px; background: #ffffff; color: #0f172a; direction: rtl; }
+        .report-outer-container { border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px 16px; background: #ffffff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
+        th { background: #f1f5f9; color: #0f172a; padding: 6px 4px; font-size: 11px; border: 1px solid #94a3b8; text-align: center; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="report-outer-container">
+        ${headerBannerHtml}
+        
+        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px;">
+          <div style="font-size: 16px; font-weight: 900; color: #0f172a; line-height: 1.4;">
+            تقرير فواتير ومبيعات الفترة
+          </div>
+          <div style="font-size: 12px; color: #475569; font-weight: 600; margin-top: 4px;">
+            من تاريخ: <span style="font-family: monospace;">${displayFromDate}</span> إلى تاريخ: <span style="font-family: monospace;">${displayToDate}</span>
+          </div>
+        </div>
+
+        <!-- Summary Grid -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; font-size: 11px;">
+          <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #64748b; font-size: 10px; font-weight: bold;">عدد الفواتير:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #0f172a; font-family: monospace;">${filteredInvoices.length}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #93c5fd; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #1e3a8a; font-size: 10px; font-weight: bold;">إجمالي المبيعات:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #1e3a8a; font-family: monospace;">${totalSales.toFixed(2)} ${currency}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #86efac; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #166534; font-size: 10px; font-weight: bold;">المدفوع نقداً/شبكة:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #047857; font-family: monospace;">${paidSales.toFixed(2)} ${currency}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #fca5a5; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #991b1b; font-size: 10px; font-weight: bold;">المتبقي ذمم آجلة:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #b91c1c; font-family: monospace;">${remainingSales.toFixed(2)} ${currency}</div>
+          </div>
+        </div>
+
+        <table style="border: 1px solid #94a3b8;">
+          <thead>
+            <tr style="background-color: #f1f5f9; color: #0f172a; font-weight: bold; border-bottom: 2px solid #94a3b8;">
+              <th style="width: 32px;">م</th>
+              <th style="width: 85px;">رقم الفاتورة</th>
+              <th style="width: 80px;">التاريخ</th>
+              <th>اسم العميل</th>
+              <th style="width: 75px;">طريقة الدفع</th>
+              <th style="width: 80px;">الإجمالي</th>
+              <th style="width: 80px;">المدفوع</th>
+              <th style="width: 80px;">المتبقي</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="8" style="padding: 16px; text-align: center; color: #64748b;">لا توجد فواتير مبيعات مسجلة خلال الفترة المحددة</td></tr>'}
+          </tbody>
+          <tfoot style="background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #cbd5e1;">
+            <tr>
+              <td colspan="5" style="text-align: left; padding: 6px 12px; border: 1px solid #cbd5e1; font-size: 11.5px; color: #0f172a;">الإجمالي العام:</td>
+              <td style="text-align: center; font-weight: 800; color: #0f172a; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${totalSales.toFixed(2)}</td>
+              <td style="text-align: center; font-weight: 800; color: #047857; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${paidSales.toFixed(2)}</td>
+              <td style="text-align: center; font-weight: 800; color: #b91c1c; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${remainingSales.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        ${getReportSignaturesHtml({
+          rightLabel: 'مسؤول المبيعات والكاشير',
+          centerLabel: 'المراجعة والتدقيق',
+          leftLabel: 'المدير المالي والاعتماد',
+          settings,
+        })}
+      </div>
+    </body>
+    </html>
+  `;
+
+  const blob = await renderHtmlToPdfBlob(htmlContent);
+  const filename = `تقرير_المبيعات_${displayFromDate}_إلى_${displayToDate}.pdf`;
+  return { blob, filename };
+}
+
+/**
+ * Generates Purchases Report as PDF
+ */
+export async function generatePurchasesReportPdfBlob(params: {
+  purchases: PurchaseInvoice[];
+  settings: BusinessSettings;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<{ blob: Blob; filename: string }> {
+  const { purchases, settings, fromDate, toDate } = params;
+  const currency = settings.currency || '₪';
+  const todayIso = new Date().toISOString().split('T')[0];
+
+  const targetFrom = fromDate || todayIso;
+  const targetTo = toDate || todayIso;
+
+  const displayFromDate = formatToDdMmYyyy(targetFrom);
+  const displayToDate = formatToDdMmYyyy(targetTo);
+
+  const filteredPurchases = purchases.filter(pur => {
+    const purDate = (pur.date || '').split('T')[0];
+    if (purDate < targetFrom) return false;
+    if (purDate > targetTo) return false;
+    return true;
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const totalPurchases = filteredPurchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+  const paidPurchases = filteredPurchases.reduce((sum, p) => sum + (p.paidAmount || (p.paymentMethod === 'cash' ? p.totalAmount : 0) || 0), 0);
+  const remainingPurchases = Math.max(0, totalPurchases - paidPurchases);
+
+  const headerImageUrl = settings.headerImageUrl || (settings as any).letterheadUrl || defaultLobnanBanner;
+  const headerBannerHtml = headerImageUrl
+    ? `<div style="width: 100%; text-align: center; margin-bottom: 6px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 155px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
+    : `<div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px;"><h2 style="margin: 0; color: #0f172a;">${settings.businessName || 'مطبعة ومكتبة لبنان'}</h2></div>`;
+
+  const rowsHtml = filteredPurchases.map((pur, idx) => {
+    const purTotal = pur.totalAmount || 0;
+    const purPaid = pur.paidAmount || (pur.paymentMethod === 'cash' ? purTotal : 0);
+    const purRem = Math.max(0, purTotal - purPaid);
+    const payMethod = pur.paymentMethod === 'cash' ? 'نقدي' : pur.paymentMethod === 'credit' ? 'آجل' : 'شيك/بنك';
+
+    return `
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'}; border-bottom: 1px solid #cbd5e1;">
+        <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 32px;">${idx + 1}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 85px; color: #1e3a8a;">${pur.invoiceNumber}</td>
+        <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-size: 11px; width: 80px;">${pur.date || ''}</td>
+        <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;">${pur.supplierName || 'مورد عام'}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px; width: 75px;">${payMethod}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 80px;">${purTotal.toFixed(2)}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; color: #047857; font-family: monospace; width: 80px;">${purPaid.toFixed(2)}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; color: #b91c1c; font-family: monospace; width: 80px;">${purRem.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8">
+      <title>تقرير فواتير المشتريات والتوريدات</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 12px; background: #ffffff; color: #0f172a; direction: rtl; }
+        .report-outer-container { border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px 16px; background: #ffffff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
+        th { background: #f1f5f9; color: #0f172a; padding: 6px 4px; font-size: 11px; border: 1px solid #94a3b8; text-align: center; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="report-outer-container">
+        ${headerBannerHtml}
+        
+        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px;">
+          <div style="font-size: 16px; font-weight: 900; color: #0f172a; line-height: 1.4;">
+            تقرير فواتير المشتريات والتوريدات
+          </div>
+          <div style="font-size: 12px; color: #475569; font-weight: 600; margin-top: 4px;">
+            من تاريخ: <span style="font-family: monospace;">${displayFromDate}</span> إلى تاريخ: <span style="font-family: monospace;">${displayToDate}</span>
+          </div>
+        </div>
+
+        <!-- Summary Grid -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; font-size: 11px;">
+          <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #64748b; font-size: 10px; font-weight: bold;">عدد الفواتير:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #0f172a; font-family: monospace;">${filteredPurchases.length}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #fca5a5; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #991b1b; font-size: 10px; font-weight: bold;">إجمالي المشتريات:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #b91c1c; font-family: monospace;">${totalPurchases.toFixed(2)} ${currency}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #86efac; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #166534; font-size: 10px; font-weight: bold;">المدفوع:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #047857; font-family: monospace;">${paidPurchases.toFixed(2)} ${currency}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #fcd34d; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #92400e; font-size: 10px; font-weight: bold;">المتبقي آجل:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #b45309; font-family: monospace;">${remainingPurchases.toFixed(2)} ${currency}</div>
+          </div>
+        </div>
+
+        <table style="border: 1px solid #94a3b8;">
+          <thead>
+            <tr style="background-color: #f1f5f9; color: #0f172a; font-weight: bold; border-bottom: 2px solid #94a3b8;">
+              <th style="width: 32px;">م</th>
+              <th style="width: 85px;">رقم الفاتورة</th>
+              <th style="width: 80px;">التاريخ</th>
+              <th>اسم المورد</th>
+              <th style="width: 75px;">طريقة الدفع</th>
+              <th style="width: 80px;">الإجمالي</th>
+              <th style="width: 80px;">المدفوع</th>
+              <th style="width: 80px;">المتبقي</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="8" style="padding: 16px; text-align: center; color: #64748b;">لا توجد فواتير مشتريات مسجلة خلال الفترة المحددة</td></tr>'}
+          </tbody>
+          <tfoot style="background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #cbd5e1;">
+            <tr>
+              <td colspan="5" style="text-align: left; padding: 6px 12px; border: 1px solid #cbd5e1; font-size: 11.5px; color: #0f172a;">الإجمالي العام:</td>
+              <td style="text-align: center; font-weight: 800; color: #b91c1c; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${totalPurchases.toFixed(2)}</td>
+              <td style="text-align: center; font-weight: 800; color: #047857; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${paidPurchases.toFixed(2)}</td>
+              <td style="text-align: center; font-weight: 800; color: #b45309; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${remainingPurchases.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        ${getReportSignaturesHtml({
+          rightLabel: 'مسؤول المشتريات والمستودع',
+          centerLabel: 'المراجعة والتدقيق',
+          leftLabel: 'المدير المالي والاعتماد',
+          settings,
+        })}
+      </div>
+    </body>
+    </html>
+  `;
+
+  const blob = await renderHtmlToPdfBlob(htmlContent);
+  const filename = `تقرير_المشتريات_${displayFromDate}_إلى_${displayToDate}.pdf`;
   return { blob, filename };
 }
 
@@ -960,32 +1538,30 @@ export async function generateInventoryReportPdfBlob(params: {
 
   const headerImageUrl = settings.headerImageUrl || (settings as any).letterheadUrl || defaultLobnanBanner;
   const headerBannerHtml = headerImageUrl
-    ? `<div style="width: 100%; text-align: center; margin-bottom: 8px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 140px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
+    ? `<div style="width: 100%; text-align: center; margin-bottom: 6px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 155px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
     : `<div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px;"><h2 style="margin: 0; color: #0f172a;">${settings.businessName || 'مطبعة ومكتبة لبنان'}</h2></div>`;
 
-
-  const rowsHtml = lowStock
-    .map((it, idx) => `
-      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; border-bottom: 1px solid #cbd5e1;">
-        <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1;">${idx + 1}</td>
-        <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace;">${it.code || '-'}</td>
-        <td style="padding: 6px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold;">${it.name}</td>
-        <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1; color: #b91c1c; font-weight: bold;">${it.stockQuantity}</td>
-        <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1;">${it.minAlertQuantity}</td>
-        <td style="padding: 6px; text-align: center; border: 1px solid #cbd5e1;">${it.sellingPrice?.toFixed(2)} ${currency}</td>
-      </tr>
-    `)
-    .join('');
+  const rowsHtml = lowStock.map((it, idx) => `
+    <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'}; border-bottom: 1px solid #cbd5e1;">
+      <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 32px;">${idx + 1}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; width: 80px;">${it.code || '-'}</td>
+      <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;">${it.name}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; color: #b91c1c; font-weight: bold; font-family: monospace; width: 85px;">${it.stockQuantity}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; width: 80px;">${it.minAlertQuantity}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; width: 85px;">${it.sellingPrice?.toFixed(2)} ${currency}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px; color: #b91c1c; font-weight: bold; width: 85px;">طلب توريد ⚠️</td>
+    </tr>
+  `).join('');
 
   const htmlContent = `
     <!DOCTYPE html>
     <html dir="rtl" lang="ar">
     <head>
       <meta charset="UTF-8">
-      <title>تقرير النواقص وتنبيهات المخزون</title>
+      <title>تقرير نواقص وتنبيهات المخزون</title>
       <style>
         * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; direction: rtl; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 12px; background: #ffffff; color: #0f172a; direction: rtl; }
         .report-outer-container { border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px 16px; background: #ffffff; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
         th { background: #f1f5f9; color: #0f172a; padding: 6px 4px; font-size: 11px; border: 1px solid #94a3b8; text-align: center; font-weight: bold; }
@@ -994,31 +1570,44 @@ export async function generateInventoryReportPdfBlob(params: {
     <body>
       <div class="report-outer-container">
         ${headerBannerHtml}
-        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 10px;">
-          <h3 style="margin: 0; color: #b91c1c; font-size: 15px; font-weight: 900;">تقرير النواقص والأصناف التي بلغت حد الطلب</h3>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}</p>
+        
+        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px;">
+          <div style="font-size: 16px; font-weight: 900; color: #b91c1c; line-height: 1.4;">
+            تقرير نواقص المخزون وتنبيهات حد الطلب
+          </div>
+          <div style="font-size: 12px; color: #475569; font-weight: 600; margin-top: 4px;">
+            تاريخ التقرير: <span style="font-family: monospace;">${formatToDdMmYyyy(new Date().toISOString())}</span>
+          </div>
         </div>
 
-        <table>
+        <table style="border: 1px solid #94a3b8;">
           <thead>
-            <tr>
-              <th style="width: 35px;">م</th>
+            <tr style="background-color: #f1f5f9; color: #0f172a; font-weight: bold; border-bottom: 2px solid #94a3b8;">
+              <th style="width: 32px;">م</th>
               <th style="width: 80px;">كود الصنف</th>
-              <th>اسم الصنف</th>
+              <th>اسم الصنف والبيان</th>
               <th style="width: 85px;">الرصيد الحالي</th>
-              <th style="width: 85px;">حد الطلب</th>
+              <th style="width: 80px;">حد الطلب</th>
               <th style="width: 85px;">سعر البيع</th>
+              <th style="width: 85px;">حالة الصنف</th>
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml || '<tr><td colspan="6" style="text-align: center; padding: 14px; color: #047857; font-weight: bold;">جميع الأصناف متوفرة ولا يوجد نواقص حالياً</td></tr>'}
+            ${rowsHtml || '<tr><td colspan="7" style="padding: 16px; text-align: center; color: #047857; font-weight: bold;">جميع الأصناف متوفرة ولا توجد أي نواقص حالياً</td></tr>'}
           </tbody>
         </table>
 
-        <div style="margin-top: 14px; padding: 10px 14px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; display: flex; justify-content: space-between; font-size: 12px;">
-          <span>إجمالي عدد الأصناف الناقصة: <b style="color: #b91c1c;">${lowStock.length} صنف</b></span>
-          <span>إجمالي القيمة التقديرية لكافة المخزون: <b style="font-family: monospace;">${totalInventoryValuation.toFixed(2)} ${currency}</b></span>
+        <div style="margin-top: 14px; padding: 10px 14px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; display: flex; justify-content: space-between; font-size: 12px;">
+          <span>إجمالي الأصناف التي بلغت حد الطلب: <b style="color: #b91c1c;">${lowStock.length} صنف</b></span>
+          <span>إجمالي القيمة التقديرية لكافة المخزون: <b style="font-family: monospace; color: #1e3a8a;">${totalInventoryValuation.toFixed(2)} ${currency}</b></span>
         </div>
+
+        ${getReportSignaturesHtml({
+          rightLabel: 'أمين المستودع والمخزن',
+          centerLabel: 'المراجعة والجرد',
+          leftLabel: 'المدير العام والاعتماد',
+          settings,
+        })}
       </div>
     </body>
     </html>
@@ -1028,3 +1617,318 @@ export async function generateInventoryReportPdfBlob(params: {
   const filename = `تقرير_نواقص_المخزون_${new Date().toISOString().slice(0, 10)}.pdf`;
   return { blob, filename };
 }
+
+/**
+ * Generates an official Employee Statement PDF
+ */
+export async function generateEmployeeStatementPdfBlob(params: {
+  employee: Employee;
+  vouchers: PaymentVoucher[];
+  advances?: EmployeeAdvance[];
+  deductions?: EmployeeDeduction[];
+  incentives?: EmployeeIncentive[];
+  payrollSheets?: PayrollSheet[];
+  invoices?: Invoice[];
+  purchases?: PurchaseInvoice[];
+  settings: BusinessSettings;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<{ blob: Blob; filename: string }> {
+  const {
+    employee,
+    vouchers,
+    advances = [],
+    deductions = [],
+    incentives = [],
+    payrollSheets = [],
+    invoices = [],
+    purchases = [],
+    settings,
+    fromDate,
+    toDate,
+  } = params;
+
+  const currency = settings.currency || '₪';
+  const displayFromDate = fromDate ? formatToDdMmYyyy(fromDate) : 'بداية العمل';
+  const displayToDate = toDate ? formatToDdMmYyyy(toDate) : formatToDdMmYyyy(new Date().toISOString());
+
+  const stmt = generateEmployeeStatement({
+    employee,
+    fromDate: fromDate || undefined,
+    toDate: toDate || undefined,
+    vouchers,
+    advances,
+    deductions,
+    incentives,
+    invoices,
+    purchases,
+    payrollSheets,
+  });
+
+  const headerImageUrl = settings.headerImageUrl || (settings as any).letterheadUrl || defaultLobnanBanner;
+  const headerBannerHtml = headerImageUrl
+    ? `<div style="width: 100%; text-align: center; margin-bottom: 6px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 155px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
+    : `<div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px;"><h2 style="margin: 0; color: #0f172a;">${settings.businessName || 'مطبعة ومكتبة لبنان'}</h2></div>`;
+
+  const rowsHtml = stmt.rows.map((r, idx) => `
+    <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'}; border-bottom: 1px solid #cbd5e1;">
+      <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 32px;">${idx + 1}</td>
+      <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-size: 11px; width: 85px;">${r.date}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px; width: 80px;">${r.typeLabel}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #1e3a8a; width: 80px;">${r.referenceNumber || '-'}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; color: #047857; font-family: monospace; width: 85px;">${r.entitlement > 0 ? r.entitlement.toFixed(2) : '-'}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; color: #b91c1c; font-family: monospace; width: 85px;">${(r.advance + r.deduction + r.disbursement) > 0 ? (r.advance + r.deduction + r.disbursement).toFixed(2) : '-'}</td>
+      <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: 800; font-family: monospace; width: 95px; background-color: #f8fafc;">${r.runningBalance.toFixed(2)}</td>
+      <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-size: 11px; color: #334155;">${r.description || '-'}</td>
+    </tr>
+  `).join('');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8">
+      <title>كشف حساب موظف - ${employee.name}</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 12px; background: #ffffff; color: #0f172a; direction: rtl; }
+        .report-outer-container { border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px 16px; background: #ffffff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
+        th { background: #f1f5f9; color: #0f172a; padding: 6px 4px; font-size: 11px; border: 1px solid #94a3b8; text-align: center; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="report-outer-container">
+        ${headerBannerHtml}
+        
+        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px;">
+          <div style="font-size: 16px; font-weight: 900; color: #0f172a; line-height: 1.4;">
+            كشف حساب موظف تفصيلي: <span style="color: #047857;">${employee.name}</span>
+          </div>
+          <div style="font-size: 12px; color: #475569; font-weight: 600; margin-top: 4px;">
+            من تاريخ: <span style="font-family: monospace;">${displayFromDate}</span> إلى تاريخ: <span style="font-family: monospace;">${displayToDate}</span>
+          </div>
+        </div>
+
+        <!-- Summary Grid -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; font-size: 11px;">
+          <div style="background: #ffffff; border: 1px solid #86efac; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #166534; font-size: 10px; font-weight: bold;">إجمالي الاستحقاقات (له):</span>
+            <div style="font-size: 14px; font-weight: bold; color: #047857; font-family: monospace;">${stmt.totalDue.toFixed(2)} ${currency}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #fca5a5; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #991b1b; font-size: 10px; font-weight: bold;">إجمالي المسدد والسلف (عليه):</span>
+            <div style="font-size: 14px; font-weight: bold; color: #b91c1c; font-family: monospace;">${stmt.totalPaid.toFixed(2)} ${currency}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #93c5fd; border-radius: 4px; padding: 6px 4px; text-align: center;">
+            <span style="color: #1e3a8a; font-size: 10px; font-weight: bold;">صافي الرصيد المستحق:</span>
+            <div style="font-size: 14px; font-weight: bold; color: #1e3a8a; font-family: monospace;">${stmt.closingBalance.toFixed(2)} ${currency}</div>
+          </div>
+        </div>
+
+        <table style="border: 1px solid #94a3b8;">
+          <thead>
+            <tr style="background-color: #f1f5f9; color: #0f172a; font-weight: bold; border-bottom: 2px solid #94a3b8;">
+              <th style="width: 32px;">م</th>
+              <th style="width: 85px;">التاريخ</th>
+              <th style="width: 80px;">نوع الحركة</th>
+              <th style="width: 80px;">المستند</th>
+              <th style="width: 85px; color: #047857;">استحقاقات (+)</th>
+              <th style="width: 85px; color: #b91c1c;">منصرفات (-)</th>
+              <th style="width: 95px;">الرصيد التراكمي</th>
+              <th>البيان والشرح</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="8" style="padding: 16px; text-align: center; color: #64748b;">لا توجد حركات مسجلة للموظف خلال الفترة المحددة</td></tr>'}
+          </tbody>
+          <tfoot style="background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #cbd5e1;">
+            <tr>
+              <td colspan="4" style="text-align: left; padding: 6px 12px; border: 1px solid #cbd5e1; font-size: 11.5px; color: #0f172a;">الإجمالي العام:</td>
+              <td style="text-align: center; font-weight: 800; color: #047857; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${stmt.totalDue.toFixed(2)}</td>
+              <td style="text-align: center; font-weight: 800; color: #b91c1c; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${stmt.totalPaid.toFixed(2)}</td>
+              <td style="text-align: center; font-weight: 800; color: #1e3a8a; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${stmt.closingBalance.toFixed(2)} ${currency}</td>
+              <td style="border: 1px solid #cbd5e1;"></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        ${getReportSignaturesHtml({
+          rightLabel: 'المحاسب المسؤول',
+          centerLabel: 'توقيع واستلام الموظف',
+          leftLabel: 'المدير العام والاعتماد',
+          settings,
+        })}
+      </div>
+    </body>
+    </html>
+  `;
+
+  const blob = await renderHtmlToPdfBlob(htmlContent);
+  const safeName = employee.name.replace(/[/\\?%*:|"<>]/g, '_');
+  const filename = `كشف_حساب_موظف_${safeName}_${displayFromDate}_إلى_${displayToDate}.pdf`;
+  return { blob, filename };
+}
+
+/**
+ * Generates an official Expenses & Operational Costs Report PDF
+ */
+export async function generateExpensesReportPdfBlob(params: {
+  expenses: ExpenseItem[];
+  settings: BusinessSettings;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<{ blob: Blob; filename: string }> {
+  const { expenses, settings, fromDate, toDate } = params;
+  const currency = settings.currency || '₪';
+  const todayIso = new Date().toISOString().split('T')[0];
+
+  const targetFrom = fromDate || todayIso.slice(0, 7) + '-01';
+  const targetTo = toDate || todayIso;
+
+  const displayFromDate = formatToDdMmYyyy(targetFrom);
+  const displayToDate = formatToDdMmYyyy(targetTo);
+
+  const filteredExpenses = expenses
+    .filter(e => {
+      const eDate = (e.date || '').split('T')[0];
+      if (eDate < targetFrom) return false;
+      if (eDate > targetTo) return false;
+      return true;
+    })
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const totalAmount = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  // Group by category
+  const categoriesMap: Record<string, number> = {};
+  filteredExpenses.forEach(e => {
+    const cat = e.categoryName || 'مصروفات عامة';
+    categoriesMap[cat] = (categoriesMap[cat] || 0) + (e.amount || 0);
+  });
+
+  const headerImageUrl = settings.headerImageUrl || (settings as any).letterheadUrl || defaultLobnanBanner;
+  const headerBannerHtml = headerImageUrl
+    ? `<div style="width: 100%; text-align: center; margin-bottom: 6px;"><img src="${headerImageUrl}" alt="مطبعة لبنان" style="width: 100%; max-height: 155px; object-fit: contain; display: block; margin: 0 auto;" /></div>`
+    : `<div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px;"><h2 style="margin: 0; color: #0f172a;">${settings.businessName || 'مطبعة ومكتبة لبنان'}</h2></div>`;
+
+  const rowsHtml = filteredExpenses
+    .map((e, idx) => {
+      const voucherNum = e.voucherNumber || '-';
+      const cat = e.categoryName || 'مصروفات عامة';
+      const treasury = e.treasuryName || 'الصندوق النقدي';
+      const beneficiary = e.beneficiary || '-';
+      const notes = e.notes || '-';
+
+      return `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'}; border-bottom: 1px solid #cbd5e1;">
+          <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 32px;">${idx + 1}</td>
+          <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-size: 11px; width: 85px;">${e.date || ''}</td>
+          <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #1e3a8a; width: 85px;">${voucherNum}</td>
+          <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;">${cat}</td>
+          <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px; width: 95px;">${beneficiary}</td>
+          <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px; width: 90px; color: #475569;">${treasury}</td>
+          <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: 800; color: #b91c1c; font-family: monospace; width: 85px;">${(e.amount || 0).toFixed(2)}</td>
+          <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-size: 11px; color: #334155;">${notes}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const catSummaryHtml = Object.entries(categoriesMap)
+    .map(
+      ([cat, amt]) => `
+      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px 8px; display: flex; justify-content: space-between; font-size: 11px;">
+        <span style="color: #475569;">${cat}:</span>
+        <strong style="color: #0f172a; font-family: monospace;">${amt.toFixed(2)} ${currency}</strong>
+      </div>
+    `
+    )
+    .join('');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8">
+      <title>تقرير المصروفات والنفقات التشغيلية</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 12px; background: #ffffff; color: #0f172a; direction: rtl; }
+        .report-outer-container { border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px 16px; background: #ffffff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
+        th { background: #f1f5f9; color: #0f172a; padding: 6px 4px; font-size: 11px; border: 1px solid #94a3b8; text-align: center; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="report-outer-container">
+        ${headerBannerHtml}
+        
+        <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px;">
+          <div style="font-size: 16px; font-weight: 900; color: #0f172a; line-height: 1.4;">
+            تقرير المصروفات والنفقات التشغيلية
+          </div>
+          <div style="font-size: 12px; color: #475569; font-weight: 600; margin-top: 4px;">
+            من تاريخ: <span style="font-family: monospace;">${displayFromDate}</span> إلى تاريخ: <span style="font-family: monospace;">${displayToDate}</span>
+          </div>
+        </div>
+
+        <!-- Summary Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+          <div style="background: #ffffff; border: 1px solid #fca5a5; border-radius: 4px; padding: 6px 12px; text-align: center;">
+            <span style="font-size: 11px; color: #991b1b; font-weight: bold;">إجمالي المصروفات: </span>
+            <strong style="font-size: 14px; color: #b91c1c; font-family: monospace;">${totalAmount.toFixed(2)} ${currency}</strong>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 12px; text-align: center;">
+            <span style="font-size: 11px; color: #475569; font-weight: bold;">عدد حركات الصرف: </span>
+            <strong style="font-size: 14px; color: #0f172a; font-family: monospace;">${filteredExpenses.length} حركة</strong>
+          </div>
+        </div>
+
+        ${
+          catSummaryHtml
+            ? `<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px;">${catSummaryHtml}</div>`
+            : ''
+        }
+
+        <table style="border: 1px solid #94a3b8;">
+          <thead>
+            <tr style="background-color: #f1f5f9; color: #0f172a; font-weight: bold; border-bottom: 2px solid #94a3b8;">
+              <th style="width: 32px;">م</th>
+              <th style="width: 85px;">التاريخ</th>
+              <th style="width: 85px;">رقم السند</th>
+              <th>التصنيف والبيان</th>
+              <th style="width: 95px;">المستفيد</th>
+              <th style="width: 90px;">الصندوق / المصدر</th>
+              <th style="width: 85px; color: #b91c1c;">المبلغ</th>
+              <th>الملاحظات</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="8" style="padding: 16px; text-align: center; color: #64748b;">لا توجد مصروفات مسجلة خلال هذه الفترة</td></tr>'}
+          </tbody>
+          <tfoot style="background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #cbd5e1;">
+            <tr>
+              <td colspan="6" style="text-align: left; padding: 6px 12px; border: 1px solid #cbd5e1; font-size: 11.5px; color: #0f172a;">الإجمالي العام:</td>
+              <td style="text-align: center; font-weight: 800; color: #b91c1c; padding: 6px; border: 1px solid #cbd5e1; font-family: monospace;">${totalAmount.toFixed(2)}</td>
+              <td style="border: 1px solid #cbd5e1;"></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        ${getReportSignaturesHtml({
+          rightLabel: 'المسؤول المالي والصرف',
+          centerLabel: 'المراجعة والتدقيق',
+          leftLabel: 'المدير العام والاعتماد',
+          settings,
+        })}
+      </div>
+    </body>
+    </html>
+  `;
+
+  const blob = await renderHtmlToPdfBlob(htmlContent);
+  const filename = `تقرير_المصروفات_${displayFromDate}_إلى_${displayToDate}.pdf`;
+  return { blob, filename };
+}
+

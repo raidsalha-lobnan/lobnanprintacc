@@ -8,20 +8,38 @@ import {
   getDateRangeForPeriod,
   parseCustomDateRange,
   generateStatementPdfBlob,
+  generateCustomerItemsPdfBlob,
   generateTreasuryReportPdfBlob,
   generateSalesReportPdfBlob,
+  generatePurchasesReportPdfBlob,
   generateInventoryReportPdfBlob,
+  generateExpensesReportPdfBlob,
+  generateEmployeeStatementPdfBlob,
 } from '../utils/telegramReportsHelper';
 import { Party, Employee } from '../types';
+
+export type ReportCategoryType =
+  | 'customer_statement'
+  | 'supplier_statement'
+  | 'customer_items'
+  | 'treasury_report'
+  | 'sales_report'
+  | 'purchases_report'
+  | 'inventory_report'
+  | 'expenses_report'
+  | 'employee_statement';
 
 interface SessionState {
   step:
     | 'idle'
     | 'awaiting_customer_name'
     | 'awaiting_supplier_name'
+    | 'awaiting_customer_items_party'
     | 'awaiting_employee_name'
     | 'awaiting_custom_period';
+  targetReportType?: ReportCategoryType;
   targetPartyId?: string;
+  targetEmployeeId?: string;
   pendingDateRange?: { fromDate: string; toDate: string; label: string };
   lastActivity: number;
 }
@@ -42,6 +60,10 @@ export const TelegramBotIntegration: React.FC = () => {
     inventory,
     expenses,
     employees,
+    employeeAdvances,
+    employeeDeductions,
+    employeeIncentives,
+    payrollSheets,
     updateSettings,
   } = useAccounting();
 
@@ -87,7 +109,19 @@ export const TelegramBotIntegration: React.FC = () => {
   const employeesRef = useRef(employees);
   employeesRef.current = employees;
 
-  // Session state per chat ID to manage multi-step conversations
+  const employeeAdvancesRef = useRef(employeeAdvances);
+  employeeAdvancesRef.current = employeeAdvances;
+
+  const employeeDeductionsRef = useRef(employeeDeductions);
+  employeeDeductionsRef.current = employeeDeductions;
+
+  const employeeIncentivesRef = useRef(employeeIncentives);
+  employeeIncentivesRef.current = employeeIncentives;
+
+  const payrollSheetsRef = useRef(payrollSheets);
+  payrollSheetsRef.current = payrollSheets;
+
+  // Session state per chat ID to manage interactive multi-step conversations
   const sessionsRef = useRef<Map<string, SessionState>>(new Map());
 
   const getSession = (chatId: string): SessionState => {
@@ -112,16 +146,22 @@ export const TelegramBotIntegration: React.FC = () => {
   useEffect(() => {
     if (!isEnabled || !botToken) return;
 
-    // Send Main Reports Menu
+    // Send Main Reports Menu (Mirrors in-app ReportsView tabs)
     const sendMainMenu = async (chatId: string) => {
-      updateSession(chatId, { step: 'idle', targetPartyId: undefined, pendingDateRange: undefined });
+      updateSession(chatId, {
+        step: 'idle',
+        targetReportType: undefined,
+        targetPartyId: undefined,
+        targetEmployeeId: undefined,
+        pendingDateRange: undefined,
+      });
       const facilityName = settingsRef.current.businessName || 'مطبعة ومكتبة لبنان';
 
       const menuText = `
-🏢 <b>مرحباً بك في المساعد المحاسبي الذكي</b>
+🏢 <b>المساعد المحاسبي الذكي - مركز التقارير</b>
 📌 <b>${facilityName}</b>
 
-يرجى اختيار التقرير المطلوب من القائمة التفاعلية:
+يرجى اختيار التقرير المطلوب استخراجه بصيغة PDF الرسمية:
       `.trim();
 
       await TelegramService.sendMessage(menuText, settingsRef.current, {
@@ -133,12 +173,16 @@ export const TelegramBotIntegration: React.FC = () => {
               { text: '🏢 كشف حساب مورد', callback_data: 'menu_supplier_statement' },
             ],
             [
-              { text: '💰 كشف حركة الصناديق', callback_data: 'menu_treasury_report' },
-              { text: '📊 مبيعات وفواتير اليوم', callback_data: 'menu_sales_report' },
+              { text: '📦 مبيعات أصناف عميل', callback_data: 'menu_customer_items' },
+              { text: '💰 حركة الصناديق والسيولة', callback_data: 'menu_treasury_report' },
             ],
             [
-              { text: '📦 نواقص المخزون', callback_data: 'menu_inventory_report' },
-              { text: '📑 ملخص المصروفات', callback_data: 'menu_expenses_report' },
+              { text: '📊 تقرير المبيعات', callback_data: 'menu_sales_report' },
+              { text: '🛒 تقرير المشتريات', callback_data: 'menu_purchases_report' },
+            ],
+            [
+              { text: '⚠️ نواقص المخزون', callback_data: 'menu_inventory_report' },
+              { text: '📑 تقرير المصروفات', callback_data: 'menu_expenses_report' },
             ],
             [
               { text: '👷 كشف حساب موظف', callback_data: 'menu_employee_statement' },
@@ -153,12 +197,17 @@ export const TelegramBotIntegration: React.FC = () => {
     const sendPartyConfirmation = async (
       chatId: string,
       matches: { party: Party; score: number }[],
-      type: 'customer' | 'supplier',
+      reportType: 'customer_statement' | 'supplier_statement' | 'customer_items',
       customRange?: { fromDate: string; toDate: string; label: string }
     ) => {
       const best = matches[0].party;
       const currency = (settingsRef.current as any).currency || '₪';
-      const typeLabel = type === 'customer' ? 'العميل' : 'المورد';
+      const typeLabel =
+        reportType === 'customer_items'
+          ? 'العميل'
+          : reportType === 'customer_statement'
+          ? 'العميل'
+          : 'المورد';
       const bal = best.balance || 0;
       const balText =
         bal > 0
@@ -167,12 +216,22 @@ export const TelegramBotIntegration: React.FC = () => {
           ? `${Math.abs(bal).toFixed(2)} ${currency} (دائن / مستحق له)`
           : `0.00 ${currency} (خالص)`;
 
-      if (customRange) {
-        updateSession(chatId, { pendingDateRange: customRange });
-      }
+      updateSession(chatId, {
+        targetReportType: reportType,
+        targetPartyId: best.id,
+        pendingDateRange: customRange,
+      });
+
+      const reportTitle =
+        reportType === 'customer_items'
+          ? 'كشف مبيعات ومسحوبات الأصناف'
+          : reportType === 'customer_statement'
+          ? 'كشف الحساب التفصيلي للعميل'
+          : 'كشف الحساب التفصيلي للمورد';
 
       const text = `
 🔍 <b>نتيجة البحث عن ${typeLabel}:</b>
+📋 التقرير المطلوب: <b>${reportTitle}</b>
 هل تقصد: <b>${best.name}</b>؟
 📌 الرصيد الحالي: <b>${balText}</b>
 ${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
@@ -183,7 +242,6 @@ ${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` 
         [{ text: `✅ نعم، أقصد: ${best.name}`, callback_data: `confirm_party_${best.id}` }],
       ];
 
-      // Add close alternative matches if available
       if (matches.length > 1) {
         const alt1 = matches[1].party;
         inlineKeyboard.push([{ text: `🔍 أقصد: ${alt1.name}`, callback_data: `confirm_party_${alt1.id}` }]);
@@ -194,7 +252,7 @@ ${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` 
       }
 
       inlineKeyboard.push([
-        { text: '❌ لا، كتابة اسم آخر', callback_data: `retry_search_${type}` },
+        { text: '❌ كتابة اسم آخر', callback_data: `retry_search_${reportType}` },
         { text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' },
       ]);
 
@@ -204,14 +262,61 @@ ${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` 
       });
     };
 
-    // Send period selection buttons for statement (including custom from-to date selection)
-    const sendPeriodSelection = async (chatId: string, party: Party) => {
+    // Ask to confirm employee match
+    const sendEmployeeConfirmation = async (
+      chatId: string,
+      matches: { employee: Employee; score: number }[],
+      customRange?: { fromDate: string; toDate: string; label: string }
+    ) => {
+      const best = matches[0].employee;
       const currency = (settingsRef.current as any).currency || '₪';
-      const promptText = `
-✅ <b>تم تحديد الحساب:</b>
-<b>${party.name}</b> (الرصيد: ${(party.balance || 0).toFixed(2)} ${currency})
+      const roleText = best.jobTitle || 'موظف';
+      const salaryText = best.salaryAmount ? `${best.salaryAmount.toFixed(2)} ${currency}` : '';
 
-📅 <b>يرجى اختيار الفترة الزمنية لكشف الحساب:</b>
+      updateSession(chatId, {
+        targetReportType: 'employee_statement',
+        targetEmployeeId: best.id,
+        pendingDateRange: customRange,
+      });
+
+      const text = `
+🔍 <b>نتيجة البحث عن الموظف:</b>
+هل تقصد: <b>${best.name}</b>؟
+📌 المسمى الوظيفي: <b>${roleText}</b>
+${salaryText ? `💰 الراتب: <b>${salaryText}</b>\n` : ''}${best.phone ? `📱 الهاتف: <code>${best.phone}</code>\n` : ''}${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` : ''}
+      `.trim();
+
+      const inlineKeyboard: any[][] = [
+        [{ text: `✅ نعم، أقصد: ${best.name}`, callback_data: `confirm_employee_${best.id}` }],
+      ];
+
+      if (matches.length > 1) {
+        const alt1 = matches[1].employee;
+        inlineKeyboard.push([{ text: `🔍 أقصد: ${alt1.name}`, callback_data: `confirm_employee_${alt1.id}` }]);
+      }
+
+      inlineKeyboard.push([
+        { text: '❌ كتابة اسم موظف آخر', callback_data: 'menu_employee_statement' },
+        { text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' },
+      ]);
+
+      await TelegramService.sendMessage(text, settingsRef.current, {
+        chatId,
+        replyMarkup: { inline_keyboard: inlineKeyboard },
+      });
+    };
+
+    // Send Generic Interactive Period Selection Menu
+    const sendPeriodSelection = async (
+      chatId: string,
+      title: string,
+      reportType: ReportCategoryType,
+      entityId: string = 'all'
+    ) => {
+      const promptText = `
+✅ <b>${title}</b>
+
+📅 <b>يرجى اختيار الفترة الزمنية للتقرير:</b>
       `.trim();
 
       await TelegramService.sendMessage(promptText, settingsRef.current, {
@@ -219,24 +324,28 @@ ${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` 
         replyMarkup: {
           inline_keyboard: [
             [
-              { text: '📅 اليوم فقط', callback_data: `period_today_${party.id}` },
-              { text: '📅 هذا الشهر', callback_data: `period_this_month_${party.id}` },
+              { text: '📅 اليوم فقط', callback_data: `period_today_${reportType}_${entityId}` },
+              { text: '📅 هذا الشهر', callback_data: `period_this_month_${reportType}_${entityId}` },
             ],
             [
-              { text: '🗓️ آخر 30 يوم', callback_data: `period_last_30_days_${party.id}` },
-              { text: '📆 السنة الحالية', callback_data: `period_this_year_${party.id}` },
+              { text: '🗓️ آخر 30 يوم', callback_data: `period_last_30_days_${reportType}_${entityId}` },
+              { text: '📆 السنة الحالية', callback_data: `period_this_year_${reportType}_${entityId}` },
             ],
             [
-              { text: '♾️ كافة الحركات', callback_data: `period_all_${party.id}` },
-              { text: '🎯 تحديد فترة مخصصة (من - إلى)', callback_data: `period_custom_${party.id}` },
+              { text: '♾️ كافة الحركات', callback_data: `period_all_${reportType}_${entityId}` },
+              { text: '🎯 تحديد فترة مخصصة (من - إلى)', callback_data: `period_custom_${reportType}_${entityId}` },
             ],
-            [{ text: '🔙 رجوع للقائمة', callback_data: 'menu_main' }],
+            [{ text: '🔙 رجوع للقائمة الرئيسية', callback_data: 'menu_main' }],
           ],
         },
       });
     };
 
-    // Dispatch statement PDF (matching the exact on-screen format with nested item sub-tables)
+    // ==========================================
+    // DISPATCH METHODS FOR ALL REPORTS (PDF)
+    // ==========================================
+
+    // 1. Customer or Supplier Statement PDF
     const dispatchStatementPdf = async (
       chatId: string,
       partyId: string,
@@ -259,7 +368,7 @@ ${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` 
         typeof period === 'object' ? period : getDateRangeForPeriod(period);
 
       await TelegramService.sendMessage(
-        `⏳ <b>جاري تجهيز كشف الحساب التفصيلي بالبنود الكاملة...</b>\nالطرف: <b>${party.name}</b>\nالفترة: <b>${periodLabel}</b>\nيرجى الانتظار لحظات معدودة.`,
+        `⏳ <b>جاري تجهيز كشف الحساب التفصيلي بالبنود الكاملة والختم الرسمي...</b>\nالطرف: <b>${party.name}</b>\nالفترة: <b>${periodLabel}</b>`,
         settingsRef.current,
         { chatId }
       );
@@ -310,7 +419,6 @@ ${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` 
 
         await TelegramService.sendDocument(blob, filename, caption, chatId, botToken);
 
-        // Offer next actions
         await TelegramService.sendMessage('هل ترغب في طلب كشف آخر أو تقرير جديد؟', settingsRef.current, {
           chatId,
           replyMarkup: {
@@ -333,111 +441,237 @@ ${customRange ? `📅 الفترة المحددة: <b>${customRange.label}</b>` 
       }
     };
 
-    // Dispatch Treasury Report
-    const dispatchTreasuryReport = async (chatId: string) => {
+    // 2. Customer Items Statement PDF
+    const dispatchCustomerItemsPdf = async (
+      chatId: string,
+      partyId: string,
+      period:
+        | 'today'
+        | 'this_month'
+        | 'last_month'
+        | 'last_30_days'
+        | 'this_year'
+        | 'all'
+        | { fromDate: string; toDate: string; label: string }
+    ) => {
+      const party = partiesRef.current.find(p => p.id === partyId);
+      if (!party) {
+        await TelegramService.sendMessage('❌ لم يتم العثور على العميل المحدد.', settingsRef.current, { chatId });
+        return;
+      }
+
+      const { fromDate, toDate, label: periodLabel } =
+        typeof period === 'object' ? period : getDateRangeForPeriod(period);
+
+      await TelegramService.sendMessage(
+        `⏳ <b>جاري إنشاء كشف مسحوبات ومبيعات الأصناف التراكمي...</b>\nالعميل: <b>${party.name}</b>\nالفترة: <b>${periodLabel}</b>`,
+        settingsRef.current,
+        { chatId }
+      );
+
+      try {
+        const parentParty = party.parentCustomerId
+          ? partiesRef.current.find(p => p.id === party.parentCustomerId) || null
+          : null;
+
+        const { blob, filename } = await generateCustomerItemsPdfBlob({
+          party,
+          parentParty,
+          invoices: invoicesRef.current,
+          settings: settingsRef.current,
+          fromDate,
+          toDate,
+        });
+
+        const caption = `
+📦 <b>كشف مبيعات ومسحوبات الأصناف: ${party.name}</b>
+📅 الفترة: ${periodLabel}
+تم إرفاق الكشف المعتمد كاملاً بصيغة PDF.
+        `.trim();
+
+        await TelegramService.sendDocument(blob, filename, caption, chatId, botToken);
+
+        await TelegramService.sendMessage('هل ترغب في استخراج تقرير آخر؟', settingsRef.current, {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [
+              [{ text: '📦 أصناف عميل آخر', callback_data: 'menu_customer_items' }],
+              [{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }],
+            ],
+          },
+        });
+      } catch (err) {
+        console.error('Customer items PDF error:', err);
+        await TelegramService.sendMessage('❌ تعذر إنشاء ملف PDF لمبيعات الأصناف.', settingsRef.current, { chatId });
+      }
+    };
+
+    // 3. Treasury Movements & Liquidity PDF (Matches image_0bfa29be.png 1:1)
+    const dispatchTreasuryReportPdf = async (
+      chatId: string,
+      period:
+        | 'today'
+        | 'this_month'
+        | 'last_month'
+        | 'last_30_days'
+        | 'this_year'
+        | 'all'
+        | { fromDate: string; toDate: string; label: string }
+    ) => {
+      const { fromDate, toDate, label: periodLabel } =
+        typeof period === 'object' ? period : getDateRangeForPeriod(period);
+
       const activeTreasuries = treasuriesRef.current;
       const currency = (settingsRef.current as any).currency || '₪';
       const totalLiquidity = activeTreasuries.reduce((sum, t) => sum + (t.balance || 0), 0);
 
-      const summaryLines = activeTreasuries
-        .map(t => `• <b>${t.name}</b>: ${(t.balance || 0).toFixed(2)} ${t.currency || currency}`)
-        .join('\n');
-
-      const message = `
-💰 <b>أرصدة الصناديق والخزائن البنكية الحالية:</b>
-${summaryLines}
-
-━━━━━━━━━━━━━━━
-💵 <b>إجمالي السيولة النقدية:</b> <b>${totalLiquidity.toFixed(2)} ${currency}</b>
-⏳ جاري إرسال التقرير التفصيلي بصيغة PDF...
-      `.trim();
-
-      await TelegramService.sendMessage(message, settingsRef.current, { chatId });
+      await TelegramService.sendMessage(
+        `⏳ <b>جاري إنشاء كشف حركة الخزائن والتدفق النقدي بالفترة (${periodLabel})...</b>\nإجمالي السيولة النقدية: <b>${totalLiquidity.toFixed(2)} ${currency}</b>`,
+        settingsRef.current,
+        { chatId }
+      );
 
       try {
         const { blob, filename } = await generateTreasuryReportPdfBlob({
           treasuries: activeTreasuries,
+          vouchers: vouchersRef.current,
+          invoices: invoicesRef.current,
+          parties: partiesRef.current,
           settings: settingsRef.current,
+          fromDate,
+          toDate,
         });
 
         await TelegramService.sendDocument(
           blob,
           filename,
-          `كشف حركة وأرصدة الصناديق والخزائن - إجمالي السيولة: ${totalLiquidity.toFixed(2)} ${currency}`,
+          `كشف حركة وأرصدة الصناديق والخزائن (${periodLabel}) - إجمالي السيولة: ${totalLiquidity.toFixed(2)} ${currency}`,
           chatId,
           botToken
         );
+
+        await TelegramService.sendMessage('تم استخراج كشف حركة الصناديق بنجاح.', settingsRef.current, {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
+          },
+        });
       } catch (err) {
         console.error('Treasury report PDF error:', err);
+        await TelegramService.sendMessage('❌ تعذر إنشاء تقرير حركة الصناديق.', settingsRef.current, { chatId });
       }
     };
 
-    // Dispatch Sales Report
-    const dispatchSalesReport = async (chatId: string) => {
-      const todayIso = new Date().toISOString().split('T')[0];
-      const todayInvoices = invoicesRef.current.filter(inv => inv.date && inv.date.startsWith(todayIso));
-      const currency = (settingsRef.current as any).currency || '₪';
+    // 4. Sales Report PDF
+    const dispatchSalesReportPdf = async (
+      chatId: string,
+      period:
+        | 'today'
+        | 'this_month'
+        | 'last_month'
+        | 'last_30_days'
+        | 'this_year'
+        | 'all'
+        | { fromDate: string; toDate: string; label: string }
+    ) => {
+      const { fromDate, toDate, label: periodLabel } =
+        typeof period === 'object' ? period : getDateRangeForPeriod(period);
 
-      const totalSales = todayInvoices.reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total || 0), 0);
-      const paidSales = todayInvoices.reduce(
-        (sum, inv) => sum + (inv.paidAmount || (inv.paymentMethod === 'cash' ? inv.totalAmount : 0) || 0),
-        0
+      await TelegramService.sendMessage(
+        `⏳ <b>جاري تجهيز تقرير فواتير المبيعات بالفترة (${periodLabel})...</b>`,
+        settingsRef.current,
+        { chatId }
       );
-      const remainingSales = Math.max(0, totalSales - paidSales);
-
-      const msg = `
-📊 <b>تقرير مبيعات اليوم (${todayIso}):</b>
-🧾 عدد الفواتير الصادرة اليوم: <b>${todayInvoices.length} فاتورة</b>
-💰 إجمالي قيمة المبيعات: <b>${totalSales.toFixed(2)} ${currency}</b>
-💵 المحصل نقداً وشبكة: <b>${paidSales.toFixed(2)} ${currency}</b>
-⏳ المتبقي ذمم آجلة: <b>${remainingSales.toFixed(2)} ${currency}</b>
-
-⏳ جاري إنشاء ملف تقرير الفواتير التفصيلي PDF...
-      `.trim();
-
-      await TelegramService.sendMessage(msg, settingsRef.current, { chatId });
 
       try {
         const { blob, filename } = await generateSalesReportPdfBlob({
           invoices: invoicesRef.current,
           settings: settingsRef.current,
+          fromDate,
+          toDate,
         });
 
         await TelegramService.sendDocument(
           blob,
           filename,
-          `تقرير مبيعات اليوم (${todayIso}) - الإجمالي: ${totalSales.toFixed(2)} ${currency}`,
+          `تقرير فواتير المبيعات المعتمد (${periodLabel})`,
           chatId,
           botToken
         );
+
+        await TelegramService.sendMessage('تم إرسال تقرير المبيعات بنجاح.', settingsRef.current, {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
+          },
+        });
       } catch (err) {
         console.error('Sales report PDF error:', err);
+        await TelegramService.sendMessage('❌ تعذر إنشاء تقرير المبيعات.', settingsRef.current, { chatId });
       }
     };
 
-    // Dispatch Inventory Report
-    const dispatchInventoryReport = async (chatId: string) => {
+    // 5. Purchases Report PDF
+    const dispatchPurchasesReportPdf = async (
+      chatId: string,
+      period:
+        | 'today'
+        | 'this_month'
+        | 'last_month'
+        | 'last_30_days'
+        | 'this_year'
+        | 'all'
+        | { fromDate: string; toDate: string; label: string }
+    ) => {
+      const { fromDate, toDate, label: periodLabel } =
+        typeof period === 'object' ? period : getDateRangeForPeriod(period);
+
+      await TelegramService.sendMessage(
+        `⏳ <b>جاري تجهيز تقرير فواتير المشتريات والتوريدات بالفترة (${periodLabel})...</b>`,
+        settingsRef.current,
+        { chatId }
+      );
+
+      try {
+        const { blob, filename } = await generatePurchasesReportPdfBlob({
+          purchases: purchasesRef.current,
+          settings: settingsRef.current,
+          fromDate,
+          toDate,
+        });
+
+        await TelegramService.sendDocument(
+          blob,
+          filename,
+          `تقرير فواتير المشتريات المعتمد (${periodLabel})`,
+          chatId,
+          botToken
+        );
+
+        await TelegramService.sendMessage('تم إرسال تقرير المشتريات بنجاح.', settingsRef.current, {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
+          },
+        });
+      } catch (err) {
+        console.error('Purchases report PDF error:', err);
+        await TelegramService.sendMessage('❌ تعذر إنشاء تقرير المشتريات.', settingsRef.current, { chatId });
+      }
+    };
+
+    // 6. Inventory Shortages Report PDF
+    const dispatchInventoryReportPdf = async (chatId: string) => {
       const items = inventoryRef.current;
       const lowStock = items.filter(it => it.category !== 'copy_scan' && it.stockQuantity <= it.minAlertQuantity);
       const currency = (settingsRef.current as any).currency || '₪';
       const totalValuation = items.reduce((sum, it) => sum + it.stockQuantity * (it.purchasePrice || 0), 0);
 
-      const preview = lowStock
-        .slice(0, 5)
-        .map(it => `• <b>${it.name}</b>: رصيد <code>${it.stockQuantity}</code> (حد الطلب: ${it.minAlertQuantity})`)
-        .join('\n');
-
-      const msg = `
-📦 <b>تقرير تنبيهات ونواقص المخزون:</b>
-⚠️ عدد الأصناف التي بلغت حد الطلب: <b>${lowStock.length} صنف</b>
-💎 إجمالي القيمة التقديرية لكافة المخزون: <b>${totalValuation.toFixed(2)} ${currency}</b>
-
-${preview ? `<b>أبرز النواقص:</b>\n${preview}\n${lowStock.length > 5 ? `... وغيرها (${lowStock.length - 5}) صنف آخر.` : ''}` : '✅ جميع الأصناف بحالة ممتازة وفوق حد الأمان.'}
-
-⏳ جاري إرسال كشف النواقص الكامل PDF...
-      `.trim();
-
-      await TelegramService.sendMessage(msg, settingsRef.current, { chatId });
+      await TelegramService.sendMessage(
+        `⏳ <b>جاري إنشاء كشف نواقص المخزون وتنبيهات حد الطلب...</b>\nعدد الأصناف الناقصة: <b>${lowStock.length} صنف</b>\nإجمالي القيمة التقديرية للمخزون: <b>${totalValuation.toFixed(2)} ${currency}</b>`,
+        settingsRef.current,
+        { chatId }
+      );
 
       try {
         const { blob, filename } = await generateInventoryReportPdfBlob({
@@ -448,53 +682,177 @@ ${preview ? `<b>أبرز النواقص:</b>\n${preview}\n${lowStock.length > 5 
         await TelegramService.sendDocument(
           blob,
           filename,
-          `تقرير النواقص وتنبيهات المخزون (${lowStock.length} صنف ناقص)`,
+          `تقرير نواقص المخزون وتنبيهات حد الطلب (${lowStock.length} صنف ناقص)`,
           chatId,
           botToken
         );
+
+        await TelegramService.sendMessage('تم إرسال تقرير المخزون بنجاح.', settingsRef.current, {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
+          },
+        });
       } catch (err) {
         console.error('Inventory report PDF error:', err);
+        await TelegramService.sendMessage('❌ تعذر إنشاء تقرير المخزون.', settingsRef.current, { chatId });
       }
     };
 
-    // Dispatch Expenses Report
-    const dispatchExpensesReport = async (chatId: string) => {
-      const allExpenses = expensesRef.current;
-      const currency = (settingsRef.current as any).currency || '₪';
-      const currentMonthIso = new Date().toISOString().slice(0, 7);
+    // 7. Expenses Report PDF
+    const dispatchExpensesReportPdf = async (
+      chatId: string,
+      period:
+        | 'today'
+        | 'this_month'
+        | 'last_month'
+        | 'last_30_days'
+        | 'this_year'
+        | 'all'
+        | { fromDate: string; toDate: string; label: string }
+    ) => {
+      const { fromDate, toDate, label: periodLabel } =
+        typeof period === 'object' ? period : getDateRangeForPeriod(period);
 
-      const thisMonthExpenses = allExpenses.filter(e => e.date && e.date.startsWith(currentMonthIso));
-      const totalAmount = thisMonthExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+      await TelegramService.sendMessage(
+        `⏳ <b>جاري تجهيز تقرير المصروفات والنفقات التشغيلية بالفترة (${periodLabel})...</b>`,
+        settingsRef.current,
+        { chatId }
+      );
 
-      // Group by category
-      const categoriesMap: Record<string, number> = {};
-      thisMonthExpenses.forEach(e => {
-        const cat = e.categoryName || 'مصروفات عامة';
-        categoriesMap[cat] = (categoriesMap[cat] || 0) + (e.amount || 0);
-      });
+      try {
+        const { blob, filename } = await generateExpensesReportPdfBlob({
+          expenses: expensesRef.current,
+          settings: settingsRef.current,
+          fromDate,
+          toDate,
+        });
 
-      const catLines = Object.entries(categoriesMap)
-        .map(([cat, amt]) => `• ${cat}: <b>${amt.toFixed(2)} ${currency}</b>`)
-        .join('\n');
+        await TelegramService.sendDocument(
+          blob,
+          filename,
+          `تقرير المصروفات والنفقات التشغيلية (${periodLabel})`,
+          chatId,
+          botToken
+        );
 
-      const msg = `
-📑 <b>تقرير المصروفات لشهر (${currentMonthIso}):</b>
-💰 إجمالي المصروفات: <b>${totalAmount.toFixed(2)} ${currency}</b>
-عدد الحركات: <b>${thisMonthExpenses.length}</b>
-
-<b>توزيع المصروفات حسب التصنيف:</b>
-${catLines || 'لا توجد حركات مصروفات مسجلة لهذا الشهر.'}
-      `.trim();
-
-      await TelegramService.sendMessage(msg, settingsRef.current, {
-        chatId,
-        replyMarkup: {
-          inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
-        },
-      });
+        await TelegramService.sendMessage('تم إرسال تقرير المصروفات بنجاح.', settingsRef.current, {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
+          },
+        });
+      } catch (err) {
+        console.error('Expenses report PDF error:', err);
+        await TelegramService.sendMessage('❌ تعذر إنشاء تقرير المصروفات.', settingsRef.current, { chatId });
+      }
     };
 
-    // Start Central Polling
+    // 8. Employee Statement PDF
+    const dispatchEmployeeStatementPdf = async (
+      chatId: string,
+      employeeId: string,
+      period:
+        | 'today'
+        | 'this_month'
+        | 'last_month'
+        | 'last_30_days'
+        | 'this_year'
+        | 'all'
+        | { fromDate: string; toDate: string; label: string }
+    ) => {
+      const employee = employeesRef.current.find(e => e.id === employeeId);
+      if (!employee) {
+        await TelegramService.sendMessage('❌ لم يتم العثور على الموظف المحدد.', settingsRef.current, { chatId });
+        return;
+      }
+
+      const { fromDate, toDate, label: periodLabel } =
+        typeof period === 'object' ? period : getDateRangeForPeriod(period);
+
+      await TelegramService.sendMessage(
+        `⏳ <b>جاري إنشاء كشف حساب ومسحوبات الموظف (${employee.name})...</b>\nالفترة: <b>${periodLabel}</b>`,
+        settingsRef.current,
+        { chatId }
+      );
+
+      try {
+        const { blob, filename } = await generateEmployeeStatementPdfBlob({
+          employee,
+          vouchers: vouchersRef.current,
+          advances: employeeAdvancesRef.current,
+          deductions: employeeDeductionsRef.current,
+          incentives: employeeIncentivesRef.current,
+          payrollSheets: payrollSheetsRef.current,
+          invoices: invoicesRef.current,
+          purchases: purchasesRef.current,
+          settings: settingsRef.current,
+          fromDate,
+          toDate,
+        });
+
+        await TelegramService.sendDocument(
+          blob,
+          filename,
+          `كشف حساب ومسحوبات الموظف: ${employee.name} (${periodLabel})`,
+          chatId,
+          botToken
+        );
+
+        await TelegramService.sendMessage('تم إرسال كشف حساب الموظف بنجاح.', settingsRef.current, {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [
+              [{ text: '👷 كشف موظف آخر', callback_data: 'menu_employee_statement' }],
+              [{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }],
+            ],
+          },
+        });
+      } catch (err) {
+        console.error('Employee statement PDF error:', err);
+        await TelegramService.sendMessage('❌ تعذر إنشاء كشف حساب الموظف.', settingsRef.current, { chatId });
+      }
+    };
+
+    // Central dispatcher helper for any report type
+    const dispatchReportByType = async (
+      chatId: string,
+      reportType: ReportCategoryType,
+      targetId: string,
+      period: any
+    ) => {
+      switch (reportType) {
+        case 'customer_statement':
+        case 'supplier_statement':
+          await dispatchStatementPdf(chatId, targetId, period);
+          break;
+        case 'customer_items':
+          await dispatchCustomerItemsPdf(chatId, targetId, period);
+          break;
+        case 'treasury_report':
+          await dispatchTreasuryReportPdf(chatId, period);
+          break;
+        case 'sales_report':
+          await dispatchSalesReportPdf(chatId, period);
+          break;
+        case 'purchases_report':
+          await dispatchPurchasesReportPdf(chatId, period);
+          break;
+        case 'inventory_report':
+          await dispatchInventoryReportPdf(chatId);
+          break;
+        case 'expenses_report':
+          await dispatchExpensesReportPdf(chatId, period);
+          break;
+        case 'employee_statement':
+          await dispatchEmployeeStatementPdf(chatId, targetId, period);
+          break;
+        default:
+          await sendMainMenu(chatId);
+      }
+    };
+
+    // Start Central Telegram Polling
     TelegramService.startPolling(settingsRef.current, async (action: TelegramIncomingAction) => {
       const { type, text, data, chatId } = action;
       const session = getSession(chatId);
@@ -519,7 +877,7 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
       }
 
       // ==========================================
-      // 1. CALLBACK QUERY ACTIONS (Button clicks)
+      // 1. CALLBACK QUERY ACTIONS (Buttons)
       // ==========================================
       if (type === 'callback' && data) {
         if (data === 'menu_main') {
@@ -527,10 +885,16 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
           return;
         }
 
-        if (data === 'menu_customer_statement' || data === 'retry_search_customer') {
-          updateSession(chatId, { step: 'awaiting_customer_name', targetPartyId: undefined, pendingDateRange: undefined });
+        // 1.1 Customer Statement Selection
+        if (data === 'menu_customer_statement' || data === 'retry_search_customer_statement') {
+          updateSession(chatId, {
+            step: 'awaiting_customer_name',
+            targetReportType: 'customer_statement',
+            targetPartyId: undefined,
+            pendingDateRange: undefined,
+          });
           await TelegramService.sendMessage(
-            '👤 <b>طلب كشف حساب عميل:</b>\nيرجى كتابة اسم العميل (أو جزء منه أو رقمه):',
+            '👤 <b>كشف حساب عميل تفصيلي:</b>\nيرجى كتابة اسم العميل (أو جزء منه أو رقمه):',
             settingsRef.current,
             {
               chatId,
@@ -542,10 +906,16 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
           return;
         }
 
-        if (data === 'menu_supplier_statement' || data === 'retry_search_supplier') {
-          updateSession(chatId, { step: 'awaiting_supplier_name', targetPartyId: undefined, pendingDateRange: undefined });
+        // 1.2 Supplier Statement Selection
+        if (data === 'menu_supplier_statement' || data === 'retry_search_supplier_statement') {
+          updateSession(chatId, {
+            step: 'awaiting_supplier_name',
+            targetReportType: 'supplier_statement',
+            targetPartyId: undefined,
+            pendingDateRange: undefined,
+          });
           await TelegramService.sendMessage(
-            '🏢 <b>طلب كشف حساب مورد:</b>\nيرجى كتابة اسم المورد (أو جزء منه أو كوده):',
+            '🏢 <b>كشف حساب مورد تفصيلي:</b>\nيرجى كتابة اسم المورد (أو جزء منه أو كوده):',
             settingsRef.current,
             {
               chatId,
@@ -557,30 +927,67 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
           return;
         }
 
+        // 1.3 Customer Items Selection
+        if (data === 'menu_customer_items' || data === 'retry_search_customer_items') {
+          updateSession(chatId, {
+            step: 'awaiting_customer_items_party',
+            targetReportType: 'customer_items',
+            targetPartyId: undefined,
+            pendingDateRange: undefined,
+          });
+          await TelegramService.sendMessage(
+            '📦 <b>كشف مبيعات ومسحوبات أصناف عميل:</b>\nيرجى كتابة اسم العميل المطلوب:',
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [[{ text: '❌ إلغاء ورجوع', callback_data: 'menu_main' }]],
+              },
+            }
+          );
+          return;
+        }
+
+        // 1.4 Treasury Movements Selection
         if (data === 'menu_treasury_report') {
-          await dispatchTreasuryReport(chatId);
+          await sendPeriodSelection(chatId, 'حركة وأرصدة الصناديق والخزائن', 'treasury_report', 'all');
           return;
         }
 
+        // 1.5 Sales Report Selection
         if (data === 'menu_sales_report') {
-          await dispatchSalesReport(chatId);
+          await sendPeriodSelection(chatId, 'تقرير فواتير المبيعات التفصيلي', 'sales_report', 'all');
           return;
         }
 
+        // 1.6 Purchases Report Selection
+        if (data === 'menu_purchases_report') {
+          await sendPeriodSelection(chatId, 'تقرير فواتير المشتريات والتوريدات', 'purchases_report', 'all');
+          return;
+        }
+
+        // 1.7 Inventory Report Selection
         if (data === 'menu_inventory_report') {
-          await dispatchInventoryReport(chatId);
+          await dispatchInventoryReportPdf(chatId);
           return;
         }
 
+        // 1.8 Expenses Report Selection
         if (data === 'menu_expenses_report') {
-          await dispatchExpensesReport(chatId);
+          await sendPeriodSelection(chatId, 'تقرير المصروفات والنفقات التشغيلية', 'expenses_report', 'all');
           return;
         }
 
+        // 1.9 Employee Statement Selection
         if (data === 'menu_employee_statement') {
-          updateSession(chatId, { step: 'awaiting_employee_name' });
+          updateSession(chatId, {
+            step: 'awaiting_employee_name',
+            targetReportType: 'employee_statement',
+            targetEmployeeId: undefined,
+            pendingDateRange: undefined,
+          });
           await TelegramService.sendMessage(
-            '👷 <b>طلب كشف حساب موظف:</b>\nيرجى كتابة اسم الموظف:',
+            '👷 <b>كشف حساب ومسحوبات موظف:</b>\nيرجى كتابة اسم الموظف:',
             settingsRef.current,
             {
               chatId,
@@ -597,14 +1004,18 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
           const partyId = data.replace('confirm_party_', '');
           const party = partiesRef.current.find(p => p.id === partyId);
           if (party) {
-            // Check if there was already a pending custom date range
+            const reportType = session.targetReportType || 'customer_statement';
             if (session.pendingDateRange) {
               const pendingRange = session.pendingDateRange;
               updateSession(chatId, { step: 'idle', pendingDateRange: undefined });
-              await dispatchStatementPdf(chatId, party.id, pendingRange);
+              await dispatchReportByType(chatId, reportType, party.id, pendingRange);
             } else {
-              updateSession(chatId, { step: 'idle' });
-              await sendPeriodSelection(chatId, party);
+              updateSession(chatId, { step: 'idle', targetPartyId: party.id });
+              const title =
+                reportType === 'customer_items'
+                  ? `كشف مبيعات أصناف: ${party.name}`
+                  : `كشف حساب: ${party.name}`;
+              await sendPeriodSelection(chatId, title, reportType, party.id);
             }
           } else {
             await TelegramService.sendMessage('❌ تعذر العثور على الطرف المحدد.', settingsRef.current, { chatId });
@@ -612,57 +1023,105 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
           return;
         }
 
-        // Prompting for custom date range (من - إلى)
-        if (data.startsWith('period_custom_')) {
-          const targetPartyId = data.replace('period_custom_', '');
-          const party = partiesRef.current.find(p => p.id === targetPartyId);
-          if (party) {
-            updateSession(chatId, { step: 'awaiting_custom_period', targetPartyId });
-            await TelegramService.sendMessage(
-              `🎯 <b>تحديد فترة مخصصة لكشف الحساب:</b>\nالحساب: <b>${party.name}</b>\n\nيرجى كتابة أو إرسال تاريخ البداية والنهاية، مثلاً:\n<code>2026-10-01 إلى 2026-11-01</code>\nأو:\n<code>01-11-2026</code> (ليوم واحد فقط)\nأو:\n<code>من 01-10-2026 الى 31-10-2026</code>`,
-              settingsRef.current,
-              {
-                chatId,
-                replyMarkup: {
-                  inline_keyboard: [
-                    [
-                      { text: '📅 اليوم فقط', callback_data: `period_today_${party.id}` },
-                      { text: '📅 هذا الشهر', callback_data: `period_this_month_${party.id}` },
-                    ],
-                    [{ text: '❌ إلغاء ورجوع', callback_data: 'menu_main' }],
-                  ],
-                },
-              }
-            );
+        // Confirming employee from suggestion buttons
+        if (data.startsWith('confirm_employee_')) {
+          const empId = data.replace('confirm_employee_', '');
+          const emp = employeesRef.current.find(e => e.id === empId);
+          if (emp) {
+            if (session.pendingDateRange) {
+              const pendingRange = session.pendingDateRange;
+              updateSession(chatId, { step: 'idle', pendingDateRange: undefined });
+              await dispatchEmployeeStatementPdf(chatId, emp.id, pendingRange);
+            } else {
+              updateSession(chatId, { step: 'idle', targetEmployeeId: emp.id, targetReportType: 'employee_statement' });
+              await sendPeriodSelection(chatId, `كشف حساب الموظف: ${emp.name}`, 'employee_statement', emp.id);
+            }
+          } else {
+            await TelegramService.sendMessage('❌ تعذر العثور على الموظف المحدد.', settingsRef.current, { chatId });
           }
           return;
         }
 
-        // Period selection for PDF generation
+        // Prompting for custom date range (من - إلى)
+        if (data.startsWith('period_custom_')) {
+          const rest = data.replace('period_custom_', '');
+          const [reportType, ...idParts] = rest.split('_') as [ReportCategoryType, ...string[]];
+          const entityId = idParts.join('_') || session.targetPartyId || session.targetEmployeeId || 'all';
+
+          updateSession(chatId, {
+            step: 'awaiting_custom_period',
+            targetReportType: reportType,
+            targetPartyId: reportType !== 'employee_statement' && entityId !== 'all' ? entityId : undefined,
+            targetEmployeeId: reportType === 'employee_statement' ? entityId : undefined,
+          });
+
+          await TelegramService.sendMessage(
+            `🎯 <b>تحديد فترة مخصصة للتقرير:</b>\n\nيرجى كتابة أو إرسال تاريخ البداية والنهاية، مثلاً:\n<code>2026-10-01 إلى 2026-11-01</code>\nأو:\n<code>01-11-2026 الى 01-11-2026</code>\nأو:\n<code>01-11-2026</code> (ليوم واحد فقط)`,
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [
+                  [
+                    { text: '📅 اليوم فقط', callback_data: `period_today_${reportType}_${entityId}` },
+                    { text: '📅 هذا الشهر', callback_data: `period_this_month_${reportType}_${entityId}` },
+                  ],
+                  [{ text: '❌ إلغاء ورجوع للقائمة', callback_data: 'menu_main' }],
+                ],
+              },
+            }
+          );
+          return;
+        }
+
+        // Standard Period Selection Callback
         if (data.startsWith('period_')) {
-          let periodType: 'today' | 'this_month' | 'last_30_days' | 'this_year' | 'all' = 'all';
-          let targetPartyId = '';
+          const parts = data.split('_');
+          // e.g.: period_today_customer_statement_partyId
+          // or:   period_this_month_treasury_report_all
+          const periodKey = parts[1] === 'this' && parts[2] === 'month'
+            ? 'this_month'
+            : parts[1] === 'this' && parts[2] === 'year'
+            ? 'this_year'
+            : parts[1] === 'last' && parts[2] === '30' && parts[3] === 'days'
+            ? 'last_30_days'
+            : parts[1];
 
-          if (data.startsWith('period_today_')) {
-            periodType = 'today';
-            targetPartyId = data.replace('period_today_', '');
-          } else if (data.startsWith('period_this_month_')) {
-            periodType = 'this_month';
-            targetPartyId = data.replace('period_this_month_', '');
-          } else if (data.startsWith('period_last_30_days_')) {
-            periodType = 'last_30_days';
-            targetPartyId = data.replace('period_last_30_days_', '');
-          } else if (data.startsWith('period_this_year_')) {
-            periodType = 'this_year';
-            targetPartyId = data.replace('period_this_year_', '');
-          } else if (data.startsWith('period_all_')) {
-            periodType = 'all';
-            targetPartyId = data.replace('period_all_', '');
+          // reconstruct remaining
+          let reportType: ReportCategoryType = 'customer_statement';
+          let entityId = 'all';
+
+          if (data.includes('_customer_statement_')) {
+            reportType = 'customer_statement';
+            entityId = data.split('_customer_statement_')[1];
+          } else if (data.includes('_supplier_statement_')) {
+            reportType = 'supplier_statement';
+            entityId = data.split('_supplier_statement_')[1];
+          } else if (data.includes('_customer_items_')) {
+            reportType = 'customer_items';
+            entityId = data.split('_customer_items_')[1];
+          } else if (data.includes('_treasury_report_')) {
+            reportType = 'treasury_report';
+            entityId = data.split('_treasury_report_')[1];
+          } else if (data.includes('_sales_report_')) {
+            reportType = 'sales_report';
+            entityId = data.split('_sales_report_')[1];
+          } else if (data.includes('_purchases_report_')) {
+            reportType = 'purchases_report';
+            entityId = data.split('_purchases_report_')[1];
+          } else if (data.includes('_expenses_report_')) {
+            reportType = 'expenses_report';
+            entityId = data.split('_expenses_report_')[1];
+          } else if (data.includes('_employee_statement_')) {
+            reportType = 'employee_statement';
+            entityId = data.split('_employee_statement_')[1];
+          } else if (data.startsWith('period_today_') || data.startsWith('period_all_')) {
+            // Legacy button fallback
+            entityId = parts.slice(2).join('_');
           }
 
-          if (targetPartyId) {
-            await dispatchStatementPdf(chatId, targetPartyId, periodType);
-          }
+          const targetId = entityId !== 'all' ? entityId : session.targetPartyId || session.targetEmployeeId || '';
+          await dispatchReportByType(chatId, reportType, targetId, periodKey as any);
           return;
         }
       }
@@ -687,44 +1146,49 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
         return;
       }
 
-      // Direct shortcuts
-      if (cleanText === 'الصناديق' || cleanText === 'الخزينة' || cleanText === 'الرصيد') {
-        await dispatchTreasuryReport(chatId);
+      // Direct report shortcuts
+      if (cleanText === 'الصناديق' || cleanText === 'حركة الصناديق' || cleanText === 'الخزينة' || cleanText === 'السيولة') {
+        await sendPeriodSelection(chatId, 'حركة وأرصدة الصناديق والخزائن', 'treasury_report', 'all');
         return;
       }
 
-      if (cleanText === 'المبيعات' || cleanText === 'مبيعات اليوم') {
-        await dispatchSalesReport(chatId);
+      if (cleanText === 'المبيعات' || cleanText === 'تقرير المبيعات' || cleanText === 'فواتير اليوم') {
+        await sendPeriodSelection(chatId, 'تقرير فواتير المبيعات التفصيلي', 'sales_report', 'all');
         return;
       }
 
-      if (cleanText === 'المخزون' || cleanText === 'النواقص') {
-        await dispatchInventoryReport(chatId);
+      if (cleanText === 'المشتريات' || cleanText === 'تقرير المشتريات') {
+        await sendPeriodSelection(chatId, 'تقرير فواتير المشتريات والتوريدات', 'purchases_report', 'all');
+        return;
+      }
+
+      if (cleanText === 'المخزون' || cleanText === 'النواقص' || cleanText === 'تقرير المخزون') {
+        await dispatchInventoryReportPdf(chatId);
+        return;
+      }
+
+      if (cleanText === 'المصروفات' || cleanText === 'تقرير المصروفات' || cleanText === 'النفقات') {
+        await sendPeriodSelection(chatId, 'تقرير المصروفات والنفقات التشغيلية', 'expenses_report', 'all');
         return;
       }
 
       // Handling user typing custom dates (من - إلى)
-      if (session.step === 'awaiting_custom_period' && session.targetPartyId) {
+      if (session.step === 'awaiting_custom_period') {
         const customRange = parseCustomDateRange(cleanText);
         if (customRange) {
-          const partyId = session.targetPartyId;
-          updateSession(chatId, { step: 'idle', targetPartyId: undefined });
-          await dispatchStatementPdf(chatId, partyId, customRange);
+          const reportType = session.targetReportType || 'customer_statement';
+          const targetId = session.targetPartyId || session.targetEmployeeId || 'all';
+          updateSession(chatId, { step: 'idle', pendingDateRange: undefined });
+          await dispatchReportByType(chatId, reportType, targetId, customRange);
           return;
         } else {
           await TelegramService.sendMessage(
-            `⚠️ <b>تعذر فهم التاريخين المدخلين:</b> "<code>${cleanText}</code>"\n\nيرجى كتابتها بهذا الشكل:\n<code>2026-10-01 إلى 2026-11-01</code>\nأو:\n<code>01-11-2026</code> (ليوم واحد)\nأو اختيار فترة سريعة أدناه:`,
+            `⚠️ <b>تعذر استخراج التاريخين من:</b> "<code>${cleanText}</code>"\n\nيرجى كتابتها بهذا الشكل:\n<code>2026-10-01 إلى 2026-11-01</code>\nأو:\n<code>01-11-2026 الى 01-11-2026</code>\nأو:\n<code>01-11-2026</code> (ليوم واحد)`,
             settingsRef.current,
             {
               chatId,
               replyMarkup: {
-                inline_keyboard: [
-                  [
-                    { text: '📅 اليوم فقط', callback_data: `period_today_${session.targetPartyId}` },
-                    { text: '📅 هذا الشهر', callback_data: `period_this_month_${session.targetPartyId}` },
-                  ],
-                  [{ text: '🏠 إلغاء ورجوع للقائمة', callback_data: 'menu_main' }],
-                ],
+                inline_keyboard: [[{ text: '🏠 إلغاء ورجوع للقائمة', callback_data: 'menu_main' }]],
               },
             }
           );
@@ -732,7 +1196,75 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
         }
       }
 
-      // 3. Flexible statement detection: 'كشف قوافل غزة', 'كشف حساب ...', 'طلب كشف ...', or direct party names
+      // Handling Employee search
+      if (session.step === 'awaiting_employee_name' || /^(كشف\s+)?(حساب\s+)?موظف\s+/i.test(cleanText)) {
+        const rawQuery = cleanText.replace(/^(كشف\s+)?(حساب\s+)?موظف\s+/i, '').trim();
+        const embeddedRange = parseCustomDateRange(rawQuery);
+        let query = rawQuery;
+        if (embeddedRange) {
+          query = rawQuery
+            .replace(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})|(\d{1,2}[-/.]\d{1,2}[-/.]\d{4})/g, '')
+            .replace(/\b(من|إلى|الى|تاريخ|فترة|يوم)\b/g, '')
+            .trim();
+        }
+
+        const matches = fuzzyMatchEmployees(query, employeesRef.current);
+        if (matches.length > 0) {
+          await sendEmployeeConfirmation(chatId, matches, embeddedRange || undefined);
+          return;
+        } else if (session.step === 'awaiting_employee_name') {
+          await TelegramService.sendMessage(
+            `❌ لم يتم العثور على موظف باسم "<b>${query}</b>". يرجى المحاولة باسم آخر:`,
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
+              },
+            }
+          );
+          return;
+        }
+      }
+
+      // 3. Customer items specific detection
+      const isItemsPrefix = /^(كشف\s+)?(مبيعات\s+|حركة\s+)?أصناف(\s+عميل)?\s+/i.test(cleanText) ||
+        session.step === 'awaiting_customer_items_party';
+
+      if (isItemsPrefix) {
+        const rawQuery = isItemsPrefix && session.step !== 'awaiting_customer_items_party'
+          ? cleanText.replace(/^(كشف\s+)?(مبيعات\s+|حركة\s+)?أصناف(\s+عميل)?\s+/i, '').trim()
+          : cleanText;
+
+        const embeddedRange = parseCustomDateRange(rawQuery);
+        let query = rawQuery;
+        if (embeddedRange) {
+          query = rawQuery
+            .replace(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})|(\d{1,2}[-/.]\d{1,2}[-/.]\d{4})/g, '')
+            .replace(/\b(من|إلى|الى|تاريخ|فترة|يوم)\b/g, '')
+            .trim();
+        }
+
+        const matches = fuzzyMatchParties(query, partiesRef.current, 'customer');
+        if (matches.length > 0) {
+          await sendPartyConfirmation(chatId, matches, 'customer_items', embeddedRange || undefined);
+          return;
+        } else if (session.step === 'awaiting_customer_items_party') {
+          await TelegramService.sendMessage(
+            `❌ عذراً، لم يتم العثور على عميل باسم "<b>${query}</b>".`,
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
+              },
+            }
+          );
+          return;
+        }
+      }
+
+      // 4. Flexible Statement detection: 'كشف قوافل غزة', 'كشف حساب ...', 'طلب كشف ...', etc.
       const isStatementPrefix = /^(طلب\s+)?كشف(\s+حساب)?(\s+(عميل|مورد))?\s+/i.test(cleanText);
       const isSupplierSpecific = /مورد/i.test(cleanText);
 
@@ -759,12 +1291,10 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
         const matches = fuzzyMatchParties(query, partiesRef.current, filterType);
 
         if (matches.length > 0) {
-          await sendPartyConfirmation(
-            chatId,
-            matches,
-            matches[0].party.type === 'supplier' ? 'supplier' : 'customer',
-            embeddedRange || undefined
-          );
+          const reportCategory: ReportCategoryType =
+            matches[0].party.type === 'supplier' ? 'supplier_statement' : 'customer_statement';
+
+          await sendPartyConfirmation(chatId, matches, reportCategory, embeddedRange || undefined);
           return;
         } else if (session.step !== 'idle') {
           await TelegramService.sendMessage(
@@ -785,22 +1315,29 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
         }
       }
 
-      // Check if user directly typed a party name during idle state (e.g. 'قوافل غزة')
+      // 5. Direct party name during idle (e.g. typing 'قوافل غزة')
       if (cleanText.length >= 2) {
-        const directMatches = fuzzyMatchParties(cleanText, partiesRef.current, 'all');
+        const embeddedRange = parseCustomDateRange(cleanText);
+        let query = cleanText;
+        if (embeddedRange) {
+          query = cleanText
+            .replace(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})|(\d{1,2}[-/.]\d{1,2}[-/.]\d{4})/g, '')
+            .replace(/\b(من|إلى|الى|تاريخ|فترة|يوم)\b/g, '')
+            .trim();
+        }
+
+        const directMatches = fuzzyMatchParties(query, partiesRef.current, 'all');
         if (directMatches.length > 0 && directMatches[0].score >= 50) {
-          await sendPartyConfirmation(
-            chatId,
-            directMatches,
-            directMatches[0].party.type === 'supplier' ? 'supplier' : 'customer'
-          );
+          const reportCategory: ReportCategoryType =
+            directMatches[0].party.type === 'supplier' ? 'supplier_statement' : 'customer_statement';
+          await sendPartyConfirmation(chatId, directMatches, reportCategory, embeddedRange || undefined);
           return;
         }
       }
 
       // Default fallback: prompt with main menu
       await TelegramService.sendMessage(
-        `لم أتمكن من التعرف على الأمر "<b>${cleanText}</b>". يمكنك استخدام القائمة التفاعلية أدناه:`,
+        `لم أتمكن من التعرف على الأمر "<b>${cleanText}</b>". يمكنك استعراض التقارير المتاحة أدناه:`,
         settingsRef.current,
         {
           chatId,
@@ -812,7 +1349,7 @@ ${catLines || 'لا توجد حركات مصروفات مسجلة لهذا ال�
               ],
               [
                 { text: '💰 كشف الصناديق', callback_data: 'menu_treasury_report' },
-                { text: '📊 مبيعات اليوم', callback_data: 'menu_sales_report' },
+                { text: '📊 تقرير المبيعات', callback_data: 'menu_sales_report' },
               ],
               [{ text: '🏠 عرض كافة التقارير', callback_data: 'menu_main' }],
             ],
