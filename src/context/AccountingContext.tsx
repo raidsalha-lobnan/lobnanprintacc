@@ -112,7 +112,7 @@ import {
 import { defaultCurrencies, fetchLiveExchangeRates } from '../utils/currencies';
 import { generateSqlDump, downloadSqlFile, syncWithWebServer } from '../utils/sqlExporter';
 import { generateSequentialSku } from '../utils/barcodeGenerator';
-import { generateSequentialPartyCode, formatInvoiceCustomerDisplay } from '../utils/partyUtils';
+import { generateSequentialPartyCode, formatInvoiceCustomerDisplay, isCashCustomerParty } from '../utils/partyUtils';
 import { isInvoiceAccountingEligible, computeInvoicePaymentStatus } from '../utils/invoiceStatusUtils';
 import { calculatePartyTrueBalance } from '../utils/statementGenerator';
 import { deleteFileFromGoogleDrive } from '../services/googleDriveService';
@@ -2518,6 +2518,46 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => clearInterval(interval);
   }, []);
 
+  // One-time startup purge: ensure cash customer parties ("زبون نقدي") never carry accidental special prices from past auto-save bugs
+  useEffect(() => {
+    let partiesNeedUpdate = false;
+    setParties(prevParties => {
+      const cleaned = prevParties.map(p => {
+        if (isCashCustomerParty(p) && p.specialPrices && Object.keys(p.specialPrices).length > 0) {
+          partiesNeedUpdate = true;
+          const copy = { ...p };
+          delete copy.specialPrices;
+          return copy;
+        }
+        return p;
+      });
+      if (partiesNeedUpdate) {
+        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(cleaned)); } catch {}
+        return cleaned;
+      }
+      return prevParties;
+    });
+
+    let invNeedUpdate = false;
+    setInventory(prevInv => {
+      const cleaned = prevInv.map(item => {
+        if (item.customerSpecialPrices && item.customerSpecialPrices.length > 0) {
+          const filtered = item.customerSpecialPrices.filter(sp => !isCashCustomerParty(sp.customerId, sp.customerCode, sp.customerName));
+          if (filtered.length !== item.customerSpecialPrices.length) {
+            invNeedUpdate = true;
+            return { ...item, customerSpecialPrices: filtered.length > 0 ? filtered : undefined };
+          }
+        }
+        return item;
+      });
+      if (invNeedUpdate) {
+        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(cleaned)); } catch {}
+        return cleaned;
+      }
+      return prevInv;
+    });
+  }, []);
+
   // Live Firebase Firestore Real-Time Delta Listener across all devices
   // SMART DELTA: Listens ONLY to newly created/updated transactions via Firestore delta stream
   // Zero full-database reads and zero periodic listener churn!
@@ -3513,70 +3553,101 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     customerId?: string,
     tier: 'price1' | 'price2' | 'price3' | 'retail' | 'wholesale' | 'special' = 'price1'
   ): { price: number; isSpecialPrice: boolean; specialPriceLabel?: string } => {
-    if (customerId && customerId.trim()) {
-      const trimmedCustId = customerId.trim();
-      // Match party by id, code, or name
-      const party = parties.find(
-        p => p.id === trimmedCustId ||
-             (p.code && p.code.toLowerCase() === trimmedCustId.toLowerCase()) ||
-             (p.name && p.name.trim().toLowerCase() === trimmedCustId.toLowerCase())
-      );
-      const targetId = party?.id || trimmedCustId;
-      const targetCode = party?.code?.toLowerCase();
-      const targetName = party?.name?.trim().toLowerCase() || trimmedCustId.toLowerCase();
+    // Tier fallback (retail / price1, wholesale / price2, special / price3)
+    const normalizedTier = tier === 'retail' ? 'price1' : tier === 'wholesale' ? 'price2' : tier === 'special' ? 'price3' : tier;
 
-      // 1. Check special prices recorded on the item card itself (item.customerSpecialPrices)
-      if (item.customerSpecialPrices && item.customerSpecialPrices.length > 0) {
-        const specialFromItem = item.customerSpecialPrices.find(sp => {
-          if (sp.customerId && (sp.customerId === targetId || sp.customerId === trimmedCustId)) return true;
-          if (targetCode && sp.customerCode && sp.customerCode.toLowerCase() === targetCode) return true;
-          if (sp.customerName && sp.customerName.trim().toLowerCase() === targetName) return true;
-          if (targetName && sp.customerId && sp.customerId.toLowerCase() === targetName) return true;
-          if (party?.phone && sp.customerName && sp.customerName.trim() === party.phone.trim()) return true;
-          return false;
-        });
-        if (specialFromItem && typeof specialFromItem.price === 'number' && specialFromItem.price >= 0) {
-          return {
-            price: specialFromItem.price,
-            isSpecialPrice: true,
-            specialPriceLabel: specialFromItem.notes || `سعر خاص للعميل (${specialFromItem.price} ₪)`
-          };
+    const getTierPrice = () => {
+      if (normalizedTier === 'price2') {
+        if (item.sellingPrice2 !== undefined && item.sellingPrice2 > 0) {
+          return { price: item.sellingPrice2, isSpecialPrice: false };
         }
+        return { price: Number((item.sellingPrice * 0.9).toFixed(2)), isSpecialPrice: false };
       }
+      if (normalizedTier === 'price3') {
+        if (item.sellingPrice3 !== undefined && item.sellingPrice3 > 0) {
+          return { price: item.sellingPrice3, isSpecialPrice: false };
+        }
+        return { price: item.sellingPrice, isSpecialPrice: false };
+      }
+      return { price: item.sellingPrice, isSpecialPrice: false };
+    };
 
-      // 2. Check special prices stored in customer profile (party.specialPrices)
-      if (party?.specialPrices) {
-        const pSpecials = party.specialPrices;
-        let candidatePrice = pSpecials[item.id];
-        if (candidatePrice === undefined && item.code) candidatePrice = pSpecials[item.code];
-        if (candidatePrice === undefined && item.barcode) candidatePrice = pSpecials[item.barcode];
-        if (candidatePrice === undefined && item.name) candidatePrice = pSpecials[item.name];
-        if (candidatePrice === undefined) {
-          const lId = item.id.toLowerCase();
-          const lCode = item.code?.toLowerCase();
-          const lName = item.name?.trim().toLowerCase();
-          for (const [key, val] of Object.entries(pSpecials)) {
-            const lKey = key.trim().toLowerCase();
-            if (lKey === lId || (lCode && lKey === lCode) || (lName && lKey === lName)) {
-              candidatePrice = val;
-              break;
-            }
+    // Cash customer ("زبون نقدي") NEVER has special prices or last price override under any circumstances
+    if (!customerId || !customerId.trim() || isCashCustomerParty(customerId)) {
+      return getTierPrice();
+    }
+
+    const trimmedCustId = customerId.trim();
+    // Match party by id, code, or name
+    const party = parties.find(
+      p => p.id === trimmedCustId ||
+           (p.code && p.code.toLowerCase() === trimmedCustId.toLowerCase()) ||
+           (p.name && p.name.trim().toLowerCase() === trimmedCustId.toLowerCase())
+    );
+
+    // If resolved party is a cash customer, strictly bypass special prices
+    if (party && isCashCustomerParty(party)) {
+      return getTierPrice();
+    }
+
+    const targetId = party?.id || trimmedCustId;
+    const targetCode = party?.code?.toLowerCase();
+    const targetName = party?.name?.trim().toLowerCase() || trimmedCustId.toLowerCase();
+
+    // 1. Check special prices recorded on the item card itself (item.customerSpecialPrices)
+    if (item.customerSpecialPrices && item.customerSpecialPrices.length > 0) {
+      const specialFromItem = item.customerSpecialPrices.find(sp => {
+        if (isCashCustomerParty(sp.customerId, sp.customerCode, sp.customerName)) return false;
+        if (sp.customerId && (sp.customerId === targetId || sp.customerId === trimmedCustId)) return true;
+        if (targetCode && sp.customerCode && sp.customerCode.toLowerCase() === targetCode) return true;
+        if (sp.customerName && sp.customerName.trim().toLowerCase() === targetName) return true;
+        if (targetName && sp.customerId && sp.customerId.toLowerCase() === targetName) return true;
+        if (party?.phone && sp.customerName && sp.customerName.trim() === party.phone.trim()) return true;
+        return false;
+      });
+      if (specialFromItem && typeof specialFromItem.price === 'number' && specialFromItem.price >= 0) {
+        return {
+          price: specialFromItem.price,
+          isSpecialPrice: true,
+          specialPriceLabel: specialFromItem.notes || `سعر خاص للعميل (${specialFromItem.price} ₪)`
+        };
+      }
+    }
+
+    // 2. Check special prices stored in customer profile (party.specialPrices)
+    if (party?.specialPrices) {
+      const pSpecials = party.specialPrices;
+      let candidatePrice = pSpecials[item.id];
+      if (candidatePrice === undefined && item.code) candidatePrice = pSpecials[item.code];
+      if (candidatePrice === undefined && item.barcode) candidatePrice = pSpecials[item.barcode];
+      if (candidatePrice === undefined && item.name) candidatePrice = pSpecials[item.name];
+      if (candidatePrice === undefined) {
+        const lId = item.id.toLowerCase();
+        const lCode = item.code?.toLowerCase();
+        const lName = item.name?.trim().toLowerCase();
+        for (const [key, val] of Object.entries(pSpecials)) {
+          const lKey = key.trim().toLowerCase();
+          if (lKey === lId || (lCode && lKey === lCode) || (lName && lKey === lName)) {
+            candidatePrice = val;
+            break;
           }
         }
-
-        if (typeof candidatePrice === 'number' && candidatePrice >= 0) {
-          return {
-            price: candidatePrice,
-            isSpecialPrice: true,
-            specialPriceLabel: `سعر خاص مسجل بالعميل (${candidatePrice} ₪)`
-          };
-        }
       }
 
-      // 3. Fallback for sub-customers: inherit preferred price from main parent customer if not overridden
-      if (party?.isSubCustomer && party.parentPartyId) {
-        const parentParty = parties.find(p => p.id === party.parentPartyId);
-        if (parentParty?.specialPrices) {
+      if (typeof candidatePrice === 'number' && candidatePrice >= 0) {
+        return {
+          price: candidatePrice,
+          isSpecialPrice: true,
+          specialPriceLabel: `سعر خاص مسجل بالعميل (${candidatePrice} ₪)`
+        };
+      }
+    }
+
+    // 3. Fallback for sub-customers: inherit preferred price from main parent customer if not overridden
+    if (party?.isSubCustomer && party.parentPartyId) {
+      const parentParty = parties.find(p => p.id === party.parentPartyId);
+      if (parentParty && !isCashCustomerParty(parentParty)) {
+        if (parentParty.specialPrices) {
           const parentPrice = parentParty.specialPrices[item.id] !== undefined
             ? parentParty.specialPrices[item.id]
             : (item.code ? parentParty.specialPrices[item.code] : undefined);
@@ -3601,26 +3672,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // Tier fallback (retail / price1, wholesale / price2, special / price3)
-    const normalizedTier = tier === 'retail' ? 'price1' : tier === 'wholesale' ? 'price2' : tier === 'special' ? 'price3' : tier;
-
-    if (normalizedTier === 'price2') {
-      if (item.sellingPrice2 !== undefined && item.sellingPrice2 > 0) {
-        return { price: item.sellingPrice2, isSpecialPrice: false };
-      }
-      // Wholesale fallback if sellingPrice2 not explicitly entered: 90% of sellingPrice
-      return { price: Number((item.sellingPrice * 0.9).toFixed(2)), isSpecialPrice: false };
-    }
-
-    if (normalizedTier === 'price3') {
-      if (item.sellingPrice3 !== undefined && item.sellingPrice3 > 0) {
-        return { price: item.sellingPrice3, isSpecialPrice: false };
-      }
-      return { price: item.sellingPrice, isSpecialPrice: false };
-    }
-
-    // Default: price1 (سعر بيع 1)
-    return { price: item.sellingPrice, isSpecialPrice: false };
+    return getTierPrice();
   };
 
   // Get current user price permissions and allowed tiers
@@ -6056,6 +6108,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         merged.balance = existing.balance;
       }
 
+      // Cash customers strictly never carry special prices
+      if (isCashCustomerParty(merged)) {
+        delete merged.specialPrices;
+      }
+
       finalMergedParty = merged;
 
       const nextParties = prev.map(p => (p.id === targetId ? merged : p));
@@ -6082,8 +6139,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setHasUnsyncedChanges(true);
     setPendingSyncCount(prev => prev + 1);
 
-    // Bidirectional sync: sync customer special prices into inventory items
-    if (updated.specialPrices !== undefined && finalMergedParty) {
+    // Bidirectional sync: sync customer special prices into inventory items (strictly NEVER for cash customers)
+    if (updated.specialPrices !== undefined && finalMergedParty && !isCashCustomerParty(finalMergedParty)) {
       const partyObj: Party = finalMergedParty;
       const specials = updated.specialPrices;
       setInventory(prevInv => {

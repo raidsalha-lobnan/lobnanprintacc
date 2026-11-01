@@ -3,6 +3,7 @@ import { useAccounting } from '../../context/AccountingContext';
 import { Party, InventoryItem } from '../../types';
 import { X, Search, Tag, Check, Save, RotateCcw, DollarSign, Percent } from 'lucide-react';
 import { posSound } from '../../utils/audio';
+import { isCashCustomerParty } from '../../utils/partyUtils';
 
 interface CustomerSpecialPricesModalProps {
   party: Party | null;
@@ -57,7 +58,7 @@ export const CustomerSpecialPricesModal: React.FC<CustomerSpecialPricesModalProp
     });
   }, [inventory, categoryFilter, searchQuery]);
 
-  if (!isOpen || !party) return null;
+  if (!isOpen || !party || isCashCustomerParty(party)) return null;
 
   const handlePriceChange = (itemId: string, val: number) => {
     setTempPrices(prev => {

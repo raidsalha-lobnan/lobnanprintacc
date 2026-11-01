@@ -25,7 +25,7 @@ import { PosFavoritesSidebar } from './pos/PosFavoritesSidebar';
 import { posSound } from '../utils/audio';
 import { useHardwareBarcodeScanner } from '../utils/useBarcodeScanner';
 import { matchItemByBarcode } from '../utils/barcodeGenerator';
-import { findPartyByCodeOrNumber } from '../utils/partyUtils';
+import { findPartyByCodeOrNumber, isCashCustomerParty } from '../utils/partyUtils';
 import { getAvailableUnitsOfMeasure, isSquareMeterUnit } from '../utils/unitsOfMeasure';
 import { matchKeyboardShortcut } from '../utils/keyboardShortcuts';
 import {
@@ -1671,24 +1671,24 @@ const getInitialPosDraft = (): PosFullDraftData => {
     return newLine.id;
   };
 
+  // Current customer object for lookup
+  const selectedCustomerObj = useMemo(() => {
+    return parties.find(p => p.id === selectedCustomerId) || null;
+  }, [parties, selectedCustomerId]);
+
   const isCashCustomer = useMemo(() => {
-    const trimmedName = (customerName || '').trim();
-    return !selectedCustomerId ||
-      selectedCustomerId === 'pt-cust-1' ||
-      customerCode === '1' ||
-      customerCode === 'CUST-0001' ||
-      trimmedName === 'عميل كاشير نقدي' ||
-      trimmedName === 'عميل نقدي' ||
-      trimmedName === 'زبون عام';
-  }, [selectedCustomerId, customerCode, customerName]);
+    return isCashCustomerParty(selectedCustomerObj || selectedCustomerId, customerCode, customerName);
+  }, [selectedCustomerObj, selectedCustomerId, customerCode, customerName]);
 
   const effectivePricingCustomerId = useMemo(() => {
     if (posTargetType !== 'customer') return undefined;
+    if (isCashCustomer) return undefined;
     if (subCustomerId) return subCustomerId;
     return selectedCustomerId || undefined;
-  }, [posTargetType, subCustomerId, selectedCustomerId]);
+  }, [posTargetType, isCashCustomer, subCustomerId, selectedCustomerId]);
 
   const effectivePricingCustomerObj = useMemo(() => {
+    if (isCashCustomer) return null;
     const custId = effectivePricingCustomerId || selectedCustomerId;
     if (!custId && !customerName) return null;
     return parties.find(p => 
@@ -1696,28 +1696,65 @@ const getInitialPosDraft = (): PosFullDraftData => {
       (custId && p.code && p.code.toLowerCase() === custId.toLowerCase()) ||
       (customerName && p.name && p.name.trim().toLowerCase() === customerName.trim().toLowerCase())
     ) || null;
-  }, [parties, effectivePricingCustomerId, selectedCustomerId, customerName]);
+  }, [isCashCustomer, parties, effectivePricingCustomerId, selectedCustomerId, customerName]);
 
-  // Current customer object for special pricing lookup
-  const selectedCustomerObj = useMemo(() => {
-    return parties.find(p => p.id === selectedCustomerId) || null;
-  }, [parties, selectedCustomerId]);
+  // Helper to look up the last sale price for a registered customer for an item strictly from previous sales invoices
+  const getLastSalePriceForCustomer = useCallback((itemId: string, custIdentifier?: string): number | undefined => {
+    if (!custIdentifier || isCashCustomer) return undefined;
+    const targetParty = parties.find(p =>
+      p.id === custIdentifier ||
+      (p.code && p.code.toLowerCase() === custIdentifier.toLowerCase()) ||
+      (p.name && p.name.trim().toLowerCase() === custIdentifier.trim().toLowerCase())
+    );
+    if (!targetParty || isCashCustomerParty(targetParty)) return undefined;
+    const targetId = targetParty.id;
+    const targetName = targetParty.name.trim().toLowerCase();
+
+    for (let i = 0; i < invoices.length; i++) {
+      const inv = invoices[i];
+      if (inv.status === 'deleted' || inv.status === 'cancelled') continue;
+      const isTargetCust = (inv.customerId && inv.customerId === targetId) || (inv.customerName && inv.customerName.trim().toLowerCase() === targetName);
+      if (!isTargetCust) continue;
+      const matchLine = inv.items?.find(it => it.itemId === itemId || it.inventoryItemId === itemId || (it.barcode && matchItemByBarcode({ barcode: it.barcode } as any, it.barcode)));
+      if (matchLine && typeof matchLine.unitPrice === 'number' && matchLine.unitPrice > 0) {
+        return matchLine.unitPrice;
+      }
+    }
+    return undefined;
+  }, [invoices, parties, isCashCustomer]);
 
   // Compute item effective price honoring customer special prices & pricing tier
   const getItemEffectivePrice = useCallback((item: InventoryItem, tier: string = pricingTier): number => {
+    if (isCashCustomer) {
+      const res = getItemPriceForCustomer(item, undefined, tier as any);
+      return res.price;
+    }
     const targetCustomerIdentifier = effectivePricingCustomerId || selectedCustomerId || customerName;
     const res = getItemPriceForCustomer(item, targetCustomerIdentifier, tier as any);
+
+    // If the customer does NOT have an explicit special price, and "استخدام آخر سعر" checkbox is checked:
+    if (!res.isSpecialPrice && useLastCustomerPrice) {
+      const lastPrice = getLastSalePriceForCustomer(item.id, targetCustomerIdentifier);
+      if (lastPrice !== undefined && lastPrice > 0) {
+        return lastPrice;
+      }
+    }
+
     return res.price;
-  }, [getItemPriceForCustomer, effectivePricingCustomerId, selectedCustomerId, customerName, pricingTier]);
+  }, [isCashCustomer, getItemPriceForCustomer, effectivePricingCustomerId, selectedCustomerId, customerName, pricingTier, useLastCustomerPrice, getLastSalePriceForCustomer]);
 
   // Apply customer specific pricing to all lines currently in the table
   const applyCustomerPricingToLines = useCallback((
     customer: Party | null | undefined,
     currentLines: PosTableLine[],
-    tierOverride?: 'retail' | 'wholesale' | 'special'
+    tierOverride?: 'retail' | 'wholesale' | 'special',
+    forceUseLastPrice?: boolean
   ): PosTableLine[] => {
     const activeTier = tierOverride || pricingTier;
-    const targetCustId = customer?.id || customer?.name || effectivePricingCustomerId || selectedCustomerId;
+    const isCustomerCash = isCashCustomerParty(customer || selectedCustomerId, customerCode, customerName);
+    const targetCustId = isCustomerCash ? undefined : (customer?.id || customer?.name || effectivePricingCustomerId || selectedCustomerId);
+    const shouldCheckLastPrice = !isCustomerCash && (forceUseLastPrice !== undefined ? forceUseLastPrice : useLastCustomerPrice);
+
     return currentLines.map(line => {
       const item = inventory.find(i => 
         (line.inventoryItemId && i.id === line.inventoryItemId) || 
@@ -1726,8 +1763,20 @@ const getInitialPosDraft = (): PosFullDraftData => {
       );
       if (!item) return line;
 
-      const res = getItemPriceForCustomer(item, targetCustId, activeTier);
-      const effectivePrice = res.price;
+      let effectivePrice = item.sellingPrice;
+      if (isCustomerCash) {
+        const res = getItemPriceForCustomer(item, undefined, activeTier);
+        effectivePrice = res.price;
+      } else {
+        const res = getItemPriceForCustomer(item, targetCustId, activeTier);
+        effectivePrice = res.price;
+        if (!res.isSpecialPrice && shouldCheckLastPrice) {
+          const lastPrice = getLastSalePriceForCustomer(item.id, targetCustId);
+          if (lastPrice !== undefined && lastPrice > 0) {
+            effectivePrice = lastPrice;
+          }
+        }
+      }
 
       const calc = calculateLineValues(
         line.hasDimensions,
@@ -1749,7 +1798,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
         total: calc.total
       };
     });
-  }, [inventory, pricingTier, calculateLineValues, getItemPriceForCustomer, effectivePricingCustomerId, selectedCustomerId, taxEnabled, taxRate]);
+  }, [inventory, pricingTier, calculateLineValues, getItemPriceForCustomer, effectivePricingCustomerId, selectedCustomerId, taxEnabled, taxRate, customerCode, customerName, useLastCustomerPrice, getLastSalePriceForCustomer]);
 
   // Re-evaluate line prices automatically whenever customer changes across POS (only during new sales when customer is manually switched, never when editing/loading an existing invoice)
   const isInvoiceLoadingRef = useRef<boolean>(false);
@@ -1911,20 +1960,6 @@ const getInitialPosDraft = (): PosFullDraftData => {
             updated.tax = calc.tax;
           }
           updated.total = calc.total;
-        }
-
-        // If unit price was updated for a registered customer during a new sale, automatically adopt it as their special price
-        if (field === 'unitPrice' && !editingPosInvoiceId && !currentEditingInvoiceIdRef.current && effectivePricingCustomerId && Number(value) > 0) {
-          const item = inventory.find(i => 
-            (line.inventoryItemId && i.id === line.inventoryItemId) ||
-            (line.barcode && matchItemByBarcode(i, line.barcode)) ||
-            i.name === line.itemName
-          );
-          if (item && effectivePricingCustomerObj) {
-            const currentSpecial = effectivePricingCustomerObj.specialPrices || {};
-            const updatedSpecial = { ...currentSpecial, [item.id]: Number(value) };
-            updateParty(effectivePricingCustomerId, { specialPrices: updatedSpecial });
-          }
         }
 
         return updated;
@@ -2393,26 +2428,6 @@ const getInitialPosDraft = (): PosFullDraftData => {
     onlineInvoicePostingService.clearStagedInvoiceDraft();
 
     posSound.success();
-
-    // Auto-save any customer modified special prices so they are permanently retained
-    if (effectivePricingCustomerId && parties.some(p => p.id === effectivePricingCustomerId)) {
-      const updatedSpecial = { ...(effectivePricingCustomerObj?.specialPrices || {}) };
-      let hasPriceChanges = false;
-      tableLines.forEach(l => {
-        const item = inventory.find(i => 
-          (l.inventoryItemId && i.id === l.inventoryItemId) || 
-          (l.barcode && matchItemByBarcode(i, l.barcode)) || 
-          i.name === l.itemName
-        );
-        if (item && l.unitPrice > 0 && l.unitPrice !== item.sellingPrice) {
-          updatedSpecial[item.id] = l.unitPrice;
-          hasPriceChanges = true;
-        }
-      });
-      if (hasPriceChanges) {
-        updateParty(effectivePricingCustomerId, { specialPrices: updatedSpecial });
-      }
-    }
 
     // POS Sale is a direct sales invoice - no duplicate print orders or deposits are created
     if (printMode !== 'none') {
@@ -4152,18 +4167,34 @@ const getInitialPosDraft = (): PosFullDraftData => {
               </label>
 
               {/* استخدام آخر سعر */}
-              <label className="pos-advanced-config flex items-center gap-1.5 cursor-pointer shrink-0 text-[14px] text-slate-700 font-bold bg-white hover:bg-slate-50 px-1.5 py-0.5 rounded-lg border border-slate-300 select-none shadow-2xs transition-colors">
+              <label
+                className={`pos-advanced-config flex items-center gap-1.5 shrink-0 text-[14px] font-bold px-1.5 py-0.5 rounded-lg border select-none shadow-2xs transition-colors ${
+                  isCashCustomer
+                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 cursor-pointer'
+                }`}
+                title={isCashCustomer ? 'الزبون النقدي يندرج تحته عدة زبائن ولا يُطبق عليه آخر سعر أو أسعار خاصة' : 'استخدام آخر سعر بيع مسجل لهذا العميل إن وُجد'}
+              >
                 <input
                   type="checkbox"
-                  checked={useLastCustomerPrice}
-                  onChange={e => setUseLastCustomerPrice(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                  disabled={isCashCustomer}
+                  checked={!isCashCustomer && useLastCustomerPrice}
+                  onChange={e => {
+                    if (!isCashCustomer) {
+                      const willUse = e.target.checked;
+                      setUseLastCustomerPrice(willUse);
+                      if (effectivePricingCustomerObj) {
+                        setTableLines(prev => applyCustomerPricingToLines(effectivePricingCustomerObj, prev, undefined, willUse));
+                      }
+                    }
+                  }}
+                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
                 />
                 <span>استخدام آخر سعر</span>
               </label>
 
-              {/* Special Prices Button for current customer */}
-              {effectivePricingCustomerId && (
+              {/* Special Prices Button for current customer (never for cash customer) */}
+              {effectivePricingCustomerId && !isCashCustomer && (
                 <button
                   type="button"
                   onClick={() => setIsSpecialPricesModalOpen(true)}
@@ -4909,11 +4940,11 @@ const getInitialPosDraft = (): PosFullDraftData => {
                           (line.barcode && matchItemByBarcode(i, line.barcode)) || 
                           i.name === line.itemName
                         );
-                        const priceInfo = matchedItem
+                        const priceInfo = (matchedItem && !isCashCustomer)
                           ? getItemPriceForCustomer(matchedItem, effectivePricingCustomerId, pricingTier as any)
                           : { isSpecialPrice: false, price: line.unitPrice, specialPriceLabel: undefined };
-                        const isSpecialPrice = Boolean(priceInfo.isSpecialPrice || pricingTier === 'special');
-                        const specialTooltip = priceInfo.specialPriceLabel || (isSpecialPrice ? "سعر خاص معتمد لهذا العميل" : "سعر الصنف");
+                        const isSpecialPrice = !isCashCustomer && Boolean(priceInfo.isSpecialPrice || pricingTier === 'special');
+                        const specialTooltip = isCashCustomer ? "سعر الصنف" : (priceInfo.specialPriceLabel || (isSpecialPrice ? "سعر خاص معتمد لهذا العميل" : "سعر الصنف"));
 
                         return (
                           <td className={`p-0 border-l border-b border-slate-300 ${isSpecialPrice ? 'bg-amber-100/70 font-bold' : ''}`} title={specialTooltip}>

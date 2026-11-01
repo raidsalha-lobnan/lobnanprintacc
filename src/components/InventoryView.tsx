@@ -8,6 +8,7 @@ import { StockMovementModal } from './StockMovementModal';
 import { ItemUnitSelector } from './ItemUnitSelector';
 import { posSound } from '../utils/audio';
 import { useHardwareBarcodeScanner } from '../utils/useBarcodeScanner';
+import { isCashCustomerParty } from '../utils/partyUtils';
 import {
   CATEGORY_DEFINITIONS,
   generateSequentialSku,
@@ -69,9 +70,9 @@ export const InventoryView: React.FC = () => {
     parties
   } = useAccounting();
 
-  // Active Customers for Customer Special Pricing
+  // Active Registered Customers for Customer Special Pricing (strictly excludes cash customer)
   const customers = useMemo(() => {
-    return (parties || []).filter(p => (p.type === 'customer' || p.type === 'both') && !p.isSubCustomer);
+    return (parties || []).filter(p => (p.type === 'customer' || p.type === 'both') && !p.isSubCustomer && !isCashCustomerParty(p));
   }, [parties]);
 
   // Multi-Currency Display & Valuation (Base: ILS ₪)
@@ -463,8 +464,11 @@ export const InventoryView: React.FC = () => {
     setFormPurchasePrice(it.purchasePrice);
     setFormSellingPrice(it.sellingPrice);
     setFormSellingPrice2(it.sellingPrice2 !== undefined && it.sellingPrice2 > 0 ? it.sellingPrice2 : '');
-    const initialItemSpecials: CustomerSpecialPrice[] = it.customerSpecialPrices ? [...it.customerSpecialPrices] : [];
+    const initialItemSpecials: CustomerSpecialPrice[] = it.customerSpecialPrices
+      ? it.customerSpecialPrices.filter(sp => !isCashCustomerParty(sp.customerId, sp.customerCode, sp.customerName))
+      : [];
     customers.forEach(cust => {
+      if (isCashCustomerParty(cust)) return;
       if (cust.specialPrices) {
         const pPrice = cust.specialPrices[it.id] !== undefined
           ? cust.specialPrices[it.id]
@@ -497,6 +501,10 @@ export const InventoryView: React.FC = () => {
   const handleAddCustomerSpecialPrice = () => {
     if (!newSpecialCustomerId) {
       alert('يرجى اختيار العميل أولاً من القائمة');
+      return;
+    }
+    if (isCashCustomerParty(newSpecialCustomerId)) {
+      alert('الزبون النقدي لا يمكن تحديد سعر خاص له لأنه يندرج تحته العديد من الزبائن.');
       return;
     }
     const priceNum = Number(newSpecialPrice);

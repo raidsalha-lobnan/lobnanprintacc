@@ -163,3 +163,55 @@ export function formatInvoiceCustomerDisplay(
 
   return mainName;
 }
+
+/**
+ * فحص ما إذا كان العميل نقدي (زبون نقدي / عام)
+ * الزبون النقدي يندرج تحته العديد من الزبائن ولا يجوز أن يكون له أسعار خاصة أو آخر سعر بيع
+ */
+export const isCashCustomerParty = (
+  partyOrIdOrName?: any,
+  code?: string | null,
+  name?: string | null
+): boolean => {
+  if (!partyOrIdOrName && !code && !name) return true;
+
+  let pId = '';
+  let pCode = (code || '').trim().toLowerCase();
+  let pName = (name || '').trim().toLowerCase();
+
+  if (typeof partyOrIdOrName === 'string') {
+    const trimmed = partyOrIdOrName.trim();
+    pId = trimmed.toLowerCase();
+    if (!name) {
+      pName = trimmed.toLowerCase();
+    }
+  } else if (partyOrIdOrName && typeof partyOrIdOrName === 'object') {
+    pId = (partyOrIdOrName.id || '').trim().toLowerCase();
+    if (partyOrIdOrName.code) pCode = partyOrIdOrName.code.trim().toLowerCase();
+    if (partyOrIdOrName.name) pName = partyOrIdOrName.name.trim().toLowerCase();
+  }
+
+  // المعرفات الثابتة للزبون النقدي
+  if (pId === 'pt-cust-1' || pId === '1' || pId === 'cust-0001' || pId === 'c-0001') return true;
+  if (pCode === '1' || pCode === 'cust-0001' || pCode === 'c-0001' || pCode === 'pt-cust-1') return true;
+
+  // الأسماء الشائعة للزبون النقدي
+  const cashNames = [
+    'زبون نقدي',
+    'عميل نقدي',
+    'عميل كاشير نقدي',
+    'زبون كاشير',
+    'زبون عام',
+    'عميل عام',
+    'عميل نقدي عام',
+    'زبون نقدي / عام',
+    'زبون نقدي عام',
+    'نقدي',
+    'كاش'
+  ];
+
+  if (cashNames.includes(pName)) return true;
+  if (pName.startsWith('زبون نقدي') || pName.startsWith('عميل نقدي')) return true;
+
+  return false;
+};

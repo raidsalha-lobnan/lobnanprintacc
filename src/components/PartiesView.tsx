@@ -33,7 +33,7 @@ import {
   Scale,
   RefreshCw
 } from 'lucide-react';
-import { generateSequentialPartyCode } from '../utils/partyUtils';
+import { generateSequentialPartyCode, isCashCustomerParty } from '../utils/partyUtils';
 import { CustomerSpecialPricesModal } from './pos/CustomerSpecialPricesModal';
 import { BalanceReconciliationModal } from './BalanceReconciliationModal';
 import { posSound } from '../utils/audio';
@@ -725,24 +725,26 @@ export const PartiesView: React.FC = () => {
 
                       {/* Edit / Actions */}
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setSpecialPricesPartyForModal(party)}
-                          className={`p-1.5 rounded-md transition-colors cursor-pointer flex items-center gap-1 ${
-                            party.specialPrices && Object.keys(party.specialPrices).length > 0
-                              ? 'text-amber-800 bg-amber-50 hover:bg-amber-100 font-bold border border-amber-200'
-                              : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                          }`}
-                          title={
-                            party.specialPrices && Object.keys(party.specialPrices).length > 0
-                              ? `أسعار خاصة (${Object.keys(party.specialPrices).length} أصناف)`
-                              : 'تحديد أسعار خاصة للعميل'
-                          }
-                        >
-                          <Tag className="w-3.5 h-3.5" />
-                          {party.specialPrices && Object.keys(party.specialPrices).length > 0 && (
-                            <span className="text-[10px] font-mono">{Object.keys(party.specialPrices).length}</span>
-                          )}
-                        </button>
+                        {!isCashCustomerParty(party) && party.type !== 'supplier' && (
+                          <button
+                            onClick={() => setSpecialPricesPartyForModal(party)}
+                            className={`p-1.5 rounded-md transition-colors cursor-pointer flex items-center gap-1 ${
+                              party.specialPrices && Object.keys(party.specialPrices).length > 0
+                                ? 'text-amber-800 bg-amber-50 hover:bg-amber-100 font-bold border border-amber-200'
+                                : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                            }`}
+                            title={
+                              party.specialPrices && Object.keys(party.specialPrices).length > 0
+                                ? `أسعار خاصة (${Object.keys(party.specialPrices).length} أصناف)`
+                                : 'تحديد أسعار خاصة للعميل'
+                            }
+                          >
+                            <Tag className="w-3.5 h-3.5" />
+                            {party.specialPrices && Object.keys(party.specialPrices).length > 0 && (
+                              <span className="text-[10px] font-mono">{Object.keys(party.specialPrices).length}</span>
+                            )}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenEditModal(party)}
                           className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
@@ -862,21 +864,23 @@ export const PartiesView: React.FC = () => {
                           <Receipt className="w-3 h-3" />
                           <span>سند</span>
                         </button>
-                        <button
-                          onClick={() => setSpecialPricesPartyForModal(party)}
-                          className={`p-1 rounded cursor-pointer transition-colors ${
-                            party.specialPrices && Object.keys(party.specialPrices).length > 0
-                              ? 'text-amber-800 bg-amber-50 hover:bg-amber-100 font-bold'
-                              : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                          }`}
-                          title={
-                            party.specialPrices && Object.keys(party.specialPrices).length > 0
-                              ? `أسعار خاصة (${Object.keys(party.specialPrices).length} أصناف)`
-                              : 'تحديد أسعار خاصة للعميل'
-                          }
-                        >
-                          <Tag className="w-3.5 h-3.5" />
-                        </button>
+                        {!isCashCustomerParty(party) && party.type !== 'supplier' && (
+                          <button
+                            onClick={() => setSpecialPricesPartyForModal(party)}
+                            className={`p-1 rounded cursor-pointer transition-colors ${
+                              party.specialPrices && Object.keys(party.specialPrices).length > 0
+                                ? 'text-amber-800 bg-amber-50 hover:bg-amber-100 font-bold'
+                                : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                            }`}
+                            title={
+                              party.specialPrices && Object.keys(party.specialPrices).length > 0
+                                ? `أسعار خاصة (${Object.keys(party.specialPrices).length} أصناف)`
+                                : 'تحديد أسعار خاصة للعميل'
+                            }
+                          >
+                            <Tag className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenEditModal(party)}
                           className="p-1 text-slate-400 hover:text-blue-600 rounded cursor-pointer"
@@ -1175,8 +1179,9 @@ export const PartiesView: React.FC = () => {
                 />
               </div>
 
-              {/* بند أسعار خاصة للعميل يتم فيها إضافة الأصناف التي ستسعر للعميل بسعر خاص مختلف عن سعر البيع */}
-              <div className="bg-gradient-to-r from-amber-50/70 to-orange-50/50 border border-amber-300 rounded-lg p-2.5 space-y-2">
+              {/* بند أسعار خاصة للعميل يتم فيها إضافة الأصناف التي ستسعر للعميل بسعر خاص مختلف عن سعر البيع (فقط للعملاء المسجلين، وليس للزبون النقدي) */}
+              {!isCashCustomerParty(editingPartyId, undefined, name) && partyType !== 'supplier' && (
+                <div className="bg-gradient-to-r from-amber-50/70 to-orange-50/50 border border-amber-300 rounded-lg p-2.5 space-y-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <div className="p-1 bg-amber-400 text-slate-900 rounded font-bold shadow-2xs">
@@ -1362,6 +1367,7 @@ export const PartiesView: React.FC = () => {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Form Buttons */}
               <div className="pt-2 border-t border-slate-200 flex items-center justify-end gap-2">
