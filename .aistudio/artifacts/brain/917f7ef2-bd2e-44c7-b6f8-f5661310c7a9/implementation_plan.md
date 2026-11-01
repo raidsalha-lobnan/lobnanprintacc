@@ -1,25 +1,80 @@
-# Implementation Plan: Migrating Daily Entry Rows to Sub-collections
+# خطة تنفيذ: بوت التلجرام التفاعلي الذكي للتقارير وكشوفات الحسابات PDF
 
-## Overview
-To resolve the synchronization issues where concurrent edits overwrite each other in the daily entry sheets, we will migrate the daily entry rows from a single document to a Firestore sub-collection: `dailyEntrySheets/{date}/rows/{rowId}`.
+## 1. نظرة عامة
+تطوير وتوسيع نظام بوت التلجرام المدمج في برنامج الأيهم المحاسبي ليتحول إلى مساعد محاسبي تفاعلي ذكي وسلس. يمكن للمستخدم من خلاله طلب أي تقرير محاسبي مباشرة عبر محادثة التلجرام، مع توفير واجهة أزرار تفاعلية (Inline Keyboards)، ومطابقة ذكية للأسماء المكتوبة (Fuzzy Name Matching) تقرب الاسم وتطلب التأكيد ("هل تقصد [الاسم]؟")، ثم توفير أزرار مرنة لتحديد الفترة الزمنية، وصولاً إلى توليد كشف حساب تفصيلي بصيغة PDF عالية الدقة مع ترويسة المنشأة وختمها وتفاصيل الحركات، وإرساله فوراً داخل المحادثة.
 
-## Steps
+---
 
-1.  **Firebase Blueprint Update**: Update `firebase-blueprint.json` to reflect the new structure:
-    -   Collection `dailyEntrySheets`: Holds summary information (date, notes, updatedAt).
-    -   Sub-collection `dailyEntrySheets/{date}/rows`: Holds individual `DailyEntryRow` documents.
+## 2. هيكلية ومراحل التنفيذ
 
-2.  **Firestore Rules Update**: Update `firestore.rules` to secure the new sub-collection:
-    -   Secure `dailyEntrySheets/{date}`.
-    -   Secure `dailyEntrySheets/{date}/rows/{rowId}`.
+### المرحلة الأولى: تطوير محرك التواصل وخدمة التلجرام (TelegramService)
+- **دعم الأزرار التفاعلية (Inline Keyboards):**
+  - تحديث دالة `sendMessage` لدعم معامل `reply_markup` (أزرار الاختيار والردود الفورية `inline_keyboard`).
+- **دعم الاستجابة للنقر على الأزرار (Callback Queries):**
+  - تطوير دالة الاستقبال والإنصات `startPolling` في `TelegramService.ts` لتستقبل كلاً من الرسائل النصية (`message.text`) ونقرات الأزرار التفاعلية (`callback_query`).
+  - إضافة دالة `answerCallbackQuery` لإغلاق مؤشر التحميل في التلجرام عند ضغط المستخدم على أي زر.
+- **إرسال ملفات PDF والوسائط (`sendDocument`):**
+  - تحسين دالة `sendDocument` لتضمن استقرار رفع ملفات الـ PDF مع العناوين والوصف التفصيلي (Caption) واسترجاع حالة النجاح.
 
-3.  **AccountingContext.tsx Refactoring**:
-    -   Update `saveDailyEntryRow` to perform a `setDoc` on `dailyEntrySheets/{date}/rows/{rowId}`.
-    -   Update `deleteDailyEntrySheet` to use a `batch` deletion or a cloud function (if possible) or client-side deletion of the sub-collection rows.
-    -   Implement a real-time `onSnapshot` listener on `dailyEntrySheets/{date}/rows` to sync local state with the sub-collection.
-    -   Remove or adapt `saveDailyEntrySheet` to only update summary fields.
+---
 
-4.  **Verification**:
-    -   Ensure real-time sync works across multiple clients.
-    -   Verify that edits to one row do not interfere with other rows.
-    -   Run `compile_applet` to ensure no breaking changes.
+### المرحلة الثانية: محرك البحث الذكي والمطابقة التقريبية للأسماء (Smart Fuzzy Matcher)
+- بناء خوارزمية ذكية متخصصة باللغة العربية (`arabicFuzzyMatch`):
+  - توحيد الحروف المتشابهة (أ، إ، آ، ا)، و (ة، ه)، و (ى، ي).
+  - إزالة التشكيل والمسافات الزائدة والرموز.
+  - حساب نسبة التطابق اللفظي وتقارب النصوص (Token Matching + Levenshtein Distance).
+  - البحث في اسم العميل، اسم الشركة، اسم الزبون الفرعي، رقم الهاتف، وكود الحساب.
+- ترتيب النتائج وإبراز أفضل نتيجة مع إمكانية عرض أقرب 3 نتائج بديلة عند وجود تشابه.
+
+---
+
+### المرحلة الثالثة: إدارة حالة المحادثة والجلسات (Conversational Session Manager)
+- تتبع حالة كل مستخدم (`chatId`) في ذاكرة التطبيق التفاعلية:
+  1. **الحالة الابتدائية (Idle/Menu):** عرض القائمة الرئيسية للتقارير:
+     - 👤 كشف حساب عميل
+     - 🏢 كشف حساب مورد
+     - 👷 كشف حساب موظف
+     - 💰 كشف حركات الصناديق والخزائن
+     - 📊 ملخص مبيعات اليوم وفواتيرها
+     - 📦 تقرير النواقص والمخزون
+     - 📑 تقرير المصروفات
+     - ❓ مساعدة وأوامر البوت
+  2. **حالة انتظار اسم الطرف (Awaiting Party Name):**
+     - عند اختيار كشف حساب عميل أو مورد، يطلب البوت من المستخدم:  
+       `يرجى كتابة اسم العميل (أو رقمه أو جزء من اسمه):`
+  3. **حالة تأكيد الاسم (Confirming Party):**
+     - بعد مطابقة الاسم ذكياً، يرسل البوت:  
+       `هل تقصد: <b>[اسم العميل المرجح]</b>؟`  
+       مع أزرار تفاعلية:  
+       - `[ ✅ نعم، هو المطلوب ]`  
+       - `[ 🔍 الاسم البديل 1 ]`  
+       - `[ 🔍 الاسم البديل 2 ]`  
+       - `[ ❌ إلغاء والبحث عن اسم آخر ]`
+  4. **حالة تحديد الفترة (Period Selection):**
+     - عند التأكيد، تظهر أزرار تحديد الفترة:  
+       `[ 📅 هذا الشهر ]` `[ 🗓️ آخر 30 يوم ]`  
+       `[ 📆 السنة الحالية ]` `[ ♾️ كافة الحركات ]`
+  5. **حالة توليد التقرير وإرساله (Report Generation & Dispatch):**
+     - إشعار المستخدم فورياً: `⏳ جاري توليد كشف الحساب التفصيلي بصيغة PDF...`
+     - بناء التقرير وإرسال ملف PDF عالي الجودة مع ملخص مالي نصي بالأرصدة وإجمالي السحوبات والمقبوضات.
+
+---
+
+### المرحلة الرابعة: مولد تقارير PDF المحاسبية التفصيلية (Accurate Statement & Report PDF Generator)
+- بناء دالة توليد مخصصة وسريعة (`generateTelegramStatementPdf`) تعتمد على المحرك المحاسبي المعتمد في البرنامج `generateAccountStatement`:
+  - **ترويسة رسمية كاملة:** اسم المنشأة (`settings.businessName`)، الشعار واللوجو، العنوان، أرقام التواصل، والختم الرسمي.
+  - **بيانات الطرف:** الاسم الكامل، الكود، الهاتف، والرصيد الافتتاحي قبل الفترة.
+  - **جدول الحركات التفصيلي:** (التاريخ، رقم المستند، البيان والشرح، مدين، دائن، الرصيد التراكمي بعد الحركة).
+  - **تذييل وخلاصة مالية:** إجمالي الحركات المدينة، إجمالي الحركات الدائنة، صافي الحركة، والرصيد النهائي المستحق بوضوح تام وتفقيط بالكلمات.
+- توليد تقارير PDF المماثلة لباقي الخيارات:
+  - **تقرير الخزائن والصناديق:** كشف بأرصدة كافة الصناديق النقدية والحسابات البنكية ومجموع السيولة النقدية.
+  - **تقرير مبيعات اليوم:** جدول بالفواتير الصادرة اليوم وقيمها وطرق الدفع.
+  - **تقرير النواقص والمخزون:** قائمة بالأصناف التي وصلت للحد الأدنى وقيمة المخزون الإجمالية.
+
+---
+
+### المرحلة الخامسة: الاختبار والتحقق والتدقيق
+1. فحص كفاءة البوت واستقبال الأوامر والنقرات التفاعلية بدون تداخل أو استهلاك غير مبرر للكوتا.
+2. التحقق من مطابقة الأسماء المركبة والمتقاربة واختبار سيناريوهات الأسماء غير الموجودة.
+3. التأكد من دقة الأرقام المحاسبية في كشف الحساب المرسل ومطابقتها التامة لشاشة كشف الحساب في التطبيق.
+4. إجراء فحص البناء `compile_applet` والتدقيق البرمجي `lint_applet`.

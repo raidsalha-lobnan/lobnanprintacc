@@ -1,11 +1,41 @@
 import React, { useEffect, useRef } from 'react';
 import { useAccounting } from '../context/AccountingContext';
-import { TelegramService } from '../services/TelegramService';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { TelegramService, TelegramIncomingAction } from '../services/TelegramService';
+import { generateAccountStatement } from '../utils/statementGenerator';
+import {
+  fuzzyMatchParties,
+  fuzzyMatchEmployees,
+  getDateRangeForPeriod,
+  generateStatementPdfBlob,
+  generateTreasuryReportPdfBlob,
+  generateSalesReportPdfBlob,
+  generateInventoryReportPdfBlob,
+} from '../utils/telegramReportsHelper';
+import { Party, Employee } from '../types';
+
+interface SessionState {
+  step: 'idle' | 'awaiting_customer_name' | 'awaiting_supplier_name' | 'awaiting_employee_name';
+  lastActivity: number;
+}
 
 export const TelegramBotIntegration: React.FC = () => {
-  const { settings, parties, journalEntries, invoices, vouchers, updateSettings } = useAccounting();
+  const {
+    settings,
+    parties,
+    journalEntries,
+    invoices,
+    purchases,
+    purchaseReturns,
+    salesReturns,
+    vouchers,
+    printOrders,
+    debtClearings,
+    treasuries,
+    inventory,
+    expenses,
+    employees,
+    updateSettings,
+  } = useAccounting();
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -13,125 +43,709 @@ export const TelegramBotIntegration: React.FC = () => {
   const partiesRef = useRef(parties);
   partiesRef.current = parties;
 
+  const invoicesRef = useRef(invoices);
+  invoicesRef.current = invoices;
+
+  const purchasesRef = useRef(purchases);
+  purchasesRef.current = purchases;
+
+  const purchaseReturnsRef = useRef(purchaseReturns);
+  purchaseReturnsRef.current = purchaseReturns;
+
+  const salesReturnsRef = useRef(salesReturns);
+  salesReturnsRef.current = salesReturns;
+
+  const vouchersRef = useRef(vouchers);
+  vouchersRef.current = vouchers;
+
+  const printOrdersRef = useRef(printOrders);
+  printOrdersRef.current = printOrders;
+
+  const journalEntriesRef = useRef(journalEntries);
+  journalEntriesRef.current = journalEntries;
+
+  const debtClearingsRef = useRef(debtClearings);
+  debtClearingsRef.current = debtClearings;
+
+  const treasuriesRef = useRef(treasuries);
+  treasuriesRef.current = treasuries;
+
+  const inventoryRef = useRef(inventory);
+  inventoryRef.current = inventory;
+
+  const expensesRef = useRef(expenses);
+  expensesRef.current = expenses;
+
+  const employeesRef = useRef(employees);
+  employeesRef.current = employees;
+
+  // Session state per chat ID to manage multi-step conversations
+  const sessionsRef = useRef<Map<string, SessionState>>(new Map());
+
+  const getSession = (chatId: string): SessionState => {
+    let session = sessionsRef.current.get(chatId);
+    if (!session || Date.now() - session.lastActivity > 30 * 60 * 1000) {
+      session = { step: 'idle', lastActivity: Date.now() };
+      sessionsRef.current.set(chatId, session);
+    }
+    session.lastActivity = Date.now();
+    return session;
+  };
+
+  const updateSession = (chatId: string, updates: Partial<SessionState>) => {
+    const session = getSession(chatId);
+    Object.assign(session, updates, { lastActivity: Date.now() });
+    sessionsRef.current.set(chatId, session);
+  };
+
   const isEnabled = settings.telegramConfig?.enabled;
   const botToken = settings.telegramConfig?.botToken;
 
   useEffect(() => {
     if (!isEnabled || !botToken) return;
 
-    TelegramService.startPolling(settingsRef.current, async (command, text, chatId, currentToken) => {
-      console.log('Received Telegram command:', command);
-      
-      if (!settings.telegramConfig?.defaultChatId && text === 'مرحبا') {
-         TelegramService.sendMessage("مرحباً! لقد تم التعرف على معرف الدردشة الخاص بك: " + chatId + "\nيرجى حفظه.", {
-           ...settings,
-           telegramConfig: { ...settings.telegramConfig, botToken, defaultChatId: chatId, enabled: true }
-         });
-         
-         updateSettings({
-           telegramConfig: {
-             ...settings.telegramConfig,
-             botToken,
-             defaultChatId: chatId,
-             enabled: true
-           }
-         });
+    // Send Main Reports Menu
+    const sendMainMenu = async (chatId: string) => {
+      updateSession(chatId, { step: 'idle' });
+      const currency = settingsRef.current.currency || '₪';
+      const facilityName = settingsRef.current.businessName || 'مطبعة ومكتبة لبنان';
+
+      const menuText = `
+🏢 <b>مرحباً بك في المساعد المحاسبي الذكي</b>
+📌 <b>${facilityName}</b>
+
+يرجى اختيار التقرير المطلوب من القائمة التفاعلية:
+      `.trim();
+
+      await TelegramService.sendMessage(menuText, settingsRef.current, {
+        chatId,
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              { text: '👤 كشف حساب عميل', callback_data: 'menu_customer_statement' },
+              { text: '🏢 كشف حساب مورد', callback_data: 'menu_supplier_statement' },
+            ],
+            [
+              { text: '💰 كشف حركة الصناديق', callback_data: 'menu_treasury_report' },
+              { text: '📊 مبيعات وفواتير اليوم', callback_data: 'menu_sales_report' },
+            ],
+            [
+              { text: '📦 نواقص المخزون', callback_data: 'menu_inventory_report' },
+              { text: '📑 ملخص المصروفات', callback_data: 'menu_expenses_report' },
+            ],
+            [
+              { text: '👷 كشف حساب موظف', callback_data: 'menu_employee_statement' },
+              { text: '🔄 تحديث القائمة', callback_data: 'menu_main' },
+            ],
+          ],
+        },
+      });
+    };
+
+    // Ask to confirm party match
+    const sendPartyConfirmation = async (
+      chatId: string,
+      matches: { party: Party; score: number }[],
+      type: 'customer' | 'supplier'
+    ) => {
+      const best = matches[0].party;
+      const currency = settingsRef.current.currency || '₪';
+      const typeLabel = type === 'customer' ? 'العميل' : 'المورد';
+      const bal = best.balance || 0;
+      const balText =
+        bal > 0
+          ? `${bal.toFixed(2)} ${currency} (مدين / مطلوب منه)`
+          : bal < 0
+          ? `${Math.abs(bal).toFixed(2)} ${currency} (دائن / مستحق له)`
+          : `0.00 ${currency} (خالص)`;
+
+      const text = `
+🔍 <b>نتيجة البحث عن ${typeLabel}:</b>
+هل تقصد: <b>${best.name}</b>؟
+📌 الرصيد الحالي: <b>${balText}</b>
+${best.phone ? `📱 الهاتف: <code>${best.phone}</code>` : ''}
+      `.trim();
+
+      const inlineKeyboard: any[][] = [
+        [{ text: `✅ نعم، أقصد: ${best.name}`, callback_data: `confirm_party_${best.id}` }],
+      ];
+
+      // Add close alternative matches if available
+      if (matches.length > 1) {
+        const alt1 = matches[1].party;
+        inlineKeyboard.push([{ text: `🔍 أقصد: ${alt1.name}`, callback_data: `confirm_party_${alt1.id}` }]);
+      }
+      if (matches.length > 2) {
+        const alt2 = matches[2].party;
+        inlineKeyboard.push([{ text: `🔍 أقصد: ${alt2.name}`, callback_data: `confirm_party_${alt2.id}` }]);
       }
 
-      if (text.startsWith('كشف حساب ')) {
-        const nameToSearch = text.replace('كشف حساب ', '').trim();
-        
-        const party = parties.find(p => p.name.includes(nameToSearch) || p.companyName?.includes(nameToSearch));
-        if (!party) {
-          TelegramService.sendMessage("لم يتم العثور على عميل أو مورد باسم: <b>" + nameToSearch + "</b>", settings);
+      inlineKeyboard.push([
+        { text: '❌ لا، كتابة اسم آخر', callback_data: `retry_search_${type}` },
+        { text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' },
+      ]);
+
+      await TelegramService.sendMessage(text, settingsRef.current, {
+        chatId,
+        replyMarkup: { inline_keyboard: inlineKeyboard },
+      });
+    };
+
+    // Send period selection buttons for statement
+    const sendPeriodSelection = async (chatId: string, party: Party) => {
+      const currency = settingsRef.current.currency || '₪';
+      const promptText = `
+✅ <b>تم تحديد الحساب:</b>
+<b>${party.name}</b> (الرصيد: ${(party.balance || 0).toFixed(2)} ${currency})
+
+📅 <b>يرجى اختيار الفترة الزمنية لكشف الحساب:</b>
+      `.trim();
+
+      await TelegramService.sendMessage(promptText, settingsRef.current, {
+        chatId,
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              { text: '📅 هذا الشهر', callback_data: `period_this_month_${party.id}` },
+              { text: '🗓️ آخر 30 يوم', callback_data: `period_last_30_days_${party.id}` },
+            ],
+            [
+              { text: '📆 السنة الحالية', callback_data: `period_this_year_${party.id}` },
+              { text: '♾️ كافة الحركات', callback_data: `period_all_${party.id}` },
+            ],
+            [{ text: '🔙 رجوع للقائمة', callback_data: 'menu_main' }],
+          ],
+        },
+      });
+    };
+
+    // Dispatch statement PDF
+    const dispatchStatementPdf = async (
+      chatId: string,
+      partyId: string,
+      period: 'this_month' | 'last_30_days' | 'this_year' | 'all'
+    ) => {
+      const party = partiesRef.current.find(p => p.id === partyId);
+      if (!party) {
+        await TelegramService.sendMessage('❌ لم يتم العثور على الحساب المحدد.', settingsRef.current, { chatId });
+        return;
+      }
+
+      const { fromDate, toDate, label: periodLabel } = getDateRangeForPeriod(period);
+
+      await TelegramService.sendMessage(
+        `⏳ <b>جاري تجهيز كشف الحساب التفصيلي...</b>\nالطرف: <b>${party.name}</b>\nالفترة: <b>${periodLabel}</b>\nيرجى الانتظار ثوانٍ معدودة.`,
+        settingsRef.current,
+        { chatId }
+      );
+
+      try {
+        const parentParty = party.parentCustomerId
+          ? partiesRef.current.find(p => p.id === party.parentCustomerId) || null
+          : null;
+
+        const statementResult = generateAccountStatement({
+          party,
+          fromDate,
+          toDate,
+          invoices: invoicesRef.current,
+          purchases: purchasesRef.current,
+          purchaseReturns: purchaseReturnsRef.current,
+          salesReturns: salesReturnsRef.current,
+          vouchers: vouchersRef.current,
+          printOrders: printOrdersRef.current,
+          journalEntries: journalEntriesRef.current,
+          debtClearings: debtClearingsRef.current,
+        });
+
+        const { blob, filename } = await generateStatementPdfBlob({
+          party,
+          parentParty,
+          statementResult,
+          settings: settingsRef.current,
+          periodLabel,
+        });
+
+        const currency = settingsRef.current.currency || '₪';
+        const closingBal = statementResult.closingBalance || 0;
+        const balLabel =
+          closingBal > 0
+            ? `مدين: ${closingBal.toFixed(2)} ${currency}`
+            : closingBal < 0
+            ? `دائن: ${Math.abs(closingBal).toFixed(2)} ${currency}`
+            : `خالص (0.00)`;
+
+        const caption = `
+📄 <b>كشف حساب: ${party.name}</b>
+📅 الفترة: ${periodLabel}
+➕ إجمالي السحوبات (مدين): ${statementResult.totalDebit.toFixed(2)} ${currency}
+➖ إجمالي المقبوضات (دائن): ${statementResult.totalCredit.toFixed(2)} ${currency}
+🎯 صافي الرصيد المستحق: <b>${balLabel}</b>
+        `.trim();
+
+        await TelegramService.sendDocument(blob, filename, caption, chatId, botToken);
+
+        // Offer next actions
+        await TelegramService.sendMessage('هل ترغب في طلب كشف آخر؟', settingsRef.current, {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [
+              [
+                { text: '👤 كشف عميل آخر', callback_data: 'menu_customer_statement' },
+                { text: '🏢 كشف مورد آخر', callback_data: 'menu_supplier_statement' },
+              ],
+              [{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }],
+            ],
+          },
+        });
+      } catch (err: any) {
+        console.error('Failed to generate statement PDF for Telegram:', err);
+        await TelegramService.sendMessage(
+          '❌ حدث خطأ أثناء تجهيز ملف الـ PDF لكشف الحساب. يرجى المحاولة مرة أخرى.',
+          settingsRef.current,
+          { chatId }
+        );
+      }
+    };
+
+    // Dispatch Treasury Report
+    const dispatchTreasuryReport = async (chatId: string) => {
+      const activeTreasuries = treasuriesRef.current;
+      const currency = settingsRef.current.currency || '₪';
+      const totalLiquidity = activeTreasuries.reduce((sum, t) => sum + (t.balance || 0), 0);
+
+      const summaryLines = activeTreasuries
+        .map(t => `• <b>${t.name}</b>: ${(t.balance || 0).toFixed(2)} ${t.currency || currency}`)
+        .join('\n');
+
+      const message = `
+💰 <b>أرصدة الصناديق والخزائن البنكية الحالية:</b>
+${summaryLines}
+
+━━━━━━━━━━━━━━━
+💵 <b>إجمالي السيولة النقدية:</b> <b>${totalLiquidity.toFixed(2)} ${currency}</b>
+⏳ جاري إرسال التقرير التفصيلي بصيغة PDF...
+      `.trim();
+
+      await TelegramService.sendMessage(message, settingsRef.current, { chatId });
+
+      try {
+        const { blob, filename } = await generateTreasuryReportPdfBlob({
+          treasuries: activeTreasuries,
+          settings: settingsRef.current,
+        });
+
+        await TelegramService.sendDocument(
+          blob,
+          filename,
+          `كشف حركة وأرصدة الصناديق والخزائن - إجمالي السيولة: ${totalLiquidity.toFixed(2)} ${currency}`,
+          chatId,
+          botToken
+        );
+      } catch (err) {
+        console.error('Treasury report PDF error:', err);
+      }
+    };
+
+    // Dispatch Sales Report
+    const dispatchSalesReport = async (chatId: string) => {
+      const todayIso = new Date().toISOString().split('T')[0];
+      const todayInvoices = invoicesRef.current.filter(inv => inv.date && inv.date.startsWith(todayIso));
+      const currency = settingsRef.current.currency || '₪';
+
+      const totalSales = todayInvoices.reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total || 0), 0);
+      const paidSales = todayInvoices.reduce(
+        (sum, inv) => sum + (inv.paidAmount || (inv.paymentMethod === 'cash' ? inv.totalAmount : 0) || 0),
+        0
+      );
+      const remainingSales = Math.max(0, totalSales - paidSales);
+
+      const msg = `
+📊 <b>تقرير مبيعات اليوم (${todayIso}):</b>
+🧾 عدد الفواتير الصادرة اليوم: <b>${todayInvoices.length} فاتورة</b>
+💰 إجمالي قيمة المبيعات: <b>${totalSales.toFixed(2)} ${currency}</b>
+💵 المحصل نقداً وشبكة: <b>${paidSales.toFixed(2)} ${currency}</b>
+⏳ المتبقي ذمم آجلة: <b>${remainingSales.toFixed(2)} ${currency}</b>
+
+⏳ جاري إنشاء ملف تقرير الفواتير التفصيلي PDF...
+      `.trim();
+
+      await TelegramService.sendMessage(msg, settingsRef.current, { chatId });
+
+      try {
+        const { blob, filename } = await generateSalesReportPdfBlob({
+          invoices: invoicesRef.current,
+          settings: settingsRef.current,
+        });
+
+        await TelegramService.sendDocument(
+          blob,
+          filename,
+          `تقرير مبيعات اليوم (${todayIso}) - الإجمالي: ${totalSales.toFixed(2)} ${currency}`,
+          chatId,
+          botToken
+        );
+      } catch (err) {
+        console.error('Sales report PDF error:', err);
+      }
+    };
+
+    // Dispatch Inventory Report
+    const dispatchInventoryReport = async (chatId: string) => {
+      const items = inventoryRef.current;
+      const lowStock = items.filter(it => it.category !== 'copy_scan' && it.stockQuantity <= it.minAlertQuantity);
+      const currency = settingsRef.current.currency || '₪';
+      const totalValuation = items.reduce((sum, it) => sum + it.stockQuantity * (it.purchasePrice || 0), 0);
+
+      const preview = lowStock
+        .slice(0, 5)
+        .map(it => `• <b>${it.name}</b>: رصيد <code>${it.stockQuantity}</code> (حد الطلب: ${it.minAlertQuantity})`)
+        .join('\n');
+
+      const msg = `
+📦 <b>تقرير تنبيهات ونواقص المخزون:</b>
+⚠️ عدد الأصناف التي بلغت حد الطلب: <b>${lowStock.length} صنف</b>
+💎 إجمالي القيمة التقديرية لكافة المخزون: <b>${totalValuation.toFixed(2)} ${currency}</b>
+
+${preview ? `<b>أبرز النواقص:</b>\n${preview}\n${lowStock.length > 5 ? `... وغيرها (${lowStock.length - 5}) صنف آخر.` : ''}` : '✅ جميع الأصناف بحالة ممتازة وفوق حد الأمان.'}
+
+⏳ جاري إرسال كشف النواقص الكامل PDF...
+      `.trim();
+
+      await TelegramService.sendMessage(msg, settingsRef.current, { chatId });
+
+      try {
+        const { blob, filename } = await generateInventoryReportPdfBlob({
+          inventory: items,
+          settings: settingsRef.current,
+        });
+
+        await TelegramService.sendDocument(
+          blob,
+          filename,
+          `تقرير النواقص وتنبيهات المخزون (${lowStock.length} صنف ناقص)`,
+          chatId,
+          botToken
+        );
+      } catch (err) {
+        console.error('Inventory report PDF error:', err);
+      }
+    };
+
+    // Dispatch Expenses Report
+    const dispatchExpensesReport = async (chatId: string) => {
+      const allExpenses = expensesRef.current;
+      const currency = settingsRef.current.currency || '₪';
+      const currentMonthIso = new Date().toISOString().slice(0, 7);
+
+      const thisMonthExpenses = allExpenses.filter(e => e.date && e.date.startsWith(currentMonthIso));
+      const totalAmount = thisMonthExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+      // Group by category
+      const categoriesMap: Record<string, number> = {};
+      thisMonthExpenses.forEach(e => {
+        const cat = e.categoryName || 'مصروفات عامة';
+        categoriesMap[cat] = (categoriesMap[cat] || 0) + (e.amount || 0);
+      });
+
+      const catLines = Object.entries(categoriesMap)
+        .map(([cat, amt]) => `• ${cat}: <b>${amt.toFixed(2)} ${currency}</b>`)
+        .join('\n');
+
+      const msg = `
+📑 <b>تقرير المصروفات لشهر (${currentMonthIso}):</b>
+💰 إجمالي المصروفات: <b>${totalAmount.toFixed(2)} ${currency}</b>
+عدد الحركات: <b>${thisMonthExpenses.length}</b>
+
+<b>توزيع المصروفات حسب التصنيف:</b>
+${catLines || 'لا توجد حركات مصروفات مسجلة لهذا الشهر.'}
+      `.trim();
+
+      await TelegramService.sendMessage(msg, settingsRef.current, {
+        chatId,
+        replyMarkup: {
+          inline_keyboard: [[{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }]],
+        },
+      });
+    };
+
+    // Start Central Polling
+    TelegramService.startPolling(settingsRef.current, async (action: TelegramIncomingAction) => {
+      const { type, text, data, chatId } = action;
+      const session = getSession(chatId);
+
+      // Handle chatId setup / recognition
+      if (!settingsRef.current.telegramConfig?.defaultChatId && text === 'مرحبا') {
+        await TelegramService.sendMessage(
+          `مرحباً بك! لقد تم التعرف على معرف الدردشة الخاص بك بنجاح:\n<code>${chatId}</code>\nتم ربطه بالبرنامج تلقائياً.`,
+          settingsRef.current,
+          { chatId }
+        );
+        updateSettings({
+          telegramConfig: {
+            ...settingsRef.current.telegramConfig,
+            botToken,
+            defaultChatId: chatId,
+            enabled: true,
+          },
+        });
+        await sendMainMenu(chatId);
+        return;
+      }
+
+      // ==========================================
+      // 1. CALLBACK QUERY ACTIONS (Button clicks)
+      // ==========================================
+      if (type === 'callback' && data) {
+        if (data === 'menu_main') {
+          await sendMainMenu(chatId);
           return;
         }
 
-        TelegramService.sendMessage("جاري تجهيز كشف حساب <b>" + party.name + "</b>...", settings);
+        if (data === 'menu_customer_statement' || data === 'retry_search_customer') {
+          updateSession(chatId, { step: 'awaiting_customer_name' });
+          await TelegramService.sendMessage(
+            '👤 <b>طلب كشف حساب عميل:</b>\nيرجى كتابة اسم العميل (أو جزء منه أو رقمه):',
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [[{ text: '❌ إلغاء ورجوع', callback_data: 'menu_main' }]],
+              },
+            }
+          );
+          return;
+        }
 
-        try {
-          const htmlContent = `
-            <html dir="rtl">
-            <head>
-              <meta charset="UTF-8">
-              <style>
-                body { font-family: Tahoma, Arial, sans-serif; padding: 20px; }
-                h1 { color: #1e3a8a; text-align: center; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-                th { background-color: #f1f5f9; }
-                .balance { font-size: 18px; font-weight: bold; margin-top: 20px; text-align: left; }
-              </style>
-            </head>
-            <body>
-              <h1>كشف حساب: ${party.name}</h1>
-              <p>رقم الحساب: ${party.code}</p>
-              <table>
-                <thead>
-                  <tr>
-                    <th>التاريخ</th>
-                    <th>البيان</th>
-                    <th>مدين (عليك)</th>
-                    <th>دائن (لك)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>${new Date().toLocaleDateString('ar-SA')}</td>
-                    <td>الرصيد الحالي</td>
-                    <td>${party.balance > 0 ? party.balance : 0}</td>
-                    <td>${party.balance < 0 ? Math.abs(party.balance) : 0}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <div class="balance">
-                صافي الرصيد: ${Math.abs(party.balance)} ${settings.currency} ${party.balance > 0 ? 'مدين (عليك)' : party.balance < 0 ? 'دائن (لك)' : ''}
-              </div>
-            </body>
-            </html>
-          `;
+        if (data === 'menu_supplier_statement' || data === 'retry_search_supplier') {
+          updateSession(chatId, { step: 'awaiting_supplier_name' });
+          await TelegramService.sendMessage(
+            '🏢 <b>طلب كشف حساب مورد:</b>\nيرجى كتابة اسم المورد (أو جزء منه أو كوده):',
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [[{ text: '❌ إلغاء ورجوع', callback_data: 'menu_main' }]],
+              },
+            }
+          );
+          return;
+        }
 
-          const iframe = document.createElement('iframe');
-          iframe.style.position = 'absolute';
-          iframe.style.top = '-9999px';
-          iframe.style.width = '800px';
-          iframe.style.height = '1000px'; // Give it some height
-          document.body.appendChild(iframe);
-          
-          const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
-          if (iframeDoc) {
-             iframeDoc.open();
-             iframeDoc.write(htmlContent);
-             iframeDoc.close();
+        if (data === 'menu_treasury_report') {
+          await dispatchTreasuryReport(chatId);
+          return;
+        }
+
+        if (data === 'menu_sales_report') {
+          await dispatchSalesReport(chatId);
+          return;
+        }
+
+        if (data === 'menu_inventory_report') {
+          await dispatchInventoryReport(chatId);
+          return;
+        }
+
+        if (data === 'menu_expenses_report') {
+          await dispatchExpensesReport(chatId);
+          return;
+        }
+
+        if (data === 'menu_employee_statement') {
+          updateSession(chatId, { step: 'awaiting_employee_name' });
+          await TelegramService.sendMessage(
+            '👷 <b>طلب كشف حساب موظف:</b>\nيرجى كتابة اسم الموظف:',
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [[{ text: '❌ إلغاء ورجوع', callback_data: 'menu_main' }]],
+              },
+            }
+          );
+          return;
+        }
+
+        // Confirming party from suggestion buttons
+        if (data.startsWith('confirm_party_')) {
+          const partyId = data.replace('confirm_party_', '');
+          const party = partiesRef.current.find(p => p.id === partyId);
+          if (party) {
+            updateSession(chatId, { step: 'idle' });
+            await sendPeriodSelection(chatId, party);
+          } else {
+            await TelegramService.sendMessage('❌ تعذر العثور على الطرف المحدد.', settingsRef.current, { chatId });
           }
-          
-          const html2canvas = (await import('html2canvas')).default;
-          // Wait a bit for iframe to render
-          await new Promise(resolve => setTimeout(resolve, 500));
-          const canvas = await html2canvas(iframeDoc!.body, { scale: 2 });
-          document.body.removeChild(iframe);
+          return;
+        }
 
-          const imgData = canvas.toDataURL('image/png');
-          const pdf = new jsPDF('p', 'mm', 'a4');
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-          
-          pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-          const pdfBlob = pdf.output('blob');
-          
-          await TelegramService.sendDocument(pdfBlob, "statement_" + party.name + ".pdf", "كشف حساب " + party.name, chatId, botToken);
-          
-        } catch (error) {
-          console.error('Error generating PDF:', error);
-          TelegramService.sendMessage("حدث خطأ أثناء إنشاء كشف الحساب.", settings);
+        // Period selection for PDF generation
+        if (data.startsWith('period_')) {
+          const parts = data.split('_'); // e.g. ['period', 'this', 'month', 'partyId'] or ['period', 'all', 'partyId']
+          let periodType: 'this_month' | 'last_30_days' | 'this_year' | 'all' = 'all';
+          let targetPartyId = '';
+
+          if (data.startsWith('period_this_month_')) {
+            periodType = 'this_month';
+            targetPartyId = data.replace('period_this_month_', '');
+          } else if (data.startsWith('period_last_30_days_')) {
+            periodType = 'last_30_days';
+            targetPartyId = data.replace('period_last_30_days_', '');
+          } else if (data.startsWith('period_this_year_')) {
+            periodType = 'this_year';
+            targetPartyId = data.replace('period_this_year_', '');
+          } else if (data.startsWith('period_all_')) {
+            periodType = 'all';
+            targetPartyId = data.replace('period_all_', '');
+          }
+
+          if (targetPartyId) {
+            await dispatchStatementPdf(chatId, targetPartyId, periodType);
+          }
+          return;
         }
       }
+
+      // ==========================================
+      // 2. TEXT MESSAGE ACTIONS (Commands & Input)
+      // ==========================================
+      const cleanText = (text || '').trim();
+
+      // Basic menu triggers
+      if (
+        cleanText === '/start' ||
+        cleanText === 'مرحبا' ||
+        cleanText === 'القائمة' ||
+        cleanText === 'التقارير' ||
+        cleanText === 'اوامر' ||
+        cleanText === 'أوامر' ||
+        cleanText === '/menu' ||
+        cleanText === '/help'
+      ) {
+        await sendMainMenu(chatId);
+        return;
+      }
+
+      // Direct shortcuts
+      if (cleanText === 'الصناديق' || cleanText === 'الخزينة' || cleanText === 'الرصيد') {
+        await dispatchTreasuryReport(chatId);
+        return;
+      }
+
+      if (cleanText === 'المبيعات' || cleanText === 'مبيعات اليوم') {
+        await dispatchSalesReport(chatId);
+        return;
+      }
+
+      if (cleanText === 'المخزون' || cleanText === 'النواقص') {
+        await dispatchInventoryReport(chatId);
+        return;
+      }
+
+      // Check if user is in a specific awaiting step
+      if (session.step === 'awaiting_customer_name' || cleanText.startsWith('كشف حساب عميل ')) {
+        const query = cleanText.startsWith('كشف حساب عميل ')
+          ? cleanText.replace('كشف حساب عميل ', '').trim()
+          : cleanText;
+
+        const matches = fuzzyMatchParties(query, partiesRef.current, 'customer');
+
+        if (matches.length === 0) {
+          await TelegramService.sendMessage(
+            `❌ عذراً، لم يتم العثور على أي عميل يطابق الاسم "<b>${query}</b>".\nيرجى إعادة كتابة الاسم بصيغة أخرى، أو النقر أدناه:`,
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [
+                  [{ text: '👤 إعادة المحاولة', callback_data: 'menu_customer_statement' }],
+                  [{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }],
+                ],
+              },
+            }
+          );
+          return;
+        }
+
+        // We found matches! Ask user "هل تقصد ....." with inline buttons
+        await sendPartyConfirmation(chatId, matches, 'customer');
+        return;
+      }
+
+      if (session.step === 'awaiting_supplier_name' || cleanText.startsWith('كشف حساب مورد ')) {
+        const query = cleanText.startsWith('كشف حساب مورد ')
+          ? cleanText.replace('كشف حساب مورد ', '').trim()
+          : cleanText;
+
+        const matches = fuzzyMatchParties(query, partiesRef.current, 'supplier');
+
+        if (matches.length === 0) {
+          await TelegramService.sendMessage(
+            `❌ عذراً، لم يتم العثور على أي مورد يطابق الاسم "<b>${query}</b>".\nيرجى إعادة كتابة الاسم بصيغة أخرى:`,
+            settingsRef.current,
+            {
+              chatId,
+              replyMarkup: {
+                inline_keyboard: [
+                  [{ text: '🏢 إعادة المحاولة', callback_data: 'menu_supplier_statement' }],
+                  [{ text: '🏠 القائمة الرئيسية', callback_data: 'menu_main' }],
+                ],
+              },
+            }
+          );
+          return;
+        }
+
+        await sendPartyConfirmation(chatId, matches, 'supplier');
+        return;
+      }
+
+      // General "كشف حساب [الاسم]" direct phrase
+      if (cleanText.startsWith('كشف حساب ')) {
+        const query = cleanText.replace('كشف حساب ', '').trim();
+        const matches = fuzzyMatchParties(query, partiesRef.current, 'all');
+
+        if (matches.length === 0) {
+          await TelegramService.sendMessage(
+            `❌ لم يتم العثور على حساب باسم "<b>${query}</b>".`,
+            settingsRef.current,
+            { chatId }
+          );
+          return;
+        }
+
+        await sendPartyConfirmation(chatId, matches, 'customer');
+        return;
+      }
+
+      // Default fallback: prompt with main menu
+      await TelegramService.sendMessage(
+        `لم أتمكن من التعرف على الأمر "<b>${cleanText}</b>". يمكنك استخدام القائمة التفاعلية أدناه:`,
+        settingsRef.current,
+        {
+          chatId,
+          replyMarkup: {
+            inline_keyboard: [
+              [
+                { text: '👤 كشف حساب عميل', callback_data: 'menu_customer_statement' },
+                { text: '🏢 كشف حساب مورد', callback_data: 'menu_supplier_statement' },
+              ],
+              [
+                { text: '💰 كشف الصناديق', callback_data: 'menu_treasury_report' },
+                { text: '📊 مبيعات اليوم', callback_data: 'menu_sales_report' },
+              ],
+              [{ text: '🏠 عرض كافة التقارير', callback_data: 'menu_main' }],
+            ],
+          },
+        }
+      );
     });
 
     return () => {
       TelegramService.stopPolling();
     };
-  }, [isEnabled, botToken]); 
+  }, [isEnabled, botToken]);
 
   return null;
 };

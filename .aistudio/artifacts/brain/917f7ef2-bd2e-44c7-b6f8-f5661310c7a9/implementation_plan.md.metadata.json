@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for migrating daily entry rows to a sub-collection structure in Firestore to solve synchronization conflicts.",
-  "updatedAt":  "2026-10-08T23:09:42.432553735Z",
+  "summary":  "خطة شاملة لتطوير بوت التلجرام التفاعلي الذكي لبرنامج الأيهم المحاسبي، لدعم كافة خيارات التقارير (كشف حساب عميل، كشف حساب مورد، كشف حساب موظف، كشف حركة الصناديق والخزائن، تقرير المبيعات اليومية، تقرير النواقص والمخزون، وتقارير المصروفات) مع المطابقة الذكية للأسماء، واختيار الفترة بالأزرار التفاعلية، وتوليد وإرسال ملفات PDF تفصيلية دقيقة ومعتمدة فورياً للمستخدم.",
+  "updatedAt":  "2026-11-01T17:02:48.657548931Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

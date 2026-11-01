@@ -7592,13 +7592,65 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
     }
 
-    // Telegram Notification - Send ONLY: Name, Item(s), Amount without journal entries or extra info
+    // Telegram Notification - Send: Name, Item(s), Amount, Payment Box (صندوق الدفع)
     try {
       const itemsList = (newInvoice.items || [])
         .map(it => `${it.itemName || (it as any).name || 'صنف'}${it.quantity > 1 ? ` (${it.quantity})` : ''}`)
         .join('، ') || 'بدون أصناف';
       const currencySymbol = newInvoice.currencySymbol || settings.currency || '₪';
-      const msg = `🧾 <b>فاتورة مبيعات (${newInvoice.invoiceNumber})</b>\n👤 <b>الاسم:</b> ${newInvoice.customerName || 'عميل نقدي'}\n📦 <b>الصنف:</b> ${itemsList}\n💰 <b>المبلغ:</b> ${newInvoice.totalAmount} ${currencySymbol}`;
+      const customerDisplayName = formatInvoiceCustomerDisplay(newInvoice, parties) || newInvoice.customerName || 'عميل نقدي';
+
+      // دقة تحديد صندوق / خزينة الدفع
+      const resolveTreasuryName = (codeOrId?: string, fallback: string = 'الصندوق النقدي'): string => {
+        if (!codeOrId) return fallback;
+        const matchedT = treasuries.find(t => t.id === codeOrId || t.accountCode === codeOrId);
+        if (matchedT && matchedT.name) return matchedT.name;
+        const matchedA = accounts.find(a => a.id === codeOrId || a.code === codeOrId);
+        if (matchedA && matchedA.name) return matchedA.name;
+        if (codeOrId === '1102') {
+          const bankT = treasuries.find(t => t.accountCode === '1105' || t.type === 'bank_account' || t.type === 'bank_app' || t.type === 'pos_terminal');
+          if (bankT && bankT.name) return bankT.name;
+        }
+        return fallback;
+      };
+
+      let paymentBoxInfo = '';
+      const isCredit = newInvoice.paymentMethod === 'credit' || (!newInvoice.paidAmount && (newInvoice.remainingAmount ?? newInvoice.totalAmount) === newInvoice.totalAmount);
+
+      if (isCredit) {
+        paymentBoxInfo = 'آجل (ذمم مدينة - غير مدفوع)';
+      } else {
+        const hasCash = (newInvoice.cashPaidAmount && newInvoice.cashPaidAmount > 0) || newInvoice.paymentMethod === 'cash';
+        const hasBank = (newInvoice.bankPaidAmount && newInvoice.bankPaidAmount > 0) || newInvoice.paymentMethod === 'card' || (newInvoice.paymentMethod as string) === 'bank_transfer';
+
+        if (hasCash && hasBank && (newInvoice.cashPaidAmount || 0) > 0 && (newInvoice.bankPaidAmount || 0) > 0) {
+          const cashName = resolveTreasuryName(newInvoice.cashTreasuryCode || '1101', 'الصندوق النقدي');
+          let bankCode = newInvoice.bankTreasuryCode || '1105';
+          if (bankCode === '1102' && !treasuries.some(t => t.accountCode === '1102' || t.id === '1102')) {
+            bankCode = '1105';
+          }
+          const bankName = resolveTreasuryName(bankCode, 'البنك / الشبكة');
+          paymentBoxInfo = `${cashName} (${newInvoice.cashPaidAmount} ${currencySymbol}) + ${bankName} (${newInvoice.bankPaidAmount} ${currencySymbol})`;
+        } else if (hasBank && (!newInvoice.cashPaidAmount || newInvoice.cashPaidAmount <= 0)) {
+          let bCode = newInvoice.bankTreasuryCode || newInvoice.treasuryAccountCode || '1105';
+          if (bCode === '1102' && !treasuries.some(t => t.accountCode === '1102' || t.id === '1102')) {
+            bCode = '1105';
+          }
+          const bankName = resolveTreasuryName(bCode, 'البنك / الشبكة');
+          paymentBoxInfo = bankName;
+        } else {
+          const cCode = newInvoice.cashTreasuryCode || newInvoice.treasuryAccountCode || '1101';
+          const cashName = resolveTreasuryName(cCode, 'الصندوق النقدي (الخزينة الرئيسية)');
+          paymentBoxInfo = cashName;
+        }
+
+        if (newInvoice.remainingAmount > 0 && newInvoice.paidAmount > 0) {
+          paymentBoxInfo += ` (مدفوع: ${newInvoice.paidAmount} ${currencySymbol} / متبقي: ${newInvoice.remainingAmount} ${currencySymbol})`;
+        }
+      }
+
+      const boxIcon = isCredit ? '⏳' : (newInvoice.paymentMethod === 'card' || (newInvoice.paymentMethod as string) === 'bank_transfer' ? '💳' : '💵');
+      const msg = `🧾 <b>فاتورة مبيعات (${newInvoice.invoiceNumber})</b>\n👤 <b>الاسم:</b> ${customerDisplayName}\n📦 <b>الصنف:</b> ${itemsList}\n💰 <b>المبلغ:</b> ${newInvoice.totalAmount} ${currencySymbol}\n${boxIcon} <b>صندوق الدفع:</b> ${paymentBoxInfo}`;
       TelegramService.sendMessage(msg, settings);
     } catch(e) {}
 
