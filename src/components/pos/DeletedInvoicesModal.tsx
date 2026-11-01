@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { posSound } from '../../utils/audio';
+import { formatInvoiceCustomerDisplay } from '../../utils/partyUtils';
 
 interface DeletedInvoicesModalProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ export const DeletedInvoicesModal: React.FC<DeletedInvoicesModalProps> = ({
   onClose,
   onLoadInvoiceToScreen
 }) => {
-  const { deletedInvoices, restoreDeletedInvoice, permanentlyDeleteInvoice, settings } = useAccounting();
+  const { deletedInvoices, restoreDeletedInvoice, permanentlyDeleteInvoice, settings, parties } = useAccounting();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewInvoiceDetails, setViewInvoiceDetails] = useState<Invoice | null>(null);
   const [isRestoringId, setIsRestoringId] = useState<string | null>(null);
@@ -42,16 +43,19 @@ export const DeletedInvoicesModal: React.FC<DeletedInvoicesModalProps> = ({
       const term = searchTerm.toLowerCase().trim();
       if (!term) return true;
 
+      const formattedCust = formatInvoiceCustomerDisplay(inv, parties).toLowerCase();
+
       return (
         (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(term)) ||
         (inv.customerName && inv.customerName.toLowerCase().includes(term)) ||
         (inv.subCustomerName && inv.subCustomerName.toLowerCase().includes(term)) ||
+        formattedCust.includes(term) ||
         (inv.deletedBy && inv.deletedBy.toLowerCase().includes(term)) ||
         (inv.deletionReason && inv.deletionReason.toLowerCase().includes(term)) ||
         (inv.notes && inv.notes.toLowerCase().includes(term))
       );
     });
-  }, [deletedInvoices, searchTerm]);
+  }, [deletedInvoices, searchTerm, parties]);
 
   if (!isOpen) return null;
 
@@ -208,13 +212,8 @@ export const DeletedInvoicesModal: React.FC<DeletedInvoicesModalProps> = ({
                         </td>
 
                         {/* 2. العميل */}
-                        <td className="p-3 font-semibold text-slate-800">
-                          <div>{inv.customerName || 'عميل نقدي'}</div>
-                          {inv.subCustomerName && (
-                            <div className="text-[10px] text-blue-600 font-normal">
-                              فرعي: {inv.subCustomerName}
-                            </div>
-                          )}
+                        <td className="p-3 font-semibold text-slate-800" title={formatInvoiceCustomerDisplay(inv, parties)}>
+                          <div>{formatInvoiceCustomerDisplay(inv, parties)}</div>
                         </td>
 
                         {/* 3. تاريخ الفاتورة */}

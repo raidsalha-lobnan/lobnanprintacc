@@ -42,6 +42,7 @@ import {
   isInvoiceAccountingEligible
 } from '../../utils/invoiceStatusUtils';
 import { getAllStoredDraftsAsInvoices } from '../../utils/draftsHelper';
+import { formatInvoiceCustomerDisplay } from '../../utils/partyUtils';
 
 export type DailyInvoiceFilterTab =
   | 'all'
@@ -100,7 +101,8 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
     createPaymentVoucher,
     treasuries,
     currencies,
-    settings
+    settings,
+    parties
   } = useAccounting();
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -254,10 +256,12 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
       // Search
       if (searchQuery) {
         const lowerQ = searchQuery.toLowerCase();
+        const formattedCust = formatInvoiceCustomerDisplay(inv, parties).toLowerCase();
         const matches = 
           inv.invoiceNumber?.toLowerCase().includes(lowerQ) ||
           inv.customerName?.toLowerCase().includes(lowerQ) ||
           inv.subCustomerName?.toLowerCase().includes(lowerQ) ||
+          formattedCust.includes(lowerQ) ||
           inv.totalAmount.toString().includes(lowerQ);
         if (!matches) return false;
       }
@@ -657,14 +661,9 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
 
                         {/* العميل / البيان */}
                         <td className="py-2 px-2 align-middle">
-                          <div className="font-bold text-slate-900 text-xs truncate max-w-[170px]">
-                            {inv.customerName || 'عميل نقدي'}
+                          <div className="font-bold text-slate-900 text-xs truncate max-w-[170px]" title={formatInvoiceCustomerDisplay(inv, parties)}>
+                            {formatInvoiceCustomerDisplay(inv, parties)}
                           </div>
-                          {inv.subCustomerName && (
-                            <div className="text-[10px] text-blue-600 font-semibold truncate max-w-[170px]">
-                              فرعي: {inv.subCustomerName}
-                            </div>
-                          )}
                           {(inv.notes || inv.paymentNotes) && (
                             <div
                               className="text-[10px] text-slate-500 truncate max-w-[170px]"
@@ -845,9 +844,8 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
                   className="bg-white border border-slate-200 hover:border-blue-400 transition-colors rounded-lg p-2 shadow-xs flex flex-col gap-1.5 group"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="font-bold text-slate-800 text-[13px] truncate flex-1 leading-none pt-0.5">
-                      {inv.customerName || 'عميل نقدي'}
-                      {inv.subCustomerName ? ` / ${inv.subCustomerName}` : ''}
+                    <div className="font-bold text-slate-800 text-[13px] truncate flex-1 leading-none pt-0.5" title={formatInvoiceCustomerDisplay(inv, parties)}>
+                      {formatInvoiceCustomerDisplay(inv, parties)}
                     </div>
                     <div
                       className="flex items-center justify-between shrink-0 text-xs font-mono bg-slate-50 border border-slate-100 rounded px-1 py-0.5"

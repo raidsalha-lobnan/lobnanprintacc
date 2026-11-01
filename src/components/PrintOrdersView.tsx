@@ -35,6 +35,7 @@ import { posSound } from '../utils/audio';
 import { InvoiceStatusHistoryModal } from './pos/InvoiceStatusHistoryModal';
 import { WorkshopAttachmentModal } from './workshop/WorkshopAttachmentModal';
 import { WorkshopTechnicalNoteModal } from './workshop/WorkshopTechnicalNoteModal';
+import { formatInvoiceCustomerDisplay } from '../utils/partyUtils';
 
 export const WORKSHOP_STATUSES: Array<{
   id: 'design' | 'pending_approval' | 'print_external' | 'print_internal' | 'ready';
@@ -115,7 +116,8 @@ export const PrintOrdersView: React.FC = () => {
     deleteAllPrintOrders,
     currentUser,
     hasPermission,
-    setActiveTab
+    setActiveTab,
+    parties
   } = useAccounting();
 
   const ALL_STATUSES = [...WORKSHOP_STATUSES, ...(hasPermission('edit_invoices') ? [{ id: 'delivered' as any, label: 'تم التسليم', color: 'text-emerald-700', border: 'border-emerald-300', bg: 'bg-emerald-50/50', badgeBg: 'bg-emerald-100', badgeText: 'text-emerald-900', description: 'تم تسليمها للعميل نهائياً' }] : [])];
@@ -258,8 +260,9 @@ export const PrintOrdersView: React.FC = () => {
     // Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      const formattedCust = formatInvoiceCustomerDisplay(inv, parties).toLowerCase();
       const numMatch = inv.invoiceNumber?.toLowerCase().includes(q);
-      const custMatch = inv.customerName?.toLowerCase().includes(q);
+      const custMatch = inv.customerName?.toLowerCase().includes(q) || formattedCust.includes(q);
       const subMatch = inv.subCustomerName?.toLowerCase().includes(q);
       const notesMatch = inv.notes?.toLowerCase().includes(q);
       const itemsMatch = inv.items?.some(
@@ -439,14 +442,12 @@ export const PrintOrdersView: React.FC = () => {
 
               {/* Customer Name & Sub-Name */}
               <div className="flex items-center gap-1.5 mr-1 shrink-0">
-                <strong className="text-slate-900 text-[11px] sm:text-xs font-bold truncate max-w-[150px] sm:max-w-[200px]" title={invoice.customerName}>
-                  {invoice.customerName}
+                <strong
+                  className="text-slate-900 text-[11px] sm:text-xs font-bold truncate max-w-[200px] sm:max-w-[280px]"
+                  title={formatInvoiceCustomerDisplay(invoice, parties)}
+                >
+                  {formatInvoiceCustomerDisplay(invoice, parties)}
                 </strong>
-                {invoice.subCustomerName && (
-                  <span className="text-indigo-800 font-bold bg-indigo-50 px-1.5 py-0.5 rounded text-[10px] border border-indigo-100 truncate max-w-[100px]" title={invoice.subCustomerName}>
-                    {invoice.subCustomerName}
-                  </span>
-                )}
               </div>
 
               {/* Invoice Notes */}

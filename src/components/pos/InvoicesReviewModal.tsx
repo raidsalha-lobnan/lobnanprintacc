@@ -8,6 +8,7 @@ import { DeletedInvoicesModal } from './DeletedInvoicesModal';
 import { getInvoiceWorkflowStatusMeta } from '../../utils/invoiceStatusUtils';
 import { getAllStoredDraftsAsInvoices } from '../../utils/draftsHelper';
 import { formatDateDisplay } from '../../utils/dateUtils';
+import { formatInvoiceCustomerDisplay } from '../../utils/partyUtils';
 
 interface InvoicesReviewModalProps {
   isOpen: boolean;
@@ -20,7 +21,7 @@ export const InvoicesReviewModal: React.FC<InvoicesReviewModalProps> = ({
   onClose,
   onLoadInvoiceToScreen
 }) => {
-  const { invoices, setSelectedInvoiceForPrint, deleteInvoice, settings, deletedInvoices } = useAccounting();
+  const { invoices, setSelectedInvoiceForPrint, deleteInvoice, settings, deletedInvoices, parties } = useAccounting();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPayment, setFilterPayment] = useState<string>('all');
   const [viewInvoiceDetails, setViewInvoiceDetails] = useState<Invoice | null>(null);
@@ -50,11 +51,14 @@ export const InvoicesReviewModal: React.FC<InvoicesReviewModalProps> = ({
 
   const filtered = allInvoicesAndDrafts
     .filter(inv => {
+      const formattedCust = formatInvoiceCustomerDisplay(inv, parties).toLowerCase();
+      const lowerSearch = searchTerm.toLowerCase();
       const matchesSearch =
-        (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (inv.customerName && inv.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (inv.subCustomerName && inv.subCustomerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (inv.notes && inv.notes.toLowerCase().includes(searchTerm.toLowerCase()));
+        (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(lowerSearch)) ||
+        (inv.customerName && inv.customerName.toLowerCase().includes(lowerSearch)) ||
+        (inv.subCustomerName && inv.subCustomerName.toLowerCase().includes(lowerSearch)) ||
+        formattedCust.includes(lowerSearch) ||
+        (inv.notes && inv.notes.toLowerCase().includes(lowerSearch));
 
       const isDraft = (inv as any).isDraft || inv.workflowStatus === ('draft' as any) || inv.status === ('draft' as any);
       const matchesPayment =
@@ -187,7 +191,9 @@ export const InvoicesReviewModal: React.FC<InvoicesReviewModalProps> = ({
                       <tr key={`rev-inv-${inv.id || idx}-${idx}`} className="hover:bg-slate-50 transition-colors">
                         <td className="p-2.5 font-bold text-blue-700">{inv.invoiceNumber}</td>
                         <td className="p-2.5 text-slate-600 font-sans text-[11px]">{formatDateDisplay(inv.date)}</td>
-                        <td className="p-2.5 font-sans font-semibold text-slate-800">{inv.customerName}</td>
+                        <td className="p-2.5 font-sans font-semibold text-slate-800" title={formatInvoiceCustomerDisplay(inv, parties)}>
+                          {formatInvoiceCustomerDisplay(inv, parties)}
+                        </td>
                         <td className="p-2.5 text-slate-600">{inv.items?.length || 0}</td>
                         <td className="p-2.5 text-left font-bold">{(Number(inv.totalAmount) || 0).toFixed(2)}</td>
                         <td className="p-2.5 text-left text-emerald-600">{(Number(inv.paidAmount) || 0).toFixed(2)}</td>

@@ -37,6 +37,7 @@ import { PrintHeader } from './common/PrintHeader';
 import { OfficialStamp } from './common/OfficialStamp';
 import { ReportSignatures } from './common/ReportSignatures';
 import { AutocompleteCombobox, ComboboxOption } from './common/AutocompleteCombobox';
+import { formatInvoiceCustomerDisplay } from '../utils/partyUtils';
 
 const parseThumbnails = (val?: string): string[] => {
   if (!val) return [];
@@ -691,7 +692,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
         treasuryName: tObj?.name || 'الصندوق',
         type: 'تحصيل مبيعات (كاشير)',
         docNumber: docNum,
-        partyName: inv.subCustomerName ? `${inv.customerName} / ${inv.subCustomerName}` : (inv.customerName || 'زبون نقدي'),
+        partyName: formatInvoiceCustomerDisplay(inv, parties),
         actualCurrency: curr,
         actualAmount: actualAmt,
         exchangeRate: rate,

@@ -3,6 +3,7 @@ import { useAccounting } from '../../context/AccountingContext';
 import { X, PauseCircle, Play, Trash2, Clock } from 'lucide-react';
 
 import { PosTableLine } from '../PosView';
+import { formatInvoiceCustomerDisplay } from '../../utils/partyUtils';
 
 export interface HeldInvoiceData {
   id: string;
@@ -10,6 +11,8 @@ export interface HeldInvoiceData {
   customerName: string;
   customerId?: string;
   customCustomerText?: string;
+  subCustomerName?: string;
+  subCustomerId?: string;
   lines: PosTableLine[];
   totalAmount: number;
   notes?: string;
@@ -31,7 +34,7 @@ export const HeldInvoicesModal: React.FC<HeldInvoicesModalProps> = ({
   onResumeInvoice,
   onDeleteHeldInvoice
 }) => {
-  const { settings } = useAccounting();
+  const { settings, parties } = useAccounting();
 
   if (!isOpen) return null;
 
@@ -73,8 +76,8 @@ export const HeldInvoicesModal: React.FC<HeldInvoicesModalProps> = ({
                       <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs">
                         {idx + 1}
                       </span>
-                      <h4 className="font-bold text-xs text-slate-800">
-                        {inv.customerName || inv.customCustomerText || 'عميل كاشير نقدي'}
+                      <h4 className="font-bold text-xs text-slate-800" title={formatInvoiceCustomerDisplay(inv, parties)}>
+                        {formatInvoiceCustomerDisplay(inv, parties)}
                       </h4>
                       <span className="text-[10px] text-slate-400 flex items-center gap-1">
                         <Clock className="w-3 h-3" />

@@ -1685,13 +1685,18 @@ const getInitialPosDraft = (): PosFullDraftData => {
   const effectivePricingCustomerId = useMemo(() => {
     if (posTargetType !== 'customer') return undefined;
     if (subCustomerId) return subCustomerId;
-    if (isCashCustomer) return undefined;
-    return selectedCustomerId;
-  }, [posTargetType, subCustomerId, isCashCustomer, selectedCustomerId]);
+    return selectedCustomerId || undefined;
+  }, [posTargetType, subCustomerId, selectedCustomerId]);
 
   const effectivePricingCustomerObj = useMemo(() => {
-    return parties.find(p => p.id === effectivePricingCustomerId) || null;
-  }, [parties, effectivePricingCustomerId]);
+    const custId = effectivePricingCustomerId || selectedCustomerId;
+    if (!custId && !customerName) return null;
+    return parties.find(p => 
+      (custId && p.id === custId) ||
+      (custId && p.code && p.code.toLowerCase() === custId.toLowerCase()) ||
+      (customerName && p.name && p.name.trim().toLowerCase() === customerName.trim().toLowerCase())
+    ) || null;
+  }, [parties, effectivePricingCustomerId, selectedCustomerId, customerName]);
 
   // Current customer object for special pricing lookup
   const selectedCustomerObj = useMemo(() => {
@@ -1700,9 +1705,10 @@ const getInitialPosDraft = (): PosFullDraftData => {
 
   // Compute item effective price honoring customer special prices & pricing tier
   const getItemEffectivePrice = useCallback((item: InventoryItem, tier: string = pricingTier): number => {
-    const res = getItemPriceForCustomer(item, effectivePricingCustomerId, tier as any);
+    const targetCustomerIdentifier = effectivePricingCustomerId || selectedCustomerId || customerName;
+    const res = getItemPriceForCustomer(item, targetCustomerIdentifier, tier as any);
     return res.price;
-  }, [getItemPriceForCustomer, effectivePricingCustomerId, pricingTier]);
+  }, [getItemPriceForCustomer, effectivePricingCustomerId, selectedCustomerId, customerName, pricingTier]);
 
   // Apply customer specific pricing to all lines currently in the table
   const applyCustomerPricingToLines = useCallback((
@@ -1711,6 +1717,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
     tierOverride?: 'retail' | 'wholesale' | 'special'
   ): PosTableLine[] => {
     const activeTier = tierOverride || pricingTier;
+    const targetCustId = customer?.id || customer?.name || effectivePricingCustomerId || selectedCustomerId;
     return currentLines.map(line => {
       const item = inventory.find(i => 
         (line.inventoryItemId && i.id === line.inventoryItemId) || 
@@ -1719,7 +1726,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
       );
       if (!item) return line;
 
-      const res = getItemPriceForCustomer(item, customer?.id, activeTier);
+      const res = getItemPriceForCustomer(item, targetCustId, activeTier);
       const effectivePrice = res.price;
 
       const calc = calculateLineValues(
@@ -1742,7 +1749,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
         total: calc.total
       };
     });
-  }, [inventory, pricingTier, calculateLineValues, getItemPriceForCustomer]);
+  }, [inventory, pricingTier, calculateLineValues, getItemPriceForCustomer, effectivePricingCustomerId, selectedCustomerId, taxEnabled, taxRate]);
 
   // Re-evaluate line prices automatically whenever customer changes across POS (only during new sales when customer is manually switched, never when editing/loading an existing invoice)
   const isInvoiceLoadingRef = useRef<boolean>(false);
@@ -1906,8 +1913,8 @@ const getInitialPosDraft = (): PosFullDraftData => {
           updated.total = calc.total;
         }
 
-        // If unit price was updated for a registered customer, automatically adopt it as their special price
-        if (field === 'unitPrice' && effectivePricingCustomerId && Number(value) > 0) {
+        // If unit price was updated for a registered customer during a new sale, automatically adopt it as their special price
+        if (field === 'unitPrice' && !editingPosInvoiceId && !currentEditingInvoiceIdRef.current && effectivePricingCustomerId && Number(value) > 0) {
           const item = inventory.find(i => 
             (line.inventoryItemId && i.id === line.inventoryItemId) ||
             (line.barcode && matchItemByBarcode(i, line.barcode)) ||
@@ -2046,9 +2053,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
   // Reusable selector to bind a registered inventory item to a specific line
   const handleSelectItemForLine = useCallback((lineId: string, item: InventoryItem) => {
     posSound.beep();
-    const price = pricingTier === 'wholesale'
-      ? Number((item.sellingPrice * 0.9).toFixed(2))
-      : item.sellingPrice;
+    const price = getItemEffectivePrice(item);
 
     const isDimensionItem = isSquareMeterUnit(item.unit, item.unitCalculationType);
 
@@ -2090,7 +2095,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
         };
       })
     );
-  }, [pricingTier, calculateLineValues, taxEnabled, taxRate]);
+  }, [getItemEffectivePrice, calculateLineValues, taxEnabled, taxRate]);
 
   // Handle direct item code input in row (بحث وتعيين الصنف عبر رقمه/كوده مباشرة)
   const handleItemCodeChangeInRow = (id: string, codeInput: string) => {
@@ -5703,9 +5708,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
           if (activeRowId) {
             const line = tableLines.find(l => l.id === activeRowId);
             if (line && (!line.itemName || line.itemName === quickAddInitialName)) {
-              const price = pricingTier === 'wholesale'
-                ? Number((item.sellingPrice * 0.9).toFixed(2))
-                : item.sellingPrice;
+              const price = getItemEffectivePrice(item);
               setTableLines(prev =>
                 prev.map(l =>
                   l.id === activeRowId

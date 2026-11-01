@@ -77,3 +77,89 @@ export function findPartyByCodeOrNumber(parties: Party[], query: string): Party 
 
   return undefined;
 }
+
+/**
+ * تنسيق اسم العميل والزبون الفرعي تلقائياً وفق القاعدة النظامية:
+ * "زبون رئيسي / زبون فرعي"
+ * تُطبّق في أي عرض لسجل مبيعات، كشف مبيعات، فواتير، تقارير، طباعة، أو في أي مكان بالبرنامج.
+ */
+export function formatInvoiceCustomerDisplay(
+  inv?: {
+    customerName?: string;
+    subCustomerName?: string;
+    customCustomerText?: string;
+    customerId?: string;
+    subCustomerId?: string;
+  } | null,
+  parties?: Party[]
+): string {
+  if (!inv) return 'زبون نقدي';
+
+  let mainName = (inv.customerName || '').trim();
+  let subName = (inv.subCustomerName || '').trim();
+
+  // استخراج الزبون الفرعي من النص الإضافي إذا لم يكن مدخلاً في حقل مستقل
+  if (!subName && inv.customCustomerText && inv.customCustomerText.trim()) {
+    const rawCustom = inv.customCustomerText.trim();
+    if (rawCustom !== mainName) {
+      const phoneMatch = rawCustom.match(/(05\d{8}|01\d{8,9}|\+?\d{9,12})/);
+      const extractedPhone = phoneMatch ? phoneMatch[0] : '';
+      const cleanCustomName = rawCustom.replace(extractedPhone, '').trim() || rawCustom;
+      if (cleanCustomName && cleanCustomName !== mainName) {
+        subName = cleanCustomName;
+      }
+    }
+  }
+
+  // في حال توفر مصفوفة العملاء: فحص ربط العميل الفرعي بالرئيسي
+  if (parties && parties.length > 0) {
+    if (inv.subCustomerId) {
+      const subParty = parties.find(p => p.id === inv.subCustomerId);
+      if (subParty) {
+        subName = subParty.name.trim();
+        if (subParty.parentPartyId) {
+          const parent = parties.find(p => p.id === subParty.parentPartyId);
+          if (parent) mainName = parent.name.trim();
+        }
+      }
+    } else if (inv.customerId) {
+      const party = parties.find(p => p.id === inv.customerId);
+      if (party?.isSubCustomer && party.parentPartyId) {
+        const parent = parties.find(p => p.id === party.parentPartyId);
+        if (parent) {
+          mainName = parent.name.trim();
+          subName = party.name.trim();
+        }
+      }
+    }
+  }
+
+  if (!mainName) {
+    mainName = 'زبون نقدي';
+  }
+
+  // معالجة النصوص المحفوظة سابقاً بفاصل مثل "جمعية قوافل الخير - غزة" أو "جمعية قوافل الخير / غزة"
+  if (mainName.includes(' / ')) {
+    const parts = mainName.split(' / ').map(s => s.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      mainName = parts[0];
+      if (!subName) subName = parts.slice(1).join(' / ');
+    }
+  } else if (mainName.includes(' - ') && !mainName.startsWith('INV-')) {
+    const parts = mainName.split(' - ').map(s => s.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      mainName = parts[0];
+      if (!subName) subName = parts.slice(1).join(' - ');
+    }
+  }
+
+  if (subName && subName.trim() && subName.trim() !== mainName) {
+    const cleanSub = subName.trim();
+    if (mainName.endsWith(` / ${cleanSub}`) || mainName === cleanSub) {
+      return mainName;
+    }
+    return `${mainName} / ${cleanSub}`;
+  }
+
+  return mainName;
+}

@@ -112,7 +112,7 @@ import {
 import { defaultCurrencies, fetchLiveExchangeRates } from '../utils/currencies';
 import { generateSqlDump, downloadSqlFile, syncWithWebServer } from '../utils/sqlExporter';
 import { generateSequentialSku } from '../utils/barcodeGenerator';
-import { generateSequentialPartyCode } from '../utils/partyUtils';
+import { generateSequentialPartyCode, formatInvoiceCustomerDisplay } from '../utils/partyUtils';
 import { isInvoiceAccountingEligible, computeInvoicePaymentStatus } from '../utils/invoiceStatusUtils';
 import { calculatePartyTrueBalance } from '../utils/statementGenerator';
 import { deleteFileFromGoogleDrive } from '../services/googleDriveService';
@@ -878,8 +878,8 @@ export function auditAndRecalculateTreasuries(
           baseCurrency: 'ILS',
           baseAmount: cashAmt * (inv.exchangeRate || 1.0),
           voucherNumber: inv.invoiceNumber,
-          partyName: inv.customerName || 'زبون نقدي',
-          description: `تحصيل نقدي - فاتورة مبيعات رقم ${inv.invoiceNumber} (${inv.customerName || 'زبون نقدي'})`,
+          partyName: formatInvoiceCustomerDisplay(inv),
+          description: `تحصيل نقدي - فاتورة مبيعات رقم ${inv.invoiceNumber} (${formatInvoiceCustomerDisplay(inv)})`,
           referenceType: 'pos_sale',
           referenceId: inv.id,
           paymentMethod: 'cash',
@@ -903,8 +903,8 @@ export function auditAndRecalculateTreasuries(
           baseCurrency: 'ILS',
           baseAmount: bankAmt * (inv.exchangeRate || 1.0),
           voucherNumber: inv.invoiceNumber,
-          partyName: inv.customerName || 'زبون نقدي',
-          description: `تحصيل شبكة / بنك - فاتورة مبيعات رقم ${inv.invoiceNumber} (${inv.customerName || 'زبون نقدي'})`,
+          partyName: formatInvoiceCustomerDisplay(inv),
+          description: `تحصيل شبكة / بنك - فاتورة مبيعات رقم ${inv.invoiceNumber} (${formatInvoiceCustomerDisplay(inv)})`,
           referenceType: 'pos_sale',
           referenceId: inv.id,
           paymentMethod: inv.paymentMethod || 'card',
@@ -3531,6 +3531,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (sp.customerId && (sp.customerId === targetId || sp.customerId === trimmedCustId)) return true;
           if (targetCode && sp.customerCode && sp.customerCode.toLowerCase() === targetCode) return true;
           if (sp.customerName && sp.customerName.trim().toLowerCase() === targetName) return true;
+          if (targetName && sp.customerId && sp.customerId.toLowerCase() === targetName) return true;
+          if (party?.phone && sp.customerName && sp.customerName.trim() === party.phone.trim()) return true;
           return false;
         });
         if (specialFromItem && typeof specialFromItem.price === 'number' && specialFromItem.price >= 0) {
@@ -3545,10 +3547,22 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // 2. Check special prices stored in customer profile (party.specialPrices)
       if (party?.specialPrices) {
         const pSpecials = party.specialPrices;
-        const priceById = pSpecials[item.id];
-        const priceByCode = item.code ? pSpecials[item.code] : undefined;
-        const priceByBarcode = item.barcode ? pSpecials[item.barcode] : undefined;
-        const candidatePrice = priceById !== undefined ? priceById : (priceByCode !== undefined ? priceByCode : priceByBarcode);
+        let candidatePrice = pSpecials[item.id];
+        if (candidatePrice === undefined && item.code) candidatePrice = pSpecials[item.code];
+        if (candidatePrice === undefined && item.barcode) candidatePrice = pSpecials[item.barcode];
+        if (candidatePrice === undefined && item.name) candidatePrice = pSpecials[item.name];
+        if (candidatePrice === undefined) {
+          const lId = item.id.toLowerCase();
+          const lCode = item.code?.toLowerCase();
+          const lName = item.name?.trim().toLowerCase();
+          for (const [key, val] of Object.entries(pSpecials)) {
+            const lKey = key.trim().toLowerCase();
+            if (lKey === lId || (lCode && lKey === lCode) || (lName && lKey === lName)) {
+              candidatePrice = val;
+              break;
+            }
+          }
+        }
 
         if (typeof candidatePrice === 'number' && candidatePrice >= 0) {
           return {

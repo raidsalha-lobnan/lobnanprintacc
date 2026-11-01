@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useAccounting } from '../context/AccountingContext';
+import { formatInvoiceCustomerDisplay } from '../utils/partyUtils';
 import {
   TrendingUp,
   Printer,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
-  const { stats, settings, printOrders, invoices, inventory, setActiveTab, setSelectedInvoiceForPrint, setSelectedJobForTicket } = useAccounting();
+  const { stats, settings, printOrders, invoices, inventory, setActiveTab, setSelectedInvoiceForPrint, setSelectedJobForTicket, parties } = useAccounting();
 
   const inProgressJobs = (printOrders || []).filter(j => j && j.status !== 'delivered' && j.status !== 'cancelled').slice(0, 5);
   const recentInvoices = useMemo(() => {
@@ -186,8 +187,8 @@ export const DashboardView: React.FC = () => {
                     <td className="p-2.5 font-mono font-bold text-slate-600">
                       {inv.invoiceNumber}
                     </td>
-                    <td className="p-2.5 font-medium text-slate-800">
-                      {inv.customerName}
+                    <td className="p-2.5 font-medium text-slate-800" title={formatInvoiceCustomerDisplay(inv, parties)}>
+                      {formatInvoiceCustomerDisplay(inv, parties)}
                     </td>
                     <td className="p-2.5 text-slate-600">
                       فاتورة نقطة بيع ({inv.paymentMethod === 'cash' ? 'نقدي' : (inv.paymentMethod === 'card' || inv.paymentMethod === 'bank_transfer') ? (inv.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : 'شبكة مدى') : 'آجل'})

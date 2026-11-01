@@ -31,12 +31,14 @@ import { InvoiceAuditLogModal } from './pos/InvoiceAuditLogModal';
 import { DeleteAllSalesInvoicesModal } from './modals/DeleteAllSalesInvoicesModal';
 import { getInvoiceWorkflowStatusMeta, getInvoicePaymentStatusMeta } from '../utils/invoiceStatusUtils';
 import { formatDateDisplay } from '../utils/dateUtils';
+import { formatInvoiceCustomerDisplay } from '../utils/partyUtils';
 
 export const InvoicesView: React.FC = () => {
   const {
     invoices,
     deletedInvoices,
     treasuries,
+    parties,
     setSelectedInvoiceForPrint,
     setSelectedInvoiceForLifecycle,
     settings,
@@ -125,7 +127,8 @@ export const InvoicesView: React.FC = () => {
         !q ||
         inv.invoiceNumber.toLowerCase().includes(q) ||
         inv.customerName.toLowerCase().includes(q) ||
-        (inv.subCustomerName && inv.subCustomerName.toLowerCase().includes(q));
+        (inv.subCustomerName && inv.subCustomerName.toLowerCase().includes(q)) ||
+        formatInvoiceCustomerDisplay(inv, parties).toLowerCase().includes(q);
       return matchType && matchSearch;
     })
     .sort((a, b) => {
@@ -329,8 +332,8 @@ export const InvoicesView: React.FC = () => {
                     </button>
                   </td>
                   <td className="py-2 px-3 text-slate-500 whitespace-nowrap font-mono text-[11px] align-middle">{formatDateDisplay(inv.date)}</td>
-                  <td className="py-2 px-3 font-bold text-slate-900 whitespace-nowrap min-w-[220px] max-w-[340px] truncate align-middle" title={inv.subCustomerName ? `${inv.customerName} / ${inv.subCustomerName}` : inv.customerName}>
-                    {inv.subCustomerName ? `${inv.customerName} / ${inv.subCustomerName}` : inv.customerName}
+                  <td className="py-2 px-3 font-bold text-slate-900 whitespace-nowrap min-w-[220px] max-w-[340px] truncate align-middle" title={formatInvoiceCustomerDisplay(inv, parties)}>
+                    {formatInvoiceCustomerDisplay(inv, parties)}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap align-middle">
                     <span

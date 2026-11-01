@@ -25,6 +25,7 @@ import {
   ExternalLink,
   Truck
 } from 'lucide-react';
+import { formatInvoiceCustomerDisplay } from '../utils/partyUtils';
 
 export const TransactionLifecycleModal: React.FC = () => {
   const {
@@ -169,7 +170,7 @@ export const TransactionLifecycleModal: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                فاتورة رقم: <strong className="text-white font-mono">{inv.invoiceNumber}</strong> | التاريخ: {inv.date} | العميل: <strong className="text-white">{inv.customerName}</strong>
+                فاتورة رقم: <strong className="text-white font-mono">{inv.invoiceNumber}</strong> | التاريخ: {inv.date} | العميل: <strong className="text-white">{formatInvoiceCustomerDisplay(inv, parties)}</strong>
               </p>
             </div>
           </div>
@@ -395,12 +396,7 @@ export const TransactionLifecycleModal: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <span className="text-slate-500 block mb-1">العميل المقيد</span>
-                  <strong className="text-slate-900 text-sm font-bold block">{inv.customerName}</strong>
-                  {inv.subCustomerName && (
-                    <span className="text-[11px] text-indigo-600 block mt-1">
-                      الزبون الفرعي: {inv.subCustomerName}
-                    </span>
-                  )}
+                  <strong className="text-slate-900 text-sm font-bold block">{formatInvoiceCustomerDisplay(inv, parties)}</strong>
                   {customer && (
                     <span className="text-[10px] text-slate-400 font-light block mt-1">
                       هاتف: {customer.phone || 'غير مسجل'}

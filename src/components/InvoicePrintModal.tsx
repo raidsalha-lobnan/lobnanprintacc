@@ -4,6 +4,7 @@ import { Printer, X, FileText, QrCode } from 'lucide-react';
 import { PrintHeader, ThermalReceiptHeader } from './common/PrintHeader';
 import { ReportSignatures } from './common/ReportSignatures';
 import { formatDateDisplay } from '../utils/dateUtils';
+import { formatInvoiceCustomerDisplay } from '../utils/partyUtils';
 
 const parseThumbnails = (val?: string): string[] => {
   if (!val) return [];
@@ -18,7 +19,7 @@ const parseThumbnails = (val?: string): string[] => {
 };
 
 export const InvoicePrintModal: React.FC = () => {
-  const { selectedInvoiceForPrint, setSelectedInvoiceForPrint, directPrintOptions, setDirectPrintOptions, settings } = useAccounting();
+  const { selectedInvoiceForPrint, setSelectedInvoiceForPrint, directPrintOptions, setDirectPrintOptions, settings, parties } = useAccounting();
   const [printFormat, setPrintFormat] = useState<'a4' | 'a4-custom' | 'thermal'>('thermal');
 
   useEffect(() => {
@@ -44,24 +45,8 @@ export const InvoicePrintModal: React.FC = () => {
     window.print();
   };
 
-  const mainCust = (inv.customerName || '').trim();
-  const subCust = (inv.subCustomerName || '').trim();
-  const customTxt = (inv.customCustomerText || '').trim();
-
-  let formattedCustomerDisplayName = '';
-
-  if (subCust) {
-    // Requirement: "في حال كان اسم الزبون فرعي لا يكرر الاسم فقط يكتب الفرعي مرة واحدة بدون ذكر الرئيسي"
-    formattedCustomerDisplayName = subCust;
-  } else if (customTxt) {
-    if (mainCust && mainCust !== 'عميل كاشير نقدي' && mainCust !== 'عميل نقدي' && mainCust !== customTxt) {
-      formattedCustomerDisplayName = `${mainCust} (${customTxt})`;
-    } else {
-      formattedCustomerDisplayName = customTxt;
-    }
-  } else {
-    formattedCustomerDisplayName = mainCust || 'عميل كاشير نقدي';
-  }
+  // القاعدة النظامية: "زبون رئيسي / زبون فرعي"
+  const formattedCustomerDisplayName = formatInvoiceCustomerDisplay(inv, parties);
 
   // =========================================================================
   // REQUIREMENT: 15 ITEMS PER PRINTED PAGE & INVOICE NUMBER EXTENSION (-1, -2) FOR PRINT ONLY
