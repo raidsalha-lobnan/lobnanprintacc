@@ -408,6 +408,7 @@ interface AccountingContextType {
   deletedInvoices: Invoice[];
   restoreDeletedInvoice: (id: string) => Promise<Invoice | null>;
   permanentlyDeleteInvoice: (id: string) => Promise<void>;
+  recoverInvoicesFromAllBackups: () => Promise<{ success: boolean; message: string; recoveredCount: number }>;
   getInvoiceDeleteAuditLogs: (invoiceId?: string) => Promise<AuditLogEntry[]>;
   addInvoiceTechnicalNote: (invoiceId: string, text: string) => void;
   addInvoiceItemAttachment: (invoiceId: string, itemIndexOrId: string | number, attachment: LineAttachment) => void;
@@ -787,19 +788,22 @@ export function auditAndRecalculateTreasuries(
 
   treasuriesList.forEach(t => {
     if (!t) return;
-    // Normalize codes
+    // Strict Account Code Mapping: Ensure 1103 and 1107 are never mixed
     if (t.id === 'treasury-cash-main' || t.name?.includes('الخزينة الرئيسية')) {
       t.accountCode = '1101';
       t.isDefault = true;
-    } else if (t.id === 'treasury-1791395958513' || (t.name?.includes('رائد صالحة') && !t.name?.includes('ماهر صالحة'))) {
+    } else if (t.id === 'treasury-1791395958513' || t.name?.includes('طلة لبنان') || t.name?.includes('طّلة لبنان')) {
       t.accountCode = '1103';
       t.type = 'digital_wallet';
-    } else if (t.id === 'treasury-1791324119020' || t.name?.includes('بال باي')) {
+    } else if (t.id === 'treasury-1791324119020' || (t.name?.includes('بال باي') && !t.name?.includes('رائد صالحة'))) {
       t.accountCode = '1104';
       t.type = 'digital_wallet';
-    } else if (t.id === 'treasury-1790639512764' || t.name?.includes('بنك فلسطين')) {
+    } else if (t.id === 'treasury-1790639512764' || t.name?.includes('بنك فلسطين') || t.name?.includes('ماهر صالحة')) {
       t.accountCode = '1105';
       t.type = 'bank_account';
+    } else if (t.id === 'treasury-1791395958599-1107' || (t.name?.includes('رائد صالحة') && !t.name?.includes('ماهر صالحة'))) {
+      t.accountCode = '1107';
+      t.type = 'digital_wallet';
     }
 
     tById.set(t.id, t);
@@ -1362,9 +1366,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     const autoHydrateMasterDb = async () => {
       try {
-        const hasLocalData = (invoices && invoices.length > 0) || (localStorage.getItem(`${STORAGE_KEY}_invoices`));
-        if (hasLocalData) {
-          // Local data is already present; skip heavy full 16-collection Firestore fetch to protect free tier quota
+        const localInvoicesCount = (invoices && invoices.length) || 0;
+        if (localInvoicesCount >= 100) {
+          // Already fully populated locally
           return;
         }
 
@@ -1488,9 +1492,38 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const loaded = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, initialInvoices);
-    const baseInvoices = (loaded && loaded.length > 0) ? loaded : (initialInvoices || []);
-    return mergeInvoicesWithUpsertAndConflictResolution(baseInvoices, []);
+    const loaded = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, []);
+    const deletedList = safeLoadArray<Invoice>(`${STORAGE_KEY}_deleted_invoices`, []);
+    const snapshotInvoices = Array.isArray(initialInvoices) ? initialInvoices : [];
+
+    let combined = mergeInvoicesWithUpsertAndConflictResolution(snapshotInvoices, loaded);
+    combined = mergeInvoicesWithUpsertAndConflictResolution(combined, deletedList);
+
+    // Deep scan for all backup localStorage keys
+    try {
+      if (typeof localStorage !== 'undefined') {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('invoice') || key.includes('backup') || key.includes('alnoor') || key.includes('accounting') || key.includes('data'))) {
+            const val = localStorage.getItem(key);
+            if (val && val.startsWith('[')) {
+              try {
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.invoiceNumber) {
+                  combined = mergeInvoicesWithUpsertAndConflictResolution(combined, parsed);
+                }
+              } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(combined));
+    } catch {}
+
+    return combined;
   });
 
   const [purchases, setPurchases] = useState<PurchaseInvoice[]>(() => {
@@ -2625,6 +2658,54 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [selectedPayrollSheetForPrint, setSelectedPayrollSheetForPrint] = useState<PayrollSheet | null>(null);
   const [selectedPartyForStatement, setSelectedPartyForStatement] = useState<Party | null>(null);
   const [selectedEmployeeForStatement, setSelectedEmployeeForStatement] = useState<Employee | null>(null);
+
+  const recoverInvoicesFromAllBackups = async (): Promise<{ success: boolean; message: string; recoveredCount: number }> => {
+    const snapshotInvoices = Array.isArray(initialInvoices) ? initialInvoices : [];
+    const localPrimary = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, []);
+    const deletedList = safeLoadArray<Invoice>(`${STORAGE_KEY}_deleted_invoices`, []);
+
+    let combined = mergeInvoicesWithUpsertAndConflictResolution(snapshotInvoices, localPrimary);
+    combined = mergeInvoicesWithUpsertAndConflictResolution(combined, deletedList);
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('invoice') || key.includes('backup') || key.includes('alnoor') || key.includes('accounting') || key.includes('data'))) {
+            const val = localStorage.getItem(key);
+            if (val && val.startsWith('[')) {
+              try {
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.invoiceNumber) {
+                  combined = mergeInvoicesWithUpsertAndConflictResolution(combined, parsed);
+                }
+              } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        const fsData = await fetchFullDatabaseFromFirestore();
+        if (fsData && Array.isArray(fsData.invoices)) {
+          combined = mergeInvoicesWithUpsertAndConflictResolution(combined, fsData.invoices);
+        }
+      }
+    } catch (e) {}
+
+    setInvoices(combined);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(combined));
+    } catch {}
+
+    return {
+      success: true,
+      message: `تم استرجاع وإعادة دمج كافة الفواتير بنجاح (إجمالي الفواتير النشطة حالياً: ${combined.length} فاتورة).`,
+      recoveredCount: combined.length
+    };
+  };
 
   // Helper to record deleted document IDs persistently so they never resurrect on cloud sync
   const registerDeletedDoc = (colName: string, id: string | number) => {
@@ -11160,6 +11241,7 @@ return (
         deletedInvoices,
         restoreDeletedInvoice,
         permanentlyDeleteInvoice,
+        recoverInvoicesFromAllBackups,
         getInvoiceDeleteAuditLogs,
         addInvoiceTechnicalNote,
         addInvoiceItemAttachment,

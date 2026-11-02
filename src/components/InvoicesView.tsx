@@ -22,7 +22,8 @@ import {
   ShieldAlert,
   Edit3,
   CalendarCheck,
-  Wallet
+  Wallet,
+  RefreshCw
 } from 'lucide-react';
 import { InvoiceStatusHistoryModal } from './pos/InvoiceStatusHistoryModal';
 import { DraftInvoicesQueueModal } from './pos/DraftInvoicesQueueModal';
@@ -49,7 +50,8 @@ export const InvoicesView: React.FC = () => {
     settings,
     setActiveTab,
     setEditingPosInvoiceId,
-    deleteInvoice
+    deleteInvoice,
+    recoverInvoicesFromAllBackups
   } = useAccounting();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,6 +61,21 @@ export const InvoicesView: React.FC = () => {
   const [isDeletedInvoicesOpen, setIsDeletedInvoicesOpen] = useState<boolean>(false);
   const [isAuditLogOpen, setIsAuditLogOpen] = useState<boolean>(false);
   const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState<boolean>(false);
+  const [isRecovering, setIsRecovering] = useState<boolean>(false);
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
+
+  const handleRecoverInvoices = async () => {
+    setIsRecovering(true);
+    setRecoveryNotice(null);
+    try {
+      const res = await recoverInvoicesFromAllBackups();
+      setRecoveryNotice(res.message);
+    } catch (e: any) {
+      setRecoveryNotice('حدث خطأ أثناء فحص واسترجاع الفواتير: ' + (e?.message || 'غير معروف'));
+    } finally {
+      setIsRecovering(false);
+    }
+  };
 
   const filteredInvoices = invoices
     .filter(inv => {
@@ -101,6 +118,17 @@ export const InvoicesView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleRecoverInvoices}
+            disabled={isRecovering}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50"
+            title="فحص واسترجاع ودمج كافة الفواتير المدخلة من كافة النسخ الاحتياطية وقاعدة البيانات السحابية"
+          >
+            <RefreshCw className={`w-4 h-4 text-emerald-100 ${isRecovering ? 'animate-spin' : ''}`} />
+            <span>{isRecovering ? 'جاري الاسترجاع والدمج...' : 'استرجاع ودمج الفواتير'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsDeleteAllModalOpen(true)}
@@ -169,6 +197,22 @@ export const InvoicesView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {recoveryNotice && (
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-4 rounded-2xl flex items-center justify-between text-xs font-bold shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{recoveryNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRecoveryNotice(null)}
+            className="text-slate-400 hover:text-slate-600 text-sm font-bold px-2 py-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Single-Entry 7-Stage Cascade Architecture Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-2xl border border-indigo-900/50 shadow-md">
