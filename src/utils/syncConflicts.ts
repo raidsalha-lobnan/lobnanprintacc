@@ -86,14 +86,39 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
 
       if (!isLegacyGhost) {
         const key = idStr;
+        let normalizedNumber = `INV-${String(seq).padStart(4, '0')}`;
+        if (seq === 2027) normalizedNumber = 'INV-0027';
+        if (seq === 2028) normalizedNumber = 'INV-0028';
+        if (seq === 2029) normalizedNumber = 'INV-0029';
+
         if (!extraInvoicesMap.has(key)) {
-          let normalizedNumber = `INV-${String(seq).padStart(4, '0')}`;
-          if (seq === 2027) normalizedNumber = 'INV-0027';
-          if (seq === 2028) normalizedNumber = 'INV-0028';
-          if (seq === 2029) normalizedNumber = 'INV-0029';
           extraInvoicesMap.set(key, {
             ...inv,
             invoiceNumber: normalizedNumber
+          });
+        } else {
+          const existing = extraInvoicesMap.get(key)!;
+          const tExisting = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+          const tInv = new Date(inv.updatedAt || inv.createdAt || 0).getTime();
+          const base = tInv >= tExisting ? inv : existing;
+          const fallback = tInv >= tExisting ? existing : inv;
+
+          extraInvoicesMap.set(key, {
+            ...fallback,
+            ...base,
+            invoiceNumber: normalizedNumber,
+            bankTreasuryCode: base.bankTreasuryCode || fallback.bankTreasuryCode,
+            cashTreasuryCode: base.cashTreasuryCode || fallback.cashTreasuryCode,
+            paymentStatus: base.paymentStatus || fallback.paymentStatus,
+            workflowStatus: base.workflowStatus || fallback.workflowStatus,
+            subCustomerName: base.subCustomerName || fallback.subCustomerName,
+            subCustomerId: base.subCustomerId || fallback.subCustomerId,
+            customCustomerText: base.customCustomerText || fallback.customCustomerText,
+            items: (Array.isArray(base.items) && base.items.length > 0) ? base.items : (fallback.items || []),
+            totalAmount: base.totalAmount ?? fallback.totalAmount,
+            paidAmount: base.paidAmount ?? fallback.paidAmount,
+            remainingAmount: base.remainingAmount ?? fallback.remainingAmount,
+            updatedAt: new Date(Math.max(tExisting, tInv, Date.now())).toISOString()
           });
         }
       }

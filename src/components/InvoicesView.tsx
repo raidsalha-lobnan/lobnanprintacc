@@ -29,7 +29,12 @@ import { DraftInvoicesQueueModal } from './pos/DraftInvoicesQueueModal';
 import { DeletedInvoicesModal } from './pos/DeletedInvoicesModal';
 import { InvoiceAuditLogModal } from './pos/InvoiceAuditLogModal';
 import { DeleteAllSalesInvoicesModal } from './modals/DeleteAllSalesInvoicesModal';
-import { getInvoiceWorkflowStatusMeta, getInvoicePaymentStatusMeta } from '../utils/invoiceStatusUtils';
+import {
+  getInvoiceWorkflowStatusMeta,
+  getInvoicePaymentStatusMeta,
+  computeInvoicePaymentStatus,
+  getInvoiceTreasuryDisplay
+} from '../utils/invoiceStatusUtils';
 import { formatDateDisplay } from '../utils/dateUtils';
 import { formatInvoiceCustomerDisplay } from '../utils/partyUtils';
 
@@ -46,70 +51,6 @@ export const InvoicesView: React.FC = () => {
     setEditingPosInvoiceId,
     deleteInvoice
   } = useAccounting();
-
-  interface InvoiceTreasuryDisplay {
-    label: string;
-    badgeClass: string;
-    iconType: 'cash' | 'bank' | 'wallet' | 'credit';
-  }
-
-  const getInvoiceTreasuryDisplay = (inv: Invoice): InvoiceTreasuryDisplay => {
-    const isCredit = inv.paymentMethod === 'credit' || (!inv.paidAmount && (inv.remainingAmount ?? inv.totalAmount) === inv.totalAmount);
-
-    if (isCredit) {
-      return {
-        label: 'آجل (ذمم مدينة)',
-        badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
-        iconType: 'credit'
-      };
-    }
-
-    const hasCash = (inv.cashPaidAmount && inv.cashPaidAmount > 0) || inv.paymentMethod === 'cash';
-    const hasBank = (inv.bankPaidAmount && inv.bankPaidAmount > 0) || inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer';
-
-    // Split payment (مختلط: نقد + شبكة)
-    if (hasCash && hasBank && (inv.cashPaidAmount || 0) > 0 && (inv.bankPaidAmount || 0) > 0) {
-      return {
-        label: `نقد (${inv.cashPaidAmount}₪) + شبكة (${inv.bankPaidAmount}₪)`,
-        badgeClass: 'bg-purple-50 text-purple-800 border-purple-200',
-        iconType: 'bank'
-      };
-    }
-
-    // Pure Cash
-    if (inv.paymentMethod === 'cash' || (hasCash && !hasBank)) {
-      const cashCode = inv.cashTreasuryCode || (inv as any).treasuryAccountCode || '1101';
-      const match = treasuries.find(t => t.accountCode === cashCode || t.id === cashCode);
-      const name = match ? match.name : 'الصندوق النقدي (الخزينة الرئيسية)';
-      return {
-        label: name,
-        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-        iconType: 'cash'
-      };
-    }
-
-    // Pure Card / Bank / Electronic / Digital Wallet
-    if (inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer' || hasBank) {
-      const bankCode = inv.bankTreasuryCode || (inv as any).treasuryAccountCode || '1105';
-      let match = treasuries.find(t => t.accountCode === bankCode || t.id === bankCode);
-      if (!match && bankCode === '1102') {
-        match = treasuries.find(t => t.accountCode === '1105');
-      }
-      const name = match ? match.name : 'بنك فلسطين - ماهر صالحة 0599992615';
-      const isWallet = bankCode === '1103' || bankCode === '1104' || name.includes('باي') || name.includes('محفظة');
-      return {
-        label: name,
-        badgeClass: isWallet ? 'bg-cyan-50 text-cyan-800 border-cyan-200' : 'bg-blue-50 text-blue-800 border-blue-200',
-        iconType: isWallet ? 'wallet' : 'bank'
-      };
-    }
-
-    return {
-      label: 'آجل (ذمم مدينة)',
-      badgeClass: 'bg-slate-100 text-slate-500 border-slate-200',
-      iconType: 'credit'
-    };
-  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
@@ -366,7 +307,7 @@ export const InvoicesView: React.FC = () => {
                   </td>
                   <td className="py-2 px-2 text-center whitespace-nowrap align-middle">
                     {(() => {
-                      const tInfo = getInvoiceTreasuryDisplay(inv);
+                      const tInfo = getInvoiceTreasuryDisplay(inv, treasuries);
                       return (
                         <span
                           className={`text-[11px] border px-2 py-0.5 rounded-md font-semibold inline-flex items-center gap-1 shadow-2xs max-w-[210px] truncate ${tInfo.badgeClass}`}
@@ -393,7 +334,16 @@ export const InvoicesView: React.FC = () => {
                   <td className="py-2 px-3 whitespace-nowrap align-middle">
                     {(() => {
                       const wfMeta = getInvoiceWorkflowStatusMeta(inv.workflowStatus);
-                      const payMeta = getInvoicePaymentStatusMeta(inv.paymentStatus || (inv.status === 'paid' ? 'paid_cash' : 'unpaid'));
+                      const computedPayStatus = computeInvoicePaymentStatus({
+                        paymentMethod: inv.paymentMethod,
+                        totalAmount: inv.totalAmount,
+                        paidAmount: inv.paidAmount,
+                        remainingAmount: inv.remainingAmount,
+                        cashPaidAmount: inv.cashPaidAmount,
+                        bankPaidAmount: inv.bankPaidAmount,
+                        explicitPaymentStatus: inv.paymentStatus
+                      });
+                      const payMeta = getInvoicePaymentStatusMeta(computedPayStatus);
                       return (
                         <div className="flex items-center gap-1.5 whitespace-nowrap">
                           <span

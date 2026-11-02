@@ -1,4 +1,4 @@
-import { InvoicePaymentStatus, PosInvoiceWorkflowStatus, PaymentMethod, Invoice } from '../types';
+import { InvoicePaymentStatus, PosInvoiceWorkflowStatus, PaymentMethod, Invoice, Treasury } from '../types';
 
 /**
  * التحقق مما إذا كانت الفاتورة مؤهلة للدخول في القيود المحاسبية وحركات المخزون وكشف حساب الزبون.
@@ -50,16 +50,24 @@ export function computeInvoicePaymentStatus(params: {
   bankPaidAmount?: number;
   explicitPaymentStatus?: InvoicePaymentStatus;
 }): InvoicePaymentStatus {
+  const method = params.paymentMethod || 'cash';
+  const cashPaid = Number(params.cashPaidAmount || 0);
+  const bankPaid = Number(params.bankPaidAmount || 0);
+
   if (params.explicitPaymentStatus) {
+    // التصحيح الذكي في حال وجود تعارض بين حالة الدفع المخزنة وطريقة الدفع الفعلية
+    if (params.explicitPaymentStatus === 'paid_cash' && (method === 'card' || method === 'bank_transfer' || bankPaid > 0)) {
+      return 'paid_bank';
+    }
+    if (params.explicitPaymentStatus === 'paid_bank' && (method === 'cash' || (cashPaid > 0 && bankPaid <= 0))) {
+      return 'paid_cash';
+    }
     return params.explicitPaymentStatus;
   }
 
   const total = Number(params.totalAmount || 0);
   const paid = Number(params.paidAmount || 0);
   const remaining = params.remainingAmount !== undefined ? Number(params.remainingAmount) : Math.max(0, total - paid);
-  const cashPaid = Number(params.cashPaidAmount || 0);
-  const bankPaid = Number(params.bankPaidAmount || 0);
-  const method = params.paymentMethod || 'cash';
 
   // إذا كانت طريقة الدفع آجل صريحة والمبلغ المدفوع صفر
   if (method === 'credit' && paid <= 0) {
@@ -97,6 +105,95 @@ export function computeInvoicePaymentStatus(params: {
   }
 
   return 'unpaid';
+}
+
+export interface InvoiceTreasuryDisplay {
+  label: string;
+  badgeClass: string;
+  iconType: 'cash' | 'bank' | 'wallet' | 'credit';
+  accountCode: string;
+}
+
+/**
+ * دالة موحدة لعرض الصندوق / الخزينة المرتبطة بالفاتورة بشكل متطابق في كافة الشاشات والتقارير
+ */
+export function getInvoiceTreasuryDisplay(inv: Invoice, treasuries: Treasury[] = []): InvoiceTreasuryDisplay {
+  const isCredit = inv.paymentMethod === 'credit' || (!inv.paidAmount && (inv.remainingAmount ?? inv.totalAmount) === inv.totalAmount);
+
+  if (isCredit) {
+    return {
+      label: '- آجل (ذمم مدينة)',
+      badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+      iconType: 'credit',
+      accountCode: 'credit'
+    };
+  }
+
+  const hasCash = (inv.cashPaidAmount && inv.cashPaidAmount > 0) || inv.paymentMethod === 'cash';
+  const hasBank = (inv.bankPaidAmount && inv.bankPaidAmount > 0) || inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer';
+
+  // Split payment (مختلط: نقد + شبكة)
+  if (hasCash && hasBank && (inv.cashPaidAmount || 0) > 0 && (inv.bankPaidAmount || 0) > 0) {
+    const cashCode = inv.cashTreasuryCode || '1101';
+    let bankCode = inv.bankTreasuryCode || '1103';
+    if (bankCode === '1102' && !treasuries.some(t => t.accountCode === '1102' || t.id === '1102')) {
+      bankCode = '1103';
+    }
+    const cashMatch = treasuries.find(t => t.accountCode === cashCode || t.id === cashCode);
+    let bankMatch = treasuries.find(t => t.accountCode === bankCode || t.id === bankCode);
+    if (!bankMatch) {
+      bankMatch = treasuries.find(t => t.type === 'bank_app' || t.type === 'bank_account' || t.type === 'pos_terminal');
+    }
+    const cashName = cashMatch ? cashMatch.name : 'الصندوق النقدي (الخزينة الرئيسية)';
+    const bankName = bankMatch ? bankMatch.name : 'رائد صالحة - ال باي - جوال باي - مال شات';
+    return {
+      label: `نقد (${inv.cashPaidAmount}₪) + شبكة (${inv.bankPaidAmount}₪)`,
+      badgeClass: 'bg-purple-50 text-purple-800 border-purple-200',
+      iconType: 'bank',
+      accountCode: bankCode
+    };
+  }
+
+  // Pure Cash
+  if (inv.paymentMethod === 'cash' || (hasCash && !hasBank)) {
+    const cashCode = inv.cashTreasuryCode || (inv as any).treasuryAccountCode || '1101';
+    const match = treasuries.find(t => t.accountCode === cashCode || t.id === cashCode);
+    const name = match ? match.name : 'الصندوق النقدي (الخزينة الرئيسية)';
+    return {
+      label: name,
+      badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      iconType: 'cash',
+      accountCode: cashCode
+    };
+  }
+
+  // Pure Card / Bank / Electronic / Digital Wallet
+  if (inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer' || hasBank) {
+    let bankCode = inv.bankTreasuryCode || (inv as any).treasuryAccountCode || '1103';
+    let match = treasuries.find(t => t.accountCode === bankCode || t.id === bankCode);
+    if (!match && bankCode === '1102') {
+      match = treasuries.find(t => t.accountCode === '1103') || treasuries.find(t => t.accountCode === '1105');
+    }
+    if (!match) {
+      match = treasuries.find(t => t.type === 'bank_app' || t.type === 'bank_account' || t.type === 'pos_terminal');
+    }
+    const name = match ? match.name : 'رائد صالحة - ال باي - جوال باي - مال شات';
+    const code = match ? match.accountCode : (bankCode || '1103');
+    const isWallet = code === '1103' || code === '1104' || name.includes('باي') || name.includes('محفظة');
+    return {
+      label: name,
+      badgeClass: isWallet ? 'bg-cyan-50 text-cyan-800 border-cyan-200' : 'bg-blue-50 text-blue-800 border-blue-200',
+      iconType: isWallet ? 'wallet' : 'bank',
+      accountCode: code
+    };
+  }
+
+  return {
+    label: '- آجل (ذمم مدينة)',
+    badgeClass: 'bg-slate-100 text-slate-500 border-slate-200',
+    iconType: 'credit',
+    accountCode: 'credit'
+  };
 }
 
 export interface InvoicePaymentStatusMeta {
