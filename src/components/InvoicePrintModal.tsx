@@ -248,7 +248,7 @@ export const InvoicePrintModal: React.FC = () => {
                               {hasDimensions && width > 0 ? width : '—'}
                             </td>
                             <td className="p-2 text-center font-mono font-medium">
-                              {count}
+                              {hasDimensions ? count : '—'}
                             </td>
                             <td className="p-2 text-center font-mono font-bold text-blue-900">
                               {it.quantity}

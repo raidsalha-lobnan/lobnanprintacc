@@ -7790,8 +7790,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Telegram Notification - Send: Name, Item(s), Amount, Payment Box (صندوق الدفع)
     try {
       const itemsList = (newInvoice.items || [])
-        .map(it => `${it.itemName || (it as any).name || 'صنف'}${it.quantity > 1 ? ` (${it.quantity})` : ''}`)
-        .join('، ') || 'بدون أصناف';
+        .map((it, idx) => {
+          const hasDims = Boolean(it.hasDimensions || (Number(it.length) > 0 && Number(it.width) > 0 && (Number(it.length) !== 1 || Number(it.width) !== 1 || (Number(it.count || 1) > 1))));
+          const lengthStr = hasDims && Number(it.length) > 0 ? String(it.length) : '-';
+          const widthStr = hasDims && Number(it.width) > 0 ? String(it.width) : '-';
+          const countStr = hasDims ? String(it.count || 1) : '-';
+          const noteStr = it.notes ? ` (${it.notes})` : '';
+          const itemName = it.itemName || (it as any).name || 'صنف';
+          const lineTotal = Number(it.total ?? (it.unitPrice * it.quantity)).toFixed(2);
+          return `🔹 <b>${idx + 1}. ${itemName}${noteStr}</b>\n   الطول: ${lengthStr} | العرض: ${widthStr} | العدد: ${countStr}\n   الكمية: ${it.quantity} | السعر: ${it.unitPrice} | الإجمالي: ${lineTotal} ${newInvoice.currencySymbol || settings.currency || '₪'}`;
+        })
+        .join('\n\n') || 'بدون أصناف';
       const currencySymbol = newInvoice.currencySymbol || settings.currency || '₪';
       const customerDisplayName = formatInvoiceCustomerDisplay(newInvoice, parties) || newInvoice.customerName || 'عميل نقدي';
 
@@ -7845,7 +7854,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       const boxIcon = isCredit ? '⏳' : (newInvoice.paymentMethod === 'card' || (newInvoice.paymentMethod as string) === 'bank_transfer' ? '💳' : '💵');
-      const msg = `🧾 <b>فاتورة مبيعات (${newInvoice.invoiceNumber})</b>\n👤 <b>الاسم:</b> ${customerDisplayName}\n📦 <b>الصنف:</b> ${itemsList}\n💰 <b>المبلغ:</b> ${newInvoice.totalAmount} ${currencySymbol}\n${boxIcon} <b>صندوق الدفع:</b> ${paymentBoxInfo}`;
+      const msg = `🧾 <b>فاتورة مبيعات (${newInvoice.invoiceNumber})</b>\n👤 <b>الاسم:</b> ${customerDisplayName}\n\n📦 <b>بنود الفاتورة:</b>\n${itemsList}\n\n💰 <b>إجمالي المبلغ:</b> ${newInvoice.totalAmount} ${currencySymbol}\n${boxIcon} <b>صندوق الدفع:</b> ${paymentBoxInfo}`;
       TelegramService.sendMessage(msg, settings);
     } catch(e) {}
 
