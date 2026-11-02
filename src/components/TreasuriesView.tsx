@@ -75,6 +75,7 @@ export const TreasuriesView: React.FC = () => {
   const [formBalance, setFormBalance] = useState<number>(0);
   const [formBankName, setFormBankName] = useState('');
   const [formAccountNumber, setFormAccountNumber] = useState('');
+  const [formAccountCode, setFormAccountCode] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formStatus, setFormStatus] = useState<'active' | 'inactive'>('active');
 
@@ -139,6 +140,7 @@ export const TreasuriesView: React.FC = () => {
     setFormBalance(0);
     setFormBankName('الحساب البنكي');
     setFormAccountNumber('');
+    setFormAccountCode('');
     setFormNotes('');
     setFormStatus('active');
     setShowAddEditModal(true);
@@ -152,6 +154,7 @@ export const TreasuriesView: React.FC = () => {
     setFormBalance(t.balance);
     setFormBankName(t.bankName || '');
     setFormAccountNumber(t.accountNumber || '');
+    setFormAccountCode(t.accountCode || '');
     setFormNotes(t.notes || '');
     setFormStatus(t.status);
     setShowAddEditModal(true);
@@ -168,6 +171,7 @@ export const TreasuriesView: React.FC = () => {
         type: formType,
         bankName: formBankName.trim() || undefined,
         accountNumber: formAccountNumber.trim() || undefined,
+        accountCode: formAccountCode.trim() || undefined,
         notes: formNotes.trim() || undefined,
         status: formStatus
       });
@@ -179,7 +183,7 @@ export const TreasuriesView: React.FC = () => {
         balance: Number(formBalance) || 0,
         bankName: formBankName.trim() || undefined,
         accountNumber: formAccountNumber.trim() || undefined,
-        accountCode: '',
+        accountCode: formAccountCode.trim() || undefined,
         notes: formNotes.trim() || undefined,
         status: formStatus
       });
@@ -858,6 +862,18 @@ export const TreasuriesView: React.FC = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500 dir-ltr text-right"
                   />
                 </div>
+              </div>
+
+              {/* Account Code */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">كود الحساب في شجرة الحسابات (مثل 1102):</label>
+                <input
+                  type="text"
+                  value={formAccountCode}
+                  onChange={e => setFormAccountCode(e.target.value)}
+                  placeholder="اتركه فارغاً ليقوم النظام بتعيينه تلقائياً (1102، 1103...)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                />
               </div>
 
               {/* Notes */}

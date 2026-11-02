@@ -4726,14 +4726,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const id = 'treasury-' + Date.now();
     const today = new Date().toISOString().split('T')[0];
 
-    // Determine accountCode in Chart of Accounts (asset range 1100-1199)
-    let accountCode = treasuryData.accountCode;
-    if (!accountCode || accounts.some(a => a.code === accountCode)) {
-      const existingAssetCodes = accounts
-        .map(a => parseInt(a.code, 10))
-        .filter(num => !isNaN(num) && num >= 1100 && num < 1200);
-      const maxCode = existingAssetCodes.length > 0 ? Math.max(...existingAssetCodes) : 1105;
-      accountCode = String(maxCode + 1);
+    // Determine accountCode in Chart of Accounts (asset range 1100-1199, starting from 1102)
+    let accountCode = treasuryData.accountCode ? String(treasuryData.accountCode).trim() : '';
+    if (!accountCode || accounts.some(a => a.code === accountCode) || treasuries.some(t => t.accountCode === accountCode)) {
+      let candidate = 1102;
+      while (accounts.some(a => a.code === String(candidate)) || treasuries.some(t => t.accountCode === String(candidate))) {
+        candidate++;
+      }
+      accountCode = String(candidate);
     }
 
     // Ensure account exists in Chart of Accounts
