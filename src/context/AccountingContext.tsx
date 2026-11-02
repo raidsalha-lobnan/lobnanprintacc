@@ -1506,6 +1506,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     } catch {}
 
+    // Strict sequential renumbering starting from 1 (INV-0001)
+    combined = combined.map((inv, idx) => ({
+      ...inv,
+      invoiceNumber: `INV-${String(idx + 1).padStart(4, '0')}`
+    }));
+
     try {
       localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(combined));
     } catch {}
@@ -7199,9 +7205,6 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!matched || matched.length === 0) return undefined;
       let num = parseInt(matched[matched.length - 1], 10);
       if (isNaN(num) || num <= 0 || num > 100000) return undefined;
-      if (num === 2027) num = 27;
-      if (num === 2028) num = 28;
-      if (num === 2029) num = 29;
       return `INV-${String(num).padStart(4, '0')}`;
     }
 

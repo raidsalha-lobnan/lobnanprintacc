@@ -3,7 +3,7 @@ import masterSnapshot from '../../master_drive_database_snapshot.json';
 
 const snap: any = masterSnapshot || {};
 
-export const initialSettings: BusinessSettings = snap.settings || {
+const defaultBusinessSettings: BusinessSettings = {
   businessName: 'مطبعة ومكتبة لبنان',
   businessNameEn: 'Lobnan Press & Library',
   activityType: 'مطبعة ومكتبة ومستلزمات دعاية وإعلان',
@@ -14,8 +14,25 @@ export const initialSettings: BusinessSettings = snap.settings || {
   logoText: 'مطبعة ومكتبة لبنان',
   phone: '0590000000',
   email: 'raid.salha@gmail.com',
-  address: 'فلسطين - غزة - دير البلح'
+  address: 'فلسطين - غزة - دير البلح',
+  telegramConfig: {
+    botToken: '',
+    defaultChatId: '',
+    enabled: false
+  }
 };
+
+const rawSettings = snap.settings;
+export const initialSettings: BusinessSettings = (rawSettings && !Array.isArray(rawSettings) && typeof rawSettings === 'object')
+  ? {
+      ...defaultBusinessSettings,
+      ...rawSettings,
+      telegramConfig: {
+        ...defaultBusinessSettings.telegramConfig,
+        ...((rawSettings as any).telegramConfig || {})
+      }
+    }
+  : defaultBusinessSettings;
 
 export const initialAccounts: Account[] = Array.isArray(snap.accounts) ? snap.accounts : [];
 export const initialInventory: InventoryItem[] = Array.isArray(snap.inventory) ? snap.inventory : [];
