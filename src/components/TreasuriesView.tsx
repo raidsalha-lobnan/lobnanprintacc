@@ -333,49 +333,42 @@ export const TreasuriesView: React.FC = () => {
     <div className="space-y-4" dir="rtl">
       
       {/* Top Header & Overview */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-slate-900">إدارة الخزنات والصناديق والتطبيقات البنكية</h1>
-                <p className="text-[10px] text-slate-400 font-light">
-                  الصندوق النقدي الرئيسي، حسابات التطبيقات البنكية، أجهزة مدى POS، والمحافظ الإلكترونية
-                </p>
-              </div>
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+              <Wallet className="w-4 h-4" />
             </div>
+            <h1 className="text-sm font-bold text-slate-900">إدارة الخزنات والصناديق والتطبيقات البنكية</h1>
           </div>
 
-          <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto">
+          <div className="flex items-center flex-wrap gap-2">
             <button
               onClick={() => handleOpenDeposit()}
               id="btn-treasury-quick-deposit"
-              className="flex-1 sm:flex-initial px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer active:scale-95"
               title="إيداع مبلغ مالي في خزنة أو تطبيق بنكي"
             >
-              <ArrowDownLeft className="w-4 h-4" />
+              <ArrowDownLeft className="w-3.5 h-3.5" />
               <span>إيداع</span>
             </button>
 
             <button
               onClick={() => handleOpenWithdraw()}
               id="btn-treasury-quick-withdraw"
-              className="flex-1 sm:flex-initial px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer active:scale-95"
               title="سحب مبلغ مالي من خزنة أو تطبيق بنكي"
             >
-              <ArrowUpRight className="w-4 h-4" />
+              <ArrowUpRight className="w-3.5 h-3.5" />
               <span>سحب</span>
             </button>
 
             <button
               onClick={() => handleOpenTransfer()}
-              className="flex-1 sm:flex-initial px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-slate-300 cursor-pointer shadow-xs"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors border border-slate-300 cursor-pointer shadow-xs"
             >
-              <ArrowLeftRight className="w-4 h-4 text-slate-600" />
-              <span>تحويل بين الخزائن</span>
+              <ArrowLeftRight className="w-3.5 h-3.5 text-slate-600" />
+              <span>تحويل</span>
             </button>
 
             <button
@@ -383,18 +376,18 @@ export const TreasuriesView: React.FC = () => {
                 posSound.playSuccessBeep();
                 alert('تمت إعادة تدقيق ومراجعة كافة الفواتير والسندات تلقائياً، وتوزيع جميع الحركات المترتبة عليها على خزاينها الصحيحة وتطهير الصناديق السابقة بنجاح! 🟢');
               }}
-              className="flex-1 sm:flex-initial px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer active:scale-95"
               title="إعادة فحص وتدقيق وتوزيع كافة الفواتير على الخزائن والصناديق تلقائياً"
             >
-              <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              <span>إعادة تدقيق وتوزيع كافة الصناديق تلقائياً</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
+              <span>تدقيق تلقائي</span>
             </button>
 
             <button
               onClick={handleOpenAdd}
-              className="flex-1 sm:flex-initial px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>+ إضافة خزنة</span>
             </button>
           </div>
@@ -405,113 +398,61 @@ export const TreasuriesView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         
         {/* Total Liquidity */}
-        <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold text-slate-500">إجمالي السيولة النقدية والبنكية</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4" />
+        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-slate-500 block">إجمالي السيولة</span>
+            <div className="text-base font-bold font-mono text-slate-900 mt-0.5">
+              {totalLiquidity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+              <span className="text-[10px] font-normal text-slate-500">{settings.currency}</span>
             </div>
           </div>
-          <div className="text-xl font-bold font-mono text-slate-900">
-            {totalLiquidity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-            <span className="text-xs font-normal text-slate-500">{settings.currency}</span>
-          </div>
-          <div className="mt-1 text-[10px] text-slate-400 font-light">
-            موزعة على {treasuries.length} خزينة وصندوق بنكي
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-4 h-4" />
           </div>
         </div>
 
         {/* Primary Cash Vault */}
-        <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold text-slate-500">الصندوق النقدي (الكاشير)</span>
-            <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
-              <Coins className="w-4 h-4" />
+        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-slate-500 block">الصندوق النقدي (الكاشير)</span>
+            <div className="text-base font-bold font-mono text-teal-700 mt-0.5">
+              {cashBoxTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+              <span className="text-[10px] font-normal text-slate-500">{settings.currency}</span>
             </div>
           </div>
-          <div className="text-xl font-bold font-mono text-teal-700">
-            {cashBoxTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-            <span className="text-xs font-normal text-slate-500">{settings.currency}</span>
-          </div>
-          <div className="mt-1 text-[11px] text-teal-600 font-medium">
-            السيولة النقدية الحاضرة في الصناديق
+          <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+            <Coins className="w-4 h-4" />
           </div>
         </div>
 
         {/* Bank Apps & Accounts */}
-        <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold text-slate-500">التطبيقات والحسابات البنكية</span>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Smartphone className="w-4 h-4" />
+        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-slate-500 block">التطبيقات والحسابات البنكية</span>
+            <div className="text-base font-bold font-mono text-blue-700 mt-0.5">
+              {bankAppsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+              <span className="text-[10px] font-normal text-slate-500">{settings.currency}</span>
             </div>
           </div>
-          <div className="text-xl font-bold font-mono text-blue-700">
-            {bankAppsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-            <span className="text-xs font-normal text-slate-500">{settings.currency}</span>
-          </div>
-          <div className="mt-1 text-[11px] text-blue-600 font-medium">
-            التحويلات السريعة والحسابات البنكية
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <Smartphone className="w-4 h-4" />
           </div>
         </div>
 
         {/* POS & Wallets */}
-        <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold text-slate-500">أجهزة مدى والمحافظ الرقمية</span>
-            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <CreditCard className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl font-bold font-mono text-purple-700">
-            {walletsAndPosTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-            <span className="text-xs font-normal text-slate-500">{settings.currency}</span>
-          </div>
-          <div className="mt-1 text-[11px] text-purple-600 font-medium">
-            متحصلات شبكة POS و STC Pay
-          </div>
-        </div>
-
-      </div>
-
-      {/* Multi-Currency Physical Vault Holdings Banner */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl p-3.5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
-            <Coins className="w-4 h-4" />
-          </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold">الرصيد الفعلي للموجودات بجميع العملات:</span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-semibold">
-                لا تجمع العملات المختلفة في رقم واحد
-              </span>
+            <span className="text-[11px] font-semibold text-slate-500 block">أجهزة مدى والمحافظ</span>
+            <div className="text-base font-bold font-mono text-purple-700 mt-0.5">
+              {walletsAndPosTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+              <span className="text-[10px] font-normal text-slate-500">{settings.currency}</span>
             </div>
-            <p className="text-[11px] text-slate-300 mt-0.5">
-              كل صندوق يحتفظ بمبالغه الفعلية بعملاتها الأصلية (شيكل، دولار، دينار...) دون تحويل فعلي
-            </p>
+          </div>
+          <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <CreditCard className="w-4 h-4" />
           </div>
         </div>
 
-        {/* Currency Chips */}
-        <div className="flex items-center flex-wrap gap-2">
-          {Object.entries(systemCurrencyHoldings)
-            .filter(([_, amt]) => Number(amt) !== 0 || Object.keys(systemCurrencyHoldings).length <= 1)
-            .map(([currCode, amt]) => {
-              const currObj = currencies.find(c => c.code === currCode);
-              const symbol = currCode === 'ILS' ? '₪' : (currObj?.symbol || currCode);
-              const name = currObj?.name || currCode;
-              const numericAmt = Number(amt) || 0;
-              return (
-                <div key={currCode} className="bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg px-2.5 py-1 flex items-center gap-1.5 transition-colors">
-                  <span className="text-emerald-400 font-bold text-xs">{name}:</span>
-                  <span className="font-mono font-bold text-sm text-white">
-                    {numericAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {symbol}
-                  </span>
-                </div>
-              );
-            })}
-        </div>
       </div>
 
       {/* Filter and Search Bar */}

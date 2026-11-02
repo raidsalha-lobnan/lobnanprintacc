@@ -1576,14 +1576,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!list || list.length === 0) return list;
     const seenCodes = new Set<string>();
     const accs = accounts || [];
-    return list.map((t, idx) => {
+    let counter = 1101;
+    return list.map((t) => {
       let code = t.accountCode?.trim();
       if (!code || seenCodes.has(code)) {
-        let nextNum = 1101 + idx;
-        while (seenCodes.has(String(nextNum)) || list.some((other, oIdx) => oIdx !== idx && other.accountCode === String(nextNum))) {
-          nextNum++;
+        while (seenCodes.has(`CASH-${counter}`) || list.some(other => other.accountCode === `CASH-${counter}`)) {
+          counter++;
         }
-        code = String(nextNum);
+        code = `CASH-${counter}`;
+      } else {
+        if (!code.startsWith('CASH-') && !code.startsWith('BANK-') && !code.startsWith('TR-')) {
+          code = `CASH-${code}`;
+        }
       }
       seenCodes.add(code);
 
@@ -4832,14 +4836,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const deleteTreasury = (id: string): { success: boolean; message?: string } => {
     const target = treasuries.find(t => t.id === id);
-    if (!target) return { success: false, message: 'الخزنة غير موجودة' };
+    if (!target) return { success: false, message: 'الصندوق غير موجود' };
     if (target.isDefault || target.id === 'treasury-cash-main') {
       return { success: false, message: 'لا يمكن حذف الصندوق النقدي الرئيسي للنظام' };
     }
-    if (target.balance > 0) {
+    const hasTransactions = (target.transactions && target.transactions.length > 0) || (target.balance !== 0);
+    if (hasTransactions) {
       return {
         success: false,
-        message: `لا يمكن حذف (${target.name}) لأن رصيدها الحالي (${target.balance.toLocaleString()} ر.س) أكبر من صفر. يرجى تحويل الرصيد إلى خزنة أخرى أولاً.`
+        message: `لا يمكن حذف الصندوق (${target.name}) لأنه تم إدخال مبيعات، حركات، أو رصيد عليه بالفعل (محمي لمنع تلف البيانات المحاسبية).`
       };
     }
 
