@@ -40,7 +40,8 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
     dailyEntries,
     seedLocalDatabaseDemo,
     exportLocalDatabaseJSON,
-    importLocalDatabaseJSON
+    importLocalDatabaseJSON,
+    importDataJSON
   } = useAccounting();
 
   const [feedback, setFeedback] = useState<{ message: string; success: boolean } | null>(null);
@@ -58,6 +59,27 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
     exportLocalDatabaseJSON();
     setFeedback({ message: 'تم تصدير نسخة احتياطية كاملة من قاعدة البيانات المحلية بنجاح!', success: true });
     setTimeout(() => setFeedback(null), 4000);
+  };
+
+  const handleRestoreMasterSnapshot = async () => {
+    if (!window.confirm('هل تريد استعادة النسخة الاحتياطية الرسمية السابقة (تتضمن 116 فاتورة والصناديق 1103 و 1107 بدقة قبل ساعتين)؟')) return;
+    setIsImporting(true);
+    try {
+      const response = await fetch('/master_drive_database_snapshot.json');
+      if (!response.ok) throw new Error('تعذر تحميل ملف النسخة الاحتياطية من السيرفر');
+      const text = await response.text();
+      const success = await importDataJSON(text, true, true, true);
+      if (success) {
+        setFeedback({ message: 'تم استعادة النسخة الاحتياطية السابقة بدقة تامة (116 فاتورة والصناديق 1103 و 1107) بنجاح!', success: true });
+      } else {
+        setFeedback({ message: 'فشل تطبيق النسخة الاحتياطية', success: false });
+      }
+    } catch (err: any) {
+      setFeedback({ message: 'خطأ أثناء الاستعادة: ' + err.message, success: false });
+    } finally {
+      setIsImporting(false);
+      setTimeout(() => setFeedback(null), 6000);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,6 +220,46 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
                   {(vouchers?.length || 0) + (purchases?.length || 0) + (dailyEntries?.length || 0)}
                 </strong>
               </div>
+            </div>
+          </div>
+
+          {/* EMERGENCY RESTORATION CARD */}
+          <div className="p-4 bg-gradient-to-r from-rose-50 via-amber-50 to-emerald-50 border-2 border-rose-500 rounded-lg shadow-md space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-rose-600 text-white rounded-md shrink-0">
+                <AlertTriangle className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-extrabold text-rose-900">
+                  استعادة الطوارئ الرسمية الفورية (النسخة السابقة قبل ساعتين - 116 فاتورة والصناديق 1103 و 1107)
+                </h4>
+                <p className="text-[11px] text-slate-700 leading-relaxed">
+                  إذا واجهتك أي مخربطة أو بيانات مفقودة، يمكنك بنقرة واحدة استعادة النسخة الاحتياطية الرسمية السابقة بكل فواتيرك (116 فاتورة) ومدخلاتك وصناديقك بدقة تامة، أو تحميلها فوراً لحفظها على كمبيوترك.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              {/* One-click restore button */}
+              <button
+                type="button"
+                onClick={handleRestoreMasterSnapshot}
+                disabled={isImporting}
+                className="py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-md flex items-center justify-center gap-2 transition shadow cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isImporting ? 'animate-spin' : ''}`} />
+                <span>{isImporting ? 'جاري الاستعادة...' : 'استعادة النسخة السابقة فوراً (116 فاتورة)'}</span>
+              </button>
+
+              {/* Direct download button */}
+              <a
+                href="/master_drive_database_snapshot.json"
+                download="alnoor_database_snapshot_116_invoices.json"
+                className="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-md flex items-center justify-center gap-2 transition shadow cursor-pointer text-center"
+              >
+                <Download className="w-4 h-4 text-emerald-200" />
+                <span>تحميل نسخة احتياطيةجاهزة الآن (.json)</span>
+              </a>
             </div>
           </div>
 
