@@ -788,44 +788,29 @@ export function auditAndRecalculateTreasuries(
   const tByCode = new Map<string, Treasury>();
   const tById = new Map<string, Treasury>();
 
-  treasuriesList.forEach(t => {
+  treasuriesList.forEach((t, idx) => {
     if (!t) return;
-    // Strict Account Code Mapping: Ensure 1103 and 1107 are never mixed
-    if (t.id === 'treasury-cash-main' || t.name?.includes('الخزينة الرئيسية')) {
-      t.accountCode = '1101';
+    if (!t.accountCode || (!t.accountCode.startsWith('CASH-') && !t.accountCode.startsWith('BANK-') && !t.accountCode.startsWith('TR-'))) {
+      t.accountCode = `CASH-${1101 + idx}`;
+    }
+    if (t.id === 'treasury-cash-main' || t.isDefault) {
       t.isDefault = true;
-    } else if (t.id === 'treasury-1791395958513' || t.name?.includes('طلة لبنان') || t.name?.includes('طّلة لبنان')) {
-      t.accountCode = '1103';
-      t.type = 'digital_wallet';
-    } else if (t.id === 'treasury-1791324119020' || (t.name?.includes('بال باي') && !t.name?.includes('رائد صالحة'))) {
-      t.accountCode = '1104';
-      t.type = 'digital_wallet';
-    } else if (t.id === 'treasury-1790639512764' || t.name?.includes('بنك فلسطين') || t.name?.includes('ماهر صالحة')) {
-      t.accountCode = '1105';
-      t.type = 'bank_account';
-    } else if (t.id === 'treasury-1791395958599-1107' || (t.name?.includes('رائد صالحة') && !t.name?.includes('ماهر صالحة'))) {
-      t.accountCode = '1107';
-      t.type = 'digital_wallet';
     }
 
     tById.set(t.id, t);
     if (t.accountCode) tByCode.set(t.accountCode, t);
   });
 
-  const defaultCash = tByCode.get('1101') || treasuriesList.find(t => t.type === 'cash_box' || t.isDefault) || treasuriesList[0];
+  const defaultCash = treasuriesList.find(t => t.isDefault || t.type === 'cash_box') || treasuriesList[0];
 
   function getTargetTreasury(codeOrId?: string, isBank = false): Treasury {
-    let resolvedCode = codeOrId;
-    if (resolvedCode === '1102') {
-      resolvedCode = '1105'; // Map legacy ghost code 1102 to Bank of Palestine (1105)
+    if (codeOrId) {
+      if (tByCode.has(codeOrId)) return tByCode.get(codeOrId)!;
+      if (tById.has(codeOrId)) return tById.get(codeOrId)!;
     }
-    if (resolvedCode) {
-      if (tByCode.has(resolvedCode)) return tByCode.get(resolvedCode)!;
-      if (tById.has(resolvedCode)) return tById.get(resolvedCode)!;
-    }
-    // Strict Serial Account Code Link: Do NOT override or re-route based on text/notes!
     if (isBank) {
-      return tByCode.get('1103') || tByCode.get('1105') || defaultCash;
+      const bankT = treasuriesList.find(t => t.type === 'bank_account' || t.type === 'bank_app' || t.type === 'digital_wallet');
+      if (bankT) return bankT;
     }
     return defaultCash;
   }
