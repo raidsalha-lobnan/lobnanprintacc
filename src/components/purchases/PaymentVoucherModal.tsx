@@ -386,7 +386,8 @@ export const PaymentVoucherModal: React.FC<PaymentVoucherModalProps> = ({
                 type="button"
                 onClick={() => {
                   setPaymentMethod('cash');
-                  setTreasuryCode('1101');
+                  const cashTr = treasuries.find(t => t.type === 'cash_box') || treasuries[0];
+                  setTreasuryCode(cashTr ? (cashTr.accountCode || cashTr.id) : '1101');
                 }}
                 className={`p-2.5 rounded-lg border text-center font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
                   paymentMethod === 'cash'
@@ -402,7 +403,8 @@ export const PaymentVoucherModal: React.FC<PaymentVoucherModalProps> = ({
                 type="button"
                 onClick={() => {
                   setPaymentMethod('bank_transfer');
-                  setTreasuryCode('1102');
+                  const bankTr = treasuries.find(t => t.type === 'bank_account' || t.type === 'bank_app' || t.accountCode === '1107' || t.accountCode === '1103') || treasuries.find(t => t.type !== 'cash_box') || treasuries[0];
+                  setTreasuryCode(bankTr ? (bankTr.accountCode || bankTr.id) : '1102');
                 }}
                 className={`p-2.5 rounded-lg border text-center font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
                   paymentMethod === 'bank_transfer'
@@ -418,7 +420,8 @@ export const PaymentVoucherModal: React.FC<PaymentVoucherModalProps> = ({
                 type="button"
                 onClick={() => {
                   setPaymentMethod('cheque');
-                  setTreasuryCode('1102');
+                  const bankTr = treasuries.find(t => t.type === 'bank_account' || t.type === 'bank_app' || t.accountCode === '1107' || t.accountCode === '1103') || treasuries.find(t => t.type !== 'cash_box') || treasuries[0];
+                  setTreasuryCode(bankTr ? (bankTr.accountCode || bankTr.id) : '1102');
                 }}
                 className={`p-2.5 rounded-lg border text-center font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
                   paymentMethod === 'cheque'
@@ -441,8 +444,8 @@ export const PaymentVoucherModal: React.FC<PaymentVoucherModalProps> = ({
               className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-rose-500"
             >
               {treasuries.map(t => (
-                <option key={t.id} value={t.accountCode}>
-                  {t.name} ({t.type === 'cash' ? 'صندوق نقدي' : 'حساب بنكي'}) - رصيد: {t.balance.toLocaleString('ar-SA', { minimumFractionDigits: 2 })} {settings.currency}
+                <option key={t.id} value={t.accountCode || t.id}>
+                  {t.name} ({t.type === 'cash' || t.type === 'cash_box' ? 'صندوق نقدي' : 'حساب بنكي / تطبيق'}) - رصيد: {t.balance.toLocaleString('ar-SA', { minimumFractionDigits: 2 })} {settings.currency}
                 </option>
               ))}
             </select>

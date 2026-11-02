@@ -162,23 +162,15 @@ export const PosBottomPaymentConsole: React.FC<PosBottomPaymentConsoleProps> = (
 
   const cashTreasuryOptions = React.useMemo(() => {
     const cashList = effectiveTreasuries.filter(t => t.type === 'cash_box' || t.isDefault);
-    const baseList = cashList.length > 0 ? cashList : effectiveTreasuries;
-    if (cashTreasuryCode && !baseList.some(t => t.id === cashTreasuryCode || t.accountCode === cashTreasuryCode)) {
-      const selectedObj = effectiveTreasuries.find(t => t.id === cashTreasuryCode || t.accountCode === cashTreasuryCode);
-      if (selectedObj) return [selectedObj, ...baseList];
-    }
-    return baseList;
-  }, [effectiveTreasuries, cashTreasuryCode]);
+    const otherList = effectiveTreasuries.filter(t => !(t.type === 'cash_box' || t.isDefault));
+    return [...cashList, ...otherList];
+  }, [effectiveTreasuries]);
 
   const bankTreasuryOptions = React.useMemo(() => {
     const bankList = effectiveTreasuries.filter(t => t.type !== 'cash_box');
-    const baseList = bankList.length > 0 ? bankList : effectiveTreasuries;
-    if (bankTreasuryCode && !baseList.some(t => t.id === bankTreasuryCode || t.accountCode === bankTreasuryCode)) {
-      const selectedObj = effectiveTreasuries.find(t => t.id === bankTreasuryCode || t.accountCode === bankTreasuryCode);
-      if (selectedObj) return [selectedObj, ...baseList];
-    }
-    return baseList;
-  }, [effectiveTreasuries, bankTreasuryCode]);
+    const cashList = effectiveTreasuries.filter(t => t.type === 'cash_box');
+    return [...bankList, ...cashList];
+  }, [effectiveTreasuries]);
 
   const selectedCashTreasuryObj = React.useMemo(() => {
     return cashTreasuryOptions.find(t => t.id === cashTreasuryCode || t.accountCode === cashTreasuryCode) || cashTreasuryOptions[0];

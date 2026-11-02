@@ -92,7 +92,7 @@ export const ReceiptVoucherModal: React.FC<ReceiptVoucherModalProps> = ({
         if (paymentMethod === 'cash') return t.type === 'cash_box';
         return t.type === 'bank_account' || t.type === 'bank_app' || t.type === 'pos_terminal';
       }) || matchingTreasuries[0];
-      setTreasuryCode(preferred.accountCode);
+      setTreasuryCode(preferred.accountCode || preferred.id);
     }
   }, [currencyCode, paymentMethod, matchingTreasuries]);
 
@@ -273,7 +273,7 @@ export const ReceiptVoucherModal: React.FC<ReceiptVoucherModalProps> = ({
                 className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-semibold text-xs"
               >
                 {matchingTreasuries.map(t => (
-                  <option key={t.id} value={t.accountCode}>
+                  <option key={t.id} value={t.accountCode || t.id}>
                     {t.name} ({t.currency || '₪'})
                   </option>
                 ))}

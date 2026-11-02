@@ -476,7 +476,7 @@ export const ExpensesView: React.FC = () => {
                   className="w-full p-2 border border-slate-200 rounded-lg text-xs font-medium"
                 >
                   {treasuries.map(t => (
-                    <option key={t.id} value={t.accountCode}>
+                    <option key={t.id} value={t.accountCode || t.id}>
                       {t.name} (الرصيد: {t.balance.toLocaleString('ar-SA')} {settings.currency})
                     </option>
                   ))}
