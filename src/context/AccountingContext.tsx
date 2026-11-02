@@ -406,6 +406,7 @@ interface AccountingContextType {
   deleteInvoice: (id: string, reason?: string) => void;
   deleteAllSalesInvoicesAndRelatedData: (options?: DeleteAllSalesInvoicesOptions) => DeleteAllSalesInvoicesResult;
   resetInvoicesAndKeepTreasury1101: () => { success: boolean; message: string };
+  renumberInvoicesToOne: () => { success: boolean; message: string };
   deletedInvoices: Invoice[];
   restoreDeletedInvoice: (id: string) => Promise<Invoice | null>;
   permanentlyDeleteInvoice: (id: string) => Promise<void>;
@@ -7240,7 +7241,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     if (!invoiceNumber) {
-      let maxNum = 29; // الحد الأدنى للترقيم هو 29 فاتورة مدخلة، بحيث تكون الفاتورة التالية 0030 حتماً
+      let maxNum = 0; // يبدأ الترقيم من 1 للمستقبل
       invoices.forEach(inv => {
         if (inv && inv.invoiceNumber && inv.id !== invId) {
           const matched = inv.invoiceNumber.match(/\d+/g);
@@ -8936,6 +8937,28 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return {
       success: true,
       message: 'تم حذف كافة الفواتير والارتباطات وباقي الصناديق بنجاح، والاحتفاظ بالصندوق النقدي 1101 فقط بصفر رصيد للبدء من جديد.'
+    };
+  };
+
+  const renumberInvoicesToOne = (): { success: boolean; message: string } => {
+    setInvoices(prev => {
+      const updated = prev.map((inv, idx) => {
+        const newNum = `INV-${String(idx + 1).padStart(4, '0')}`;
+        const updatedInv = { ...inv, invoiceNumber: newNum };
+        setDoc(doc(db, 'invoices', updatedInv.id), cleanDocForFirestore(updatedInv)).catch(() => {});
+        return updatedInv;
+      });
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(updated));
+      } catch {}
+      pushToServerSync('invoices', updated);
+      broadcastEntityChange('invoices', updated);
+      return updated;
+    });
+
+    return {
+      success: true,
+      message: 'تم إعادة ترقيم كافة الفواتير تدريجياً لتبدأ من الرقم 1 (أصبحت الفاتورة الحالية برقم INV-0001) بنجاح!'
     };
   };
 
@@ -11318,6 +11341,7 @@ return (
         deleteInvoice,
         deleteAllSalesInvoicesAndRelatedData,
         resetInvoicesAndKeepTreasury1101,
+        renumberInvoicesToOne,
         deletedInvoices,
         restoreDeletedInvoice,
         permanentlyDeleteInvoice,

@@ -43,7 +43,8 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
     exportLocalDatabaseJSON,
     importLocalDatabaseJSON,
     importDataJSON,
-    resetInvoicesAndKeepTreasury1101
+    resetInvoicesAndKeepTreasury1101,
+    renumberInvoicesToOne
   } = useAccounting();
 
   const [feedback, setFeedback] = useState<{ message: string; success: boolean } | null>(null);
@@ -66,6 +67,13 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
   const handleResetKeepTreasury1101 = () => {
     if (!window.confirm('هل أنت متأكد من رغبتك في حذف كافة الفواتير وباقي الصناديق والاحتفاظ بالصندوق النقدي 1101 فقط للبدء من جديد؟')) return;
     const res = resetInvoicesAndKeepTreasury1101();
+    setFeedback({ message: res.message, success: res.success });
+    setTimeout(() => setFeedback(null), 6000);
+  };
+
+  const handleRenumberToOne = () => {
+    if (!window.confirm('هل تريد إعادة ترقيم الفواتير الحالية لتبدأ من الرقم 1 (جعل الفاتورة الحالية برقم INV-0001)؟')) return;
+    const res = renumberInvoicesToOne();
     setFeedback({ message: res.message, success: res.success });
     setTimeout(() => setFeedback(null), 6000);
   };
@@ -296,6 +304,31 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
             >
               <Trash2 className="w-4 h-4" />
               <span>حذف الفواتير وباقي الصناديق والاحتفاظ بـ 1101 للبدء من جديد</span>
+            </button>
+          </div>
+
+          {/* RENUMBER INVOICES TO 1 CARD */}
+          <div className="p-4 bg-blue-900/10 border-2 border-blue-600 rounded-lg shadow-md space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-blue-700 text-white rounded-md shrink-0">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-extrabold text-blue-900">
+                  إعادة ترقيم الفواتير الحالية لتبدأ من الرقم 1
+                </h4>
+                <p className="text-[11px] text-slate-700 leading-relaxed">
+                  يمكنك إعادة ترقيم الفواتير الحالية تدريجياً لتبدأ من الرقم 1 (وجعل الفاتورة الحالية برقم INV-0001)، مع ضبط الترقيم المستقبلي ليبدأ من 1 فصاعداً.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleRenumberToOne}
+              className="w-full py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-md flex items-center justify-center gap-2 transition shadow cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>إعادة ترقيم الفواتير الحالية لتبدأ من 1 (جعل الحالية INV-0001)</span>
             </button>
           </div>
 
