@@ -860,11 +860,33 @@ export function auditAndRecalculateTreasuries(
 
       const date = inv.date || '2026-10-01';
 
-      const cashAmt = typeof inv.cashPaidAmount === 'number' ? Math.abs(inv.cashPaidAmount) : (inv.paymentMethod === 'cash' ? paidAmt : 0);
-      const bankAmt = typeof inv.bankPaidAmount === 'number' ? Math.abs(inv.bankPaidAmount) : (inv.paymentMethod === 'card' || (inv.paymentMethod as string) === 'bank_transfer' || (inv.paymentMethod as string) === 'e_wallet' ? paidAmt : 0);
+      let cashAmt = 0;
+      let bankAmt = 0;
+
+      const pMethod = inv.paymentMethod || 'cash';
+
+      if (pMethod === 'cash') {
+        cashAmt = (typeof inv.cashPaidAmount === 'number' && inv.cashPaidAmount > 0) ? inv.cashPaidAmount : paidAmt;
+        bankAmt = (typeof inv.bankPaidAmount === 'number' && inv.bankPaidAmount > 0) ? inv.bankPaidAmount : 0;
+      } else if (pMethod === 'card' || (pMethod as string) === 'bank_transfer' || (pMethod as string) === 'e_wallet' || (pMethod as string) === 'cheque' || (pMethod as string) === 'pos') {
+        if (typeof inv.cashPaidAmount === 'number' && inv.cashPaidAmount > 0 && typeof inv.bankPaidAmount === 'number' && inv.bankPaidAmount > 0) {
+          cashAmt = inv.cashPaidAmount;
+          bankAmt = inv.bankPaidAmount;
+        } else {
+          cashAmt = 0;
+          bankAmt = paidAmt;
+        }
+      } else if (pMethod === 'credit') {
+        cashAmt = typeof inv.cashPaidAmount === 'number' ? Math.abs(inv.cashPaidAmount) : 0;
+        bankAmt = typeof inv.bankPaidAmount === 'number' ? Math.abs(inv.bankPaidAmount) : 0;
+      } else {
+        cashAmt = paidAmt;
+        bankAmt = 0;
+      }
 
       if (cashAmt > 0) {
-        const target = getTargetTreasury(inv.cashTreasuryCode || ((inv as any).treasuryAccountCode === '1101' ? '1101' : undefined), false, `${inv.notes || ''}`);
+        const cashTargetCode = inv.cashTreasuryCode || '1101';
+        const target = getTargetTreasury(cashTargetCode, false, `${inv.notes || ''}`);
         addTx(target, {
           id: `tx-inv-cash-${inv.id}`,
           treasuryId: target.id,
@@ -889,7 +911,18 @@ export function auditAndRecalculateTreasuries(
       }
 
       if (bankAmt > 0) {
-        const target = getTargetTreasury(inv.bankTreasuryCode || ((inv as any).treasuryAccountCode !== '1101' ? (inv as any).treasuryAccountCode : '1105'), true, `${inv.notes || ''}`);
+        let bankTargetCode = inv.bankTreasuryCode || (inv as any).treasuryAccountCode;
+        if (!bankTargetCode || bankTargetCode === '1101') {
+          const notesLower = (inv.notes || '').toLowerCase();
+          if (notesLower.includes('جوال') || notesLower.includes('jawwal') || notesLower.includes('1103')) {
+            bankTargetCode = '1103';
+          } else if (notesLower.includes('1107') || notesLower.includes('1105') || notesLower.includes('ماهر') || notesLower.includes('فلسطين')) {
+            bankTargetCode = '1107';
+          } else {
+            bankTargetCode = '1105';
+          }
+        }
+        const target = getTargetTreasury(bankTargetCode, true, `${inv.notes || ''}`);
         addTx(target, {
           id: `tx-inv-bank-${inv.id}`,
           treasuryId: target.id,
