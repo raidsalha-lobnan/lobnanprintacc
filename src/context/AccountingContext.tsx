@@ -808,7 +808,7 @@ export function auditAndRecalculateTreasuries(
 
   const defaultCash = tByCode.get('1101') || treasuriesList.find(t => t.type === 'cash_box' || t.isDefault) || treasuriesList[0];
 
-  function getTargetTreasury(codeOrId?: string, isBank = false, notesText = ''): Treasury {
+  function getTargetTreasury(codeOrId?: string, isBank = false): Treasury {
     let resolvedCode = codeOrId;
     if (resolvedCode === '1102') {
       resolvedCode = '1105'; // Map legacy ghost code 1102 to Bank of Palestine (1105)
@@ -817,23 +817,9 @@ export function auditAndRecalculateTreasuries(
       if (tByCode.has(resolvedCode)) return tByCode.get(resolvedCode)!;
       if (tById.has(resolvedCode)) return tById.get(resolvedCode)!;
     }
-    if (notesText) {
-      const lower = notesText.toLowerCase();
-      if (lower.includes('بال باي') || lower.includes('palpay')) {
-        const palpay = tByCode.get('1104');
-        if (palpay) return palpay;
-      }
-      if (lower.includes('جوال باي') || lower.includes('مال شات') || lower.includes('ال باي') || lower.includes('رائد صالحة')) {
-        const jawwal = tByCode.get('1103');
-        if (jawwal) return jawwal;
-      }
-      if (lower.includes('بنك فلسطين') || lower.includes('ماهر صالحة') || lower.includes('شبكة') || lower.includes('card') || lower.includes('فيزا') || lower.includes('ماستر')) {
-        const bank = tByCode.get('1105');
-        if (bank) return bank;
-      }
-    }
+    // Strict Serial Account Code Link: Do NOT override or re-route based on text/notes!
     if (isBank) {
-      return tByCode.get('1105') || defaultCash;
+      return tByCode.get('1103') || tByCode.get('1105') || defaultCash;
     }
     return defaultCash;
   }
@@ -886,7 +872,7 @@ export function auditAndRecalculateTreasuries(
 
       if (cashAmt > 0) {
         const cashTargetCode = inv.cashTreasuryCode || '1101';
-        const target = getTargetTreasury(cashTargetCode, false, `${inv.notes || ''}`);
+        const target = getTargetTreasury(cashTargetCode, false);
         addTx(target, {
           id: `tx-inv-cash-${inv.id}`,
           treasuryId: target.id,
@@ -913,16 +899,9 @@ export function auditAndRecalculateTreasuries(
       if (bankAmt > 0) {
         let bankTargetCode = inv.bankTreasuryCode || (inv as any).treasuryAccountCode;
         if (!bankTargetCode || bankTargetCode === '1101') {
-          const notesLower = (inv.notes || '').toLowerCase();
-          if (notesLower.includes('جوال') || notesLower.includes('jawwal') || notesLower.includes('1103')) {
-            bankTargetCode = '1103';
-          } else if (notesLower.includes('1107') || notesLower.includes('1105') || notesLower.includes('ماهر') || notesLower.includes('فلسطين')) {
-            bankTargetCode = '1107';
-          } else {
-            bankTargetCode = '1105';
-          }
+          bankTargetCode = '1103';
         }
-        const target = getTargetTreasury(bankTargetCode, true, `${inv.notes || ''}`);
+        const target = getTargetTreasury(bankTargetCode, true);
         addTx(target, {
           id: `tx-inv-bank-${inv.id}`,
           treasuryId: target.id,
@@ -979,8 +958,7 @@ export function auditAndRecalculateTreasuries(
 
       const target = getTargetTreasury(
         v.treasuryAccountCode || (v.accountCode !== '1201' && v.accountCode !== '2101' ? v.accountCode : undefined),
-        isBank,
-        `${v.description || ''} ${v.partyName || ''}`
+        isBank
       );
 
       addTx(target, {
@@ -1012,7 +990,7 @@ export function auditAndRecalculateTreasuries(
       if (!pur || delSet.has(pur.id)) return;
       const paidAmt = typeof pur.paidAmount === 'number' ? Math.abs(pur.paidAmount) : (pur.paymentMethod === 'cash' ? Math.abs(pur.totalAmount || 0) : 0);
       if (paidAmt <= 0) return;
-      const target = getTargetTreasury((pur as any).treasuryAccountCode || (pur.paymentMethod === 'cash' ? '1101' : '1105'), pur.paymentMethod !== 'cash', `${pur.notes || ''}`);
+      const target = getTargetTreasury((pur as any).treasuryAccountCode || (pur.paymentMethod === 'cash' ? '1101' : '1105'), pur.paymentMethod !== 'cash');
       addTx(target, {
         id: `tx-pur-${pur.id}`,
         treasuryId: target.id,
@@ -1042,7 +1020,7 @@ export function auditAndRecalculateTreasuries(
       if (!exp || delSet.has(exp.id)) return;
       const amt = typeof exp.amount === 'number' ? Math.abs(exp.amount) : 0;
       if (amt <= 0) return;
-      const target = getTargetTreasury(exp.treasuryAccountCode || (exp.paymentMethod === 'cash' ? '1101' : '1105'), exp.paymentMethod !== 'cash', `${exp.notes || ''} ${exp.categoryName || ''}`);
+      const target = getTargetTreasury(exp.treasuryAccountCode || (exp.paymentMethod === 'cash' ? '1101' : '1105'), exp.paymentMethod !== 'cash');
       addTx(target, {
         id: `tx-exp-${exp.id}`,
         treasuryId: target.id,
