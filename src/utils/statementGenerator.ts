@@ -149,22 +149,47 @@ export function generateAccountStatement(params: {
 
   const allTx: RawTx[] = [];
 
+  // Resolve target sub-customer object if specific subCustomerId is requested
+  const targetSubCustObj = (subCustomerId && subCustomerId !== 'all')
+    ? (subCustomers.find(s => s.id === subCustomerId || s.code === subCustomerId) ||
+       (party.isSubCustomer ? party : null))
+    : (party.isSubCustomer ? party : null);
+
+  const targetSubCustName = targetSubCustObj?.name?.trim().toLowerCase();
+
+  // Helper matcher function for sub-customers
+  const matchesSubCust = (invSubCustId?: string, invSubCustName?: string, customText?: string): boolean => {
+    if (!subCustomerId || subCustomerId === 'all') return true;
+    if (invSubCustId && (invSubCustId === subCustomerId || (targetSubCustObj && invSubCustId === targetSubCustObj.id))) return true;
+    if (targetSubCustName) {
+      if (invSubCustName && invSubCustName.trim().toLowerCase() === targetSubCustName) return true;
+      if (customText && customText.trim().toLowerCase().includes(targetSubCustName)) return true;
+    }
+    return false;
+  };
+
   // 1. Initial Opening Balance
-  const partyInitDate = party.openingBalanceDate || '2000-01-01';
-  let initialBal = Number(party.openingBalance || 0);
-  if (party.openingBalanceType === 'credit') {
+  const partyInitDate = (targetSubCustObj && targetSubCustObj.openingBalanceDate) || party.openingBalanceDate || '2000-01-01';
+  let initialBal = targetSubCustObj
+    ? Number(targetSubCustObj.openingBalance || 0)
+    : Number(party.openingBalance || 0);
+
+  const initBalType = targetSubCustObj ? targetSubCustObj.openingBalanceType : party.openingBalanceType;
+  if (initBalType === 'credit') {
     initialBal = -Math.abs(initialBal);
   }
 
   if (initialBal !== 0) {
     allTx.push({
-      id: `init-${party.id}`,
+      id: `init-${targetSubCustObj ? targetSubCustObj.id : party.id}`,
       date: partyInitDate,
       refNum: 'OPENING',
       type: 'opening',
       category: 'opening',
       typeLabel: 'رصيد افتتاحي تأسيسي',
-      description: 'الرصيد الافتتاحي المقيد عند إنشاء الحساب',
+      description: targetSubCustObj
+        ? `الرصيد الافتتاحي المقيد للزبون الفرعي: ${targetSubCustObj.name}`
+        : 'الرصيد الافتتاحي المقيد عند إنشاء الحساب',
       debit: initialBal > 0 ? initialBal : 0,
       credit: initialBal < 0 ? Math.abs(initialBal) : 0
     });
@@ -177,13 +202,14 @@ export function generateAccountStatement(params: {
       return;
     }
 
+    const isMainCustMatch = inv.customerId === party.id;
     const isTarget = party.isSubCustomer
       ? (
           inv.subCustomerId === party.id ||
-          (inv.subCustomerName && (inv.subCustomerName || '').trim().toLowerCase() === (party.name || '').trim().toLowerCase()) ||
-          (inv.customCustomerText && party.name && inv.customCustomerText.toLowerCase().includes(party.name.toLowerCase()))
+          (inv.subCustomerName && inv.subCustomerName.trim().toLowerCase() === party.name.trim().toLowerCase()) ||
+          (inv.customCustomerText && inv.customCustomerText.toLowerCase().includes(party.name.toLowerCase()))
         )
-      : (inv.customerId === party.id);
+      : (isMainCustMatch && matchesSubCust(inv.subCustomerId, inv.subCustomerName, inv.customCustomerText));
 
     if (isTarget) {
       const subCustNote = !party.isSubCustomer && (inv.subCustomerName || inv.customCustomerText)
@@ -436,13 +462,23 @@ export function generateAccountStatement(params: {
       return;
     }
 
+    const matchesVchSubCust = (!subCustomerId || subCustomerId === 'all')
+      ? true
+      : (
+          vch.partyId === subCustomerId ||
+          (targetSubCustObj && vch.partyId === targetSubCustObj.id) ||
+          (targetSubCustName && vch.partyName && vch.partyName.trim().toLowerCase().includes(targetSubCustName)) ||
+          (targetSubCustName && vch.description && vch.description.trim().toLowerCase().includes(targetSubCustName)) ||
+          (targetSubCustName && (vch as any).subCustomerName && (vch as any).subCustomerName.trim().toLowerCase().includes(targetSubCustName))
+        );
+
     const isTarget = party.isSubCustomer
       ? (
           vch.partyId === party.id ||
           (vch.description && vch.description.includes(party.name)) ||
           (vch.partyName && vch.partyName.includes(party.name))
         )
-      : (vch.partyId === party.id);
+      : (vch.partyId === party.id && matchesVchSubCust);
 
     if (isTarget) {
       const vchNote = (vch as any).notes || vch.description;

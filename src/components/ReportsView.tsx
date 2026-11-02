@@ -113,8 +113,39 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
 
   const subCustomersForSelected = useMemo(() => {
     if (!selectedCustomerId) return [];
-    return parties.filter(p => p.parentPartyId === selectedCustomerId || (p.isSubCustomer && p.parentPartyId === selectedCustomerId));
-  }, [parties, selectedCustomerId]);
+
+    const map = new Map<string, Party>();
+
+    // 1. Registered sub-customer parties in database
+    parties
+      .filter(p => p.parentPartyId === selectedCustomerId || (p.isSubCustomer && p.parentPartyId === selectedCustomerId))
+      .forEach(p => map.set(p.id, p));
+
+    // 2. Discover any sub-customers from invoices linked to selectedCustomerId
+    invoices.forEach(inv => {
+      if (inv.customerId === selectedCustomerId) {
+        if (inv.subCustomerId && !map.has(inv.subCustomerId)) {
+          const found = parties.find(p => p.id === inv.subCustomerId);
+          if (found) map.set(found.id, found);
+        }
+        const subName = (inv.subCustomerName || inv.customCustomerText || '').trim();
+        if (subName && !Array.from(map.values()).some(p => p.name.trim().toLowerCase() === subName.toLowerCase())) {
+          const synthId = inv.subCustomerId || `synth-sub-${subName}`;
+          map.set(synthId, {
+            id: synthId,
+            code: synthId,
+            type: 'customer',
+            name: subName,
+            parentPartyId: selectedCustomerId,
+            isSubCustomer: true,
+            balance: 0
+          } as Party);
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [parties, invoices, selectedCustomerId]);
 
   // 3 & 4: Supplier selection (Main & Sub)
   const mainSuppliers = useMemo(() => {
