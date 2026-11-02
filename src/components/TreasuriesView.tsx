@@ -166,7 +166,7 @@ export const TreasuriesView: React.FC = () => {
     if (!formName.trim()) return;
 
     if (editingTreasury) {
-      updateTreasury(editingTreasury.id, {
+      const res = updateTreasury(editingTreasury.id, {
         name: formName.trim(),
         type: formType,
         bankName: formBankName.trim() || undefined,
@@ -175,9 +175,14 @@ export const TreasuriesView: React.FC = () => {
         notes: formNotes.trim() || undefined,
         status: formStatus
       });
-      posSound.playSuccessBeep();
+      if (res.success) {
+        posSound.playSuccessBeep();
+        setShowAddEditModal(false);
+      } else {
+        alert(res.message);
+      }
     } else {
-      addTreasury({
+      const res = addTreasury({
         name: formName.trim(),
         type: formType,
         balance: Number(formBalance) || 0,
@@ -187,10 +192,13 @@ export const TreasuriesView: React.FC = () => {
         notes: formNotes.trim() || undefined,
         status: formStatus
       });
-      posSound.playCashBeep();
+      if (res.success) {
+        posSound.playCashBeep();
+        setShowAddEditModal(false);
+      } else {
+        alert(res.message);
+      }
     }
-
-    setShowAddEditModal(false);
   };
 
   // Handle Delete
@@ -870,10 +878,20 @@ export const TreasuriesView: React.FC = () => {
                 <input
                   type="text"
                   value={formAccountCode}
+                  disabled={Boolean(editingTreasury && ((editingTreasury.transactions?.length || 0) > 0 || editingTreasury.balance !== 0))}
                   onChange={e => setFormAccountCode(e.target.value)}
                   placeholder="اتركه فارغاً ليقوم النظام بتعيينه تلقائياً (1102، 1103...)"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                  className={`w-full border rounded-lg p-2 text-xs font-mono ${
+                    Boolean(editingTreasury && ((editingTreasury.transactions?.length || 0) > 0 || editingTreasury.balance !== 0))
+                      ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                      : 'bg-slate-50 text-slate-900 border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500'
+                  }`}
                 />
+                {editingTreasury && ((editingTreasury.transactions?.length || 0) > 0 || editingTreasury.balance !== 0) && (
+                  <span className="text-[10px] text-amber-600 block mt-0.5 font-bold">
+                    🔒 تم قفل وتثبيت كود الحساب لوجود حركات أو رصيد مسجل عليه حفاظاً على سلامة النظام المحاسبي.
+                  </span>
+                )}
               </div>
 
               {/* Notes */}

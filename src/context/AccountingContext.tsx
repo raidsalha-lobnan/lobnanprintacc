@@ -136,8 +136,8 @@ interface AccountingContextType {
   
   // Treasuries & Bank Apps (بند الخزنات والصناديق والتطبيقات البنكية)
   treasuries: Treasury[];
-  addTreasury: (treasury: Omit<Treasury, 'id' | 'createdAt'>) => Treasury;
-  updateTreasury: (id: string, updated: Partial<Treasury>) => void;
+  addTreasury: (treasury: Omit<Treasury, 'id' | 'createdAt'>) => { success: boolean; treasury?: Treasury; message?: string };
+  updateTreasury: (id: string, updated: Partial<Treasury>) => { success: boolean; message?: string };
   deleteTreasury: (id: string) => { success: boolean; message?: string };
   transferBetweenTreasuries: (
     sourceTreasuryId: string,
@@ -4722,13 +4722,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Treasury Management (إدارة الخزنات والصناديق والتطبيقات البنكية)
-  const addTreasury = (treasuryData: Omit<Treasury, 'id' | 'createdAt'>): Treasury => {
+  const addTreasury = (treasuryData: Omit<Treasury, 'id' | 'createdAt'>): { success: boolean; treasury?: Treasury; message?: string } => {
     const id = 'treasury-' + Date.now();
     const today = new Date().toISOString().split('T')[0];
 
-    // Determine accountCode in Chart of Accounts (asset range 1100-1199, starting from 1102)
     let accountCode = treasuryData.accountCode ? String(treasuryData.accountCode).trim() : '';
-    if (!accountCode || accounts.some(a => a.code === accountCode) || treasuries.some(t => t.accountCode === accountCode)) {
+    if (accountCode) {
+      const isDuplicateTreasury = treasuries.some(t => t.accountCode === accountCode);
+      const isDuplicateAccount = accounts.some(a => a.code === accountCode);
+      if (isDuplicateTreasury || isDuplicateAccount) {
+        return { success: false, message: `كود الحساب (${accountCode}) مستخدم مسبقاً في النظام. يرجى اختيار كود فريد غير مكرر.` };
+      }
+    } else {
       let candidate = 1102;
       while (accounts.some(a => a.code === String(candidate)) || treasuries.some(t => t.accountCode === String(candidate))) {
         candidate++;
@@ -4785,17 +4790,33 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setTreasuries(prev => [...prev, newTreasury]);
     setDoc(doc(db, 'treasuries', newTreasury.id), cleanDocForFirestore(newTreasury)).catch(() => {});
-    return newTreasury;
+    return { success: true, treasury: newTreasury, message: `تمت إضافة الخزنة برقم حساب (${accountCode}) بنجاح` };
   };
 
-  const updateTreasury = (id: string, updated: Partial<Treasury>) => {
+  const updateTreasury = (id: string, updated: Partial<Treasury>): { success: boolean; message?: string } => {
+    const target = treasuries.find(t => t.id === id);
+    if (!target) return { success: false, message: 'الخزنة غير موجودة' };
+
+    if (updated.accountCode && updated.accountCode !== target.accountCode) {
+      const hasTransactions = (target.transactions && target.transactions.length > 0) || (target.balance !== 0);
+      if (hasTransactions) {
+        return { success: false, message: `لا يمكن تعديل كود الحساب لخزنة (${target.name}) لأنه تم إدخال حركات أو رصيد عليها بالفعل (تم قفل وتثبيت الكود لحماية السلامة المحاسبية).` };
+      }
+      const isDuplicate = treasuries.some(t => t.id !== id && t.accountCode === updated.accountCode) || accounts.some(a => a.code === updated.accountCode);
+      if (isDuplicate) {
+        return { success: false, message: `كود الحساب (${updated.accountCode}) مستخدم مسبقاً في النظام.` };
+      }
+    }
+
     setTreasuries(prev =>
       prev.map(t => {
         if (t.id === id) {
           const updatedTreasury = { ...t, ...updated, updatedAt: new Date().toISOString() };
-          // If name changed, keep linked chart of account name updated
           if (updated.name && updated.name !== t.name) {
             setAccounts(accs => accs.map(a => a.code === t.accountCode ? { ...a, name: updated.name!, updatedAt: new Date().toISOString() } : a));
+          }
+          if (updated.accountCode && updated.accountCode !== t.accountCode) {
+            setAccounts(accs => accs.map(a => a.code === t.accountCode ? { ...a, code: updated.accountCode! } : a));
           }
           pushDeltaToServer('treasuries', 'upsert', updatedTreasury);
           setDoc(doc(db, 'treasuries', id), cleanDocForFirestore(updatedTreasury)).catch(() => {});
@@ -4804,6 +4825,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return t;
       })
     );
+    return { success: true, message: 'تم تحديث بيانات الخزنة بنجاح' };
   };
 
   const deleteTreasury = (id: string): { success: boolean; message?: string } => {
