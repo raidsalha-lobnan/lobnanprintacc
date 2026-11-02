@@ -1506,11 +1506,30 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     } catch {}
 
-    // Strict sequential renumbering starting from 1 (INV-0001)
-    combined = combined.map((inv, idx) => ({
-      ...inv,
-      invoiceNumber: `INV-${String(idx + 1).padStart(4, '0')}`
-    }));
+    // Preserve existing invoice numbers, assign sequential invoiceNumbers only to invoices lacking them
+    let maxNum = 0;
+    combined.forEach(inv => {
+      if (inv && inv.invoiceNumber) {
+        const matched = inv.invoiceNumber.match(/\d+/g);
+        if (matched && matched.length > 0) {
+          const num = parseInt(matched[matched.length - 1], 10);
+          if (!isNaN(num) && num > maxNum && num < 100000) {
+            maxNum = num;
+          }
+        }
+      }
+    });
+
+    combined = combined.map(inv => {
+      if (inv.invoiceNumber && inv.invoiceNumber.trim() !== '') {
+        return inv;
+      }
+      maxNum++;
+      return {
+        ...inv,
+        invoiceNumber: `INV-${String(maxNum).padStart(4, '0')}`
+      };
+    });
 
     try {
       localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(combined));

@@ -84,7 +84,7 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
 
         const result = await executeHourlyDriveBackupFlow(token, fullBackup, {
           retentionDays: 7,
-          autoCleanOld: retentionConfirmed
+          autoCleanOld: false
         });
 
         if (result.success) {
