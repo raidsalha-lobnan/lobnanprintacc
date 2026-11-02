@@ -1575,22 +1575,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const ensureUniqueTreasuryAccountCodes = (list: Treasury[]): Treasury[] => {
     if (!list || list.length === 0) return list;
-    const seenCodes = new Set<string>();
     const accs = accounts || [];
-    let counter = 1101;
-    return list.map((t) => {
-      let code = t.accountCode?.trim();
-      if (!code || seenCodes.has(code)) {
-        while (seenCodes.has(`CASH-${counter}`) || list.some(other => other.accountCode === `CASH-${counter}`)) {
-          counter++;
-        }
-        code = `CASH-${counter}`;
-      } else {
-        if (!code.startsWith('CASH-') && !code.startsWith('BANK-') && !code.startsWith('TR-')) {
-          code = `CASH-${code}`;
-        }
-      }
-      seenCodes.add(code);
+    return list.map((t, idx) => {
+      const code = `CASH-${1101 + idx}`;
 
       const matchedAcc = accs.find(a => a.code === code);
       const targetBal = matchedAcc ? matchedAcc.balance : t.balance;
