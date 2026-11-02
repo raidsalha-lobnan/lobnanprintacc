@@ -18,7 +18,8 @@ import {
   ToggleRight,
   Sparkles,
   ServerOff,
-  Cloud
+  Cloud,
+  Trash2
 } from 'lucide-react';
 
 interface LocalDatabaseModalProps {
@@ -41,7 +42,8 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
     seedLocalDatabaseDemo,
     exportLocalDatabaseJSON,
     importLocalDatabaseJSON,
-    importDataJSON
+    importDataJSON,
+    deleteAllInvoicesAndCashTreasury1101
   } = useAccounting();
 
   const [feedback, setFeedback] = useState<{ message: string; success: boolean } | null>(null);
@@ -59,6 +61,13 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
     exportLocalDatabaseJSON();
     setFeedback({ message: 'تم تصدير نسخة احتياطية كاملة من قاعدة البيانات المحلية بنجاح!', success: true });
     setTimeout(() => setFeedback(null), 4000);
+  };
+
+  const handleDeleteInvoicesAndTreasury1101 = () => {
+    if (!window.confirm('هل أنت متأكد من رغبتك في حذف كافة الفواتير المدخلة والارتباطات، وحذف الصندوق النقدي 1101 فقط؟ (مع الاحتفاظ بالصناديق الأخرى مثل 1103 و 1107)')) return;
+    const res = deleteAllInvoicesAndCashTreasury1101();
+    setFeedback({ message: res.message, success: res.success });
+    setTimeout(() => setFeedback(null), 6000);
   };
 
   const handleRestoreMasterSnapshot = async () => {
@@ -263,6 +272,31 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
                 <span>تحميل نسخة احتياطيةجاهزة الآن (.json)</span>
               </a>
             </div>
+          </div>
+
+          {/* TARGETED DELETE INVOICES & TREASURY 1101 CARD */}
+          <div className="p-4 bg-rose-900/10 border-2 border-rose-700 rounded-lg shadow-md space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-rose-700 text-white rounded-md shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-extrabold text-rose-900">
+                  حذف الفواتير المدخلة والارتباطات + حذف الصندوق النقدي 1101 فقط
+                </h4>
+                <p className="text-[11px] text-slate-700 leading-relaxed">
+                  بناءً على طلبك، يمكنك حذف كافة الفواتير المدخلة وجميع ارتباطاتها (سندات، حركات مخزون، قيود) وحذف الصندوق النقدي 1101 فقط، بينما يتم الاحتفاظ بكافة الصناديق الأخرى (مثل 1103 و 1107) وباقي بيانات النظام.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleDeleteInvoicesAndTreasury1101}
+              className="w-full py-2.5 px-4 bg-rose-700 hover:bg-rose-800 text-white font-extrabold text-xs rounded-md flex items-center justify-center gap-2 transition shadow cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>تنفيذ حذف الفواتير والصندوق النقدي 1101 فقط</span>
+            </button>
           </div>
 
           {/* LOCAL DATABASE ACTION TOOLS */}

@@ -405,6 +405,7 @@ interface AccountingContextType {
   ) => void;
   deleteInvoice: (id: string, reason?: string) => void;
   deleteAllSalesInvoicesAndRelatedData: (options?: DeleteAllSalesInvoicesOptions) => DeleteAllSalesInvoicesResult;
+  deleteAllInvoicesAndCashTreasury1101: () => { success: boolean; message: string };
   deletedInvoices: Invoice[];
   restoreDeletedInvoice: (id: string) => Promise<Invoice | null>;
   permanentlyDeleteInvoice: (id: string) => Promise<void>;
@@ -8860,6 +8861,32 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   };
 
+  const deleteAllInvoicesAndCashTreasury1101 = (): { success: boolean; message: string } => {
+    deleteAllSalesInvoicesAndRelatedData();
+
+    setTreasuries(prevTreasuries => {
+      const keptTreasuries = prevTreasuries.filter(t => t.accountCode !== '1101' && t.id !== 'treasury-cash-main');
+      const deletedTreasuries = prevTreasuries.filter(t => t.accountCode === '1101' || t.id === 'treasury-cash-main');
+
+      deletedTreasuries.forEach(t => {
+        registerDeletedDoc('treasuries', t.id);
+        deleteDoc(doc(db, 'treasuries', t.id)).catch(() => {});
+      });
+
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(keptTreasuries));
+      } catch {}
+      pushToServerSync('treasuries', keptTreasuries);
+      broadcastEntityChange('treasuries', keptTreasuries);
+      return keptTreasuries;
+    });
+
+    return {
+      success: true,
+      message: 'تم حذف كافة الفواتير والارتباطات التابعة بنجاح، وحذف الصندوق النقدي 1101 فقط، مع الاحتفاظ بباقي الصناديق (مثل 1103 و 1107).'
+    };
+  };
+
   const restoreDeletedInvoice = async (id: string): Promise<Invoice | null> => {
     const target = deletedInvoices.find(inv => inv.id === id);
     if (!target) return null;
@@ -11238,6 +11265,7 @@ return (
         updateInvoice,
         deleteInvoice,
         deleteAllSalesInvoicesAndRelatedData,
+        deleteAllInvoicesAndCashTreasury1101,
         deletedInvoices,
         restoreDeletedInvoice,
         permanentlyDeleteInvoice,
