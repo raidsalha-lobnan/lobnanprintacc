@@ -39,56 +39,56 @@ export const initialTreasuries: Treasury[] = [
     name: 'الصندوق النقدي الرئيسي (الكاشير)',
     type: 'cash_box',
     balance: 800,
-    accountCode: '1101',
+    accountCode: 'CASH-1101',
     isDefault: true,
     status: 'active',
     currency: 'ILS',
     currencySymbol: '₪',
     createdAt: '2024-01-01',
-    transactions: rawSnapTreasuries.find(t => t.accountCode === '1101' || t.id === 'treasury-cash-main')?.transactions || []
+    transactions: rawSnapTreasuries.find(t => t.accountCode === '1101' || t.accountCode === 'CASH-1101' || t.id === 'treasury-cash-main')?.transactions || []
   },
   {
     id: 'treasury-1791395958513',
     name: 'طلة لبنان - محفظة جوال باي',
     type: 'digital_wallet',
     balance: 165,
-    accountCode: '1103',
+    accountCode: 'CASH-1102',
     status: 'active',
     currency: 'ILS',
     currencySymbol: '₪',
     createdAt: '2024-01-01',
-    transactions: rawSnapTreasuries.find(t => t.accountCode === '1103' || t.id === 'treasury-1791395958513')?.transactions || []
+    transactions: rawSnapTreasuries.find(t => t.accountCode === '1103' || t.accountCode === 'CASH-1102' || t.id === 'treasury-1791395958513')?.transactions || []
   },
   {
     id: 'treasury-1791324119020',
     name: 'محفظة بال باي - PalPay',
     type: 'digital_wallet',
     balance: 0,
-    accountCode: '1104',
+    accountCode: 'CASH-1103',
     status: 'active',
     currency: 'ILS',
     currencySymbol: '₪',
     createdAt: '2024-01-01',
-    transactions: rawSnapTreasuries.find(t => t.accountCode === '1104' || t.id === 'treasury-1791324119020')?.transactions || []
+    transactions: rawSnapTreasuries.find(t => t.accountCode === '1104' || t.accountCode === 'CASH-1103' || t.id === 'treasury-1791324119020')?.transactions || []
   },
   {
     id: 'treasury-1790639512764',
     name: 'بنك فلسطين - ماهر صالحة 0599992615',
     type: 'bank_account',
     balance: 2112,
-    accountCode: '1105',
+    accountCode: 'CASH-1104',
     status: 'active',
     currency: 'ILS',
     currencySymbol: '₪',
     createdAt: '2024-01-01',
-    transactions: rawSnapTreasuries.find(t => t.accountCode === '1105' || t.id === 'treasury-1790639512764')?.transactions || []
+    transactions: rawSnapTreasuries.find(t => t.accountCode === '1105' || t.accountCode === 'CASH-1104' || t.id === 'treasury-1790639512764')?.transactions || []
   },
   {
     id: 'treasury-1791395958599-1107',
     name: 'رائد صالحة - جوال باي - بال باي - مال شات',
     type: 'digital_wallet',
     balance: 0,
-    accountCode: '1107',
+    accountCode: 'CASH-1105',
     status: 'active',
     currency: 'ILS',
     currencySymbol: '₪',

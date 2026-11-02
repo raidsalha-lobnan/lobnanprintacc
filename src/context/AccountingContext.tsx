@@ -4728,17 +4728,19 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     let accountCode = treasuryData.accountCode ? String(treasuryData.accountCode).trim() : '';
     if (accountCode) {
+      if (!accountCode.startsWith('CASH-')) {
+        accountCode = `CASH-${accountCode}`;
+      }
       const isDuplicateTreasury = treasuries.some(t => t.accountCode === accountCode);
-      const isDuplicateAccount = accounts.some(a => a.code === accountCode);
-      if (isDuplicateTreasury || isDuplicateAccount) {
-        return { success: false, message: `كود الحساب (${accountCode}) مستخدم مسبقاً في النظام. يرجى اختيار كود فريد غير مكرر.` };
+      if (isDuplicateTreasury) {
+        return { success: false, message: `كود الصندوق (${accountCode}) مستخدم مسبقاً في النظام. يرجى اختيار كود فريد غير مكرر.` };
       }
     } else {
-      let candidate = 1102;
-      while (accounts.some(a => a.code === String(candidate)) || treasuries.some(t => t.accountCode === String(candidate))) {
-        candidate++;
+      let num = 1101;
+      while (treasuries.some(t => t.accountCode === `CASH-${num}`)) {
+        num++;
       }
-      accountCode = String(candidate);
+      accountCode = `CASH-${num}`;
     }
 
     // Ensure account exists in Chart of Accounts
