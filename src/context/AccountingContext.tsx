@@ -1056,14 +1056,11 @@ export function auditAndRecalculateTreasuries(
         const isPurTx = refType === 'purchase' || existingTx.id.startsWith('tx-pur-');
         const isExpTx = refType === 'expense' || existingTx.id.startsWith('tx-exp-');
 
-        if (isInvTx) {
-          if (!refId || !activeInvoiceIds.has(refId)) return;
-        } else if (isVchTx) {
-          if (!refId || !activeVoucherIds.has(refId)) return;
-        } else if (isPurTx) {
-          if (!refId || !activePurchaseIds.has(refId)) return;
-        } else if (isExpTx) {
-          if (!refId || !activeExpenseIds.has(refId)) return;
+        if (isInvTx || isVchTx || isPurTx || isExpTx) {
+          // Entity-driven transactions (invoices, vouchers, purchases, expenses) are
+          // fully recomputed in steps 1, 2, 3, 4 above based on current payment methods & treasuries.
+          // Do NOT re-add old entity transactions that no longer belong to this treasury!
+          return;
         }
 
         if (!rawTxns.some(x => x.id === existingTx.id)) {
@@ -2043,6 +2040,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(expenses));
   }, [expenses]);
+
+  // Re-audit and sync treasuries whenever invoices, vouchers, purchases, or expenses change
+  useEffect(() => {
+    setTreasuries(prevTreasuries => {
+      const audited = auditAndRecalculateTreasuries(
+        prevTreasuries,
+        invoices,
+        vouchers,
+        undefined,
+        purchases,
+        expenses
+      );
+      const updated = ensureUniqueTreasuryAccountCodes(audited);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  }, [invoices, vouchers, purchases, expenses]);
 
   const [tabHistory, setTabHistory] = useState<string[]>(() => {
     try {
