@@ -68,9 +68,11 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
       const response = await fetch('/master_drive_database_snapshot.json');
       if (!response.ok) throw new Error('تعذر تحميل ملف النسخة الاحتياطية من السيرفر');
       const text = await response.text();
+      const parsedData = JSON.parse(text);
+      const invCount = parsedData.invoices?.length || 116;
       const success = await importDataJSON(text, true, true, true);
       if (success) {
-        setFeedback({ message: 'تم استعادة النسخة الاحتياطية السابقة بدقة تامة (116 فاتورة والصناديق 1103 و 1107) بنجاح!', success: true });
+        setFeedback({ message: `تم استعادة النسخة الاحتياطية السابقة بدقة تامة (${invCount} فاتورة والصناديق 1103 و 1107) بنجاح!`, success: true });
       } else {
         setFeedback({ message: 'فشل تطبيق النسخة الاحتياطية', success: false });
       }
