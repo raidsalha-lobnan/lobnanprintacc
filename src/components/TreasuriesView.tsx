@@ -399,57 +399,61 @@ export const TreasuriesView: React.FC = () => {
         
         {/* Total Liquidity */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 block">إجمالي السيولة</span>
-            <div className="text-base font-bold font-mono text-slate-900 mt-0.5">
-              {totalLiquidity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-              <span className="text-[10px] font-normal text-slate-500">{settings.currency}</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4 h-4" />
             </div>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-4 h-4" />
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 block">إجمالي السيولة</span>
+              <span className="text-sm font-bold font-mono text-slate-900">
+                {totalLiquidity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {settings.currency}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Primary Cash Vault */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 block">الصندوق النقدي (الكاشير)</span>
-            <div className="text-base font-bold font-mono text-teal-700 mt-0.5">
-              {cashBoxTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-              <span className="text-[10px] font-normal text-slate-500">{settings.currency}</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+              <Coins className="w-4 h-4" />
             </div>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-            <Coins className="w-4 h-4" />
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 block">الصندوق النقدي (الكاشير)</span>
+              <span className="text-sm font-bold font-mono text-teal-700">
+                {cashBoxTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {settings.currency}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Bank Apps & Accounts */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 block">التطبيقات والحسابات البنكية</span>
-            <div className="text-base font-bold font-mono text-blue-700 mt-0.5">
-              {bankAppsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-              <span className="text-[10px] font-normal text-slate-500">{settings.currency}</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Smartphone className="w-4 h-4" />
             </div>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Smartphone className="w-4 h-4" />
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 block">التطبيقات والحسابات البنكية</span>
+              <span className="text-sm font-bold font-mono text-blue-700">
+                {bankAppsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {settings.currency}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* POS & Wallets */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-slate-500 block">أجهزة مدى والمحافظ</span>
-            <div className="text-base font-bold font-mono text-purple-700 mt-0.5">
-              {walletsAndPosTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-              <span className="text-[10px] font-normal text-slate-500">{settings.currency}</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <CreditCard className="w-4 h-4" />
             </div>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <CreditCard className="w-4 h-4" />
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 block">أجهزة مدى والمحافظ</span>
+              <span className="text-sm font-bold font-mono text-purple-700">
+                {walletsAndPosTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {settings.currency}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -847,13 +851,7 @@ export const TreasuriesView: React.FC = () => {
                 />
               </div>
 
-              {/* Accounting linking notice */}
-              <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-700 flex items-start gap-2">
-                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>ربط محاسبي تلقائي:</strong> يتم ربط كل خزنة أو تطبيق بنكي بحساب أصول فرعي في شجرة الحسابات (الأصول المتداولة: 110x)، ويتم ترحيل قيود اليومية آلياً عند أي حركة صرف أو تحويل.
-                </span>
-              </div>
+
 
               {/* Actions */}
               <div className="pt-2 border-t border-slate-200 flex items-center justify-end gap-2">

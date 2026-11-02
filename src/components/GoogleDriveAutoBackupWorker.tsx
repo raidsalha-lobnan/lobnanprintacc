@@ -10,7 +10,7 @@ const STORAGE_KEY_AUTO_BACKUP = 'lobnan_drive_auto_backup_enabled';
 const STORAGE_KEY_RETENTION = 'lobnan_drive_retention_confirmed';
 const STORAGE_KEY_LAST_TIME = 'lobnan_drive_last_backup_time';
 const STORAGE_KEY_LAST_INFO = 'lobnan_drive_last_backup_info';
-const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hour
+const THIRTY_MINUTES_MS = 30 * 60 * 1000; // 30 minutes
 
 export const GoogleDriveAutoBackupWorker: React.FC = () => {
   const accounting = useAccounting();
@@ -38,8 +38,8 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
       const lastTime = lastTimeStr ? parseInt(lastTimeStr, 10) : 0;
       const now = Date.now();
 
-      // Check if 1 hour has elapsed since last backup
-      if (now - lastTime < ONE_HOUR_MS) {
+      // Check if 30 minutes have elapsed since last backup
+      if (now - lastTime < THIRTY_MINUTES_MS) {
         return;
       }
 

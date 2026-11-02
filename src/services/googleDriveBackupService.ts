@@ -131,11 +131,68 @@ export async function getOrCreateBackupFolder(token: string): Promise<string> {
   return folderData.id;
 }
 
+export async function getOrCreateTodayFolder(token: string, parentFolderId: string): Promise<string> {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const todayFolderName = `${year}-${month}-${day}`;
+
+  const q = `name='${todayFolderName}' and '${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const searchRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  if (searchRes.status === 401) {
+    setCachedDriveToken(null);
+    throw new Error('انتهت صلاحية رمز الوصول لـ Google Drive (401).');
+  }
+
+  if (searchRes.ok) {
+    const data = await searchRes.json();
+    if (data.files && data.files.length > 0) {
+      return data.files[0].id;
+    }
+  }
+
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: todayFolderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentFolderId],
+      description: `مجلد النسخ الاحتياطية لتاريخ ${todayFolderName} - برنامج الأيهم المحاسبي`
+    })
+  });
+
+  if (!createRes.ok) {
+    throw new Error(`فشل إنشاء مجلد تاريخ اليوم (${createRes.status})`);
+  }
+
+  const folderData = await createRes.json();
+  return folderData.id;
+}
+
 export async function uploadBackupJsonToDrive(token: string, payload: any): Promise<{ success: boolean; fileId?: string; fileName?: string; error?: string }> {
   try {
-    const folderId = await getOrCreateBackupFolder(token);
-    const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `Lobnan_Backup_${dateStr}.json`;
+    const parentFolderId = await getOrCreateBackupFolder(token);
+    const todayFolderId = await getOrCreateTodayFolder(token, parentFolderId);
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    // Naming convention: لبنان_YYYY-MM-DD_HH-mm-ss.json
+    const fileName = `لبنان_${year}-${month}-${day}_${hours}-${minutes}-${seconds}.json`;
 
     const jsonStr = JSON.stringify(payload, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -143,8 +200,8 @@ export async function uploadBackupJsonToDrive(token: string, payload: any): Prom
 
     const metadata = {
       name: fileName,
-      description: 'نسخة احتياطية تلقائية - برنامج الأيهم المحاسبي',
-      parents: [folderId]
+      description: 'نسخة احتياطية تلقائية كل نصف ساعة - برنامج الأيهم المحاسبي',
+      parents: [todayFolderId]
     };
 
     const boundary = '-------LobnanBackupBoundary' + Date.now();
@@ -294,7 +351,7 @@ export async function executeHourlyDriveBackupFlow(
   }
 
   let deletedOldFiles: Array<{ id: string; name: string; createdTime: string }> = [];
-  if (options?.autoCleanOld !== false) {
+  if (options?.autoCleanOld === true) {
     const cleanRes = await cleanOldBackupsFromDrive(token, options?.retentionDays || 7);
     deletedOldFiles = cleanRes.deletedFiles;
   }
