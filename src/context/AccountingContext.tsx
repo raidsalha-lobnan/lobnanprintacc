@@ -1123,7 +1123,7 @@ export function auditAndRecalculateTreasuries(
 // One-time self-purging & strict canonical snapshot alignment
 (() => {
   try {
-    const purgeKey = 'accounting_canonical_29_invoices_force_reset_v5';
+    const purgeKey = 'accounting_canonical_29_invoices_force_reset_v15';
     if (localStorage.getItem(purgeKey) !== 'true') {
       localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(initialInvoices));
       localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(initialJournalEntries));
@@ -1131,6 +1131,7 @@ export function auditAndRecalculateTreasuries(
       localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(initialPurchases));
       localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(initialParties));
       localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(initialInventory));
+      localStorage.removeItem(`${STORAGE_KEY}_treasuries`);
       localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(initialTreasuries));
       localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(initialAccounts));
       localStorage.removeItem('accounting_deleted_docs');

@@ -31,7 +31,71 @@ export const initialEmployeeAdvances: EmployeeAdvance[] = Array.isArray(snap.emp
 export const initialEmployeeDeductions: EmployeeDeduction[] = Array.isArray(snap.employeeDeductions) ? snap.employeeDeductions : [];
 export const initialEmployeeIncentives: EmployeeIncentive[] = Array.isArray(snap.employeeIncentives) ? snap.employeeIncentives : [];
 export const initialPayrollSheets: PayrollSheet[] = Array.isArray(snap.payrollSheets) ? snap.payrollSheets : [];
-export const initialTreasuries: Treasury[] = Array.isArray(snap.treasuries) ? snap.treasuries : [];
+const rawSnapTreasuries: Treasury[] = Array.isArray(snap.treasuries) ? snap.treasuries : [];
+
+export const initialTreasuries: Treasury[] = [
+  {
+    id: 'treasury-cash-main',
+    name: 'الصندوق النقدي الرئيسي (الكاشير)',
+    type: 'cash_box',
+    balance: 800,
+    accountCode: '1101',
+    isDefault: true,
+    status: 'active',
+    currency: 'ILS',
+    currencySymbol: '₪',
+    createdAt: '2024-01-01',
+    transactions: rawSnapTreasuries.find(t => t.accountCode === '1101' || t.id === 'treasury-cash-main')?.transactions || []
+  },
+  {
+    id: 'treasury-1791395958513',
+    name: 'طلة لبنان - محفظة جوال باي',
+    type: 'digital_wallet',
+    balance: 165,
+    accountCode: '1103',
+    status: 'active',
+    currency: 'ILS',
+    currencySymbol: '₪',
+    createdAt: '2024-01-01',
+    transactions: rawSnapTreasuries.find(t => t.accountCode === '1103' || t.id === 'treasury-1791395958513')?.transactions || []
+  },
+  {
+    id: 'treasury-1791324119020',
+    name: 'محفظة بال باي - PalPay',
+    type: 'digital_wallet',
+    balance: 0,
+    accountCode: '1104',
+    status: 'active',
+    currency: 'ILS',
+    currencySymbol: '₪',
+    createdAt: '2024-01-01',
+    transactions: rawSnapTreasuries.find(t => t.accountCode === '1104' || t.id === 'treasury-1791324119020')?.transactions || []
+  },
+  {
+    id: 'treasury-1790639512764',
+    name: 'بنك فلسطين - ماهر صالحة 0599992615',
+    type: 'bank_account',
+    balance: 2112,
+    accountCode: '1105',
+    status: 'active',
+    currency: 'ILS',
+    currencySymbol: '₪',
+    createdAt: '2024-01-01',
+    transactions: rawSnapTreasuries.find(t => t.accountCode === '1105' || t.id === 'treasury-1790639512764')?.transactions || []
+  },
+  {
+    id: 'treasury-1791395958599-1107',
+    name: 'رائد صالحة - جوال باي - بال باي - مال شات',
+    type: 'digital_wallet',
+    balance: 0,
+    accountCode: '1107',
+    status: 'active',
+    currency: 'ILS',
+    currencySymbol: '₪',
+    createdAt: '2024-01-01',
+    transactions: []
+  }
+];
 export const initialVouchers: PaymentVoucher[] = Array.isArray(snap.vouchers) ? snap.vouchers : [];
 export const initialStockMovements: StockMovement[] = Array.isArray(snap.stockMovements) ? snap.stockMovements : [];
 export const initialExpenses: ExpenseItem[] = Array.isArray(snap.expenses) ? snap.expenses : [];
