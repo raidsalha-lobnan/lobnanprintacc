@@ -297,6 +297,19 @@ export function downloadSqlFile(sqlContent: string, filename: string = 'database
   URL.revokeObjectURL(url);
 }
 
+export function downloadJsonBackup(data: any, filename: string = 'alnoor_full_database_backup.json'): void {
+  const jsonStr = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 /**
  * Sends a full snapshot to the configured SQL Web Server API endpoint
  */
