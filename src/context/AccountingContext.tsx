@@ -5656,6 +5656,188 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       })
     );
   };
+  /**
+   * نقل وتطهير حركات الفاتورة بين الصناديق والمحافط البنكية (User Request 2)
+   * عند تعديل الفاتورة ونقلها من صندوق لآخر:
+   * 1. يتم مسح/تطهير أي حركة سابقة للفاتورة من الصندوق القديم نهائياً دون ترك أي أثر أو قيد عكسي مربك في كشف الصندوق القديم.
+   * 2. يتم خصم المبلغ من الصندوق القديم وإضافته للصندوق الجديد بصورة نقية.
+   * 3. يتم إثبات الحركة الصريحة في الصندوق الجديد وكأنها أُدخلت فيه من البداية.
+   * 4. يتم تحديث قيود اليومية لربطها بكود الخزينة/الحساب الجديد.
+   */
+  const purgeAndTransferInvoiceTreasury = (
+    oldInv: Invoice | null | undefined,
+    newInv: Invoice | null | undefined
+  ) => {
+    if (!oldInv && !newInv) return;
+
+    setTreasuries(prevTreasuries => {
+      return prevTreasuries.map(t => {
+        let updatedT = { ...t };
+        let txs = [...(updatedT.transactions || [])];
+
+        // 1. إذا كانت هناك فاتورة سابقة (oldInv)، يتم تطهيرها ومسحها بالكامل من الصندوق القديم دون إظهار أي حركة عكسية
+        if (oldInv) {
+          const invId = oldInv.id;
+          const invNum = oldInv.invoiceNumber;
+
+          // البحث عن الحركات المرتبطة بالفاتورة في هذا الصندوق
+          const matchingTxs = txs.filter(tx =>
+            (tx.referenceId && tx.referenceId === invId) ||
+            (tx.voucherNumber && tx.voucherNumber === invNum) ||
+            (tx.referenceNumber && tx.referenceNumber === invNum) ||
+            (tx.description && tx.description.includes(invNum))
+          );
+
+          if (matchingTxs.length > 0) {
+            // إزالة الحركات نهائياً من القائمة
+            txs = txs.filter(tx => !matchingTxs.includes(tx));
+
+            // خصم مبالغ الحركات المزالة من رصيد الصندوق
+            let removedBaseAmt = 0;
+            const currDeltas: Record<string, number> = {};
+
+            matchingTxs.forEach(tx => {
+              const amt = Math.abs(tx.amount || 0);
+              const curr = tx.currency || 'ILS';
+              currDeltas[curr] = (currDeltas[curr] || 0) + amt;
+              removedBaseAmt += Math.abs(tx.baseAmount !== undefined ? tx.baseAmount : amt * (tx.exchangeRate || 1));
+            });
+
+            const newCurrBalances = { ...(updatedT.currencyBalances || { ILS: updatedT.balance || 0 }) };
+            for (const [cCode, cAmt] of Object.entries(currDeltas)) {
+              newCurrBalances[cCode] = Number(((newCurrBalances[cCode] || 0) - cAmt).toFixed(2));
+            }
+
+            let newEstimatedBase = 0;
+            for (const [cCode, cAmt] of Object.entries(newCurrBalances)) {
+              const cRate = cCode === 'ILS' ? 1.0 : (currencies.find(c => c.code === cCode)?.rateAgainstBase || 1.0);
+              newEstimatedBase += (cAmt as number) * cRate;
+            }
+
+            updatedT.balance = Number(newEstimatedBase.toFixed(2));
+            updatedT.currencyBalances = newCurrBalances;
+          }
+        }
+
+        // 2. إذا كانت هناك فاتورة جديدة/محدثة (newInv) ومؤهلة محاسبياً، يتم إضافتها بشكل نقي للصندوق الجديد
+        if (newInv && isInvoiceAccountingEligible(newInv.workflowStatus)) {
+          const isCredit = newInv.paymentMethod === 'credit' || (!newInv.paidAmount && (newInv.remainingAmount ?? newInv.totalAmount) === newInv.totalAmount);
+
+          if (!isCredit) {
+            const cashCode = newInv.cashTreasuryCode || newInv.treasuryAccountCode || '1101';
+            let bankCode = newInv.bankTreasuryCode || newInv.treasuryAccountCode || '1103';
+            if (bankCode === '1102' && !prevTreasuries.some(tr => tr.accountCode === '1102' || tr.id === '1102')) {
+              bankCode = '1103';
+            }
+
+            const isCashMatch = updatedT.accountCode === cashCode || updatedT.id === cashCode;
+            const isBankMatch = updatedT.accountCode === bankCode || updatedT.id === bankCode;
+
+            const cashPaid = (newInv.cashPaidAmount && newInv.cashPaidAmount > 0)
+              ? newInv.cashPaidAmount
+              : (newInv.paymentMethod === 'cash' ? newInv.paidAmount : 0);
+
+            const bankPaid = (newInv.bankPaidAmount && newInv.bankPaidAmount > 0)
+              ? newInv.bankPaidAmount
+              : (newInv.paymentMethod === 'card' || (newInv.paymentMethod as string) === 'bank_transfer' ? newInv.paidAmount : 0);
+
+            let depositAmt = 0;
+            let isBankTx = false;
+
+            if (isCashMatch && cashPaid > 0) {
+              depositAmt = cashPaid;
+            } else if (isBankMatch && bankPaid > 0) {
+              depositAmt = bankPaid;
+              isBankTx = true;
+            }
+
+            if (depositAmt > 0) {
+              const curr = newInv.currency || 'ILS';
+              const rate = newInv.exchangeRate || 1.0;
+              const symbol = newInv.currencySymbol || '₪';
+              const baseAmt = Number((depositAmt * rate).toFixed(2));
+              const today = newInv.date || new Date().toISOString().split('T')[0];
+
+              const newCurrBal = Number(((updatedT.currencyBalances?.[curr] || 0) + depositAmt).toFixed(2));
+              const updatedCurrBalances = {
+                ...(updatedT.currencyBalances || { ILS: updatedT.balance || 0 }),
+                [curr]: newCurrBal
+              };
+
+              let totalEstimatedBase = 0;
+              for (const [cCode, cAmt] of Object.entries(updatedCurrBalances)) {
+                const cRate = cCode === 'ILS' ? 1.0 : (currencies.find(c => c.code === cCode)?.rateAgainstBase || 1.0);
+                totalEstimatedBase += (cAmt as number) * cRate;
+              }
+              totalEstimatedBase = Number(totalEstimatedBase.toFixed(2));
+
+              const cleanTx: TreasuryTransaction = {
+                id: `tx-pos-${newInv.id}-${Date.now()}`,
+                treasuryId: updatedT.id,
+                treasuryName: updatedT.name,
+                date: today,
+                type: 'deposit',
+                amount: depositAmt,
+                currency: curr,
+                currencySymbol: symbol,
+                exchangeRate: rate,
+                baseCurrency: 'ILS',
+                baseAmount: baseAmt,
+                balanceAfter: totalEstimatedBase,
+                balanceAfterCurrency: newCurrBal,
+                voucherNumber: newInv.invoiceNumber,
+                partyName: newInv.customerName || 'زبون نقدي',
+                description: isBankTx
+                  ? `تحصيل مبيعات عبر البنك/الشبكة - فاتورة رقم ${newInv.invoiceNumber}`
+                  : `تحصيل مبيعات نقدي - فاتورة رقم ${newInv.invoiceNumber}`,
+                referenceType: 'pos_sale',
+                referenceId: newInv.id
+              };
+
+              updatedT.balance = totalEstimatedBase;
+              updatedT.currencyBalances = updatedCurrBalances;
+              
+              // تجنب التكرار إذا كانت الحركة موجودة مسبقاً
+              const exists = txs.some(tx => tx.referenceId === newInv.id && tx.treasuryId === updatedT.id);
+              if (!exists) {
+                txs = [cleanTx, ...txs];
+              }
+            }
+          }
+        }
+
+        return {
+          ...updatedT,
+          transactions: txs
+        };
+      });
+    });
+
+    // 3. تحديث القيود المحاسبية المرتبطة لإبعاد كود الحساب القديم واعتماد كود الخزينة الجديد
+    if (newInv) {
+      setJournalEntries(prevJE => prevJE.map(je => {
+        if (je.referenceId === newInv.id || (je.description && je.description.includes(newInv.invoiceNumber))) {
+          const updatedLines = je.lines.map(line => {
+            if (line.debit > 0 && (line.accountCode.startsWith('110') || line.accountCode === '1101' || line.accountCode === '1102' || line.accountCode === '1103' || line.accountCode === '1105')) {
+              const isBankLine = line.description?.includes('بنكي') || line.description?.includes('شبكة') || newInv.paymentMethod === 'card' || (newInv.paymentMethod as string) === 'bank_transfer';
+              const targetCode = isBankLine ? (newInv.bankTreasuryCode || '1103') : (newInv.cashTreasuryCode || '1101');
+              return {
+                ...line,
+                accountCode: targetCode,
+                debit: isBankLine ? (newInv.bankPaidAmount || newInv.paidAmount) : (newInv.cashPaidAmount || newInv.paidAmount)
+              };
+            }
+            return line;
+          });
+          return {
+            ...je,
+            lines: updatedLines
+          };
+        }
+        return je;
+      }));
+    }
+  };
 
   const addJournalEntry = (entry: Omit<JournalEntry, 'id' | 'entryNumber' | 'createdAt'>) => {
     const uniqueSuffix = Math.random().toString(36).substring(2, 8) + '-' + Math.floor(Math.random() * 1000);
@@ -6921,17 +7103,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         return invItem;
       }));
-      // 2. Reverse Treasury (Cash/Bank)
-      if (oldInvoice.cashPaidAmount && oldInvoice.cashPaidAmount > 0) {
-        adjustTreasuryBalance(oldInvoice.cashTreasuryCode || '1101', -oldInvoice.cashPaidAmount, `عكس (تعديل) فاتورة ${oldInvoice.invoiceNumber}`, 'pos_sale', oldInvoice.id);
-      }
-      if (oldInvoice.bankPaidAmount && oldInvoice.bankPaidAmount > 0) {
-        adjustTreasuryBalance(oldInvoice.bankTreasuryCode || '1102', -oldInvoice.bankPaidAmount, `عكس (تعديل) فاتورة ${oldInvoice.invoiceNumber}`, 'pos_sale', oldInvoice.id);
-      }
-      if (!oldInvoice.cashPaidAmount && !oldInvoice.bankPaidAmount && oldInvoice.paidAmount > 0) {
-        adjustTreasuryBalance(oldInvoice.treasuryAccountCode || (oldInvoice.paymentMethod === 'card' ? '1102' : '1101'), -oldInvoice.paidAmount, `عكس (تعديل) فاتورة ${oldInvoice.invoiceNumber}`, 'pos_sale', oldInvoice.id);
-      }
-      // 3. Reverse Customer Balance
+      // 2. Reverse Customer Balance
       const oldBaseRemain = oldInvoice.remainingAmount * (oldInvoice.exchangeRate || 1);
       if (oldBaseRemain > 0) {
         setParties(prevParties => prevParties.map(p => {
@@ -7307,60 +7479,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const bankBase = Number((bankVal * bankRate).toFixed(2));
 
     if (!isQuotation) {
-      if (cashVal > 0) {
-        const cCode = extraOptions?.cashTreasuryCode || '1101';
-        adjustTreasuryBalance(
-          cCode,
-          cashVal,
-          `تحصيل نقدي - فاتورة مبيعات رقم ${invoiceNumber} (${customerName || 'عميل نقدي'})`,
-          'pos_sale',
-          invId,
-          {
-            currency: cashCurr,
-            currencySymbol: cashSymbol,
-            exchangeRate: cashRate,
-            voucherNumber: invoiceNumber,
-            partyName: customerName || 'عميل نقدي',
-            date: today
-          }
-        );
-      }
-      if (bankVal > 0) {
-        const bCode = extraOptions?.bankTreasuryCode || '1105';
-        adjustTreasuryBalance(
-          bCode,
-          bankVal,
-          `تحصيل شبكة / بنكي - فاتورة مبيعات رقم ${invoiceNumber} (${customerName || 'عميل نقدي'})`,
-          'pos_sale',
-          invId,
-          {
-            currency: bankCurr,
-            currencySymbol: bankSymbol,
-            exchangeRate: bankRate,
-            voucherNumber: invoiceNumber,
-            partyName: customerName || 'عميل نقدي',
-            date: today
-          }
-        );
-      }
-      if (cashVal === 0 && bankVal === 0 && effectivePaidAmount > 0) {
-        const tCode = extraOptions?.treasuryAccountCode || (paymentMethod === 'cash' ? '1101' : '1105');
-        adjustTreasuryBalance(
-          tCode,
-          effectivePaidAmount,
-          `تحصيل فوري - فاتورة مبيعات رقم ${invoiceNumber} (${customerName || 'عميل نقدي'})`,
-          'pos_sale',
-          invId,
-          {
-            currency: transactionCurrency,
-            currencySymbol: transactionCurrencySymbol,
-            exchangeRate,
-            voucherNumber: invoiceNumber,
-            partyName: customerName || 'عميل نقدي',
-            date: today
-          }
-        );
-      }
+      // تطهير الحركة ونقلها للصندوق الجديد بصورة نقية دون أي قيود عكسية (User Request 2)
+      purgeAndTransferInvoiceTreasury(oldInvoice, newInvoice);
 
       // Record formal receipt payment voucher (سند قبض رسمي)
       if (effectiveBasePaidAmount > 0) {
@@ -7927,6 +8047,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     updates: Partial<Invoice>,
     statusMeta?: { notes?: string; userName?: string; userId?: string }
   ) => {
+    const oldInv = invoices.find(inv => inv.id === id);
+    if (oldInv) {
+      const updatedInv = { ...oldInv, ...updates };
+      purgeAndTransferInvoiceTreasury(oldInv, updatedInv);
+    }
+
     setInvoices(prev => prev.map(inv => {
       if (inv.id !== id) return inv;
       const updated: Invoice = { ...inv, ...updates };
@@ -8159,6 +8285,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const deleteInvoice = (id: string, reason?: string) => {
     const target = invoices.find(inv => inv.id === id);
+    if (target) {
+      purgeAndTransferInvoiceTreasury(target, null);
+    }
     const now = new Date();
     const nowStr = now.toLocaleDateString('ar-EG') + ' ' + now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
     
