@@ -5744,7 +5744,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             let depositAmt = 0;
             let isBankTx = false;
 
-            if (isCashMatch && cashPaid > 0) {
+            if (isCashMatch && isBankMatch) {
+              depositAmt = cashPaid + bankPaid;
+              isBankTx = bankPaid > 0;
+            } else if (isCashMatch && cashPaid > 0) {
               depositAmt = cashPaid;
             } else if (isBankMatch && bankPaid > 0) {
               depositAmt = bankPaid;
