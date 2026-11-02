@@ -1120,26 +1120,7 @@ export function auditAndRecalculateTreasuries(
   });
 }
 
-// One-time self-purging & strict canonical snapshot alignment
-(() => {
-  try {
-    const purgeKey = 'accounting_canonical_29_invoices_force_reset_v15';
-    if (localStorage.getItem(purgeKey) !== 'true') {
-      localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(initialInvoices));
-      localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(initialJournalEntries));
-      localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(initialVouchers));
-      localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(initialPurchases));
-      localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(initialParties));
-      localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(initialInventory));
-      localStorage.removeItem(`${STORAGE_KEY}_treasuries`);
-      localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(initialTreasuries));
-      localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(initialAccounts));
-      localStorage.removeItem('accounting_deleted_docs');
-      localStorage.removeItem('accounting_last_seen_seq');
-      localStorage.setItem(purgeKey, 'true');
-    }
-  } catch (e) {}
-})();
+// Data persistence guarantee: Code updates must NEVER purge or reset user-entered invoices or documents.
 
 export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<BusinessSettings>(() => {
@@ -1507,33 +1488,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const migrationKey = `${STORAGE_KEY}_v29_real_fixed_final_v4`;
-    const isMigrated = localStorage.getItem(migrationKey) === 'true';
-    if (!isMigrated) {
-      try {
-        localStorage.removeItem(`${STORAGE_KEY}_invoices`);
-        localStorage.removeItem('alnoor_press_accounting_v1_invoices');
-        localStorage.setItem(migrationKey, 'true');
-      } catch {}
-      const initList = initialInvoices || [];
-      try {
-        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(initList));
-      } catch {}
-      return initList;
-    }
-
-    const loaded = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, []);
-    let baseInvoices = loaded;
-    if (!baseInvoices || baseInvoices.length === 0) {
-      baseInvoices = initialInvoices || [];
-    }
-    const merged = mergeInvoicesWithUpsertAndConflictResolution(baseInvoices, []);
-
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged));
-    } catch {}
-
-    return merged;
+    const loaded = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, initialInvoices);
+    const baseInvoices = (loaded && loaded.length > 0) ? loaded : (initialInvoices || []);
+    return mergeInvoicesWithUpsertAndConflictResolution(baseInvoices, []);
   });
 
   const [purchases, setPurchases] = useState<PurchaseInvoice[]>(() => {
