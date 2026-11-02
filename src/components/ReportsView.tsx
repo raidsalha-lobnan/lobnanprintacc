@@ -634,6 +634,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
 
     const rows: TreasuryRow[] = [];
     const seenTxKeys = new Set<string>();
+    const seenInvoiceNumbers = new Set<string>();
 
     const getCleanDate = (d?: string) => {
       if (!d) return '';
@@ -676,7 +677,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
         const docNum = tx.voucherNumber || tx.referenceId || tx.id.slice(0, 10);
         const party = tx.partyName || (tx.targetTreasuryName ? `إلى/من: ${tx.targetTreasuryName}` : '-');
 
-        // Deduplication tracking
+        // Deduplication tracking: Ensure an invoice is never duplicated across treasuries unless paid via two distinct receipts/vouchers
+        const isInvTx = (docNum && docNum.startsWith('INV-')) || tx.referenceType === 'pos_sale' || tx.referenceType === 'invoice';
+        if (isInvTx) {
+          if (docNum) seenInvoiceNumbers.add(docNum);
+          if (tx.referenceId) seenInvoiceNumbers.add(tx.referenceId);
+          if (tx.voucherNumber) seenInvoiceNumbers.add(tx.voucherNumber);
+        }
+
         const uniqueKey = `${t.accountCode}_${docNum}_${cleanDate}_${baseAmt}`;
         seenTxKeys.add(uniqueKey);
         if (docNum && docNum !== '-') seenTxKeys.add(`${t.accountCode}_${docNum}`);
@@ -702,16 +710,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ initialReport }) => {
     invoices.forEach(inv => {
       if ((inv.paidAmount || 0) <= 0) return;
       
-      const invTreasuryCode = inv.treasuryAccountCode || 
-        (inv.paymentMethod === 'cash' ? (inv.cashTreasuryCode || '1101') : (inv.bankTreasuryCode || '1102'));
-      
+      const docNum = inv.invoiceNumber;
+
+      // CRITICAL RULE: If invoice transaction is already recorded in any treasury, SKIP to avoid duplicate across treasuries!
+      if (seenInvoiceNumbers.has(docNum) || (inv.id && seenInvoiceNumbers.has(inv.id))) {
+        return;
+      }
+
+      let invTreasuryCode = inv.treasuryAccountCode || 
+        (inv.paymentMethod === 'cash' ? (inv.cashTreasuryCode || '1101') : (inv.bankTreasuryCode || '1105'));
+
+      if (invTreasuryCode === '1102' && !treasuries.some(tr => tr.accountCode === '1102' || tr.id === '1102')) {
+        invTreasuryCode = '1105';
+      }
+
       const isMatch = selectedTreasuryCode === 'all' || selectedTreasuryCode === invTreasuryCode;
       if (!isMatch) return;
 
-      const docNum = inv.invoiceNumber;
       if (seenTxKeys.has(`${invTreasuryCode}_${docNum}`)) return;
+      seenTxKeys.add(`${invTreasuryCode}_${docNum}`);
+      seenInvoiceNumbers.add(docNum);
 
-      const tObj = treasuries.find(t => t.accountCode === invTreasuryCode);
+      const tObj = treasuries.find(t => t.accountCode === invTreasuryCode || t.id === invTreasuryCode);
       const cleanDate = getCleanDate(inv.date || inv.createdAt);
       const curr = inv.currency || 'ILS';
       const rate = Number(inv.exchangeRate) || 1.0;
