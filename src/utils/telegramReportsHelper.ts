@@ -16,6 +16,8 @@ import {
   PayrollSheet,
 } from '../types';
 import { StatementResult, generateEmployeeStatement } from './statementGenerator';
+import { getInvoiceTreasuryDisplay } from './invoiceStatusUtils';
+import { formatInvoiceCustomerDisplay } from './partyUtils';
 import masterSnapshot from '../../master_drive_database_snapshot.json';
 
 const defaultLobnanBanner = (masterSnapshot as any)?.settings?.headerImageUrl || '';
@@ -1241,11 +1243,13 @@ export async function generateTreasuryReportPdfBlob(params: {
  */
 export async function generateSalesReportPdfBlob(params: {
   invoices: Invoice[];
+  parties?: Party[];
+  treasuries?: Treasury[];
   settings: BusinessSettings;
   fromDate?: string;
   toDate?: string;
 }): Promise<{ blob: Blob; filename: string }> {
-  const { invoices, settings, fromDate, toDate } = params;
+  const { invoices, parties = [], treasuries = [], settings, fromDate, toDate } = params;
   const currency = settings.currency || '₪';
   const todayIso = new Date().toISOString().split('T')[0];
 
@@ -1275,15 +1279,16 @@ export async function generateSalesReportPdfBlob(params: {
     const invTotal = inv.totalAmount || (inv as any).total || 0;
     const invPaid = inv.paidAmount || (inv.paymentMethod === 'cash' ? invTotal : 0);
     const invRemaining = Math.max(0, invTotal - invPaid);
-    const payMethod = inv.paymentMethod === 'cash' ? 'نقدي' : inv.paymentMethod === 'credit' ? 'آجل' : 'شبكة/بنك';
+    const customerText = formatInvoiceCustomerDisplay(inv, parties) || inv.customerName || 'زبون نقدي';
+    const tInfo = getInvoiceTreasuryDisplay(inv, treasuries);
 
     return `
       <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#fcfdfd'}; border-bottom: 1px solid #cbd5e1;">
         <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 32px;">${idx + 1}</td>
         <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 85px; color: #1e3a8a;">${inv.invoiceNumber}</td>
         <td style="padding: 5px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-size: 11px; width: 80px;">${inv.date || ''}</td>
-        <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;">${inv.customerName || 'زبون نقدي'}</td>
-        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px; width: 75px;">${payMethod}</td>
+        <td style="padding: 5px 8px; text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #0f172a;">${customerText}</td>
+        <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-size: 11px; width: 110px;">${tInfo.label}</td>
         <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; font-family: monospace; width: 80px;">${invTotal.toFixed(2)}</td>
         <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; color: #047857; font-family: monospace; width: 80px;">${invPaid.toFixed(2)}</td>
         <td style="padding: 5px 6px; text-align: center; border: 1px solid #cbd5e1; color: #b91c1c; font-family: monospace; width: 80px;">${invRemaining.toFixed(2)}</td>

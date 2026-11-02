@@ -39,6 +39,7 @@ import {
   getInvoiceWorkflowStatusMeta,
   getInvoicePaymentStatusMeta,
   computeInvoicePaymentStatus,
+  getInvoiceTreasuryDisplay,
   isInvoiceAccountingEligible
 } from '../../utils/invoiceStatusUtils';
 import { getAllStoredDraftsAsInvoices } from '../../utils/draftsHelper';
@@ -707,13 +708,19 @@ export const PosDailyInvoicesSidebar: React.FC<PosDailyInvoicesSidebarProps> = (
                           )}
                         </td>
 
-                        {/* طريقة الدفع */}
+                        {/* طريقة الدفع والسيولة */}
                         <td className="py-2 px-2 text-center whitespace-nowrap align-middle">
-                          <span
-                            className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${pMeta.bgColor} ${pMeta.color} ${pMeta.borderColor} inline-block leading-none`}
-                          >
-                            {methodStr}
-                          </span>
+                          {(() => {
+                            const tInfo = getInvoiceTreasuryDisplay(inv, treasuries);
+                            return (
+                              <span
+                                className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${pMeta.bgColor} ${pMeta.color} ${pMeta.borderColor} inline-block leading-none max-w-[125px] truncate`}
+                                title={`${methodStr} - ${tInfo.label}`}
+                              >
+                                {tInfo.label}
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         {/* الحالة */}

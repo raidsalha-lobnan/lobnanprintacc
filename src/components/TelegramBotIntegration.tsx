@@ -586,6 +586,8 @@ ${salaryText ? `💰 الراتب: <b>${salaryText}</b>\n` : ''}${best.phone ? `
       try {
         const { blob, filename } = await generateSalesReportPdfBlob({
           invoices: invoicesRef.current,
+          parties: partiesRef.current,
+          treasuries: treasuriesRef.current,
           settings: settingsRef.current,
           fromDate,
           toDate,
