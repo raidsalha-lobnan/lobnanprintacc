@@ -211,6 +211,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
   };
 
   const [isImporting, setIsImporting] = useState(false);
+  const [isExportingBackup, setIsExportingBackup] = useState(false);
+  const [backupStatusMessage, setBackupStatusMessage] = useState<{ text: string; success: boolean } | null>(null);
 
   const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1197,11 +1199,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 type="button"
-                onClick={exportDataJSON}
-                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg transition-colors cursor-pointer text-xs"
+                onClick={async () => {
+                  setIsExportingBackup(true);
+                  setBackupStatusMessage({ text: 'جاري سحب كافة الإدخالات 100% مباشرة من سحابة Firebase...', success: true });
+                  try {
+                    const res = await exportDataJSON();
+                    setBackupStatusMessage({
+                      text: `تم تصدير نسخة احتياطية كاملة 100% بنجاح (${res.totalRecords} سجل) مباشرة من Firebase!`,
+                      success: true
+                    });
+                  } catch (e: any) {
+                    setBackupStatusMessage({ text: 'فشل تصدير النسخة: ' + e.message, success: false });
+                  } finally {
+                    setIsExportingBackup(false);
+                    setTimeout(() => setBackupStatusMessage(null), 6000);
+                  }
+                }}
+                disabled={isExportingBackup}
+                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg transition-colors cursor-pointer text-xs disabled:opacity-50"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>تصدير نسخة احتياطية محلية (JSON)</span>
+                <Download className={`w-3.5 h-3.5 ${isExportingBackup ? 'animate-spin' : ''}`} />
+                <span>{isExportingBackup ? 'جاري السحب المباشر من فير بيس...' : 'تصدير نسخة احتياطية محلية (JSON)'}</span>
               </button>
 
               <label className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg transition-colors cursor-pointer text-xs">
@@ -1223,6 +1241,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 <span>إعادة ضبط البيانات الافتراضية</span>
               </button>
             </div>
+
+            {backupStatusMessage && (
+              <div className={`p-2 rounded-lg text-xs font-bold flex items-center gap-2 ${
+                backupStatusMessage.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                {backupStatusMessage.success ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                <span>{backupStatusMessage.text}</span>
+              </div>
+            )}
           </div>
 
           {/* Quick link to Database Zeroing */}

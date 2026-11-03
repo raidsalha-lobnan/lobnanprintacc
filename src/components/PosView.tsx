@@ -144,28 +144,28 @@ export interface PosTableLine {
 
 const generateUniqueLineId = () => `line-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
-// Helper to compute strictly sequential and non-repeating invoice numbers
+// Helper to compute strictly sequential and gap-filling invoice numbers starting from 1
 const getNextSequentialInvoiceNumber = (allInvoices: Invoice[]): string => {
-  let maxSeq = 0;
+  const usedNumbers = new Set<number>();
   for (const inv of allInvoices || []) {
-    if (inv.invoiceNumber) {
+    if (inv && inv.invoiceNumber) {
       const match = inv.invoiceNumber.match(/\d+/g);
       if (match && match.length > 0) {
         for (const m of match) {
           const num = parseInt(m, 10);
-          if (!isNaN(num) && num > maxSeq && num < 999999) {
-            maxSeq = num;
+          if (!isNaN(num) && num > 0 && num < 100000) {
+            usedNumbers.add(num);
           }
         }
       }
     }
   }
 
-  const nextSeq = maxSeq + 1;
-  try {
-    localStorage.setItem('pos_max_invoice_seq', String(maxSeq));
-  } catch {}
-  return String(nextSeq);
+  let candidateNum = 1;
+  while (usedNumbers.has(candidateNum)) {
+    candidateNum++;
+  }
+  return String(candidateNum);
 };
 
 const DraggableDigitalDisplay = ({ amount }: { amount: number }) => {
@@ -2448,14 +2448,9 @@ const getInitialPosDraft = (): PosFullDraftData => {
       setLastSavedInvoiceNotice(savedInvoice);
     }
 
-    // Reset to a fresh blank invoice with strictly sequential non-repeating sequence
+    // Reset to a fresh blank invoice with strictly sequential gap-filling sequence
     const freshNextSeq = getNextSequentialInvoiceNumber(invoices);
     setInvoiceSeqNumber(freshNextSeq);
-    try {
-      localStorage.setItem('pos_max_invoice_seq', freshNextSeq);
-    } catch (e) {
-      console.error(e);
-    }
 
     setTableLines([
       {
@@ -3049,7 +3044,6 @@ const getInitialPosDraft = (): PosFullDraftData => {
     const freshNextSeq = getNextSequentialInvoiceNumber(invoices);
     setInvoiceSeqNumber(freshNextSeq);
     try {
-      localStorage.setItem('pos_max_invoice_seq', freshNextSeq);
       localStorage.removeItem(POS_FULL_DRAFT_KEY);
       localStorage.removeItem('pos_active_draft_lines');
     } catch {}

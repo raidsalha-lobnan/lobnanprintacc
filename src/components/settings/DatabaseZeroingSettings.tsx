@@ -131,10 +131,16 @@ export const DatabaseZeroingSettings: React.FC = () => {
 
   // حالة النسخ الاحتياطي المحققة محلياً في هذه الجلسة
   const [sessionBackupCompleted, setSessionBackupCompleted] = useState<boolean>(() => !!lastBackupInfo);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
-  const handleRunBackup = () => {
-    exportDataJSON();
-    setSessionBackupCompleted(true);
+  const handleRunBackup = async () => {
+    setIsExporting(true);
+    try {
+      await exportDataJSON();
+      setSessionBackupCompleted(true);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // دوال الحساب الحية للسجلات المتأثرة
@@ -515,11 +521,11 @@ export const DatabaseZeroingSettings: React.FC = () => {
           <button
             type="button"
             onClick={handleRunBackup}
-            disabled={!isSystemAdmin}
+            disabled={!isSystemAdmin || isExporting}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold px-4 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer text-xs shrink-0 self-stretch sm:self-auto justify-center"
           >
-            <Download className="w-4 h-4" />
-            <span>تنزيل نسخة احتياطية كاملة الآن (JSON)</span>
+            <Download className={`w-4 h-4 ${isExporting ? 'animate-spin' : ''}`} />
+            <span>{isExporting ? 'جاري السحب المباشر 100% من فير بيس...' : 'تنزيل نسخة احتياطية كاملة الآن (JSON)'}</span>
           </button>
         </div>
       </div>

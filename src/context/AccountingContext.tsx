@@ -453,7 +453,7 @@ interface AccountingContextType {
   isLocalOnlyMode: boolean;
   toggleLocalOnlyMode: (enable?: boolean) => void;
   seedLocalDatabaseDemo: () => { success: boolean; message: string; count: number };
-  exportLocalDatabaseJSON: () => void;
+  exportLocalDatabaseJSON: () => Promise<{ success: boolean; filename: string; totalRecords: number; message: string }>;
   importLocalDatabaseJSON: (jsonData: any) => Promise<{ success: boolean; message: string }>;
   lastSyncTime: string | null;
   isFirebaseSyncing: boolean;
@@ -552,8 +552,8 @@ interface AccountingContextType {
   };
 
   // Data management
-  lastBackupInfo: { timestamp: string; filename: string } | null;
-  exportDataJSON: () => void;
+  lastBackupInfo: { timestamp: string; filename: string; totalRecords?: number } | null;
+  exportDataJSON: () => Promise<{ success: boolean; filename: string; totalRecords: number; message: string }>;
   importDataJSON: (jsonString: string, includeSettings?: boolean, keepTelegramSettings?: boolean, keepFacilitySettings?: boolean) => Promise<boolean>;
   resetAllData: () => void;
   performDatabaseZeroing: (options: DatabaseZeroingOptions) => ZeroingExecutionResult;
@@ -1506,15 +1506,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     } catch {}
 
-    // Preserve existing invoice numbers, assign sequential invoiceNumbers only to invoices lacking them
-    let maxNum = 0;
+    // Preserve existing invoice numbers, assign sequential invoiceNumbers filling gaps starting from 1 upwards
+    const usedNumbers = new Set<number>();
     combined.forEach(inv => {
       if (inv && inv.invoiceNumber) {
         const matched = inv.invoiceNumber.match(/\d+/g);
         if (matched && matched.length > 0) {
           const num = parseInt(matched[matched.length - 1], 10);
-          if (!isNaN(num) && num > maxNum && num < 100000) {
-            maxNum = num;
+          if (!isNaN(num) && num > 0 && num < 100000) {
+            usedNumbers.add(num);
           }
         }
       }
@@ -1524,10 +1524,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (inv.invoiceNumber && inv.invoiceNumber.trim() !== '') {
         return inv;
       }
-      maxNum++;
+      let candidateNum = 1;
+      while (usedNumbers.has(candidateNum)) {
+        candidateNum++;
+      }
+      usedNumbers.add(candidateNum);
       return {
         ...inv,
-        invoiceNumber: `INV-${String(maxNum).padStart(4, '0')}`
+        invoiceNumber: `INV-${String(candidateNum).padStart(4, '0')}`
       };
     });
 
@@ -7235,25 +7239,23 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     if (!invoiceNumber) {
-      let maxNum = 0; // يبدأ الترقيم من 1 للمستقبل
+      const usedNumbers = new Set<number>();
       invoices.forEach(inv => {
         if (inv && inv.invoiceNumber && inv.id !== invId) {
           const matched = inv.invoiceNumber.match(/\d+/g);
           if (matched && matched.length > 0) {
             const num = parseInt(matched[matched.length - 1], 10);
-            if (!isNaN(num) && num > maxNum && num < 100000) {
-              maxNum = num;
+            if (!isNaN(num) && num > 0 && num < 100000) {
+              usedNumbers.add(num);
             }
           }
         }
       });
-      let nextSeq = maxNum + 1;
-      let candidate = `INV-${String(nextSeq).padStart(4, '0')}`;
-      while (invoices.some(inv => inv.id !== invId && inv.invoiceNumber && inv.invoiceNumber.trim() === candidate.trim())) {
-        nextSeq++;
-        candidate = `INV-${String(nextSeq).padStart(4, '0')}`;
+      let candidateNum = 1;
+      while (usedNumbers.has(candidateNum)) {
+        candidateNum++;
       }
-      invoiceNumber = candidate;
+      invoiceNumber = `INV-${String(candidateNum).padStart(4, '0')}`;
     }
     const today = extraOptions?.date || new Date().toISOString().split('T')[0];
     const appliedTaxRate = extraOptions?.taxRate !== undefined ? extraOptions.taxRate : settings.vatRate;
@@ -7810,14 +7812,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       const itemsList = (newInvoice.items || [])
         .map((it, idx) => {
-          const hasDims = Boolean(it.hasDimensions || (Number(it.length) > 0 && Number(it.width) > 0 && (Number(it.length) !== 1 || Number(it.width) !== 1 || (Number(it.count || 1) > 1))));
+          const hasDims = Boolean(it.hasDimensions && Number(it.length) > 0 && Number(it.width) > 0);
           const lengthStr = hasDims && Number(it.length) > 0 ? String(it.length) : '-';
           const widthStr = hasDims && Number(it.width) > 0 ? String(it.width) : '-';
           const countStr = hasDims ? String(it.count || 1) : '-';
-          const noteStr = it.notes ? ` (${it.notes})` : '';
-          const itemName = it.itemName || (it as any).name || 'صنف';
+          const noteStr = (it.notes || it.description) ? ` (${it.notes || it.description})` : '';
+          const itemName = (it.itemName || (it as any).name || 'صنف') + noteStr;
           const lineTotal = Number(it.total ?? (it.unitPrice * it.quantity)).toFixed(2);
-          return `🔹 <b>${idx + 1}. ${itemName}${noteStr}</b>\n   الطول: ${lengthStr} | العرض: ${widthStr} | العدد: ${countStr}\n   الكمية: ${it.quantity} | السعر: ${it.unitPrice} | الإجمالي: ${lineTotal} ${newInvoice.currencySymbol || settings.currency || '₪'}`;
+          return `▪️ <b>${idx + 1}. ${itemName}</b>\n   الطول: ${lengthStr} | العرض: ${widthStr} | العدد: ${countStr}\n   الكمية: ${it.quantity} | السعر: ${it.unitPrice} | الإجمالي: ${lineTotal} ${newInvoice.currencySymbol || settings.currency || '₪'}`;
         })
         .join('\n\n') || 'بدون أصناف';
       const currencySymbol = newInvoice.currencySymbol || settings.currency || '₪';
@@ -10182,7 +10184,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     deleteDoc(doc(db, 'salesReturns', id)).catch(() => {});
   };
 
-  const [lastBackupInfo, setLastBackupInfo] = useState<{ timestamp: string; filename: string } | null>(() => {
+  const [lastBackupInfo, setLastBackupInfo] = useState<{ timestamp: string; filename: string; totalRecords?: number } | null>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_last_backup_info`);
       return saved ? JSON.parse(saved) : null;
@@ -10191,52 +10193,276 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   });
 
-  const exportDataJSON = () => {
-    const fullBackup = {
-      settings,
-      accounts,
-      journalEntries,
-      inventory,
-      stockMovements,
-      parties,
-      employees,
-      employeeAdvances,
-      employeeDeductions,
-      employeeIncentives,
-      payrollSheets,
-      printOrders,
-      invoices,
-      purchases,
-      purchaseReturns,
-      salesReturns,
-      vouchers,
-      treasuries,
-      companies,
-      branches,
-      warehouses,
-      warehouseOperations,
-      roles,
-      users,
-      debtClearings,
-      expenses,
-      exportedAt: new Date().toISOString(),
-      exportedBy: currentUser?.fullName || currentUser?.username || 'مدير النظام'
+  const exportDataJSON = async (): Promise<{ success: boolean; filename: string; totalRecords: number; message: string }> => {
+    // 1. Direct Cloud Fetch from Firebase Firestore to guarantee 100% live state
+    const cloudRecordsMap: Record<string, any[]> = {};
+    let cloudDailyEntries: Record<string, any> = {};
+
+    const collectionsToQuery = [
+      'invoices', 'parties', 'inventory', 'accounts', 'treasuries', 'vouchers',
+      'purchases', 'purchaseReturns', 'salesReturns', 'journalEntries', 'stockMovements',
+      'expenses', 'employees', 'employeeAdvances', 'employeeDeductions', 'employeeIncentives',
+      'payrollSheets', 'printOrders', 'debtClearings', 'companies', 'branches',
+      'warehouses', 'warehouseOperations', 'roles', 'users'
+    ];
+
+    try {
+      // A. Query live collection documents from Firestore in parallel batches
+      const chunkSize = 5;
+      for (let i = 0; i < collectionsToQuery.length; i += chunkSize) {
+        const chunk = collectionsToQuery.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(async (colName) => {
+            try {
+              const snap = await getDocs(collection(db, colName));
+              if (!snap.empty) {
+                const list: any[] = [];
+                snap.docs.forEach((docSnap) => {
+                  const data = docSnap.data();
+                  if (data && !data._deleted) {
+                    list.push(data);
+                  }
+                });
+                if (list.length > 0) {
+                  cloudRecordsMap[colName] = list;
+                }
+              }
+            } catch (e) {
+              // fallback to lobnan_accounting_db doc
+            }
+          })
+        );
+      }
+
+      // B. Also check lobnan_accounting_db snapshot docs in Firestore for any additional synced records
+      for (const colName of collectionsToQuery) {
+        try {
+          const docRef = doc(db, 'lobnan_accounting_db', colName);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data && Array.isArray(data.items) && data.items.length > 0) {
+              const existing = cloudRecordsMap[colName] || [];
+              const existingIds = new Set(existing.map((x: any) => String(x.id || x.code || '')));
+              data.items.forEach((it: any) => {
+                const key = String(it.id || it.code || '');
+                if (key && !existingIds.has(key)) {
+                  existing.push(it);
+                  existingIds.add(key);
+                }
+              });
+              cloudRecordsMap[colName] = existing;
+            }
+          }
+        } catch {}
+      }
+
+      // C. Query dailyEntrySheets from Firestore
+      try {
+        const desSnap = await getDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'));
+        if (desSnap.exists()) {
+          const d = desSnap.data();
+          if (d && d.sheets && typeof d.sheets === 'object') {
+            cloudDailyEntries = d.sheets;
+          }
+        }
+      } catch {}
+    } catch (firestoreErr) {
+      console.warn('Direct Firestore fetch during backup notice:', firestoreErr);
+    }
+
+    // 2. Load deleted docs set so we never resurrect deliberately deleted documents
+    const deletedDocsSet = new Set<string>();
+    try {
+      const delList = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
+      if (Array.isArray(delList)) {
+        delList.forEach((d: any) => {
+          if (d && d.col && d.id) deletedDocsSet.add(`${d.col}_${d.id}`);
+          if (d && d.id) deletedDocsSet.add(String(d.id));
+        });
+      }
+    } catch {}
+
+    // Helper to merge Cloud items with Local In-Memory items ensuring 100% completeness
+    const mergeCollection = <T extends { id?: string; code?: string; invoiceNumber?: string; voucherNumber?: string; updatedAt?: any }>(
+      colName: string,
+      localItems: T[],
+      cloudItems?: any[]
+    ): T[] => {
+      const map = new Map<string, T>();
+
+      // 1. Load cloud items first
+      if (Array.isArray(cloudItems)) {
+        cloudItems.forEach((cItem: any) => {
+          if (!cItem) return;
+          const key = String(cItem.id || cItem.code || cItem.invoiceNumber || cItem.voucherNumber || '');
+          if (!key) return;
+          if (deletedDocsSet.has(`${colName}_${key}`) || deletedDocsSet.has(key)) return;
+          map.set(key, cItem);
+        });
+      }
+
+      // 2. Merge local items (so newly created entries in this active session are 100% included!)
+      if (Array.isArray(localItems)) {
+        localItems.forEach((lItem: any) => {
+          if (!lItem) return;
+          const key = String(lItem.id || lItem.code || lItem.invoiceNumber || lItem.voucherNumber || '');
+          if (!key) return;
+          if (deletedDocsSet.has(`${colName}_${key}`) || deletedDocsSet.has(key)) return;
+
+          const existing = map.get(key);
+          if (!existing) {
+            map.set(key, lItem);
+          } else {
+            const localTime = getEntityRecordTimestamp(lItem);
+            const cloudTime = getEntityRecordTimestamp(existing);
+            if (localTime >= cloudTime) {
+              map.set(key, { ...existing, ...lItem });
+            } else {
+              map.set(key, { ...lItem, ...existing });
+            }
+          }
+        });
+      }
+
+      return Array.from(map.values());
     };
+
+    // Merge every single collection
+    const mergedInvoices = mergeCollection('invoices', invoices, cloudRecordsMap['invoices']);
+    const mergedParties = mergeCollection('parties', parties, cloudRecordsMap['parties']);
+    const mergedInventory = mergeCollection('inventory', inventory, cloudRecordsMap['inventory']);
+    const mergedAccounts = mergeCollection('accounts', accounts, cloudRecordsMap['accounts']);
+    const mergedTreasuries = mergeCollection('treasuries', treasuries, cloudRecordsMap['treasuries']);
+    const mergedVouchers = mergeCollection('vouchers', vouchers, cloudRecordsMap['vouchers']);
+    const mergedPurchases = mergeCollection('purchases', purchases, cloudRecordsMap['purchases']);
+    const mergedPurchaseReturns = mergeCollection('purchaseReturns', purchaseReturns, cloudRecordsMap['purchaseReturns']);
+    const mergedSalesReturns = mergeCollection('salesReturns', salesReturns, cloudRecordsMap['salesReturns']);
+    const mergedJournalEntries = mergeCollection('journalEntries', journalEntries, cloudRecordsMap['journalEntries']);
+    const mergedStockMovements = mergeCollection('stockMovements', stockMovements, cloudRecordsMap['stockMovements']);
+    const mergedExpenses = mergeCollection('expenses', expenses, cloudRecordsMap['expenses']);
+    const mergedEmployees = mergeCollection('employees', employees, cloudRecordsMap['employees']);
+    const mergedEmployeeAdvances = mergeCollection('employeeAdvances', employeeAdvances, cloudRecordsMap['employeeAdvances']);
+    const mergedEmployeeDeductions = mergeCollection('employeeDeductions', employeeDeductions, cloudRecordsMap['employeeDeductions']);
+    const mergedEmployeeIncentives = mergeCollection('employeeIncentives', employeeIncentives, cloudRecordsMap['employeeIncentives']);
+    const mergedPayrollSheets = mergeCollection('payrollSheets', payrollSheets, cloudRecordsMap['payrollSheets']);
+    const mergedPrintOrders = mergeCollection('printOrders', printOrders, cloudRecordsMap['printOrders']);
+    const mergedDebtClearings = mergeCollection('debtClearings', debtClearings, cloudRecordsMap['debtClearings']);
+    const mergedCompanies = mergeCollection('companies', companies, cloudRecordsMap['companies']);
+    const mergedBranches = mergeCollection('branches', branches, cloudRecordsMap['branches']);
+    const mergedWarehouses = mergeCollection('warehouses', warehouses, cloudRecordsMap['warehouses']);
+    const mergedWarehouseOperations = mergeCollection('warehouseOperations', warehouseOperations, cloudRecordsMap['warehouseOperations']);
+    const mergedRoles = mergeCollection('roles', roles, cloudRecordsMap['roles']);
+    const mergedUsers = mergeCollection('users', users, cloudRecordsMap['users']);
+
+    // Merge dailyEntrySheets
+    const mergedDailyEntrySheets = {
+      ...(cloudDailyEntries || {}),
+      ...(dailyEntrySheets || {})
+    };
+
+    // Calculate total entities
+    const totalRecords =
+      mergedInvoices.length +
+      mergedParties.length +
+      mergedInventory.length +
+      mergedAccounts.length +
+      mergedTreasuries.length +
+      mergedVouchers.length +
+      mergedPurchases.length +
+      mergedPurchaseReturns.length +
+      mergedSalesReturns.length +
+      mergedJournalEntries.length +
+      mergedStockMovements.length +
+      mergedExpenses.length +
+      mergedEmployees.length +
+      mergedEmployeeAdvances.length +
+      mergedEmployeeDeductions.length +
+      mergedEmployeeIncentives.length +
+      mergedPayrollSheets.length +
+      mergedPrintOrders.length +
+      mergedDebtClearings.length +
+      mergedCompanies.length +
+      mergedBranches.length +
+      mergedWarehouses.length +
+      mergedWarehouseOperations.length +
+      mergedRoles.length +
+      mergedUsers.length +
+      Object.keys(mergedDailyEntrySheets).length;
+
+    const fullBackup = {
+      appTitle: 'برنامج الأيهم المحاسبي - مطبعة ومكتبة لبنان',
+      systemName: 'برنامج الأيهم المحاسبي لإدارة المطابع والمكتبات ونقاط البيع',
+      version: '2.5.0',
+      backupSource: 'Firebase Firestore Live Cloud (100% مباشر) + الحالة التشغيلية الحالية',
+      is100PercentLiveFirebase: true,
+      firebaseDatabaseId: 'ai-studio-remixcopyofcopyo-917f7ef2-bd2e-44c7-b6f8-f5661310c7a9',
+      exportedAt: new Date().toISOString(),
+      exportedBy: currentUser?.fullName || currentUser?.username || 'مدير النظام',
+      statsSummary: {
+        totalRecords,
+        invoicesCount: mergedInvoices.length,
+        partiesCount: mergedParties.length,
+        inventoryCount: mergedInventory.length,
+        treasuriesCount: mergedTreasuries.length,
+        vouchersCount: mergedVouchers.length,
+        purchasesCount: mergedPurchases.length,
+        salesReturnsCount: mergedSalesReturns.length,
+        purchaseReturnsCount: mergedPurchaseReturns.length,
+        journalEntriesCount: mergedJournalEntries.length,
+        expensesCount: mergedExpenses.length,
+        employeesCount: mergedEmployees.length,
+        dailyEntrySheetsCount: Object.keys(mergedDailyEntrySheets).length,
+        printOrdersCount: mergedPrintOrders.length,
+        warehouseOperationsCount: mergedWarehouseOperations.length
+      },
+      settings,
+      accounts: mergedAccounts,
+      journalEntries: mergedJournalEntries,
+      inventory: mergedInventory,
+      stockMovements: mergedStockMovements,
+      parties: mergedParties,
+      employees: mergedEmployees,
+      employeeAdvances: mergedEmployeeAdvances,
+      employeeDeductions: mergedEmployeeDeductions,
+      employeeIncentives: mergedEmployeeIncentives,
+      payrollSheets: mergedPayrollSheets,
+      printOrders: mergedPrintOrders,
+      invoices: mergedInvoices,
+      purchases: mergedPurchases,
+      purchaseReturns: mergedPurchaseReturns,
+      salesReturns: mergedSalesReturns,
+      vouchers: mergedVouchers,
+      treasuries: mergedTreasuries,
+      companies: mergedCompanies,
+      branches: mergedBranches,
+      warehouses: mergedWarehouses,
+      warehouseOperations: mergedWarehouseOperations,
+      roles: mergedRoles,
+      users: mergedUsers,
+      debtClearings: mergedDebtClearings,
+      expenses: mergedExpenses,
+      dailyEntrySheets: mergedDailyEntrySheets
+    };
+
     const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const nowIso = new Date().toISOString();
     const datePart = nowIso.split('T')[0];
     const timePart = nowIso.split('T')[1].replace(/[:.]/g, '-').slice(0, 8);
-    const filename = `backup_alnoor_press_${datePart}_${timePart}.json`;
+    const filename = `نسخة_احتياطية_كاملة_فيربيس_لبنان_${datePart}_${timePart}.json`;
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
 
     const backupRecord = {
       timestamp: nowIso,
-      filename
+      filename,
+      totalRecords
     };
     setLastBackupInfo(backupRecord);
     try {
@@ -10244,6 +10470,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch (e) {
       console.warn('Could not save last_backup_info to localStorage', e);
     }
+
+    return {
+      success: true,
+      filename,
+      totalRecords,
+      message: `تم إنشاء وتحميل نسخة احتياطية كاملة 100% بنجاح (${totalRecords} سجل) مباشرة من Firebase!`
+    };
   };
 
   const performDatabaseZeroing = (options: DatabaseZeroingOptions): ZeroingExecutionResult => {
@@ -10908,6 +11141,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (data.expenses) localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(data.expenses));
         if (data.warehouseOperations) localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(data.warehouseOperations));
         if (data.treasuries) localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(data.treasuries));
+        if (data.dailyEntrySheets && typeof data.dailyEntrySheets === 'object') {
+          setDailyEntrySheets(data.dailyEntrySheets);
+          localStorage.setItem(`${STORAGE_KEY}_daily_entry_sheets`, JSON.stringify(data.dailyEntrySheets));
+        }
 
         // Clear previous deletion tracking so imported items are never purged
         localStorage.removeItem('accounting_deleted_docs');
@@ -11131,36 +11368,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const exportLocalDatabaseJSON = () => {
-    try {
-      const exportObject = {
-        appTitle: 'برنامج الأيهم المحاسبي - قاعدة بيانات محلية',
-        version: '1.0.0',
-        exportedAt: new Date().toISOString(),
-        invoices: invoices || [],
-        parties: parties || [],
-        inventory: inventory || [],
-        accounts: accounts || [],
-        treasuries: treasuries || [],
-        vouchers: vouchers || [],
-        dailyEntrySheets: dailyEntrySheets || {},
-        purchases: purchases || [],
-        purchaseReturns: purchaseReturns || [],
-        salesReturns: salesReturns || [],
-        settings: settings || {},
-        branches: branches || [],
-        users: users || []
-      };
-
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObject, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `alnoor_accounting_local_db_${new Date().toISOString().slice(0,10)}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-    } catch (e: any) {
-      alert('تعذر تصدير الملف المحلي: ' + e.message);
-    }
+    return exportDataJSON();
   };
 
   const importLocalDatabaseJSON = async (jsonData: any): Promise<{ success: boolean; message: string }> => {

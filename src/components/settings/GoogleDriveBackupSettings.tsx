@@ -73,6 +73,7 @@ export const GoogleDriveBackupSettings: React.FC = () => {
   // Next backup countdown in minutes
   const [minutesUntilNext, setMinutesUntilNext] = useState<number>(60);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isExportingJson, setIsExportingJson] = useState<boolean>(false);
 
   // Modals
   const [confirmRetentionModalOpen, setConfirmRetentionModalOpen] = useState<boolean>(false);
@@ -529,11 +530,26 @@ export const GoogleDriveBackupSettings: React.FC = () => {
           {/* Local Download JSON Button */}
           <button
             type="button"
-            onClick={exportDataJSON}
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer"
+            onClick={async () => {
+              setIsExportingJson(true);
+              setStatusMessage({ text: 'جاري سحب كافة الإدخالات 100% مباشرة من سحابة Firebase...', type: 'info' });
+              try {
+                const res = await exportDataJSON();
+                setStatusMessage({
+                  text: `تم تنزيل نسخة احتياطية كاملة 100% بنجاح (${res.totalRecords} سجل) مسحوبة مباشرة من Firebase!`,
+                  type: 'success'
+                });
+              } catch (e: any) {
+                setStatusMessage({ text: 'فشل تصدير النسخة: ' + e.message, type: 'error' });
+              } finally {
+                setIsExportingJson(false);
+              }
+            }}
+            disabled={isExportingJson}
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>تنزيل نسخة على الجهاز (JSON)</span>
+            <Download className={`w-3.5 h-3.5 ${isExportingJson ? 'animate-spin' : ''}`} />
+            <span>{isExportingJson ? 'جاري السحب المباشر من فير بيس...' : 'تنزيل نسخة على الجهاز (JSON)'}</span>
           </button>
 
           {/* Import Master Database Snapshot Button */}

@@ -79,7 +79,8 @@ export const GoogleDriveAutoBackupWorker: React.FC = () => {
           vouchers: currentData.vouchers,
           treasuries: currentData.treasuries,
           debtClearings: currentData.debtClearings,
-          expenses: currentData.expenses
+          expenses: currentData.expenses,
+          dailyEntrySheets: currentData.dailyEntrySheets || {}
         };
 
         const result = await executeHourlyDriveBackupFlow(token, fullBackup, {

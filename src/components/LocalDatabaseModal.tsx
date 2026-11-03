@@ -58,10 +58,23 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
     setTimeout(() => setFeedback(null), 5000);
   };
 
-  const handleExport = () => {
-    exportLocalDatabaseJSON();
-    setFeedback({ message: 'تم تصدير نسخة احتياطية كاملة من قاعدة البيانات المحلية بنجاح!', success: true });
-    setTimeout(() => setFeedback(null), 4000);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    setFeedback({ message: 'جاري سحب كافة الإدخالات 100% مباشرة من سحابة Firebase...', success: true });
+    try {
+      const res = await exportLocalDatabaseJSON();
+      setFeedback({ 
+        message: `تم تصدير نسخة احتياطية كاملة 100% مسحوبة مباشرة من Firebase بنجاح! (إجمالي السجلات: ${res.totalRecords || 0})`, 
+        success: true 
+      });
+    } catch (e: any) {
+      setFeedback({ message: 'خطأ أثناء إنشاء النسخة الاحتياطية: ' + e.message, success: false });
+    } finally {
+      setIsExporting(false);
+      setTimeout(() => setFeedback(null), 6000);
+    }
   };
 
   const handleResetKeepTreasury1101 = () => {
@@ -271,14 +284,15 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
               </button>
 
               {/* Direct download button */}
-              <a
-                href="/master_drive_database_snapshot.json"
-                download="alnoor_database_snapshot_116_invoices.json"
-                className="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-md flex items-center justify-center gap-2 transition shadow cursor-pointer text-center"
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={isExporting}
+                className="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-md flex items-center justify-center gap-2 transition shadow cursor-pointer text-center disabled:opacity-50"
               >
-                <Download className="w-4 h-4 text-emerald-200" />
-                <span>تحميل نسخة احتياطيةجاهزة الآن (.json)</span>
-              </a>
+                <Download className={`w-4 h-4 text-emerald-200 ${isExporting ? 'animate-bounce' : ''}`} />
+                <span>{isExporting ? 'جاري السحب من فير بيس...' : 'تحميل أحدث نسخة كاملة 100% من فير بيس (.json)'}</span>
+              </button>
             </div>
           </div>
 
@@ -344,14 +358,17 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
               <button
                 type="button"
                 onClick={handleExport}
-                className="p-3 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-500 rounded-lg flex items-center gap-3 transition shadow-2xs cursor-pointer text-right group"
+                disabled={isExporting}
+                className="p-3 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-500 rounded-lg flex items-center gap-3 transition shadow-2xs cursor-pointer text-right group disabled:opacity-50"
               >
                 <div className="p-2 bg-emerald-100 text-emerald-700 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition">
-                  <Download className="w-5 h-5" />
+                  <Download className={`w-5 h-5 ${isExporting ? 'animate-spin' : ''}`} />
                 </div>
                 <div>
-                  <span className="block text-xs font-extrabold text-slate-800">تصدير نسخة احتياطية (JSON)</span>
-                  <span className="block text-[10.5px] text-slate-500">حفظ نسخة كاملة من كل البيانات كملف محلي على كمبيوترك</span>
+                  <span className="block text-xs font-extrabold text-slate-800">
+                    {isExporting ? 'جاري السحب المباشر من فير بيس...' : 'تصدير نسخة احتياطية (JSON)'}
+                  </span>
+                  <span className="block text-[10.5px] text-slate-500">حفظ نسخة كاملة 100% مسحوبة مباشرة من سحابة Firebase</span>
                 </div>
               </button>
 

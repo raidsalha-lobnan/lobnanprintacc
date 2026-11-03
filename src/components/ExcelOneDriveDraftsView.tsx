@@ -1067,31 +1067,26 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
         };
       }
 
-      // Helper to compute strictly sequential and non-repeating invoice numbers
-      let nextSeqNum = 1;
-      let maxSeq = 0;
+      // Helper to compute strictly sequential and gap-filling invoice numbers starting from 1
+      const usedNumbers = new Set<number>();
       for (const inv of invoices || []) {
-        if (inv.invoiceNumber) {
+        if (inv && inv.invoiceNumber) {
           const match = inv.invoiceNumber.match(/\d+/g);
           if (match && match.length > 0) {
             for (const m of match) {
               const num = parseInt(m, 10);
-              if (!isNaN(num) && num > maxSeq && num < 100000) {
-                maxSeq = num;
+              if (!isNaN(num) && num > 0 && num < 100000) {
+                usedNumbers.add(num);
               }
             }
           }
         }
       }
 
-      let storedMax = 0;
-      try {
-        storedMax = parseInt(localStorage.getItem('pos_max_invoice_seq') || '0', 10);
-      } catch {
-        storedMax = 0;
+      let nextSeqNum = 1;
+      while (usedNumbers.has(nextSeqNum)) {
+        nextSeqNum++;
       }
-
-      nextSeqNum = Math.max(maxSeq, storedMax, (invoices || []).length) + 1;
       const generatedInvoiceNumber = `INV-${String(nextSeqNum).padStart(4, '0')}`;
 
       // Date resolution: strictly take and parse invoice date from imported file
@@ -1130,11 +1125,7 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
         }
       );
 
-      try {
-        localStorage.setItem('pos_max_invoice_seq', String(nextSeqNum));
-      } catch (e) {
-        console.error(e);
-      }
+      // (Sequence storage removed to prevent numbering jumps)
 
       // تعليم وتظليل أسطر كشف الإدخال اليومي المعتمدة فوراً وتوثيق رقم الفاتورة
       if (draft.sourceDailyDate && draft.sourceDailyRowIds && draft.sourceDailyRowIds.length > 0) {
