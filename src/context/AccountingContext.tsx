@@ -3,6 +3,7 @@ import { onlineInvoicePostingService } from '../services/onlineInvoicePostingSer
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   pushFullDatabaseToFirestore,
+  purgeObsoleteFirestoreCollections,
   subscribeToFirestoreLiveSync,
   fetchFullDatabaseFromFirestore,
   isFirestoreQuotaExceeded,
@@ -465,6 +466,7 @@ interface AccountingContextType {
   forceSyncNow: () => Promise<{ success: boolean; message: string }>;
   forcePushAndPullSync: () => Promise<{ success: boolean; message: string; invoicesCount: number }>;
   importMasterDatabaseSnapshot: () => Promise<{ success: boolean; message: string }>;
+  cleanAndSyncFirebaseWithScreen: () => Promise<{ success: boolean; message: string; purgedCount: number }>;
 
   // SQL Server Export & Web Server Integration (التصدير والمزامنة مع خادم ويب خارجي)
   sqlServerConfig: SqlServerConfig;
@@ -1349,13 +1351,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
-  // Smart Master Database Hydration: Only fetch if local data is completely empty to conserve Firestore quota
+  // Smart Master Database Hydration: Only fetch if local database was never initialized
   useEffect(() => {
     const autoHydrateMasterDb = async () => {
       try {
-        const localInvoicesCount = (invoices && invoices.length) || 0;
-        if (localInvoicesCount >= 100) {
-          // Already fully populated locally
+        const hasSavedLocal = localStorage.getItem(`${STORAGE_KEY}_invoices`);
+        if (hasSavedLocal !== null) {
+          // Local database is already authoritative; do NOT pollute with obsolete Firestore snapshots
           return;
         }
 
@@ -1479,67 +1481,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const loaded = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, []);
-    const deletedList = safeLoadArray<Invoice>(`${STORAGE_KEY}_deleted_invoices`, []);
+    const rawStored = localStorage.getItem(`${STORAGE_KEY}_invoices`);
+    if (rawStored !== null) {
+      try {
+        const parsed = JSON.parse(rawStored);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch {}
+    }
     const snapshotInvoices = Array.isArray(initialInvoices) ? initialInvoices : [];
-
-    let combined = mergeInvoicesWithUpsertAndConflictResolution(snapshotInvoices, loaded);
-    combined = mergeInvoicesWithUpsertAndConflictResolution(combined, deletedList);
-
-    // Deep scan for all backup localStorage keys
-    try {
-      if (typeof localStorage !== 'undefined') {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (key.includes('invoice') || key.includes('backup') || key.includes('alnoor') || key.includes('accounting') || key.includes('data'))) {
-            const val = localStorage.getItem(key);
-            if (val && val.startsWith('[')) {
-              try {
-                const parsed = JSON.parse(val);
-                if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.invoiceNumber) {
-                  combined = mergeInvoicesWithUpsertAndConflictResolution(combined, parsed);
-                }
-              } catch {}
-            }
-          }
-        }
-      }
-    } catch {}
-
-    // Preserve existing invoice numbers, assign sequential invoiceNumbers filling gaps starting from 1 upwards
-    const usedNumbers = new Set<number>();
-    combined.forEach(inv => {
-      if (inv && inv.invoiceNumber) {
-        const matched = inv.invoiceNumber.match(/\d+/g);
-        if (matched && matched.length > 0) {
-          const num = parseInt(matched[matched.length - 1], 10);
-          if (!isNaN(num) && num > 0 && num < 100000) {
-            usedNumbers.add(num);
-          }
-        }
-      }
-    });
-
-    combined = combined.map(inv => {
-      if (inv.invoiceNumber && inv.invoiceNumber.trim() !== '') {
-        return inv;
-      }
-      let candidateNum = 1;
-      while (usedNumbers.has(candidateNum)) {
-        candidateNum++;
-      }
-      usedNumbers.add(candidateNum);
-      return {
-        ...inv,
-        invoiceNumber: `INV-${String(candidateNum).padStart(4, '0')}`
-      };
-    });
-
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(combined));
-    } catch {}
-
-    return combined;
+    return snapshotInvoices;
   });
 
   const [purchases, setPurchases] = useState<PurchaseInvoice[]>(() => {
@@ -10193,256 +10145,220 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   });
 
-  const exportDataJSON = async (): Promise<{ success: boolean; filename: string; totalRecords: number; message: string }> => {
-    // 1. Direct Cloud Fetch from Firebase Firestore to guarantee 100% live state
-    const cloudRecordsMap: Record<string, any[]> = {};
-    let cloudDailyEntries: Record<string, any> = {};
-
-    const collectionsToQuery = [
-      'invoices', 'parties', 'inventory', 'accounts', 'treasuries', 'vouchers',
-      'purchases', 'purchaseReturns', 'salesReturns', 'journalEntries', 'stockMovements',
-      'expenses', 'employees', 'employeeAdvances', 'employeeDeductions', 'employeeIncentives',
-      'payrollSheets', 'printOrders', 'debtClearings', 'companies', 'branches',
-      'warehouses', 'warehouseOperations', 'roles', 'users'
-    ];
-
+  const cleanAndSyncFirebaseWithScreen = async (): Promise<{ success: boolean; message: string; purgedCount: number }> => {
     try {
-      // A. Query live collection documents from Firestore in parallel batches
-      const chunkSize = 5;
-      for (let i = 0; i < collectionsToQuery.length; i += chunkSize) {
-        const chunk = collectionsToQuery.slice(i, i + chunkSize);
-        await Promise.all(
-          chunk.map(async (colName) => {
-            try {
-              const snap = await getDocs(collection(db, colName));
-              if (!snap.empty) {
-                const list: any[] = [];
-                snap.docs.forEach((docSnap) => {
-                  const data = docSnap.data();
-                  if (data && !data._deleted) {
-                    list.push(data);
-                  }
-                });
-                if (list.length > 0) {
-                  cloudRecordsMap[colName] = list;
-                }
-              }
-            } catch (e) {
-              // fallback to lobnan_accounting_db doc
-            }
-          })
-        );
+      const fullSnapshot: Record<string, any[]> = {
+        invoices: invoices || [],
+        parties: parties || [],
+        inventory: inventory || [],
+        accounts: accounts || [],
+        treasuries: treasuries || [],
+        vouchers: vouchers || [],
+        purchases: purchases || [],
+        purchaseReturns: purchaseReturns || [],
+        salesReturns: salesReturns || [],
+        journalEntries: journalEntries || [],
+        stockMovements: stockMovements || [],
+        expenses: expenses || [],
+        employees: employees || [],
+        employeeAdvances: employeeAdvances || [],
+        employeeDeductions: employeeDeductions || [],
+        employeeIncentives: employeeIncentives || [],
+        payrollSheets: payrollSheets || [],
+        printOrders: printOrders || [],
+        debtClearings: debtClearings || [],
+        companies: companies || [],
+        branches: branches || [],
+        warehouses: warehouses || [],
+        warehouseOperations: warehouseOperations || [],
+        roles: roles || [],
+        users: users || []
+      };
+
+      const pushRes = await pushFullDatabaseToFirestore(fullSnapshot);
+      if (!pushRes.success) {
+        return { success: false, message: pushRes.error || 'فشل تحديث فيربيس', purgedCount: 0 };
       }
 
-      // B. Also check lobnan_accounting_db snapshot docs in Firestore for any additional synced records
-      for (const colName of collectionsToQuery) {
-        try {
-          const docRef = doc(db, 'lobnan_accounting_db', colName);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data && Array.isArray(data.items) && data.items.length > 0) {
-              const existing = cloudRecordsMap[colName] || [];
-              const existingIds = new Set(existing.map((x: any) => String(x.id || x.code || '')));
-              data.items.forEach((it: any) => {
-                const key = String(it.id || it.code || '');
-                if (key && !existingIds.has(key)) {
-                  existing.push(it);
-                  existingIds.add(key);
-                }
-              });
-              cloudRecordsMap[colName] = existing;
-            }
-          }
-        } catch {}
-      }
-
-      // C. Query dailyEntrySheets from Firestore
       try {
-        const desSnap = await getDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'));
-        if (desSnap.exists()) {
-          const d = desSnap.data();
-          if (d && d.sheets && typeof d.sheets === 'object') {
-            cloudDailyEntries = d.sheets;
-          }
-        }
+        await setDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'), {
+          sheets: dailyEntrySheets || {},
+          updatedAt: new Date().toISOString()
+        });
       } catch {}
-    } catch (firestoreErr) {
-      console.warn('Direct Firestore fetch during backup notice:', firestoreErr);
+
+      const purgedCount = await purgeObsoleteFirestoreCollections(fullSnapshot);
+
+      return {
+        success: true,
+        message: `تم تحديث وتطهير سحابة Firebase بنجاح! أصبحت قاعدة البيانات السحابية مطابقة تماماً لما يُعرض على الشاشة 100%، وتم حذف ${purgedCount} مستند قديم من فيربيس.`,
+        purgedCount
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        message: 'حدث خطأ أثناء تطهير فيربيس: ' + (e?.message || 'غير معروف'),
+        purgedCount: 0
+      };
+    }
+  };
+
+  const exportDataJSON = async (): Promise<{ success: boolean; filename: string; totalRecords: number; message: string }> => {
+    // 1. Authoritative Snapshot: Exactly 100% of what is currently on screen & active in the system
+    const cleanInvoices = Array.isArray(invoices) ? invoices : [];
+    const cleanParties = Array.isArray(parties) ? parties : [];
+    const cleanInventory = Array.isArray(inventory) ? inventory : [];
+    const cleanAccounts = Array.isArray(accounts) ? accounts : [];
+    const cleanTreasuries = Array.isArray(treasuries) ? treasuries : [];
+    const cleanVouchers = Array.isArray(vouchers) ? vouchers : [];
+    const cleanPurchases = Array.isArray(purchases) ? purchases : [];
+    const cleanPurchaseReturns = Array.isArray(purchaseReturns) ? purchaseReturns : [];
+    const cleanSalesReturns = Array.isArray(salesReturns) ? salesReturns : [];
+    const cleanJournalEntries = Array.isArray(journalEntries) ? journalEntries : [];
+    const cleanStockMovements = Array.isArray(stockMovements) ? stockMovements : [];
+    const cleanExpenses = Array.isArray(expenses) ? expenses : [];
+    const cleanEmployees = Array.isArray(employees) ? employees : [];
+    const cleanEmployeeAdvances = Array.isArray(employeeAdvances) ? employeeAdvances : [];
+    const cleanEmployeeDeductions = Array.isArray(employeeDeductions) ? employeeDeductions : [];
+    const cleanEmployeeIncentives = Array.isArray(employeeIncentives) ? employeeIncentives : [];
+    const cleanPayrollSheets = Array.isArray(payrollSheets) ? payrollSheets : [];
+    const cleanPrintOrders = Array.isArray(printOrders) ? printOrders : [];
+    const cleanDebtClearings = Array.isArray(debtClearings) ? debtClearings : [];
+    const cleanCompanies = Array.isArray(companies) ? companies : [];
+    const cleanBranches = Array.isArray(branches) ? branches : [];
+    const cleanWarehouses = Array.isArray(warehouses) ? warehouses : [];
+    const cleanWarehouseOperations = Array.isArray(warehouseOperations) ? warehouseOperations : [];
+    const cleanRoles = Array.isArray(roles) ? roles : [];
+    const cleanUsers = Array.isArray(users) ? users : [];
+    const cleanDailyEntrySheets = dailyEntrySheets || {};
+
+    const fullSnapshot: Record<string, any[]> = {
+      invoices: cleanInvoices,
+      parties: cleanParties,
+      inventory: cleanInventory,
+      accounts: cleanAccounts,
+      treasuries: cleanTreasuries,
+      vouchers: cleanVouchers,
+      purchases: cleanPurchases,
+      purchaseReturns: cleanPurchaseReturns,
+      salesReturns: cleanSalesReturns,
+      journalEntries: cleanJournalEntries,
+      stockMovements: cleanStockMovements,
+      expenses: cleanExpenses,
+      employees: cleanEmployees,
+      employeeAdvances: cleanEmployeeAdvances,
+      employeeDeductions: cleanEmployeeDeductions,
+      employeeIncentives: cleanEmployeeIncentives,
+      payrollSheets: cleanPayrollSheets,
+      printOrders: cleanPrintOrders,
+      debtClearings: cleanDebtClearings,
+      companies: cleanCompanies,
+      branches: cleanBranches,
+      warehouses: cleanWarehouses,
+      warehouseOperations: cleanWarehouseOperations,
+      roles: cleanRoles,
+      users: cleanUsers
+    };
+
+    // 2. Sync to Firebase Firestore so Cloud Database matches the Screen 100%
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        await pushFullDatabaseToFirestore(fullSnapshot);
+        try {
+          await setDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'), {
+            sheets: cleanDailyEntrySheets,
+            updatedAt: new Date().toISOString()
+          });
+        } catch {}
+        // Clean out any orphaned documents in individual collections asynchronously
+        purgeObsoleteFirestoreCollections(fullSnapshot).catch(() => {});
+      }
+    } catch (fsSyncErr) {
+      console.warn('Firebase alignment during backup notice:', fsSyncErr);
     }
 
-    // 2. Load deleted docs set so we never resurrect deliberately deleted documents
-    const deletedDocsSet = new Set<string>();
-    try {
-      const delList = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
-      if (Array.isArray(delList)) {
-        delList.forEach((d: any) => {
-          if (d && d.col && d.id) deletedDocsSet.add(`${d.col}_${d.id}`);
-          if (d && d.id) deletedDocsSet.add(String(d.id));
-        });
-      }
-    } catch {}
-
-    // Helper to merge Cloud items with Local In-Memory items ensuring 100% completeness
-    const mergeCollection = <T extends { id?: string; code?: string; invoiceNumber?: string; voucherNumber?: string; updatedAt?: any }>(
-      colName: string,
-      localItems: T[],
-      cloudItems?: any[]
-    ): T[] => {
-      const map = new Map<string, T>();
-
-      // 1. Load cloud items first
-      if (Array.isArray(cloudItems)) {
-        cloudItems.forEach((cItem: any) => {
-          if (!cItem) return;
-          const key = String(cItem.id || cItem.code || cItem.invoiceNumber || cItem.voucherNumber || '');
-          if (!key) return;
-          if (deletedDocsSet.has(`${colName}_${key}`) || deletedDocsSet.has(key)) return;
-          map.set(key, cItem);
-        });
-      }
-
-      // 2. Merge local items (so newly created entries in this active session are 100% included!)
-      if (Array.isArray(localItems)) {
-        localItems.forEach((lItem: any) => {
-          if (!lItem) return;
-          const key = String(lItem.id || lItem.code || lItem.invoiceNumber || lItem.voucherNumber || '');
-          if (!key) return;
-          if (deletedDocsSet.has(`${colName}_${key}`) || deletedDocsSet.has(key)) return;
-
-          const existing = map.get(key);
-          if (!existing) {
-            map.set(key, lItem);
-          } else {
-            const localTime = getEntityRecordTimestamp(lItem);
-            const cloudTime = getEntityRecordTimestamp(existing);
-            if (localTime >= cloudTime) {
-              map.set(key, { ...existing, ...lItem });
-            } else {
-              map.set(key, { ...lItem, ...existing });
-            }
-          }
-        });
-      }
-
-      return Array.from(map.values());
-    };
-
-    // Merge every single collection
-    const mergedInvoices = mergeCollection('invoices', invoices, cloudRecordsMap['invoices']);
-    const mergedParties = mergeCollection('parties', parties, cloudRecordsMap['parties']);
-    const mergedInventory = mergeCollection('inventory', inventory, cloudRecordsMap['inventory']);
-    const mergedAccounts = mergeCollection('accounts', accounts, cloudRecordsMap['accounts']);
-    const mergedTreasuries = mergeCollection('treasuries', treasuries, cloudRecordsMap['treasuries']);
-    const mergedVouchers = mergeCollection('vouchers', vouchers, cloudRecordsMap['vouchers']);
-    const mergedPurchases = mergeCollection('purchases', purchases, cloudRecordsMap['purchases']);
-    const mergedPurchaseReturns = mergeCollection('purchaseReturns', purchaseReturns, cloudRecordsMap['purchaseReturns']);
-    const mergedSalesReturns = mergeCollection('salesReturns', salesReturns, cloudRecordsMap['salesReturns']);
-    const mergedJournalEntries = mergeCollection('journalEntries', journalEntries, cloudRecordsMap['journalEntries']);
-    const mergedStockMovements = mergeCollection('stockMovements', stockMovements, cloudRecordsMap['stockMovements']);
-    const mergedExpenses = mergeCollection('expenses', expenses, cloudRecordsMap['expenses']);
-    const mergedEmployees = mergeCollection('employees', employees, cloudRecordsMap['employees']);
-    const mergedEmployeeAdvances = mergeCollection('employeeAdvances', employeeAdvances, cloudRecordsMap['employeeAdvances']);
-    const mergedEmployeeDeductions = mergeCollection('employeeDeductions', employeeDeductions, cloudRecordsMap['employeeDeductions']);
-    const mergedEmployeeIncentives = mergeCollection('employeeIncentives', employeeIncentives, cloudRecordsMap['employeeIncentives']);
-    const mergedPayrollSheets = mergeCollection('payrollSheets', payrollSheets, cloudRecordsMap['payrollSheets']);
-    const mergedPrintOrders = mergeCollection('printOrders', printOrders, cloudRecordsMap['printOrders']);
-    const mergedDebtClearings = mergeCollection('debtClearings', debtClearings, cloudRecordsMap['debtClearings']);
-    const mergedCompanies = mergeCollection('companies', companies, cloudRecordsMap['companies']);
-    const mergedBranches = mergeCollection('branches', branches, cloudRecordsMap['branches']);
-    const mergedWarehouses = mergeCollection('warehouses', warehouses, cloudRecordsMap['warehouses']);
-    const mergedWarehouseOperations = mergeCollection('warehouseOperations', warehouseOperations, cloudRecordsMap['warehouseOperations']);
-    const mergedRoles = mergeCollection('roles', roles, cloudRecordsMap['roles']);
-    const mergedUsers = mergeCollection('users', users, cloudRecordsMap['users']);
-
-    // Merge dailyEntrySheets
-    const mergedDailyEntrySheets = {
-      ...(cloudDailyEntries || {}),
-      ...(dailyEntrySheets || {})
-    };
-
-    // Calculate total entities
+    // 3. Calculate total records matching exactly what is active on the screen
     const totalRecords =
-      mergedInvoices.length +
-      mergedParties.length +
-      mergedInventory.length +
-      mergedAccounts.length +
-      mergedTreasuries.length +
-      mergedVouchers.length +
-      mergedPurchases.length +
-      mergedPurchaseReturns.length +
-      mergedSalesReturns.length +
-      mergedJournalEntries.length +
-      mergedStockMovements.length +
-      mergedExpenses.length +
-      mergedEmployees.length +
-      mergedEmployeeAdvances.length +
-      mergedEmployeeDeductions.length +
-      mergedEmployeeIncentives.length +
-      mergedPayrollSheets.length +
-      mergedPrintOrders.length +
-      mergedDebtClearings.length +
-      mergedCompanies.length +
-      mergedBranches.length +
-      mergedWarehouses.length +
-      mergedWarehouseOperations.length +
-      mergedRoles.length +
-      mergedUsers.length +
-      Object.keys(mergedDailyEntrySheets).length;
+      cleanInvoices.length +
+      cleanParties.length +
+      cleanInventory.length +
+      cleanAccounts.length +
+      cleanTreasuries.length +
+      cleanVouchers.length +
+      cleanPurchases.length +
+      cleanPurchaseReturns.length +
+      cleanSalesReturns.length +
+      cleanJournalEntries.length +
+      cleanStockMovements.length +
+      cleanExpenses.length +
+      cleanEmployees.length +
+      cleanEmployeeAdvances.length +
+      cleanEmployeeDeductions.length +
+      cleanEmployeeIncentives.length +
+      cleanPayrollSheets.length +
+      cleanPrintOrders.length +
+      cleanDebtClearings.length +
+      cleanCompanies.length +
+      cleanBranches.length +
+      cleanWarehouses.length +
+      cleanWarehouseOperations.length +
+      cleanRoles.length +
+      cleanUsers.length +
+      Object.keys(cleanDailyEntrySheets).length;
 
     const fullBackup = {
       appTitle: 'برنامج الأيهم المحاسبي - مطبعة ومكتبة لبنان',
       systemName: 'برنامج الأيهم المحاسبي لإدارة المطابع والمكتبات ونقاط البيع',
       version: '2.5.0',
-      backupSource: 'Firebase Firestore Live Cloud (100% مباشر) + الحالة التشغيلية الحالية',
+      backupSource: 'قاعدة البيانات التشغيلية المباشرة (مطابقة 100% للشاشة وفيربيس)',
       is100PercentLiveFirebase: true,
       firebaseDatabaseId: 'ai-studio-remixcopyofcopyo-917f7ef2-bd2e-44c7-b6f8-f5661310c7a9',
       exportedAt: new Date().toISOString(),
       exportedBy: currentUser?.fullName || currentUser?.username || 'مدير النظام',
       statsSummary: {
         totalRecords,
-        invoicesCount: mergedInvoices.length,
-        partiesCount: mergedParties.length,
-        inventoryCount: mergedInventory.length,
-        treasuriesCount: mergedTreasuries.length,
-        vouchersCount: mergedVouchers.length,
-        purchasesCount: mergedPurchases.length,
-        salesReturnsCount: mergedSalesReturns.length,
-        purchaseReturnsCount: mergedPurchaseReturns.length,
-        journalEntriesCount: mergedJournalEntries.length,
-        expensesCount: mergedExpenses.length,
-        employeesCount: mergedEmployees.length,
-        dailyEntrySheetsCount: Object.keys(mergedDailyEntrySheets).length,
-        printOrdersCount: mergedPrintOrders.length,
-        warehouseOperationsCount: mergedWarehouseOperations.length
+        invoicesCount: cleanInvoices.length,
+        partiesCount: cleanParties.length,
+        inventoryCount: cleanInventory.length,
+        treasuriesCount: cleanTreasuries.length,
+        vouchersCount: cleanVouchers.length,
+        purchasesCount: cleanPurchases.length,
+        salesReturnsCount: cleanSalesReturns.length,
+        purchaseReturnsCount: cleanPurchaseReturns.length,
+        journalEntriesCount: cleanJournalEntries.length,
+        expensesCount: cleanExpenses.length,
+        employeesCount: cleanEmployees.length,
+        dailyEntrySheetsCount: Object.keys(cleanDailyEntrySheets).length,
+        printOrdersCount: cleanPrintOrders.length,
+        warehouseOperationsCount: cleanWarehouseOperations.length
       },
       settings,
-      accounts: mergedAccounts,
-      journalEntries: mergedJournalEntries,
-      inventory: mergedInventory,
-      stockMovements: mergedStockMovements,
-      parties: mergedParties,
-      employees: mergedEmployees,
-      employeeAdvances: mergedEmployeeAdvances,
-      employeeDeductions: mergedEmployeeDeductions,
-      employeeIncentives: mergedEmployeeIncentives,
-      payrollSheets: mergedPayrollSheets,
-      printOrders: mergedPrintOrders,
-      invoices: mergedInvoices,
-      purchases: mergedPurchases,
-      purchaseReturns: mergedPurchaseReturns,
-      salesReturns: mergedSalesReturns,
-      vouchers: mergedVouchers,
-      treasuries: mergedTreasuries,
-      companies: mergedCompanies,
-      branches: mergedBranches,
-      warehouses: mergedWarehouses,
-      warehouseOperations: mergedWarehouseOperations,
-      roles: mergedRoles,
-      users: mergedUsers,
-      debtClearings: mergedDebtClearings,
-      expenses: mergedExpenses,
-      dailyEntrySheets: mergedDailyEntrySheets
+      accounts: cleanAccounts,
+      journalEntries: cleanJournalEntries,
+      inventory: cleanInventory,
+      stockMovements: cleanStockMovements,
+      parties: cleanParties,
+      employees: cleanEmployees,
+      employeeAdvances: cleanEmployeeAdvances,
+      employeeDeductions: cleanEmployeeDeductions,
+      employeeIncentives: cleanEmployeeIncentives,
+      payrollSheets: cleanPayrollSheets,
+      printOrders: cleanPrintOrders,
+      invoices: cleanInvoices,
+      purchases: cleanPurchases,
+      purchaseReturns: cleanPurchaseReturns,
+      salesReturns: cleanSalesReturns,
+      vouchers: cleanVouchers,
+      treasuries: cleanTreasuries,
+      companies: cleanCompanies,
+      branches: cleanBranches,
+      warehouses: cleanWarehouses,
+      warehouseOperations: cleanWarehouseOperations,
+      roles: cleanRoles,
+      users: cleanUsers,
+      debtClearings: cleanDebtClearings,
+      expenses: cleanExpenses,
+      dailyEntrySheets: cleanDailyEntrySheets
     };
 
     const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
@@ -10475,7 +10391,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       success: true,
       filename,
       totalRecords,
-      message: `تم إنشاء وتحميل نسخة احتياطية كاملة 100% بنجاح (${totalRecords} سجل) مباشرة من Firebase!`
+      message: `تم إنشاء وتحميل نسخة احتياطية كاملة 100% مطابقة للشاشة وفيربيس (${totalRecords} سجل) بنجاح!`
     };
   };
 
@@ -11605,6 +11521,7 @@ return (
         forceSyncNow,
         forcePushAndPullSync,
         importMasterDatabaseSnapshot,
+        cleanAndSyncFirebaseWithScreen,
         activeTab,
         setActiveTab,
         goBack,

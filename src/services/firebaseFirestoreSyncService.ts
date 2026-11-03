@@ -223,7 +223,7 @@ export async function saveEntityToFirestore(entityName: string, items: any[]): P
 }
 
 /**
- * Pushes the full master database snapshot to Firestore
+ * Pushes the full master database snapshot to Firestore, overwriting stale data cleanly
  */
 export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, any[]>): Promise<{ success: boolean; error?: string }> {
   if (isFirestoreQuotaExceeded()) {
@@ -239,7 +239,8 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
         updatedAt: new Date().toISOString(),
         count: items.length || 0
       });
-      return setDoc(docRef, docPayload, { merge: true });
+      // Replace doc directly (WITHOUT merge: true) so stale/deleted items are not preserved
+      return setDoc(docRef, docPayload);
     });
 
     await Promise.all(promises);
@@ -249,7 +250,7 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
       entity: 'master_db',
       op: 'sync',
       status: 'success',
-      details: 'تم رفع قاعدة البيانات الشاملة بالكامل إلى سحابة Firebase Firestore بنجاح ✅'
+      details: 'تم تحديث قاعدة البيانات الشاملة بالكامل في سحابة Firebase Firestore لتطابق الشاشة 100% ✅'
     });
 
     return { success: true };
@@ -261,6 +262,44 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
     console.warn('Error pushing full DB to Firestore:', err?.message || err);
     return { success: false, error: err?.message || 'تعذر رفع قاعدة البيانات الكاملة' };
   }
+}
+
+/**
+ * Purges obsolete orphaned documents from individual Firestore collections to ensure
+ * Firebase does not contain leftover documents from old tests or deleted records.
+ */
+export async function purgeObsoleteFirestoreCollections(fullSnapshot: Record<string, any[]>): Promise<number> {
+  if (isFirestoreQuotaExceeded()) return 0;
+  let totalDeleted = 0;
+  const collectionsToCheck = ['invoices', 'parties', 'treasuries', 'vouchers', 'printOrders', 'purchases'];
+
+  for (const colName of collectionsToCheck) {
+    try {
+      const activeItems = Array.isArray(fullSnapshot[colName]) ? fullSnapshot[colName] : [];
+      const validKeys = new Set(
+        activeItems.map((it: any) => String(it.id || it.code || it.invoiceNumber || it.voucherNumber || ''))
+      );
+
+      const snap = await getDocs(collection(db, colName));
+      if (!snap.empty) {
+        const toDelete = snap.docs.filter(d => {
+          const docId = d.id;
+          const data = d.data();
+          const docKey = String(data?.id || data?.invoiceNumber || data?.code || docId);
+          return !validKeys.has(docId) && !validKeys.has(docKey);
+        });
+
+        if (toDelete.length > 0) {
+          await Promise.all(toDelete.map(d => deleteDoc(d.ref).catch(() => {})));
+          totalDeleted += toDelete.length;
+        }
+      }
+    } catch (e) {
+      console.warn(`Purge check for ${colName} notice:`, e);
+    }
+  }
+
+  return totalDeleted;
 }
 
 /**

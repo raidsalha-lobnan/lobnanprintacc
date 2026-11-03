@@ -1201,11 +1201,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 type="button"
                 onClick={async () => {
                   setIsExportingBackup(true);
-                  setBackupStatusMessage({ text: 'جاري سحب كافة الإدخالات 100% مباشرة من سحابة Firebase...', success: true });
+                  setBackupStatusMessage({ text: 'جاري إنشاء وتصدير نسخة احتياطية مطابقة للشاشة وفيربيس 100%...', success: true });
                   try {
                     const res = await exportDataJSON();
                     setBackupStatusMessage({
-                      text: `تم تصدير نسخة احتياطية كاملة 100% بنجاح (${res.totalRecords} سجل) مباشرة من Firebase!`,
+                      text: `تم تصدير نسخة احتياطية مطابقة 100% للشاشة وفيربيس بنجاح (${res.totalRecords} سجل)!`,
                       success: true
                     });
                   } catch (e: any) {
@@ -1217,9 +1217,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 }}
                 disabled={isExportingBackup}
                 className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg transition-colors cursor-pointer text-xs disabled:opacity-50"
+                title="تصدير نسخة احتياطية مطابقة 100% لكافة الإدخالات المعروضة على الشاشة وفيربيس"
               >
                 <Download className={`w-3.5 h-3.5 ${isExportingBackup ? 'animate-spin' : ''}`} />
-                <span>{isExportingBackup ? 'جاري السحب المباشر من فير بيس...' : 'تصدير نسخة احتياطية محلية (JSON)'}</span>
+                <span>{isExportingBackup ? 'جاري إنشاء النسخة المطابقة...' : 'تصدير نسخة احتياطية محلية (مطابقة للشاشة 100%)'}</span>
               </button>
 
               <label className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg transition-colors cursor-pointer text-xs">

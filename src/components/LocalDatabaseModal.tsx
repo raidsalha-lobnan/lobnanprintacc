@@ -49,6 +49,7 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
 
   const [feedback, setFeedback] = useState<{ message: string; success: boolean } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -58,15 +59,13 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
     setTimeout(() => setFeedback(null), 5000);
   };
 
-  const [isExporting, setIsExporting] = useState(false);
-
   const handleExport = async () => {
     setIsExporting(true);
-    setFeedback({ message: 'جاري سحب كافة الإدخالات 100% مباشرة من سحابة Firebase...', success: true });
+    setFeedback({ message: 'جاري استخراج وتصدير نسخة احتياطية كاملة 100% متطابقة مع الشاشة وقاعدة البيانات...', success: true });
     try {
       const res = await exportLocalDatabaseJSON();
       setFeedback({ 
-        message: `تم تصدير نسخة احتياطية كاملة 100% مسحوبة مباشرة من Firebase بنجاح! (إجمالي السجلات: ${res.totalRecords || 0})`, 
+        message: `تم تصدير نسخة احتياطية كاملة 100% متطابقة مع البيانات الحالية بنجاح! (إجمالي السجلات: ${res.totalRecords || 0})`, 
         success: true 
       });
     } catch (e: any) {
@@ -291,7 +290,7 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
                 className="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-md flex items-center justify-center gap-2 transition shadow cursor-pointer text-center disabled:opacity-50"
               >
                 <Download className={`w-4 h-4 text-emerald-200 ${isExporting ? 'animate-bounce' : ''}`} />
-                <span>{isExporting ? 'جاري السحب من فير بيس...' : 'تحميل أحدث نسخة كاملة 100% من فير بيس (.json)'}</span>
+                <span>{isExporting ? 'جاري إنشاء النسخة...' : 'تحميل نسخة احتياطية كاملة 100% متطابقة مع الشاشة (.json)'}</span>
               </button>
             </div>
           </div>

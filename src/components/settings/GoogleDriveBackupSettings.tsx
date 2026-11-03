@@ -74,6 +74,7 @@ export const GoogleDriveBackupSettings: React.FC = () => {
   const [minutesUntilNext, setMinutesUntilNext] = useState<number>(60);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isExportingJson, setIsExportingJson] = useState<boolean>(false);
+  const [isCleaningFirebase, setIsCleaningFirebase] = useState<boolean>(false);
 
   // Modals
   const [confirmRetentionModalOpen, setConfirmRetentionModalOpen] = useState<boolean>(false);
@@ -527,16 +528,16 @@ export const GoogleDriveBackupSettings: React.FC = () => {
             </button>
           )}
 
-          {/* Local Download JSON Button */}
+          {/* Local Download JSON Button (Exact on-screen & Firebase state) */}
           <button
             type="button"
             onClick={async () => {
               setIsExportingJson(true);
-              setStatusMessage({ text: 'جاري سحب كافة الإدخالات 100% مباشرة من سحابة Firebase...', type: 'info' });
+              setStatusMessage({ text: 'جاري إنشاء وتنزيل نسخة احتياطية مطابقة تماماً للشاشة وفيربيس 100%...', type: 'info' });
               try {
                 const res = await exportDataJSON();
                 setStatusMessage({
-                  text: `تم تنزيل نسخة احتياطية كاملة 100% بنجاح (${res.totalRecords} سجل) مسحوبة مباشرة من Firebase!`,
+                  text: `تم تنزيل نسخة احتياطية مطابقة 100% للشاشة وفيربيس بنجاح (${res.totalRecords} سجل)!`,
                   type: 'success'
                 });
               } catch (e: any) {
@@ -547,9 +548,38 @@ export const GoogleDriveBackupSettings: React.FC = () => {
             }}
             disabled={isExportingJson}
             className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
+            title="تنزيل نسخة احتياطية مطابقة 100% للإدخالات الحالية المعروضة على الشاشة وفيربيس بدون أي قيود قديمة"
           >
             <Download className={`w-3.5 h-3.5 ${isExportingJson ? 'animate-spin' : ''}`} />
-            <span>{isExportingJson ? 'جاري السحب المباشر من فير بيس...' : 'تنزيل نسخة على الجهاز (JSON)'}</span>
+            <span>{isExportingJson ? 'جاري إنشاء النسخة المطابقة...' : 'تنزيل نسخة على الجهاز (مطابقة للشاشة 100%)'}</span>
+          </button>
+
+          {/* Clean & Sync Firebase with Screen Button */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (window.confirm('هل تريد تطهير وتحديث سحابة Firebase لتطابق البيانات المعروضة حالياً على الشاشة 100% وإزالة أي مستندات قديمة؟')) {
+                setIsCleaningFirebase(true);
+                setStatusMessage({ text: 'جاري تطهير وتحديث سحابة Firebase لتطابق الشاشة...', type: 'info' });
+                try {
+                  const res = await accounting.cleanAndSyncFirebaseWithScreen();
+                  setStatusMessage({
+                    text: res.message,
+                    type: res.success ? 'success' : 'error'
+                  });
+                } catch (e: any) {
+                  setStatusMessage({ text: 'حدث خطأ: ' + e.message, type: 'error' });
+                } finally {
+                  setIsCleaningFirebase(false);
+                }
+              }
+            }}
+            disabled={isCleaningFirebase}
+            className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
+            title="تطهير قاعدة بيانات فيربيس السحابية لتطابق تماماً الإدخالات الحالية المعروضة على الشاشة"
+          >
+            <ShieldCheck className={`w-3.5 h-3.5 ${isCleaningFirebase ? 'animate-spin' : 'text-amber-600'}`} />
+            <span>{isCleaningFirebase ? 'جاري تطهير وتحديث فيربيس...' : 'تطهير ومزامنة فيربيس مع الشاشة 100%'}</span>
           </button>
 
           {/* Import Master Database Snapshot Button */}
