@@ -11365,6 +11365,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return { updatedCount, mismatchedCount };
   };
 
+  // Auto-reconciliation: ensure every party's stored balance in database matches 100% their true accounting transactions balance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        reconcileAllPartyBalances();
+      } catch (err) {
+        console.debug('auto reconcile party balances note:', err);
+      }
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [invoices.length, vouchers.length, purchases.length]);
+
   const forcePushAndPullSync = async (): Promise<{ success: boolean; message: string; invoicesCount: number }> => {
     try {
       const res = await forceSyncNow();

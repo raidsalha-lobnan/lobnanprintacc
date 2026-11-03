@@ -1523,16 +1523,51 @@ export function calculatePartyTrueBalance(
   salesReturns: SalesReturn[] = [],
   printOrders: PrintJobOrder[] = [],
   journalEntries: JournalEntry[] = [],
-  debtClearings: DebtClearingRecord[] = []
+  debtClearings: DebtClearingRecord[] = [],
+  subCustomerId?: string,
+  subCustomers: Party[] = []
 ): number {
   const stmt = generateAccountStatement({
     party,
+    subCustomerId,
+    subCustomers,
     invoices,
     vouchers,
     purchases,
     purchaseReturns,
     salesReturns,
     printOrders,
+    journalEntries,
+    debtClearings
+  });
+  return Number(stmt.closingBalance.toFixed(2));
+}
+
+export function calculateEmployeeTrueBalance(
+  employee: Employee,
+  vouchers: PaymentVoucher[] = [],
+  advances: EmployeeAdvance[] = [],
+  deductions: EmployeeDeduction[] = [],
+  incentives: EmployeeIncentive[] = [],
+  invoices: Invoice[] = [],
+  purchases: PurchaseInvoice[] = [],
+  purchaseReturns: PurchaseReturn[] = [],
+  salesReturns: SalesReturn[] = [],
+  payrollSheets: any[] = [],
+  journalEntries: JournalEntry[] = [],
+  debtClearings: DebtClearingRecord[] = []
+): number {
+  const stmt = generateEmployeeStatement({
+    employee,
+    vouchers,
+    advances,
+    deductions,
+    incentives,
+    invoices,
+    purchases,
+    purchaseReturns,
+    salesReturns,
+    payrollSheets,
     journalEntries,
     debtClearings
   });

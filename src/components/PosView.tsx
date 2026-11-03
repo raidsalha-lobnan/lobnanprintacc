@@ -28,6 +28,7 @@ import { matchItemByBarcode } from '../utils/barcodeGenerator';
 import { findPartyByCodeOrNumber, isCashCustomerParty } from '../utils/partyUtils';
 import { getAvailableUnitsOfMeasure, isSquareMeterUnit } from '../utils/unitsOfMeasure';
 import { matchKeyboardShortcut } from '../utils/keyboardShortcuts';
+import { calculatePartyTrueBalance, calculateEmployeeTrueBalance } from '../utils/statementGenerator';
 import {
   Search,
   Barcode,
@@ -378,7 +379,18 @@ export const PosView: React.FC = () => {
     getItemPriceForCustomer,
     getCurrentUserPricePolicy,
     editingPosInvoiceId,
-    setEditingPosInvoiceId
+    setEditingPosInvoiceId,
+    vouchers = [],
+    purchases = [],
+    purchaseReturns = [],
+    salesReturns = [],
+    printOrders = [],
+    journalEntries = [],
+    debtClearings = [],
+    employeeAdvances = [],
+    employeeDeductions = [],
+    employeeIncentives = [],
+    payrollSheets = []
   } = useAccounting();
 
   // Single-Entry automation notification state
@@ -535,17 +547,53 @@ const getInitialPosDraft = (): PosFullDraftData => {
         raw: s
       }));
     } else {
-      return employees.map(emp => ({
-        id: emp.id,
-        name: emp.name,
-        code: emp.id,
-        subText: `${emp.jobTitle || 'موظف'} - ${emp.department || 'عام'}`,
-        badge: emp.phone || undefined,
-        extraSearchCorpus: `${emp.phone || ''} ${emp.jobTitle || ''}`,
-        raw: emp
-      }));
+      return employees.map(emp => {
+        const empBal = calculateEmployeeTrueBalance(
+          emp,
+          vouchers,
+          employeeAdvances,
+          employeeDeductions,
+          employeeIncentives,
+          invoices,
+          purchases,
+          purchaseReturns,
+          salesReturns,
+          payrollSheets,
+          journalEntries,
+          debtClearings
+        );
+        const hasBal = Math.abs(empBal) >= 0.01;
+        const badge = hasBal 
+          ? `${Math.abs(empBal).toFixed(2)} ₪ ${empBal > 0 ? '(له)' : '(عليه)'}` 
+          : (emp.phone || undefined);
+        return {
+          id: emp.id,
+          name: emp.name,
+          code: emp.code || emp.id,
+          subText: `${emp.jobTitle || 'موظف'} - ${emp.department || 'عام'}`,
+          badge,
+          extraSearchCorpus: `${emp.phone || ''} ${emp.jobTitle || ''}`,
+          raw: emp
+        };
+      });
     }
-  }, [posTargetType, customers, suppliers, employees]);
+  }, [
+    posTargetType,
+    customers,
+    suppliers,
+    employees,
+    vouchers,
+    employeeAdvances,
+    employeeDeductions,
+    employeeIncentives,
+    invoices,
+    purchases,
+    purchaseReturns,
+    salesReturns,
+    payrollSheets,
+    journalEntries,
+    debtClearings
+  ]);
 
   // Pricing policies based on current user permissions & role
   const userPricePolicy = useMemo(() => {
@@ -1468,6 +1516,204 @@ const getInitialPosDraft = (): PosFullDraftData => {
       }
     }
   }, [selectedCustomerId, currentCustomer]);
+
+  // الرصيد الفعلي التراكمي المحسوب 100% للعميل أو المورد أو الموظف المحدد مباشرة من دفتر العمليات وكشف الحساب
+  const activeTargetBalanceInfo = useMemo(() => {
+    if (!selectedCustomerId) {
+      return {
+        balance: 0,
+        formattedBalance: '0.00',
+        label: subCustomerId ? 'رصيد الفرعي:' : 'الرصيد:',
+        statusText: '',
+        isDebit: false,
+        isCredit: false,
+        isZero: true,
+        hasTarget: false
+      };
+    }
+
+    if (posTargetType === 'employee') {
+      const emp = employees.find(e => e.id === selectedCustomerId);
+      if (!emp) {
+        return {
+          balance: 0,
+          formattedBalance: '0.00',
+          label: 'رصيد الموظف:',
+          statusText: '',
+          isDebit: false,
+          isCredit: false,
+          isZero: true,
+          hasTarget: false
+        };
+      }
+      const trueBal = calculateEmployeeTrueBalance(
+        emp,
+        vouchers,
+        employeeAdvances,
+        employeeDeductions,
+        employeeIncentives,
+        invoices,
+        purchases,
+        purchaseReturns,
+        salesReturns,
+        payrollSheets,
+        journalEntries,
+        debtClearings
+      );
+      // في كشف الموظف: موجب = مستحق له، سالب = سلف ومسحوبات عليه
+      const isDueToEmp = trueBal > 0.005;
+      const isOwedByEmp = trueBal < -0.005;
+      const absBal = Math.abs(trueBal);
+      return {
+        balance: trueBal,
+        formattedBalance: absBal.toFixed(2),
+        label: 'رصيد الموظف:',
+        statusText: isDueToEmp ? '(له مستحق)' : isOwedByEmp ? '(عليه سلفة)' : '(خالص)',
+        isDebit: isOwedByEmp,
+        isCredit: isDueToEmp,
+        isZero: Math.abs(trueBal) < 0.01,
+        hasTarget: true,
+        targetName: emp.name
+      };
+    }
+
+    if (posTargetType === 'supplier') {
+      const supp = parties.find(p => p.id === selectedCustomerId);
+      if (!supp) {
+        return {
+          balance: 0,
+          formattedBalance: '0.00',
+          label: 'رصيد المورد:',
+          statusText: '',
+          isDebit: false,
+          isCredit: false,
+          isZero: true,
+          hasTarget: false
+        };
+      }
+      const trueBal = calculatePartyTrueBalance(
+        supp,
+        invoices,
+        vouchers,
+        purchases,
+        purchaseReturns,
+        salesReturns,
+        printOrders,
+        journalEntries,
+        debtClearings
+      );
+      // في كشف المورد: سالب = دائن له علينا، موجب = مدين لنا عليه
+      const isOwedToSupplier = trueBal < -0.005;
+      const isDueFromSupplier = trueBal > 0.005;
+      const absBal = Math.abs(trueBal);
+      return {
+        balance: trueBal,
+        formattedBalance: absBal.toFixed(2),
+        label: 'رصيد المورد:',
+        statusText: isOwedToSupplier ? '(له علينا)' : isDueFromSupplier ? '(لنا عليه)' : '(خالص)',
+        isDebit: isDueFromSupplier,
+        isCredit: isOwedToSupplier,
+        isZero: Math.abs(trueBal) < 0.01,
+        hasTarget: true,
+        targetName: supp.name
+      };
+    }
+
+    // posTargetType === 'customer'
+    if (subCustomerId) {
+      const subParty = parties.find(p => p.id === subCustomerId);
+      const parentParty = parties.find(p => p.id === selectedCustomerId);
+      const targetParty = subParty || parentParty;
+      if (targetParty) {
+        const trueBal = calculatePartyTrueBalance(
+          targetParty,
+          invoices,
+          vouchers,
+          purchases,
+          purchaseReturns,
+          salesReturns,
+          printOrders,
+          journalEntries,
+          debtClearings,
+          subCustomerId,
+          parties.filter(p => p.isSubCustomer)
+        );
+        const isCustomerDebit = trueBal > 0.005;
+        const isCustomerCredit = trueBal < -0.005;
+        const absBal = Math.abs(trueBal);
+        return {
+          balance: trueBal,
+          formattedBalance: absBal.toFixed(2),
+          label: 'رصيد الفرعي:',
+          statusText: isCustomerDebit ? '(عليه دين)' : isCustomerCredit ? '(له رصيد)' : '(خالص)',
+          isDebit: isCustomerDebit,
+          isCredit: isCustomerCredit,
+          isZero: Math.abs(trueBal) < 0.01,
+          hasTarget: true,
+          targetName: subParty?.name || ''
+        };
+      }
+    }
+
+    // عميل رئيسي
+    const cust = parties.find(p => p.id === selectedCustomerId);
+    if (!cust) {
+      return {
+        balance: 0,
+        formattedBalance: '0.00',
+        label: 'الرصيد:',
+        statusText: '',
+        isDebit: false,
+        isCredit: false,
+        isZero: true,
+        hasTarget: false
+      };
+    }
+
+    const trueBal = calculatePartyTrueBalance(
+      cust,
+      invoices,
+      vouchers,
+      purchases,
+      purchaseReturns,
+      salesReturns,
+      printOrders,
+      journalEntries,
+      debtClearings
+    );
+    const isCustomerDebit = trueBal > 0.005;
+    const isCustomerCredit = trueBal < -0.005;
+    const absBal = Math.abs(trueBal);
+    return {
+      balance: trueBal,
+      formattedBalance: absBal.toFixed(2),
+      label: 'الرصيد:',
+      statusText: isCustomerDebit ? '(عليه دين)' : isCustomerCredit ? '(له رصيد)' : '(خالص)',
+      isDebit: isCustomerDebit,
+      isCredit: isCustomerCredit,
+      isZero: Math.abs(trueBal) < 0.01,
+      hasTarget: true,
+      targetName: cust.name
+    };
+  }, [
+    selectedCustomerId,
+    subCustomerId,
+    posTargetType,
+    parties,
+    employees,
+    invoices,
+    vouchers,
+    purchases,
+    purchaseReturns,
+    salesReturns,
+    printOrders,
+    journalEntries,
+    debtClearings,
+    employeeAdvances,
+    employeeDeductions,
+    employeeIncentives,
+    payrollSheets
+  ]);
 
   // Financial Calculations
   const calculatedSubtotal = useMemo(() => {
@@ -4032,14 +4278,34 @@ const getInitialPosDraft = (): PosFullDraftData => {
             </div>
           </div>
 
-          {/* 4. الرصيد */}
-          <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-lg shrink-0 shadow-2xs">
-            <span className="text-[14px] text-red-600 font-bold shrink-0">
-              {subCustomerId ? 'رصيد الفرعي:' : 'الرصيد:'}
+          {/* 4. الرصيد الفعلي المطابق 100% لكشف الحساب */}
+          <div 
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shrink-0 shadow-2xs border transition-colors ${
+              activeTargetBalanceInfo.isCredit 
+                ? 'bg-emerald-50 border-emerald-200' 
+                : 'bg-red-50 border-red-200'
+            }`}
+            title={`الرصيد الفعلي المطابق لكشف الحساب: ${activeTargetBalanceInfo.balance.toFixed(2)} ₪ ${activeTargetBalanceInfo.statusText}`}
+          >
+            <span className={`text-[14px] font-bold shrink-0 ${
+              activeTargetBalanceInfo.isCredit ? 'text-emerald-700' : 'text-red-600'
+            }`}>
+              {activeTargetBalanceInfo.label}
             </span>
-            <span className="font-mono font-black text-red-600 text-[14px] sm:text-base w-[113.2px]">
-              {(Number(subCustomerId ? parties.find(p => p.id === subCustomerId)?.balance : currentCustomer?.balance) || Number(currentCustomer?.balance) || 0).toFixed(2)} ₪
+            <span className={`font-mono font-black text-[14px] sm:text-base min-w-[75px] text-center ${
+              activeTargetBalanceInfo.isCredit ? 'text-emerald-700' : 'text-red-600'
+            }`}>
+              {activeTargetBalanceInfo.formattedBalance} ₪
             </span>
+            {activeTargetBalanceInfo.hasTarget && activeTargetBalanceInfo.statusText && (
+              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                activeTargetBalanceInfo.isCredit 
+                  ? 'bg-emerald-100 text-emerald-800' 
+                  : 'bg-red-100/90 text-red-700'
+              }`}>
+                {activeTargetBalanceInfo.statusText}
+              </span>
+            )}
             {subCustomerId && (
               <button
                 type="button"
