@@ -4280,25 +4280,25 @@ const getInitialPosDraft = (): PosFullDraftData => {
 
           {/* 4. الرصيد الفعلي المطابق 100% لكشف الحساب */}
           <div 
-            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shrink-0 shadow-2xs border transition-colors w-[282.494px] ${
+            className={`flex items-center gap-2 px-2.5 py-1 rounded-lg shrink-0 shadow-2xs border transition-colors whitespace-nowrap w-auto min-w-[280px] ${
               activeTargetBalanceInfo.isCredit 
                 ? 'bg-emerald-50 border-emerald-200' 
                 : 'bg-red-50 border-red-200'
             }`}
             title={`الرصيد الفعلي المطابق لكشف الحساب: ${activeTargetBalanceInfo.balance.toFixed(2)} ₪ ${activeTargetBalanceInfo.statusText}`}
           >
-            <span className={`text-[14px] font-bold shrink-0 ${
+            <span className={`text-[14px] font-bold shrink-0 whitespace-nowrap ${
               activeTargetBalanceInfo.isCredit ? 'text-emerald-700' : 'text-red-600'
             }`}>
               {activeTargetBalanceInfo.label}
             </span>
-            <span className={`font-mono font-black text-[14px] sm:text-base w-[92px] text-center ${
+            <span className={`font-mono font-black text-[14px] sm:text-base shrink-0 whitespace-nowrap text-center px-1 ${
               activeTargetBalanceInfo.isCredit ? 'text-emerald-700' : 'text-red-600'
             }`}>
               {activeTargetBalanceInfo.formattedBalance} ₪
             </span>
             {activeTargetBalanceInfo.hasTarget && activeTargetBalanceInfo.statusText && (
-              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded shrink-0 w-[81.45px] text-center ${
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded shrink-0 whitespace-nowrap text-center ${
                 activeTargetBalanceInfo.isCredit 
                   ? 'bg-emerald-100 text-emerald-800' 
                   : 'bg-red-100/90 text-red-700'
@@ -4313,7 +4313,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   const sub = parties.find(p => p.id === subCustomerId);
                   if (sub) setSelectedPartyForStatement(sub);
                 }}
-                className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded font-bold cursor-pointer transition-colors"
+                className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded font-bold cursor-pointer transition-colors shrink-0 whitespace-nowrap"
                 title="كشف حساب الزبون الفرعي"
               >
                 كشف
