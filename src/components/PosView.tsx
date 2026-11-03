@@ -4298,7 +4298,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
               {activeTargetBalanceInfo.formattedBalance} ₪
             </span>
             {activeTargetBalanceInfo.hasTarget && activeTargetBalanceInfo.statusText && (
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded shrink-0 whitespace-nowrap text-center ${
+              <span className={`text-[11px] font-bold px-2 py-0.5 pt-[1.75px] pb-[2.75px] ml-[2px] mr-[52px] rounded shrink-0 whitespace-nowrap text-center ${
                 activeTargetBalanceInfo.isCredit 
                   ? 'bg-emerald-100 text-emerald-800' 
                   : 'bg-red-100/90 text-red-700'
