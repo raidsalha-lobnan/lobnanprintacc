@@ -4080,7 +4080,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
           </div>
 
         {/* Customer, Sub-Customer, Balance & Order Options - ALL IN ONE SINGLE ROW */}
-        <div className="bg-white/80 px-2 py-0.5 mb-1 rounded-xl border border-slate-300 flex items-center gap-4 flex-wrap text-sm shadow-sm w-[1350px] max-w-full">
+        <div className="bg-white/80 px-2 py-0.5 mb-1 rounded-xl border border-slate-300 flex items-center gap-4 flex-wrap text-sm shadow-sm w-[1382px] max-w-full">
           {/* 1. زر تبديل دائري لاختيار الطرف (عميل - مورد - موظف) */}
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="font-bold text-slate-700 text-[14px] shrink-0">الطرف:</span>
@@ -4280,7 +4280,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
 
           {/* 4. الرصيد الفعلي المطابق 100% لكشف الحساب */}
           <div 
-            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shrink-0 shadow-2xs border transition-colors ${
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg shrink-0 shadow-2xs border transition-colors w-[282.494px] ${
               activeTargetBalanceInfo.isCredit 
                 ? 'bg-emerald-50 border-emerald-200' 
                 : 'bg-red-50 border-red-200'
@@ -4292,13 +4292,13 @@ const getInitialPosDraft = (): PosFullDraftData => {
             }`}>
               {activeTargetBalanceInfo.label}
             </span>
-            <span className={`font-mono font-black text-[14px] sm:text-base min-w-[75px] text-center ${
+            <span className={`font-mono font-black text-[14px] sm:text-base w-[92px] text-center ${
               activeTargetBalanceInfo.isCredit ? 'text-emerald-700' : 'text-red-600'
             }`}>
               {activeTargetBalanceInfo.formattedBalance} ₪
             </span>
             {activeTargetBalanceInfo.hasTarget && activeTargetBalanceInfo.statusText && (
-              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded shrink-0 w-[81.45px] text-center ${
                 activeTargetBalanceInfo.isCredit 
                   ? 'bg-emerald-100 text-emerald-800' 
                   : 'bg-red-100/90 text-red-700'
@@ -4325,10 +4325,10 @@ const getInitialPosDraft = (): PosFullDraftData => {
         {/* Sub-tools Toolbar Row: ملاحظات الفاتورة | خدمة التوصيل | يد الباركود | سطر الباركود | كاميرا الباركود | تجميع الكميات | آخر سعر | الأسعار الخاصة */}
         {posLayoutConfig.showExtraHeaderOptions && (
           <div className="mt-0.5 pt-0.5 border-t border-slate-300/80 flex flex-nowrap overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] items-center justify-between gap-2 text-sm w-fit">
-            <div className="flex items-center gap-2 flex-nowrap flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-nowrap flex-1 min-w-0 w-[1379.97px]">
               {/* خانة ملاحظات الفاتورة ككل (تظهر في كشف حساب العميل) */}
               <div
-                className="flex items-center gap-2 bg-white border border-slate-300 hover:border-blue-400 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-400 rounded-xl px-3 py-1.5 transition-all shadow-sm w-[559.994px] max-w-full"
+                className="flex items-center gap-2 bg-white border border-slate-300 hover:border-blue-400 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-400 rounded-xl px-3 py-1.5 transition-all shadow-sm w-[620.987px] max-w-full"
                 title="ملاحظة عامة خاصة بالفاتورة ككل وتظهر في كشف حساب العميل"
               >
                 <FileText className="w-4 h-4 text-blue-600 shrink-0" />
@@ -4337,7 +4337,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
                   value={invoiceNotes}
                   onChange={e => setInvoiceNotes(e.target.value)}
                   placeholder="ملاحظات الفاتورة (تظهر في كشف الحساب)..."
-                  className="w-full text-[14px] text-slate-800 placeholder:text-slate-400 focus:outline-hidden bg-transparent font-medium h-7"
+                  className="w-[620.987px] max-w-full text-[14px] text-slate-800 placeholder:text-slate-400 focus:outline-hidden bg-transparent font-medium h-7"
                 />
                 {invoiceNotes && (
                   <button
