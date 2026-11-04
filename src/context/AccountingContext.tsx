@@ -1579,8 +1579,34 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
+  // Sync Integrity Check: Wipe local data if it's from an older reset epoch
+  useEffect(() => {
+    const verifySyncIntegrity = async () => {
+      try {
+        const res = await fetch('/api/sync/metadata');
+        const { epoch } = await res.json();
+        const localEpoch = localStorage.getItem('accounting_sync_epoch');
+        
+        if (localEpoch !== String(epoch)) {
+          console.log('Sync epoch mismatch, wiping local data...');
+          Object.keys(localStorage).forEach(key => {
+            if (key.startsWith(STORAGE_KEY) || key.includes('accounting_') || key.includes('pos_')) {
+              localStorage.removeItem(key);
+            }
+          });
+          localStorage.setItem('accounting_sync_epoch', String(epoch));
+          window.location.reload();
+        }
+      } catch (err) {
+        console.warn('Sync integrity check failed', err);
+      }
+    };
+    verifySyncIntegrity();
+  }, []);
+
   // Smart Master Database Hydration: Transition directly to the unified cloud database on app startup when online
   useEffect(() => {
+
     const autoHydrateMasterDb = async () => {
       if (isLocalOnlyMode || !navigator.onLine) return;
       try {

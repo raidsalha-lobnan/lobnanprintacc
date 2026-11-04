@@ -610,22 +610,40 @@ app.get('*', (_req, res) => {
   }
 });
 
-// Hard reset: Wipe all sync data
+// Hard reset: Wipe all sync data and reset sync epoch
 app.post('/api/sync/hard-reset', (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
     const syncDir = path.join(__dirname, '.sync_data');
+    const epochPath = path.join(syncDir, 'sync_epoch.json');
     
     if (fs.existsSync(syncDir)) {
       const files = fs.readdirSync(syncDir);
       for (const file of files) {
-        fs.unlinkSync(path.join(syncDir, file));
+        if (file !== 'sync_epoch.json') fs.unlinkSync(path.join(syncDir, file));
       }
     }
+
+    const currentEpoch = fs.existsSync(epochPath) ? JSON.parse(fs.readFileSync(epochPath, 'utf8')).epoch : 0;
+    fs.writeFileSync(epochPath, JSON.stringify({ epoch: currentEpoch + 1 }));
+    
     res.json({ success: true, message: 'تم تصفير قاعدة البيانات السحابية بنجاح' });
   } catch (err: any) {
     res.status(500).json({ error: 'فشل التصفير' });
+  }
+});
+
+// Get sync metadata
+app.get('/api/sync/metadata', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const epochPath = path.join(__dirname, '.sync_data', 'sync_epoch.json');
+    const epoch = fs.existsSync(epochPath) ? JSON.parse(fs.readFileSync(epochPath, 'utf8')).epoch : 0;
+    res.json({ epoch });
+  } catch (err: any) {
+    res.json({ epoch: 0 });
   }
 });
 
