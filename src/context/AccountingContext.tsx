@@ -2359,6 +2359,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } catch {}
       }
 
+      // Also force immediate state update in the current tab
+      window.dispatchEvent(new CustomEvent('accounting_database_updated', { 
+        detail: { entity, op: effectiveOp, item, items } 
+      }));
+
       // 2. Direct Real-Time Firebase Firestore Persistence (Smart Incremental Delta)
       if (!isLocalOnlyMode) {
         listToSave.forEach(it => {
