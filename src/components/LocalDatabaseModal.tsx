@@ -96,7 +96,8 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
   const runDriveBackupSnapshot = async (token: string, isAuto: boolean = false) => {
     setIsUploadingToDrive(true);
     try {
-      const dbExport = exportLocalDatabaseJSON();
+      const exportRes = await exportLocalDatabaseJSON();
+      const dbExport = exportRes?.data || exportRes;
       const payload = {
         timestamp: new Date().toISOString(),
         backupType: isAuto ? '30-Minute-Automated-Periodic' : 'Manual-Instant',

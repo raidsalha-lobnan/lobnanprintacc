@@ -43,9 +43,12 @@ export const InvoicesReviewModal: React.FC<InvoicesReviewModalProps> = ({
   }, []);
 
   const allInvoicesAndDrafts = useMemo(() => {
-    const drafts = getAllStoredDraftsAsInvoices();
-    return [...drafts, ...invoices];
-  }, [invoices, isOpen, draftsVersion]);
+    if (filterPayment === 'draft') {
+      const drafts = getAllStoredDraftsAsInvoices();
+      return drafts;
+    }
+    return invoices;
+  }, [invoices, isOpen, draftsVersion, filterPayment]);
 
   if (!isOpen) return null;
 

@@ -2128,7 +2128,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const listToSave: any[] = items || (item ? [item] : []);
       const effectiveOp = (op === 'delete' || listToSave.some(i => i && typeof i === 'object' && (i._deleted || i.deletedAt))) ? 'delete' : 'upsert';
 
-      // 1. Instant local BroadcastChannel notification for all open tabs in same browser
+      // 1. Instant local BroadcastChannel notification for all open tabs in same browser + local DOM CustomEvent
+      try {
+        window.dispatchEvent(new CustomEvent('accounting_state_mutated', { detail: { entity, op: effectiveOp, item, items } }));
+      } catch {}
+
       if (syncChannelRef.current) {
         try {
           syncChannelRef.current.postMessage({
@@ -10204,7 +10208,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const exportDataJSON = async (): Promise<{ success: boolean; filename: string; totalRecords: number; message: string }> => {
+  const exportDataJSON = async (): Promise<{ success: boolean; filename: string; totalRecords: number; message: string; data?: any }> => {
     // 1. Authoritative Snapshot: Exactly 100% of what is currently on screen & active in the system
     const cleanInvoices = Array.isArray(invoices) ? invoices : [];
     const cleanParties = Array.isArray(parties) ? parties : [];
@@ -10261,21 +10265,19 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       users: cleanUsers
     };
 
-    // 2. Sync to Firebase Firestore so Cloud Database matches the Screen 100%
-    try {
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        await pushFullDatabaseToFirestore(fullSnapshot);
-        try {
-          await setDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'), {
+    // 2. Non-blocking background sync to Firebase Firestore so Cloud Database aligns without delaying local file download
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      pushFullDatabaseToFirestore(fullSnapshot)
+        .then(() => {
+          setDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'), {
             sheets: cleanDailyEntrySheets,
             updatedAt: new Date().toISOString()
-          });
-        } catch {}
-        // Clean out any orphaned documents in individual collections asynchronously
-        purgeObsoleteFirestoreCollections(fullSnapshot).catch(() => {});
-      }
-    } catch (fsSyncErr) {
-      console.warn('Firebase alignment during backup notice:', fsSyncErr);
+          }).catch(() => {});
+          purgeObsoleteFirestoreCollections(fullSnapshot).catch(() => {});
+        })
+        .catch(fsSyncErr => {
+          console.warn('Firebase background alignment during backup notice:', fsSyncErr);
+        });
     }
 
     // 3. Calculate total records matching exactly what is active on the screen
@@ -10362,38 +10364,52 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       dailyEntrySheets: cleanDailyEntrySheets
     };
 
-    const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const nowIso = new Date().toISOString();
-    const datePart = nowIso.split('T')[0];
-    const timePart = nowIso.split('T')[1].replace(/[:.]/g, '-').slice(0, 8);
-    const filename = `نسخة_احتياطية_كاملة_فيربيس_لبنان_${datePart}_${timePart}.json`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-
-    const backupRecord = {
-      timestamp: nowIso,
-      filename,
-      totalRecords
-    };
-    setLastBackupInfo(backupRecord);
     try {
-      localStorage.setItem(`${STORAGE_KEY}_last_backup_info`, JSON.stringify(backupRecord));
-    } catch (e) {
-      console.warn('Could not save last_backup_info to localStorage', e);
-    }
+      const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const nowIso = new Date().toISOString();
+      const datePart = nowIso.split('T')[0];
+      const timePart = nowIso.split('T')[1].replace(/[:.]/g, '-').slice(0, 8);
+      const filename = `نسخة_احتياطية_كاملة_فيربيس_لبنان_${datePart}_${timePart}.json`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
 
-    return {
-      success: true,
-      filename,
-      totalRecords,
-      message: `تم إنشاء وتحميل نسخة احتياطية كاملة 100% مطابقة للشاشة وفيربيس (${totalRecords} سجل) بنجاح!`
-    };
+      const backupRecord = {
+        timestamp: nowIso,
+        filename,
+        totalRecords
+      };
+      setLastBackupInfo(backupRecord);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_last_backup_info`, JSON.stringify(backupRecord));
+      } catch (e) {
+        console.warn('Could not save last_backup_info to localStorage', e);
+      }
+
+      return {
+        success: true,
+        filename,
+        totalRecords,
+        data: fullBackup,
+        message: `تم إنشاء وتحميل نسخة احتياطية كاملة 100% مطابقة للشاشة وفيربيس (${totalRecords} سجل) بنجاح!`
+      };
+    } catch (exportErr: any) {
+      console.error('Error generating JSON backup blob:', exportErr);
+      return {
+        success: false,
+        filename: '',
+        totalRecords,
+        data: fullBackup,
+        message: 'حدث خطأ أثناء تصدير الملف: ' + (exportErr?.message || 'خطأ غير معروف')
+      };
+    }
   };
 
   const performDatabaseZeroing = (options: DatabaseZeroingOptions): ZeroingExecutionResult => {
