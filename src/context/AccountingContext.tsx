@@ -2619,40 +2619,49 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
             const mergeAndSet = <T extends { id?: string }>(
               entityName: string,
-              localState: T[],
               setter: React.Dispatch<React.SetStateAction<T[]>>,
               storageKeySuffix: string
             ) => {
               if (sJson.data[entityName]?.items) {
-                const { merged } = mergeEntitiesWithDeltaSync(entityName, localState, sJson.data[entityName].items, delSet);
-                setter(merged);
-                try { localStorage.setItem(`${STORAGE_KEY}_${storageKeySuffix}`, JSON.stringify(merged)); } catch {}
+                setter(prev => {
+                  const { merged } = mergeEntitiesWithDeltaSync(entityName, prev || [], sJson.data[entityName].items, delSet);
+                  try { localStorage.setItem(`${STORAGE_KEY}_${storageKeySuffix}`, JSON.stringify(merged)); } catch {}
+                  return merged;
+                });
               }
             };
 
-            mergeAndSet('invoices', invoices, setInvoices, 'invoices');
-            mergeAndSet('parties', parties, setParties, 'parties');
-            mergeAndSet('inventory', inventory, setInventory, 'inventory');
-            mergeAndSet('vouchers', vouchers, setVouchers, 'vouchers');
-            mergeAndSet('printOrders', printOrders, setPrintOrders, 'printOrders');
-            mergeAndSet('purchases', purchases, setPurchases, 'purchases');
-            mergeAndSet('journalEntries', journalEntries, setJournalEntries, 'journals');
-            mergeAndSet('expenses', expenses, setExpenses, 'expenses');
-            mergeAndSet('accounts', accounts, setAccounts, 'accounts');
-            mergeAndSet('treasuries', treasuries, setTreasuries, 'treasuries');
-            mergeAndSet('stockMovements', stockMovements, setStockMovements, 'stockMovements');
-            mergeAndSet('employees', employees, setEmployees, 'employees');
-            mergeAndSet('employeeAdvances', employeeAdvances, setEmployeeAdvances, 'advances');
-            mergeAndSet('employeeDeductions', employeeDeductions, setEmployeeDeductions, 'deductions');
-            mergeAndSet('employeeIncentives', employeeIncentives, setEmployeeIncentives, 'incentives');
-            mergeAndSet('payrollSheets', payrollSheets, setPayrollSheets, 'payrollSheets');
-            mergeAndSet('companies', companies, setCompanies, 'companies');
-            mergeAndSet('branches', branches, setBranches, 'branches');
-            mergeAndSet('warehouses', warehouses, setWarehouses, 'warehouses');
-            mergeAndSet('warehouseOperations', warehouseOperations, setWarehouseOperations, 'warehouse_operations');
-            mergeAndSet('roles', roles, setRoles, 'roles');
-            mergeAndSet('users', users, setUsers, 'users');
-            mergeAndSet('debtClearings', debtClearings, setDebtClearings, 'debt_clearings');
+            if (sJson.data.invoices?.items) {
+              setInvoices(prev => {
+                const merged = mergeInvoicesWithUpsertAndConflictResolution(prev || [], sJson.data.invoices.items);
+                try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
+                return merged;
+              });
+            } else {
+              mergeAndSet('invoices', setInvoices, 'invoices');
+            }
+            mergeAndSet('parties', setParties, 'parties');
+            mergeAndSet('inventory', setInventory, 'inventory');
+            mergeAndSet('vouchers', setVouchers, 'vouchers');
+            mergeAndSet('printOrders', setPrintOrders, 'printOrders');
+            mergeAndSet('purchases', setPurchases, 'purchases');
+            mergeAndSet('journalEntries', setJournalEntries, 'journals');
+            mergeAndSet('expenses', setExpenses, 'expenses');
+            mergeAndSet('accounts', setAccounts, 'accounts');
+            mergeAndSet('treasuries', setTreasuries, 'treasuries');
+            mergeAndSet('stockMovements', setStockMovements, 'stockMovements');
+            mergeAndSet('employees', setEmployees, 'employees');
+            mergeAndSet('employeeAdvances', setEmployeeAdvances, 'advances');
+            mergeAndSet('employeeDeductions', setEmployeeDeductions, 'deductions');
+            mergeAndSet('employeeIncentives', setEmployeeIncentives, 'incentives');
+            mergeAndSet('payrollSheets', setPayrollSheets, 'payrollSheets');
+            mergeAndSet('companies', setCompanies, 'companies');
+            mergeAndSet('branches', setBranches, 'branches');
+            mergeAndSet('warehouses', setWarehouses, 'warehouses');
+            mergeAndSet('warehouseOperations', setWarehouseOperations, 'warehouse_operations');
+            mergeAndSet('roles', setRoles, 'roles');
+            mergeAndSet('users', setUsers, 'users');
+            mergeAndSet('debtClearings', setDebtClearings, 'debt_clearings');
             if (sJson.data.settings?.items?.[0] || sJson.data.settings?.global) {
               const cloudSet = sJson.data.settings.global || sJson.data.settings.items[0];
               if (cloudSet) {
@@ -3161,17 +3170,83 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return { success: true, localOnly: true };
     }
 
-    if (Array.isArray(json.data?.invoices?.items)) { setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], json.data.invoices.items)); }
-    if (Array.isArray(json.data?.parties?.items)) { setParties(prev => mergeEntityLists(prev || [], json.data.parties.items)); }
-    if (Array.isArray(json.data?.inventory?.items)) { setInventory(prev => mergeEntityLists(prev || [], json.data.inventory.items)); }
-    if (Array.isArray(json.data?.vouchers?.items)) { setVouchers(prev => mergeEntityLists(prev || [], json.data.vouchers.items)); }
-    if (Array.isArray(json.data?.printOrders?.items)) { setPrintOrders(prev => mergeEntityLists(prev || [], json.data.printOrders.items)); }
-    if (Array.isArray(json.data?.purchases?.items)) { setPurchases(prev => mergeEntityLists(prev || [], json.data.purchases.items)); }
-    if (Array.isArray(json.data?.accounts?.items)) { setAccounts(prev => mergeEntityLists(prev || [], json.data.accounts.items)); }
-    if (Array.isArray(json.data?.treasuries?.items)) { setTreasuries(prev => mergeEntityLists(prev || [], json.data.treasuries.items)); }
-    if (Array.isArray(json.data?.employees?.items)) { setEmployees(prev => mergeEntityLists(prev || [], json.data.employees.items)); }
-    if (Array.isArray(json.data?.journalEntries?.items)) { setJournalEntries(prev => mergeEntityLists(prev || [], json.data.journalEntries.items)); }
-    if (Array.isArray(json.data?.expenses?.items)) { setExpenses(prev => mergeEntityLists(prev || [], json.data.expenses.items)); }
+    if (Array.isArray(json.data?.invoices?.items)) {
+      setInvoices(prev => {
+        const next = mergeInvoicesWithUpsertAndConflictResolution(prev || [], json.data.invoices.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.parties?.items)) {
+      setParties(prev => {
+        const next = mergeEntityLists(prev || [], json.data.parties.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.inventory?.items)) {
+      setInventory(prev => {
+        const next = mergeEntityLists(prev || [], json.data.inventory.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.vouchers?.items)) {
+      setVouchers(prev => {
+        const next = mergeEntityLists(prev || [], json.data.vouchers.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.printOrders?.items)) {
+      setPrintOrders(prev => {
+        const next = mergeEntityLists(prev || [], json.data.printOrders.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.purchases?.items)) {
+      setPurchases(prev => {
+        const next = mergeEntityLists(prev || [], json.data.purchases.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.accounts?.items)) {
+      setAccounts(prev => {
+        const next = mergeEntityLists(prev || [], json.data.accounts.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.treasuries?.items)) {
+      setTreasuries(prev => {
+        const next = mergeEntityLists(prev || [], json.data.treasuries.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.employees?.items)) {
+      setEmployees(prev => {
+        const next = mergeEntityLists(prev || [], json.data.employees.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.journalEntries?.items)) {
+      setJournalEntries(prev => {
+        const next = mergeEntityLists(prev || [], json.data.journalEntries.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+    if (Array.isArray(json.data?.expenses?.items)) {
+      setExpenses(prev => {
+        const next = mergeEntityLists(prev || [], json.data.expenses.items);
+        try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
 
     syncAuditService.clearConnectionIssues();
     syncAuditService.resolveAllPendingLogs();
