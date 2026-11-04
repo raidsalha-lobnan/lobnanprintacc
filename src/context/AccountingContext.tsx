@@ -8215,15 +8215,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     // Direct immediate cloud save for multi-user synchronization
-    if (!isFirestoreQuotaExceeded() && !isLocalOnlyMode) {
-      setDoc(doc(db, 'invoices', newInvoice.id), cleanDocForFirestore(newInvoice)).catch(err => {
-        if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-          markQuotaExceeded();
-        } else {
-          console.warn('Direct cloud save invoice notice:', err);
-        }
-      });
-    }
+    pushToServerSync('invoices', newInvoice);
 
     // Telegram Notification - Send: Name, Item(s), Amount, Payment Box (صندوق الدفع)
     try {
