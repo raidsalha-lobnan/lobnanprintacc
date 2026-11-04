@@ -50,35 +50,35 @@ export const initialEmployeeIncentives: EmployeeIncentive[] = Array.isArray(snap
 export const initialPayrollSheets: PayrollSheet[] = Array.isArray(snap.payrollSheets) ? snap.payrollSheets : [];
 const rawSnapTreasuries: Treasury[] = Array.isArray(snap.treasuries) ? snap.treasuries : [];
 
-export const initialTreasuries: Treasury[] = [
+export const initialTreasuries: Treasury[] = rawSnapTreasuries.length > 0 ? rawSnapTreasuries : [
   {
     id: 'treasury-cash-main',
     name: 'الصندوق النقدي الرئيسي (الكاشير)',
     type: 'cash_box',
-    balance: 800,
+    balance: 0,
     accountCode: 'CASH-1101',
     isDefault: true,
     status: 'active',
     currency: 'ILS',
     currencySymbol: '₪',
     createdAt: '2024-01-01',
-    transactions: rawSnapTreasuries.find(t => t.accountCode === '1101' || t.accountCode === 'CASH-1101' || t.id === 'treasury-cash-main')?.transactions || []
+    transactions: []
   },
   {
-    id: 'treasury-1791395958513',
-    name: 'طلة لبنان - محفظة جوال باي',
-    type: 'digital_wallet',
-    balance: 165,
+    id: 'treasury-1790639512764',
+    name: 'بنك فلسطين - ماهر صالحة 0599992615',
+    type: 'bank_account',
+    balance: 4044,
     accountCode: 'CASH-1102',
     status: 'active',
     currency: 'ILS',
     currencySymbol: '₪',
     createdAt: '2024-01-01',
-    transactions: rawSnapTreasuries.find(t => t.accountCode === '1103' || t.accountCode === 'CASH-1102' || t.id === 'treasury-1791395958513')?.transactions || []
+    transactions: []
   },
   {
-    id: 'treasury-1791324119020',
-    name: 'محفظة بال باي - PalPay',
+    id: 'treasury-1791395958513',
+    name: 'طلة لبنان - محفظة جوال باي',
     type: 'digital_wallet',
     balance: 0,
     accountCode: 'CASH-1103',
@@ -86,19 +86,19 @@ export const initialTreasuries: Treasury[] = [
     currency: 'ILS',
     currencySymbol: '₪',
     createdAt: '2024-01-01',
-    transactions: rawSnapTreasuries.find(t => t.accountCode === '1104' || t.accountCode === 'CASH-1103' || t.id === 'treasury-1791324119020')?.transactions || []
+    transactions: []
   },
   {
-    id: 'treasury-1790639512764',
-    name: 'بنك فلسطين - ماهر صالحة 0599992615',
-    type: 'bank_account',
-    balance: 2112,
+    id: 'treasury-1791324119020',
+    name: 'محفظة بال باي - PalPay',
+    type: 'digital_wallet',
+    balance: 0,
     accountCode: 'CASH-1104',
     status: 'active',
     currency: 'ILS',
     currencySymbol: '₪',
     createdAt: '2024-01-01',
-    transactions: rawSnapTreasuries.find(t => t.accountCode === '1105' || t.accountCode === 'CASH-1104' || t.id === 'treasury-1790639512764')?.transactions || []
+    transactions: []
   },
   {
     id: 'treasury-1791395958599-1107',

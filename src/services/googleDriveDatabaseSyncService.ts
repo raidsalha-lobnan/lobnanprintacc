@@ -257,7 +257,7 @@ export function mergeEntityLists(localList: any[], remoteList: any[], customDelS
         const tExist = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
         const tRemote = new Date(item.updatedAt || item.createdAt || 0).getTime();
 
-        const localWins = tExist >= tRemote || Boolean((existing as any)._unsyncedLocal);
+        const localWins = tExist > tRemote || Boolean((existing as any)._unsyncedLocal);
         const primary = localWins ? existing : item;
         const secondary = localWins ? item : existing;
 
