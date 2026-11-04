@@ -727,15 +727,6 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
   // 1. Load server items
   for (const sItem of safeServerItems) {
     if (delSet.has(`${entityName}_${sItem.id}`)) continue;
-
-    // Discard any server item NOT present in local state if it was created prior to a full database import
-    if (importCutoffTs > 0 && !localKeys.has(String(sItem.id))) {
-      const sTime = getEntityRecordTimestamp(sItem);
-      if (sTime > 0 && sTime < importCutoffTs) {
-        continue;
-      }
-    }
-
     map.set(String(sItem.id), sItem);
   }
 
