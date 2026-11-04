@@ -145,14 +145,16 @@ export const onlineInvoicePostingService = {
         // 3. Stage the invoice locally for crash resilience during transfer
         onlineInvoicePostingService.stageInvoiceDraft(invoice);
 
-        // 4. Fetch authoritative cloud invoices list to guarantee sequential non-colliding numbers
+        // 4. Fetch authoritative cloud invoices list with a 2-second timeout to prevent lagging
         const docRef = doc(db, DB_COLLECTION, 'invoices');
         let cloudInvoices: Invoice[] = [];
 
         if (!isFirestoreQuotaExceeded()) {
           try {
-            const snap = await getDoc(docRef);
-            if (snap.exists()) {
+            const fetchPromise = getDoc(docRef);
+            const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
+            const snap = await Promise.race([fetchPromise, timeoutPromise]);
+            if (snap && 'exists' in snap && snap.exists()) {
               const data = snap.data();
               if (data && Array.isArray(data.items)) {
                 cloudInvoices = data.items;

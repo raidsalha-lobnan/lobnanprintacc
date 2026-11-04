@@ -2533,9 +2533,8 @@ const getInitialPosDraft = (): PosFullDraftData => {
       return;
     }
 
-    // 4. قفل التتابع لمنع حفظ أي فاتورة قبل إتمام الفاتورة السابقة: "ولا تحفظ أي فاتورة قبل ترحيل الفاتورة السابقة"
-    if (onlineInvoicePostingService.isPostingBusy() || isPostingCloudInvoice) {
-      alert('جاري ترحيل فاتورة سابقة حالياً بالتتابع إلى السيرفر... يرجى الانتظار ثوانٍ معدودة لإتمام الترحيل أولاً بأول.');
+    // 4. قفل التتابع السريع: منع الضغط المزدوج أثناء إنشاء الفاتورة
+    if (isPostingCloudInvoice) {
       return;
     }
 
@@ -3530,15 +3529,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
         </div>
       )}
 
-      {/* ⏳ شريط الترحيل السحابي المباشر بالتتابع (Sequential In-Flight Lock) */}
-      {isPostingCloudInvoice && (
-        <div className="bg-blue-600 text-white px-4 py-1.5 shadow-md flex items-center justify-between z-50 border-b border-blue-400">
-          <div className="flex items-center gap-2 font-bold text-xs">
-            <span className="inline-block animate-spin">⏳</span>
-            <span>جاري ترحيل الفاتورة بالتتابع أولاً بأول إلى السيرفر... يرجى الانتظار</span>
-          </div>
-        </div>
-      )}
+
 
       {/* ========================================================= */}
       {/* 1. TOP TOOLBAR (شريط الأدوات العلوي) */}
