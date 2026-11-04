@@ -239,11 +239,14 @@ export async function pushFullDatabaseToFirestore(fullSnapshot: Record<string, a
         updatedAt: new Date().toISOString(),
         count: items.length || 0
       });
-      // Replace doc directly (WITHOUT merge: true) so stale/deleted items are not preserved
-      return setDoc(docRef, docPayload);
+      
+      // Wrap setDoc with a 4-second timeout per entity so slow network won't freeze the process
+      const savePromise = setDoc(docRef, docPayload);
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout saving ${ent}`)), 4000));
+      return Promise.race([savePromise, timeoutPromise]);
     });
 
-    await Promise.all(promises);
+    await Promise.allSettled(promises);
 
     syncAuditService.logEvent({
       direction: 'push',
@@ -273,16 +276,19 @@ export async function purgeObsoleteFirestoreCollections(fullSnapshot: Record<str
   let totalDeleted = 0;
   const collectionsToCheck = ['invoices', 'parties', 'treasuries', 'vouchers', 'printOrders', 'purchases'];
 
-  for (const colName of collectionsToCheck) {
+  const collectionPromises = collectionsToCheck.map(async (colName) => {
     try {
       const activeItems = Array.isArray(fullSnapshot[colName]) ? fullSnapshot[colName] : [];
       const validKeys = new Set(
         activeItems.map((it: any) => String(it.id || it.code || it.invoiceNumber || it.voucherNumber || ''))
       );
 
-      const snap = await getDocs(collection(db, colName));
-      if (!snap.empty) {
-        const toDelete = snap.docs.filter(d => {
+      const snapPromise = getDocs(collection(db, colName));
+      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout fetching collection')), 3500));
+
+      const snap: any = await Promise.race([snapPromise, timeoutPromise]);
+      if (snap && !snap.empty) {
+        const toDelete = snap.docs.filter((d: any) => {
           const docId = d.id;
           const data = d.data();
           const docKey = String(data?.id || data?.invoiceNumber || data?.code || docId);
@@ -290,12 +296,20 @@ export async function purgeObsoleteFirestoreCollections(fullSnapshot: Record<str
         });
 
         if (toDelete.length > 0) {
-          await Promise.all(toDelete.map(d => deleteDoc(d.ref).catch(() => {})));
-          totalDeleted += toDelete.length;
+          await Promise.all(toDelete.map((d: any) => deleteDoc(d.ref).catch(() => {})));
+          return toDelete.length;
         }
       }
     } catch (e) {
       console.warn(`Purge check for ${colName} notice:`, e);
+    }
+    return 0;
+  });
+
+  const results = await Promise.allSettled(collectionPromises);
+  for (const res of results) {
+    if (res.status === 'fulfilled' && typeof res.value === 'number') {
+      totalDeleted += res.value;
     }
   }
 

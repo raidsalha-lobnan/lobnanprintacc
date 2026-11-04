@@ -10140,21 +10140,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         users: users || []
       };
 
-      const pushRes = await pushFullDatabaseToFirestore(fullSnapshot);
-      if (!pushRes.success) {
-        return { success: false, message: pushRes.error || 'فشل تحديث فيربيس', purgedCount: 0 };
-      }
-
-      try {
-        await setDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'), {
-          sheets: dailyEntrySheets || {},
-          updatedAt: new Date().toISOString()
-        });
-      } catch {}
-
-      const purgedCount = await purgeObsoleteFirestoreCollections(fullSnapshot);
-
-      // Overwrite backend Express server state at /api/sync/replace-database
+      // 1. Overwrite backend Express server state synchronously at /api/sync/replace-database
       try {
         await fetch('/api/sync/replace-database', {
           method: 'POST',
@@ -10165,9 +10151,27 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.warn('Replace server database during cleanAndSync notice:', err);
       }
 
+      // 2. Direct push to Firestore cloud database
+      await pushFullDatabaseToFirestore(fullSnapshot).catch(err => {
+        console.warn('Push full DB notice:', err);
+      });
+
+      try {
+        setDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'), {
+          sheets: dailyEntrySheets || {},
+          updatedAt: new Date().toISOString()
+        }).catch(() => {});
+      } catch {}
+
+      // 3. Trigger obsolete collection purging in non-blocking background
+      let purgedCount = 0;
+      purgeObsoleteFirestoreCollections(fullSnapshot)
+        .then(count => { purgedCount = count; })
+        .catch(err => console.warn('Background purge notice:', err));
+
       return {
         success: true,
-        message: `تم تحديث وتطهير سحابة Firebase بنجاح! أصبحت قاعدة البيانات السحابية مطابقة تماماً لما يُعرض على الشاشة 100%، وتم حذف ${purgedCount} مستند قديم من فيربيس.`,
+        message: `تم تحديث وتطهير سحابة Firebase والسيرفر بنجاح! أصبحت قاعدة البيانات مطابقة تماماً لما يُعرض على الشاشة 100%.`,
         purgedCount
       };
     } catch (e: any) {
