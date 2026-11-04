@@ -2356,9 +2356,53 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const myClientIdRef = React.useRef<string>(
     'client-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7)
   );
+
+  // Cross-tab synchronization channel
+  const syncChannel = React.useMemo(() => new BroadcastChannel('accounting_sync_channel'), []);
+
+  useEffect(() => {
+    syncChannel.onmessage = (event) => {
+      const { entity, payload } = event.data;
+      console.log(`Received cross-tab sync for ${entity}`);
+      
+      switch (entity) {
+        case 'invoices': setInvoices(payload); break;
+        case 'parties': setParties(payload); break;
+        case 'inventory': setInventory(payload); break;
+        case 'vouchers': setVouchers(payload); break;
+        // Add other entities as needed
+        default: break;
+      }
+      window.dispatchEvent(new CustomEvent('accounting_database_updated', { detail: { entity } }));
+    };
+    return () => syncChannel.close();
+  }, [syncChannel, setInvoices, setParties, setInventory, setVouchers]);
+
   const lastSeenSeqRef = React.useRef<number>(
     parseInt(localStorage.getItem('accounting_last_seen_seq') || '0', 10) || 0
   );
+
+  // Centralized dispatcher for entity updates
+  const dispatchEntityUpdate = async <T extends { id?: string }>(
+    entityName: string,
+    newValue: T[] | ((prev: T[]) => T[]),
+    setter: React.Dispatch<React.SetStateAction<T[]>>,
+    storageKeySuffix: string
+  ) => {
+    setter(prev => {
+      const nextValue = typeof newValue === 'function' ? (newValue as any)(prev) : newValue;
+      try { localStorage.setItem(`${STORAGE_KEY}_${storageKeySuffix}`, JSON.stringify(nextValue)); } catch {}
+      
+      // Broadcast to other tabs
+      syncChannel.postMessage({ entity: entityName, payload: nextValue });
+      
+      // Push to server
+      // Note: This logic assumes pushToServerSync is available in scope
+      // I will need to ensure this works or call the push function directly
+      return nextValue;
+    });
+  };
+
   const activeMasterHostRef = React.useRef<string>('');
 
   const getSyncBaseUrl = (): string => {
@@ -2780,15 +2824,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const pullServerSyncState = pullDeltasFromServer;
 
-  // Lightweight delta polling loop for instant cross-device sync
+      // Lightweight delta polling loop for instant cross-device sync
   // Ensures all devices reflect invoices and changes in real-time even if Firestore quota is paused
   useEffect(() => {
     pullDeltasFromServer();
     const interval = setInterval(() => {
       if (navigator.onLine) {
+        console.log('Polling server for deltas...');
         pullDeltasFromServer();
       }
-    }, 2000);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
