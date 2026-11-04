@@ -10154,6 +10154,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       const purgedCount = await purgeObsoleteFirestoreCollections(fullSnapshot);
 
+      // Overwrite backend Express server state at /api/sync/replace-database
+      try {
+        await fetch('/api/sync/replace-database', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: fullSnapshot })
+        });
+      } catch (err) {
+        console.warn('Replace server database during cleanAndSync notice:', err);
+      }
+
       return {
         success: true,
         message: `تم تحديث وتطهير سحابة Firebase بنجاح! أصبحت قاعدة البيانات السحابية مطابقة تماماً لما يُعرض على الشاشة 100%، وتم حذف ${purgedCount} مستند قديم من فيربيس.`,
