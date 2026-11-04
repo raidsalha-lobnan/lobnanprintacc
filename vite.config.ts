@@ -240,7 +240,38 @@ function syncHubPlugin() {
           }));
         }
 
+        if (pathname === '/api/sync/metadata') {
+          const epochPath = path.join(SYNC_DATA_DIR, 'sync_epoch.json');
+          const epoch = fs.existsSync(epochPath) ? JSON.parse(fs.readFileSync(epochPath, 'utf8')).epoch : 0;
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 200;
+          return res.end(JSON.stringify({ epoch }));
+        }
+
+        if (pathname === '/api/sync/hard-reset' && req.method === 'POST') {
+          try {
+            const syncDir = SYNC_DATA_DIR;
+            const epochPath = path.join(syncDir, 'sync_epoch.json');
+            if (fs.existsSync(syncDir)) {
+              const files = fs.readdirSync(syncDir);
+              for (const file of files) {
+                if (file !== 'sync_epoch.json') fs.unlinkSync(path.join(syncDir, file));
+              }
+            }
+            const currentEpoch = fs.existsSync(epochPath) ? JSON.parse(fs.readFileSync(epochPath, 'utf8')).epoch : 0;
+            fs.writeFileSync(epochPath, JSON.stringify({ epoch: currentEpoch + 1 }));
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, message: 'تم تصفير قاعدة البيانات السحابية بنجاح' }));
+          } catch (err: any) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({ error: 'فشل التصفير' }));
+          }
+        }
+
         if (pathname === '/api/sync/state') {
+
           const urlObj = new URL(rawUrl, 'http://localhost');
           const requestedEntitiesParam = urlObj.searchParams.get('entities');
           const requestedEntities = requestedEntitiesParam

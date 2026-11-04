@@ -600,27 +600,15 @@ app.use(express.static(distPath, {
   }
 }));
 
-// Get sync metadata
-app.get('/api/sync/metadata', (req, res) => {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const epochPath = path.join(__dirname, '.sync_data', 'sync_epoch.json');
-    const epoch = fs.existsSync(epochPath) ? JSON.parse(fs.readFileSync(epochPath, 'utf8')).epoch : 0;
-    res.json({ epoch });
-  } catch (err: any) {
-    res.json({ epoch: 0 });
-  }
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Application server running on http://0.0.0.0:${PORT}`);
 });
 
-// SPA fallback for all client routes
-app.get('*', (_req, res) => {
-  const indexPath = path.join(distPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(200).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>برنامج الأيهم</title></head><body>جاري تحميل التطبيق...</body></html>');
-  }
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+  });
 });
 
 

@@ -1585,12 +1585,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     const verifySyncIntegrity = async () => {
       try {
-        const res = await fetch('/api/sync/metadata');
+        const res = await fetch('/api/sync/metadata', { cache: 'no-cache' });
         const { epoch } = await res.json();
         const localEpoch = localStorage.getItem('accounting_sync_epoch');
         
+        console.log('Sync Check: Remote Epoch=', epoch, 'Local Epoch=', localEpoch);
+        
         if (localEpoch !== String(epoch)) {
-          console.log('Sync epoch mismatch, wiping local data...');
+          console.log('Sync epoch mismatch! Remote:', epoch, 'Local:', localEpoch, '. Wiping local data...');
           Object.keys(localStorage).forEach(key => {
             if (key.startsWith(STORAGE_KEY) || key.includes('accounting_') || key.includes('pos_')) {
               localStorage.removeItem(key);
