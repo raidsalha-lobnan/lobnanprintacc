@@ -610,6 +610,25 @@ app.get('*', (_req, res) => {
   }
 });
 
+// Hard reset: Wipe all sync data
+app.post('/api/sync/hard-reset', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const syncDir = path.join(__dirname, '.sync_data');
+    
+    if (fs.existsSync(syncDir)) {
+      const files = fs.readdirSync(syncDir);
+      for (const file of files) {
+        fs.unlinkSync(path.join(syncDir, file));
+      }
+    }
+    res.json({ success: true, message: 'تم تصفير قاعدة البيانات السحابية بنجاح' });
+  } catch (err: any) {
+    res.status(500).json({ error: 'فشل التصفير' });
+  }
+});
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Application server running on http://0.0.0.0:${PORT}`);
 });

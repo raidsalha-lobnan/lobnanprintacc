@@ -11716,40 +11716,20 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const resetAllData = () => {
-    if (window.confirm('هل أنت متأكد من إعادة ضبط البرنامج للبيانات الافتراضية؟ سيتم استرجاع السجلات الأصلية.')) {
-      setSettings(initialSettings);
-      setAccounts(initialAccounts);
-      setJournalEntries(initialJournalEntries);
-      setInventory(initialInventory);
-      setStockMovements(initialStockMovements);
-      setParties(initialParties);
-      setEmployees(initialEmployees);
-      setEmployeeAdvances(initialEmployeeAdvances);
-      setEmployeeDeductions(initialEmployeeDeductions);
-      setEmployeeIncentives(initialEmployeeIncentives);
-      setPayrollSheets(initialPayrollSheets);
-      setPrintOrders(initialPrintOrders);
-      setInvoices(initialInvoices);
-      setPurchases(initialPurchases);
-      setPurchaseReturns(initialPurchaseReturns);
-      setSalesReturns(initialSalesReturns);
-      setVouchers(initialVouchers);
-      setDebtClearings([]);
-      setExpenses(initialExpenses);
-      // Reset users and roles
-      setRoles(DEFAULT_ROLES);
-      setUsers(DEFAULT_SYSTEM_USERS);
-      const hashes = localStorage.getItem('accounting_synced_hashes');
-      localStorage.clear();
-      if (hashes) {
-        localStorage.setItem('accounting_synced_hashes', hashes);
-      }
-      setTimeout(() => {
-         if (syncToFirebaseRef.current) {
-            syncToFirebaseRef.current(true);
-         }
-      }, 500);
+  const resetAllData = async () => {
+    if (window.confirm('هذا سيقوم بتصفير شامل لقاعدة البيانات على السيرفر وعلى جهازك. هل أنت متأكد؟')) {
+      // 1. Call server to wipe sync data
+      await fetch('/api/sync/hard-reset', { method: 'POST' }).catch(console.error);
+
+      // 2. Clear all local storage keys
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(STORAGE_KEY) || key.includes('accounting_') || key.includes('pos_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // Reload to force fresh start
+      window.location.reload();
     }
   };
 
