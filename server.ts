@@ -223,34 +223,9 @@ function loadEntityData(entity: string): any[] {
     try {
       const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       if (Array.isArray(data)) existingData = data;
-    } catch {}
-  }
-
-  // Fallback / merge seed from public/master_drive_database_snapshot.json
-  const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
-  if (fs.existsSync(snapshotPath)) {
-    try {
-      const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-      if (snap && Array.isArray(snap[entity]) && snap[entity].length > 0) {
-        if (existingData.length === 0) {
-          existingData = snap[entity];
-          try { fs.writeFileSync(filePath, JSON.stringify(existingData), 'utf8'); } catch {}
-        } else {
-          // Merge snapshot items if any are missing in existingData
-          const itemMap = new Map<string, any>();
-          for (const it of snap[entity]) {
-            if (it && it.id) itemMap.set(String(it.id), it);
-          }
-          for (const it of existingData) {
-            if (it && it.id) {
-              const existing = itemMap.get(String(it.id));
-              itemMap.set(String(it.id), existing ? { ...existing, ...it } : it);
-            }
-          }
-          existingData = Array.from(itemMap.values());
-        }
-      }
-    } catch {}
+    } catch (err) {
+      console.warn(`Error reading ${filePath}:`, err);
+    }
   }
 
   existingData = existingData.filter(it => !isTestSyncProbeItem(it));
@@ -269,16 +244,6 @@ function saveEntityData(entity: string, data: any[]) {
   } catch (err) {
     console.error(`Failed to save sync entity ${entity}:`, err);
   }
-
-  // Also sync public/master_drive_database_snapshot.json
-  try {
-    const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
-    if (fs.existsSync(snapshotPath)) {
-      const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) || {};
-      snap[entity] = data;
-      fs.writeFileSync(snapshotPath, JSON.stringify(snap, null, 2), 'utf8');
-    }
-  } catch {}
 }
 
 const DELTAS_FILE = path.join(SYNC_DATA_DIR, 'deltas.json');
@@ -494,6 +459,12 @@ app.post('/api/sync/replace-database', (req, res) => {
     const initialDelta = { entity: 'all', op: 'replace_database', seq: newSeq, timestamp: Date.now() };
     try {
       fs.writeFileSync(DELTAS_FILE, JSON.stringify({ currentSeq: newSeq, deltas: [initialDelta] }), 'utf8');
+    } catch {}
+
+    // Overwrite master_drive_database_snapshot.json so any snapshot reads match the new database
+    try {
+      const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
+      fs.writeFileSync(snapshotPath, JSON.stringify(rawData, null, 2), 'utf8');
     } catch {}
 
     res.json({

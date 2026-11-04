@@ -1493,6 +1493,65 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
     window.addEventListener('storage', handleStorageEvent);
 
+    const handleDatabaseUpdated = () => {
+      try {
+        const inv = safeLoadArray(`${STORAGE_KEY}_invoices`, []);
+        const pty = safeLoadArray(`${STORAGE_KEY}_parties`, []);
+        const invt = safeLoadArray(`${STORAGE_KEY}_inventory`, []);
+        const acc = safeLoadArray(`${STORAGE_KEY}_accounts`, []);
+        const trs = safeLoadArray(`${STORAGE_KEY}_treasuries`, []);
+        const vch = safeLoadArray(`${STORAGE_KEY}_vouchers`, []);
+        const pur = safeLoadArray(`${STORAGE_KEY}_purchases`, []);
+        const pret = safeLoadArray(`${STORAGE_KEY}_purchaseReturns`, []);
+        const sret = safeLoadArray(`${STORAGE_KEY}_salesReturns`, []);
+        const je = safeLoadArray(`${STORAGE_KEY}_journals`, []);
+        const sm = safeLoadArray(`${STORAGE_KEY}_stockMovements`, []);
+        const exp = safeLoadArray(`${STORAGE_KEY}_expenses`, []);
+        const emp = safeLoadArray(`${STORAGE_KEY}_employees`, []);
+        const po = safeLoadArray(`${STORAGE_KEY}_printOrders`, []);
+        const dc = safeLoadArray(`${STORAGE_KEY}_debt_clearings`, []);
+        const adv = safeLoadArray(`${STORAGE_KEY}_advances`, []);
+        const ded = safeLoadArray(`${STORAGE_KEY}_deductions`, []);
+        const inc = safeLoadArray(`${STORAGE_KEY}_incentives`, []);
+        const pay = safeLoadArray(`${STORAGE_KEY}_payrollSheets`, []);
+        const wo = safeLoadArray(`${STORAGE_KEY}_warehouse_operations`, []);
+        const cmp = safeLoadArray(`${STORAGE_KEY}_companies`, []);
+        const br = safeLoadArray(`${STORAGE_KEY}_branches`, []);
+        const wh = safeLoadArray(`${STORAGE_KEY}_warehouses`, []);
+        const rl = safeLoadArray(`${STORAGE_KEY}_roles`, []);
+        const usr = safeLoadArray(`${STORAGE_KEY}_users`, []);
+
+        setInvoices(inv);
+        setParties(pty);
+        setInventory(invt);
+        setAccounts(acc);
+        setTreasuries(trs);
+        setVouchers(vch);
+        setPurchases(pur);
+        setPurchaseReturns(pret);
+        setSalesReturns(sret);
+        setJournalEntries(je);
+        setStockMovements(sm);
+        setExpenses(exp);
+        setEmployees(emp);
+        setPrintOrders(po);
+        setDebtClearings(dc);
+        setEmployeeAdvances(adv);
+        setEmployeeDeductions(ded);
+        setEmployeeIncentives(inc);
+        setPayrollSheets(pay);
+        setWarehouseOperations(wo);
+        setCompanies(cmp);
+        setBranches(br);
+        setWarehouses(wh);
+        setRoles(rl);
+        setUsers(usr);
+      } catch (err) {
+        console.warn('handleDatabaseUpdated reload notice:', err);
+      }
+    };
+    window.addEventListener('accounting_database_updated', handleDatabaseUpdated);
+
     const handleOnline = async () => {
       setIsOnline(true);
       resetQuotaExceeded();
@@ -1516,6 +1575,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.addEventListener('offline', handleOffline);
 
     return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('accounting_database_updated', handleDatabaseUpdated);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
       if (syncChannelRef.current) {
         try { syncChannelRef.current.close(); } catch {}
       }
@@ -2158,100 +2221,6 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [auth.currentUser?.email, users.length]);
 
-  // Auto-healing: Ensure any invoice that has journal entries (e.g. INV-0011) exists in the invoices list
-  useEffect(() => {
-    if (!journalEntries || journalEntries.length === 0) return;
-
-    // Map journal entries to invoice numbers
-    const invoiceJEsMap = new Map<string, JournalEntry[]>();
-    journalEntries.forEach(je => {
-      if (!je.description) return;
-      const match = je.description.match(/(?:فاتورة\s+مبيعات\s+رقم\s+|INV-)(\w+-\d+|\d+)/i) ||
-                    je.description.match(/INV-\d+/i);
-      if (match) {
-        let invNum = match[0];
-        if (!invNum.startsWith('INV-')) {
-          const numOnly = invNum.replace(/\D/g, '');
-          if (numOnly) {
-            invNum = `INV-${numOnly.padStart(4, '0')}`;
-          }
-        }
-        if (invNum) {
-          const numOnlyVal = parseInt(invNum.replace(/\D/g, ''), 10) || 0;
-          if (numOnlyVal >= 1 && numOnlyVal <= 29) {
-            const existing = invoiceJEsMap.get(invNum) || [];
-            invoiceJEsMap.set(invNum, [...existing, je]);
-          }
-        }
-      }
-    });
-
-    setInvoices(prevInvoices => {
-      const existingInvNums = new Set(prevInvoices.map(i => i.invoiceNumber));
-      const missingInvNums = Array.from(invoiceJEsMap.keys()).filter(num => !existingInvNums.has(num));
-
-      if (missingInvNums.length === 0) return prevInvoices;
-
-      const restored: Invoice[] = [];
-      missingInvNums.forEach(numStr => {
-        const jes = invoiceJEsMap.get(numStr) || [];
-        const mainJE = jes[0];
-        const numOnly = parseInt(numStr.replace(/\D/g, ''), 10) || 11;
-        const totalAmount = mainJE ? mainJE.lines.reduce((sum, e) => sum + (e.debit || 0), 0) : 0;
-
-        const recoveredInvoice: Invoice = {
-          id: `inv-${numOnly}-recovered`,
-          invoiceNumber: numStr,
-          date: mainJE?.date || new Date().toISOString().slice(0, 10),
-          type: 'pos',
-          customerName: 'زبون نقدي',
-          customerId: 'cust-cash',
-          subtotal: totalAmount || 0,
-          discountTotal: 0,
-          taxRate: 0,
-          taxAmount: 0,
-          totalAmount: totalAmount || 0,
-          paidAmount: totalAmount || 0,
-          remainingAmount: 0,
-          paymentMethod: 'cash',
-          status: 'delivered',
-          workflowStatus: 'delivered',
-          paymentStatus: 'paid_cash',
-          items: [
-            {
-              itemId: 'item-general',
-              itemCode: 'GEN-0001',
-              itemName: 'مبيعات بضائع ومطبوعات عامة',
-              quantity: 1,
-              unitPrice: totalAmount || 0,
-              discount: 0,
-              tax: 0,
-              total: totalAmount || 0,
-              unit: 'حبة'
-            }
-          ],
-          notes: 'تم استعادة الفاتورة آلياً بناءً على قيد اليومية والسجلات المالية الرسمية',
-          createdAt: mainJE?.createdAt || (mainJE?.date ? `${mainJE.date}T13:00:00.000Z` : new Date().toISOString()),
-          updatedAt: new Date().toISOString(),
-          branchId: 'br-1',
-          warehouse: 'wh-1'
-        };
-
-        restored.push(recoveredInvoice);
-      });
-
-      if (restored.length > 0) {
-        console.log('🔄 Auto-restored missing invoices from Journal Entries:', restored.map(r => r.invoiceNumber));
-        const updated = [...prevInvoices, ...restored];
-        try {
-          localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(updated));
-        } catch (e) {}
-        return updated;
-      }
-
-      return prevInvoices;
-    });
-  }, [journalEntries]);
 
   // Debt Clearings (المقاصة بين عميل ومورد)
   const [debtClearings, setDebtClearings] = useState<DebtClearingRecord[]>(() => {
@@ -5000,62 +4969,36 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const importMasterDatabaseSnapshot = async (): Promise<{ success: boolean; message: string }> => {
     try {
-      // 1. Fetch live server database state
-      let serverData: any = {};
-      try {
-        const sRes = await fetch('/api/sync/state');
-        if (sRes.ok) {
-          const sJson = await sRes.json();
-          if (sJson && sJson.data) serverData = sJson.data;
-        }
-      } catch (e) {}
+      // Fetch live server database state directly from the authoritative server sync store
+      const sRes = await fetch('/api/sync/state');
+      if (!sRes.ok) {
+        throw new Error('تعذر الاتصال بالسيرفر المركزي');
+      }
+      const sJson = await sRes.json();
+      if (!sJson || !sJson.data) {
+        throw new Error('بيانات السيرفر غير متوفرة حالياً');
+      }
+      const serverData = sJson.data;
 
-      // 2. Fetch master snapshot file
-      let snapshotData: any = {};
-      try {
-        let res = await fetch('/api/sync/master-snapshot');
-        if (!res.ok) {
-          res = await fetch('/master_drive_database_snapshot.json');
-        }
-        if (res.ok) {
-          const text = await res.text();
-          if (text && !text.trim().startsWith('<')) {
-            snapshotData = JSON.parse(text) || {};
-          }
-        }
-      } catch (e) {}
-
-      const mergeArray = (ent: string, localList: any[] = []): any[] => {
-        const serverList = (serverData[ent] && Array.isArray(serverData[ent].items)) ? serverData[ent].items : [];
-        const snapshotList = Array.isArray(snapshotData[ent]) ? snapshotData[ent] : [];
-        const map = new Map<string, any>();
-        for (const item of snapshotList) if (item && item.id) map.set(String(item.id), item);
-        for (const item of serverList) if (item && item.id) map.set(String(item.id), item);
-        for (const item of localList) {
-          if (item && item.id) {
-            const existing = map.get(String(item.id));
-            if (!existing || getEntityRecordTimestamp(item) >= getEntityRecordTimestamp(existing)) {
-              map.set(String(item.id), item);
-            }
-          }
-        }
-        return Array.from(map.values());
+      const getList = (ent: string): any[] => {
+        return (serverData[ent] && Array.isArray(serverData[ent].items)) ? serverData[ent].items : [];
       };
 
-      const finalInvoices = mergeInvoicesWithUpsertAndConflictResolution(
-        invoices || [],
-        mergeArray('invoices', invoices || [])
-      );
-      const finalParties = mergeArray('parties', parties || []);
-      const finalInventory = mergeArray('inventory', inventory || []);
-      const finalPrintOrders = mergeArray('printOrders', printOrders || []);
-      const finalVouchers = mergeArray('vouchers', vouchers || []);
-      const finalPurchases = mergeArray('purchases', purchases || []);
-      const finalAccounts = mergeArray('accounts', accounts || []);
-      const finalTreasuries = mergeArray('treasuries', treasuries || []);
-      const finalEmployees = mergeArray('employees', employees || []);
-      const finalBranches = mergeArray('branches', branches || []);
-      const finalWarehouses = mergeArray('warehouses', warehouses || []);
+      const finalInvoices = getList('invoices');
+      const finalParties = getList('parties');
+      const finalInventory = getList('inventory');
+      const finalPrintOrders = getList('printOrders');
+      const finalVouchers = getList('vouchers');
+      const finalPurchases = getList('purchases');
+      const finalPurchaseReturns = getList('purchaseReturns');
+      const finalSalesReturns = getList('salesReturns');
+      const finalAccounts = getList('accounts');
+      const finalTreasuries = getList('treasuries');
+      const finalEmployees = getList('employees');
+      const finalBranches = getList('branches');
+      const finalWarehouses = getList('warehouses');
+      const finalJournals = getList('journalEntries');
+      const finalExpenses = getList('expenses');
 
       if (finalInvoices.length > 0) {
         setInvoices(finalInvoices);
@@ -5081,6 +5024,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setPurchases(finalPurchases);
         localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(finalPurchases));
       }
+      if (finalPurchaseReturns.length > 0) {
+        setPurchaseReturns(finalPurchaseReturns);
+        localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(finalPurchaseReturns));
+      }
+      if (finalSalesReturns.length > 0) {
+        setSalesReturns(finalSalesReturns);
+        localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(finalSalesReturns));
+      }
       if (finalAccounts.length > 0) {
         setAccounts(finalAccounts);
         localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(finalAccounts));
@@ -5093,30 +5044,29 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setEmployees(finalEmployees);
         localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(finalEmployees));
       }
-      if (finalBranches.length > 0) {
-        setBranches(finalBranches);
-        localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(finalBranches));
+      if (finalJournals.length > 0) {
+        setJournalEntries(finalJournals);
+        localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(finalJournals));
       }
-      if (finalWarehouses.length > 0) {
-        setWarehouses(finalWarehouses);
-        localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(finalWarehouses));
-      }
-      if (snapshotData.settings && typeof snapshotData.settings === 'object') {
-        setSettings(snapshotData.settings);
-        localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(snapshotData.settings));
+      if (finalExpenses.length > 0) {
+        setExpenses(finalExpenses);
+        localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(finalExpenses));
       }
 
-      localStorage.setItem(`${STORAGE_KEY}_last_sync`, new Date().toISOString());
-      localStorage.removeItem(`${STORAGE_KEY}_has_unsynced`);
-      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+      window.dispatchEvent(new CustomEvent('accounting_database_updated'));
+      if (syncChannelRef.current) {
+        try {
+          syncChannelRef.current.postMessage({ type: 'DATABASE_IMPORTED', payload: { timestamp: Date.now() } });
+        } catch {}
+      }
 
       return {
         success: true,
-        message: `تم استيعاب واعتماد أحدث نسخة رئيسية بنجاح (${finalInvoices.length} فاتورة).`
+        message: `تم تحميل وتحديث البيانات الموحدة من السيرفر السحابي بنجاح (${finalInvoices.length} فاتورة، ${finalParties.length} حساب/عميل)`
       };
     } catch (err: any) {
       console.error('Failed to import master database snapshot:', err);
-      return { success: false, message: err?.message || 'فشل استيراد قاعدة البيانات' };
+      return { success: false, message: err?.message || 'فشل استيراد وتحديث قاعدة البيانات' };
     }
   };
 
@@ -10648,6 +10598,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       } catch {}
 
       // 5. Broadcast to all open screens & tabs to reload state atomically
+      window.dispatchEvent(new CustomEvent('accounting_database_updated'));
       if (syncChannelRef.current) {
         try {
           syncChannelRef.current.postMessage({
@@ -10734,20 +10685,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       users: cleanUsers
     };
 
-    // 2. Non-blocking background sync to Firebase Firestore so Cloud Database aligns without delaying local file download
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
-      pushFullDatabaseToFirestore(fullSnapshot)
-        .then(() => {
-          setDoc(doc(db, 'lobnan_accounting_db', 'dailyEntrySheets'), {
-            sheets: cleanDailyEntrySheets,
-            updatedAt: new Date().toISOString()
-          }).catch(() => {});
-          purgeObsoleteFirestoreCollections(fullSnapshot).catch(() => {});
-        })
-        .catch(fsSyncErr => {
-          console.warn('Firebase background alignment during backup notice:', fsSyncErr);
-        });
-    }
+    // 2. Pure local export to conserve Firebase Firestore quota completely
 
     // 3. Calculate total records matching exactly what is active on the screen
     const totalRecords =
@@ -11599,16 +11537,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         // Overwrite backend Express server state at /api/sync/replace-database so server polling stays 100% matched
         try {
-          fetch('/api/sync/replace-database', {
+          await fetch('/api/sync/replace-database', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data })
-          }).catch(err => {
-            console.warn('Replace server database route notice:', err);
           });
-        } catch (e) {}
+        } catch (e) {
+          console.warn('Replace server database route notice:', e);
+        }
 
-        // Broadcast cross-tab live notification
+        // Broadcast cross-tab and in-tab live notifications
+        window.dispatchEvent(new CustomEvent('accounting_database_updated'));
         if (syncChannelRef.current) {
           try {
             syncChannelRef.current.postMessage({

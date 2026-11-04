@@ -20,6 +20,7 @@ import {
   Clock,
   Trash2,
   Download,
+  Upload,
   ExternalLink,
   RefreshCw,
   ShieldCheck,
@@ -74,7 +75,40 @@ export const GoogleDriveBackupSettings: React.FC = () => {
   const [minutesUntilNext, setMinutesUntilNext] = useState<number>(60);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isExportingJson, setIsExportingJson] = useState<boolean>(false);
+  const [isImportingJson, setIsImportingJson] = useState<boolean>(false);
   const [isCleaningFirebase, setIsCleaningFirebase] = useState<boolean>(false);
+
+  const handleImportLocalFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const json = event.target?.result as string;
+        if (!json || !json.trim().startsWith('{')) {
+          alert('الملف المحدد ليس ملف نسخة احتياطية JSON صالح');
+          return;
+        }
+        if (window.confirm('هل تريد فعلاً استيراد واسترجاع قاعدة البيانات من هذا الملف وتعميمها وتحديث سحابة فيربيس وكافة الشاشات فوراً؟')) {
+          setIsImportingJson(true);
+          setStatusMessage({ text: 'جاري استيراد وتطبيق قاعدة البيانات وتحديث فيربيس وكافة الشاشات...', type: 'info' });
+          const success = await accounting.importDataJSON(json, true, true, false);
+          if (success) {
+            setStatusMessage({ text: 'تم استيراد وتعميم قاعدة البيانات بنجاح وتحديث كافة الشاشات والنسخة السحابية 100%!', type: 'success' });
+            alert('تم استيراد قاعدة البيانات وتحديث كافة الشاشات وسحابة فيربيس بنجاح!');
+          } else {
+            setStatusMessage({ text: 'فشل استيراد النسخة الاحتياطية. يرجى التأكد من ملف النسخة.', type: 'error' });
+          }
+          setIsImportingJson(false);
+        }
+      } catch (err: any) {
+        setStatusMessage({ text: 'حدث خطأ أثناء الاستيراد: ' + (err?.message || 'غير معروف'), type: 'error' });
+        setIsImportingJson(false);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   // Modals
   const [confirmRetentionModalOpen, setConfirmRetentionModalOpen] = useState<boolean>(false);
@@ -553,6 +587,13 @@ export const GoogleDriveBackupSettings: React.FC = () => {
             <Download className={`w-3.5 h-3.5 ${isExportingJson ? 'animate-spin' : ''}`} />
             <span>{isExportingJson ? 'جاري إنشاء النسخة المطابقة...' : 'تنزيل نسخة على الجهاز (مطابقة للشاشة 100%)'}</span>
           </button>
+
+          {/* Local Import JSON Button (Directly restore and sync) */}
+          <label className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer">
+            <Upload className={`w-3.5 h-3.5 ${isImportingJson ? 'animate-spin' : ''}`} />
+            <span>{isImportingJson ? 'جاري الاستيراد والتحديث...' : 'استيراد نسخة احتياطية من ملف (JSON)'}</span>
+            <input type="file" accept=".json" onChange={handleImportLocalFile} className="hidden" disabled={isImportingJson} />
+          </label>
 
           {/* Clean & Sync Firebase with Screen Button */}
           <button
