@@ -600,40 +600,6 @@ app.use(express.static(distPath, {
   }
 }));
 
-// SPA fallback for all client routes
-app.get('*', (_req, res) => {
-  const indexPath = path.join(distPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(200).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>برنامج الأيهم</title></head><body>جاري تحميل التطبيق...</body></html>');
-  }
-});
-
-// Hard reset: Wipe all sync data and reset sync epoch
-app.post('/api/sync/hard-reset', (req, res) => {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const syncDir = path.join(__dirname, '.sync_data');
-    const epochPath = path.join(syncDir, 'sync_epoch.json');
-    
-    if (fs.existsSync(syncDir)) {
-      const files = fs.readdirSync(syncDir);
-      for (const file of files) {
-        if (file !== 'sync_epoch.json') fs.unlinkSync(path.join(syncDir, file));
-      }
-    }
-
-    const currentEpoch = fs.existsSync(epochPath) ? JSON.parse(fs.readFileSync(epochPath, 'utf8')).epoch : 0;
-    fs.writeFileSync(epochPath, JSON.stringify({ epoch: currentEpoch + 1 }));
-    
-    res.json({ success: true, message: 'تم تصفير قاعدة البيانات السحابية بنجاح' });
-  } catch (err: any) {
-    res.status(500).json({ error: 'فشل التصفير' });
-  }
-});
-
 // Get sync metadata
 app.get('/api/sync/metadata', (req, res) => {
   try {
@@ -646,6 +612,17 @@ app.get('/api/sync/metadata', (req, res) => {
     res.json({ epoch: 0 });
   }
 });
+
+// SPA fallback for all client routes
+app.get('*', (_req, res) => {
+  const indexPath = path.join(distPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>برنامج الأيهم</title></head><body>جاري تحميل التطبيق...</body></html>');
+  }
+});
+
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Application server running on http://0.0.0.0:${PORT}`);
