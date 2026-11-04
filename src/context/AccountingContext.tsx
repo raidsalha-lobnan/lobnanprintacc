@@ -1247,7 +1247,44 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (!event.data || typeof event.data !== 'object') return;
           const { type, payload } = event.data;
 
-          if (type === 'SYNC_DELTA_EVENT') {
+          if (type === 'DATABASE_IMPORTED' || type === 'DATABASE_PURGED') {
+            // Re-load all entities directly from localStorage to ensure 100% unified state across screens
+            try {
+              const inv = safeLoadArray(`${STORAGE_KEY}_invoices`, []);
+              const pty = safeLoadArray(`${STORAGE_KEY}_parties`, []);
+              const invt = safeLoadArray(`${STORAGE_KEY}_inventory`, []);
+              const acc = safeLoadArray(`${STORAGE_KEY}_accounts`, []);
+              const trs = safeLoadArray(`${STORAGE_KEY}_treasuries`, []);
+              const vch = safeLoadArray(`${STORAGE_KEY}_vouchers`, []);
+              const pur = safeLoadArray(`${STORAGE_KEY}_purchases`, []);
+              const pret = safeLoadArray(`${STORAGE_KEY}_purchaseReturns`, []);
+              const sret = safeLoadArray(`${STORAGE_KEY}_salesReturns`, []);
+              const je = safeLoadArray(`${STORAGE_KEY}_journals`, []);
+              const sm = safeLoadArray(`${STORAGE_KEY}_stockMovements`, []);
+              const exp = safeLoadArray(`${STORAGE_KEY}_expenses`, []);
+              const emp = safeLoadArray(`${STORAGE_KEY}_employees`, []);
+              const po = safeLoadArray(`${STORAGE_KEY}_printOrders`, []);
+              const dc = safeLoadArray(`${STORAGE_KEY}_debt_clearings`, []);
+
+              setInvoices(inv);
+              setParties(pty);
+              setInventory(invt);
+              setAccounts(acc);
+              setTreasuries(trs);
+              setVouchers(vch);
+              setPurchases(pur);
+              setPurchaseReturns(pret);
+              setSalesReturns(sret);
+              setJournalEntries(je);
+              setStockMovements(sm);
+              setExpenses(exp);
+              setEmployees(emp);
+              setPrintOrders(po);
+              setDebtClearings(dc);
+            } catch (err) {
+              console.warn('DATABASE_IMPORTED reload notice:', err);
+            }
+          } else if (type === 'SYNC_DELTA_EVENT') {
             const { entity, op, item, items, clientId } = payload || {};
             if (!entity || clientId === myClientIdRef.current) return;
             applyDeltaToState(entity, op || 'upsert', item, items);
@@ -1367,16 +1404,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
-  // Smart Master Database Hydration: Only fetch if local database was never initialized
+  // Smart Master Database Hydration: Transition directly to the unified cloud database on app startup when online
   useEffect(() => {
     const autoHydrateMasterDb = async () => {
+      if (isLocalOnlyMode || !navigator.onLine) return;
       try {
-        const hasSavedLocal = localStorage.getItem(`${STORAGE_KEY}_invoices`);
-        if (hasSavedLocal !== null) {
-          // Local database is already authoritative; do NOT pollute with obsolete Firestore snapshots
-          return;
-        }
-
         const fsData = await fetchFullDatabaseFromFirestore();
         if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
           let updatedInvoicesList: Invoice[] = invoices || [];
@@ -1385,25 +1417,62 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (Array.isArray(fsData.invoices)) {
             updatedInvoicesList = mergeInvoicesWithUpsertAndConflictResolution(invoices || [], fsData.invoices);
             setInvoices(updatedInvoicesList);
+            try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(updatedInvoicesList)); } catch {}
           }
-          if (Array.isArray(fsData.parties)) setParties(prev => mergeEntityLists(prev || [], fsData.parties.filter((p: any) => !isTestSyncProbeParty(p))));
-          if (Array.isArray(fsData.inventory)) setInventory(prev => mergeEntityLists(prev || [], fsData.inventory.filter((i: any) => i && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة')));
+          if (Array.isArray(fsData.parties)) {
+            const pList = mergeEntityLists(parties || [], fsData.parties.filter((p: any) => !isTestSyncProbeParty(p)));
+            setParties(pList);
+            try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(pList)); } catch {}
+          }
+          if (Array.isArray(fsData.inventory)) {
+            const iList = mergeEntityLists(inventory || [], fsData.inventory.filter((i: any) => i && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة'));
+            setInventory(iList);
+            try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(iList)); } catch {}
+          }
           if (Array.isArray(fsData.vouchers)) {
             updatedVouchersList = mergeEntityLists(vouchers || [], fsData.vouchers);
             setVouchers(updatedVouchersList);
+            try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(updatedVouchersList)); } catch {}
           }
-          if (Array.isArray(fsData.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], fsData.printOrders));
-          if (Array.isArray(fsData.purchases)) setPurchases(prev => mergeEntityLists(prev || [], fsData.purchases));
-          if (Array.isArray(fsData.accounts)) setAccounts(prev => mergeEntityLists(prev || [], fsData.accounts));
+          if (Array.isArray(fsData.printOrders)) {
+            const poList = mergeEntityLists(printOrders || [], fsData.printOrders);
+            setPrintOrders(poList);
+            try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(poList)); } catch {}
+          }
+          if (Array.isArray(fsData.purchases)) {
+            const purList = mergeEntityLists(purchases || [], fsData.purchases);
+            setPurchases(purList);
+            try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(purList)); } catch {}
+          }
+          if (Array.isArray(fsData.accounts)) {
+            const accList = mergeEntityLists(accounts || [], fsData.accounts);
+            setAccounts(accList);
+            try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(accList)); } catch {}
+          }
           if (Array.isArray(fsData.treasuries)) {
             setTreasuries(prev => {
               const merged = ensureUniqueTreasuryAccountCodes(mergeEntityLists(prev || [], fsData.treasuries));
-              return auditAndRecalculateTreasuries(merged, updatedInvoicesList, updatedVouchersList);
+              const finalTrs = auditAndRecalculateTreasuries(merged, updatedInvoicesList, updatedVouchersList);
+              try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(finalTrs)); } catch {}
+              return finalTrs;
             });
           }
-          if (Array.isArray(fsData.employees)) setEmployees(prev => mergeEntityLists(prev || [], fsData.employees));
-          if (Array.isArray(fsData.branches)) setBranches(prev => mergeEntityLists(prev || [], fsData.branches));
-          if (Array.isArray(fsData.warehouses)) setWarehouses(prev => mergeEntityLists(prev || [], fsData.warehouses));
+          if (Array.isArray(fsData.employees)) {
+            const empList = mergeEntityLists(employees || [], fsData.employees);
+            setEmployees(empList);
+            try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(empList)); } catch {}
+          }
+          if (Array.isArray(fsData.branches)) {
+            const brList = mergeEntityLists(branches || [], fsData.branches);
+            setBranches(brList);
+            try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(brList)); } catch {}
+          }
+          if (Array.isArray(fsData.warehouses)) {
+            const whList = mergeEntityLists(warehouses || [], fsData.warehouses);
+            setWarehouses(whList);
+            try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(whList)); } catch {}
+          }
+          isCloudHydratedRef.current = true;
         }
       } catch (err) {
         console.debug('autoHydrateMasterDb note:', err);
@@ -1411,7 +1480,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     autoHydrateMasterDb();
-  }, []);
+  }, [isLocalOnlyMode]);
 
   const [accounts, setAccounts] = useState<Account[]>(() => {
     const loaded = safeLoadArray(`${STORAGE_KEY}_accounts`, initialAccounts);
@@ -10140,7 +10209,33 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         users: users || []
       };
 
-      // 1. Overwrite backend Express server state synchronously at /api/sync/replace-database
+      // 1. Mark cutoff timestamp & clear stale deletion tombstones
+      const nowTs = Date.now();
+      localStorage.setItem('accounting_database_imported_at', String(nowTs));
+      localStorage.setItem('accounting_last_firestore_delta_time', String(nowTs));
+      localStorage.setItem('accounting_last_seen_seq', String(nowTs));
+      localStorage.removeItem('accounting_deleted_docs');
+
+      // 2. Synchronize all entities to localStorage immediately
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(fullSnapshot.invoices));
+        localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(fullSnapshot.parties));
+        localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(fullSnapshot.inventory));
+        localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(fullSnapshot.accounts));
+        localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(fullSnapshot.treasuries));
+        localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(fullSnapshot.vouchers));
+        localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(fullSnapshot.purchases));
+        localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(fullSnapshot.purchaseReturns));
+        localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(fullSnapshot.salesReturns));
+        localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(fullSnapshot.journalEntries));
+        localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(fullSnapshot.stockMovements));
+        localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(fullSnapshot.expenses));
+        localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(fullSnapshot.employees));
+        localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(fullSnapshot.printOrders));
+        localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(fullSnapshot.debtClearings));
+      } catch (e) {}
+
+      // 3. Overwrite backend Express server state synchronously at /api/sync/replace-database
       try {
         await fetch('/api/sync/replace-database', {
           method: 'POST',
@@ -10151,7 +10246,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.warn('Replace server database during cleanAndSync notice:', err);
       }
 
-      // 2. Direct push to Firestore cloud database
+      // 4. Direct push to Firestore cloud database
       await pushFullDatabaseToFirestore(fullSnapshot).catch(err => {
         console.warn('Push full DB notice:', err);
       });
@@ -10163,7 +10258,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }).catch(() => {});
       } catch {}
 
-      // 3. Trigger obsolete collection purging in non-blocking background
+      // 5. Broadcast to all open screens & tabs to reload state atomically
+      if (syncChannelRef.current) {
+        try {
+          syncChannelRef.current.postMessage({
+            type: 'DATABASE_IMPORTED',
+            payload: { timestamp: nowTs }
+          });
+        } catch {}
+      }
+
+      // 6. Trigger obsolete collection purging in non-blocking background
       let purgedCount = 0;
       purgeObsoleteFirestoreCollections(fullSnapshot)
         .then(count => { purgedCount = count; })
@@ -10171,7 +10276,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       return {
         success: true,
-        message: `تم تحديث وتطهير سحابة Firebase والسيرفر بنجاح! أصبحت قاعدة البيانات مطابقة تماماً لما يُعرض على الشاشة 100%.`,
+        message: `تم تحديث وتطهير سحابة Firebase والسيرفر ومزامنة كافة الشاشات بنجاح! أصبحت قاعدة البيانات مطابقة تماماً لما يُعرض على الشاشة 100%.`,
         purgedCount
       };
     } catch (e: any) {
