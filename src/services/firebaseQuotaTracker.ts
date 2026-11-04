@@ -155,7 +155,7 @@ export const firebaseQuotaTracker = {
   verifyLiveQuotaStatus: async (): Promise<{ isBlocked: boolean; message: string; latencyMs?: number }> => {
     const startTime = Date.now();
     try {
-      const testDoc = doc(db, 'lobnan_accounting_db', 'settings');
+      const testDoc = doc(db, 'lobnan_accounting_db_v3', 'settings');
       await getDocFromServer(testDoc);
       const latencyMs = Date.now() - startTime;
       firebaseQuotaTracker.trackRead(1);

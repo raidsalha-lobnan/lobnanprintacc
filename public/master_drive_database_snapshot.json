@@ -361,7 +361,7 @@
       "id": "clr-1",
       "supplierName": "شركة الأهرام لتوريد الورق والكرتون",
       "customerOldBalance": 4200,
-      "date": "2026-10-08",
+      "date": "2026-11-01",
       "amount": 1500,
       "createdBy": "المدير المالي",
       "clearingNumber": "CLR-2026-001",
@@ -372,7 +372,7 @@
       "supplierNewBalance": -2300,
       "customerName": "مكتبة النجاح الأكاديمية",
       "notes": "تمت التسوية بموجب اتفاق مالي بين الطرفين لتخفيض الذمم المتبادلة دون مساس بالصناديق النقدية",
-      "createdAt": "2026-10-08T06:54:09.181Z",
+      "createdAt": "2026-11-01T19:55:30.799Z",
       "journalEntryId": "entry-clr-sample-1",
       "supplierId": "p-supp-1",
       "payments": [],
@@ -447,7 +447,7 @@
       "name": "أحمد عيسى",
       "jobTitle": "مصمم",
       "department": "design",
-      "updatedAt": "2026-11-04T15:17:31.976Z",
+      "updatedAt": "2026-11-04T21:37:26.634Z",
       "items": [],
       "payments": []
     },
@@ -469,7 +469,7 @@
       "jobTitle": "مصمم",
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.976Z"
+      "updatedAt": "2026-11-04T21:37:26.634Z"
     },
     {
       "id": "emp-1791142539355",
@@ -489,7 +489,7 @@
       "allowances": 0,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.976Z"
+      "updatedAt": "2026-11-04T21:37:26.634Z"
     },
     {
       "phone": "0599992615",
@@ -508,7 +508,7 @@
       "salaryType": "weekly",
       "allowances": 0,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.976Z",
+      "updatedAt": "2026-11-04T21:37:26.634Z",
       "items": []
     },
     {
@@ -527,7 +527,7 @@
       "allowances": 0,
       "salaryType": "weekly",
       "salaryAmount": 300,
-      "updatedAt": "2026-11-04T15:17:31.976Z",
+      "updatedAt": "2026-11-04T21:37:26.634Z",
       "payments": [],
       "items": []
     },
@@ -548,7 +548,7 @@
       "department": "finishing",
       "paymentMethod": "bank_transfer",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.976Z",
+      "updatedAt": "2026-11-04T21:37:26.634Z",
       "items": []
     },
     {
@@ -567,7 +567,7 @@
       "iban": "",
       "jobTitle": "مشرف عام",
       "id": "emp-1791142697668",
-      "updatedAt": "2026-11-04T15:17:31.976Z",
+      "updatedAt": "2026-11-04T21:37:26.634Z",
       "payments": [],
       "items": []
     },
@@ -588,7 +588,7 @@
       "code": "EMP-008",
       "phone": "+972 59-459-8881",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.976Z",
+      "updatedAt": "2026-11-04T21:37:26.634Z",
       "items": []
     }
   ],
@@ -1481,7 +1481,7 @@
       "cashPaidAmount": 0,
       "paymentMethod": "credit",
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0131",
+      "invoiceNumber": "INV-0001",
       "taxRate": 0,
       "type": "pos",
       "customerName": "الجمعية الإسلامية - مدينة بيت لاهيا",
@@ -1513,7 +1513,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "remainingAmount": 120,
       "totalAmount": 120,
-      "updatedAt": "2026-11-04T15:18:07.752Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "customCustomerText": null,
       "subCustomerPhone": null,
       "paymentNotes": "لبنى أبو شمالة",
@@ -1545,7 +1545,7 @@
       ],
       "subCustomerId": "pt-sub-1790461499785",
       "representative": "مندوب المبيعات الرئيسي",
-      "invoiceNumber": "INV-0130",
+      "invoiceNumber": "INV-0002",
       "date": "2026-10-02",
       "paidAmount": 0,
       "printJobId": "job-1791153424298",
@@ -1599,7 +1599,7 @@
       "paymentStatus": "credit",
       "branchId": "br-1",
       "status": "unpaid",
-      "updatedAt": "2026-11-04T15:18:07.752Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "subCustomerPhone": null,
       "paymentNotes": "مهند النواجحة",
       "_fromCloud": true
@@ -1673,13 +1673,13 @@
       "printJobId": "job-1790637682834",
       "paidAmount": 0,
       "branch": "الفرع الرئيسي  Main Branch",
-      "invoiceNumber": "INV-0129",
+      "invoiceNumber": "INV-0003",
       "userName": "مطبعة لبنان",
       "id": "inv-pos-1793626834210-2-rxin6",
       "cashPaidAmount": 0,
       "taxRate": 0,
       "customerName": "يحيى خضر",
-      "updatedAt": "2026-11-04T15:18:07.752Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "paymentNotes": null,
       "subCustomerId": null,
       "subCustomerPhone": null,
@@ -1760,7 +1760,7 @@
       "subtotal": 457,
       "taxRate": 0,
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0128",
+      "invoiceNumber": "INV-0004",
       "currency": "ILS",
       "isAccountingPosted": true,
       "statusHistory": [
@@ -1806,7 +1806,7 @@
       "baseTotalAmount": 457,
       "cashTreasuryCode": "1101",
       "userName": "م. رائد صالحة",
-      "updatedAt": "2026-11-04T15:18:07.752Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "subCustomerName": null,
       "subCustomerId": null,
       "customCustomerText": null,
@@ -1874,7 +1874,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "subtotal": 75,
       "warehouse": "المستودع الرئيسي",
-      "invoiceNumber": "INV-0127",
+      "invoiceNumber": "INV-0005",
       "basePaidAmount": 0,
       "bankPaidAmount": 0,
       "branchId": "br-1",
@@ -1891,7 +1891,7 @@
       "cashPaidAmount": 0,
       "customerId": "pt-1791059380400",
       "exchangeRate": 1,
-      "updatedAt": "2026-11-04T15:18:07.752Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "subCustomerId": null,
       "customCustomerText": null,
       "paymentNotes": null,
@@ -1995,10 +1995,10 @@
           "createdAt": "2026-10-04T20:51:34.801Z"
         }
       ],
-      "invoiceNumber": "INV-0126",
+      "invoiceNumber": "INV-0006",
       "workflowStatus": "new",
       "status": "unpaid",
-      "updatedAt": "2026-11-04T15:18:07.752Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "subCustomerName": null,
       "customCustomerText": null,
       "subCustomerId": null,
@@ -2008,7 +2008,7 @@
     },
     {
       "additionalCharges": 0,
-      "customerName": "جمعية قواف�� الخير - غزة",
+      "customerName": "جمعية قوافل الخير - غزة",
       "date": "2026-10-07",
       "userName": "م. رائد صالحة",
       "items": [
@@ -2103,7 +2103,7 @@
       "subtotal": 750,
       "userId": "usr-1",
       "warehouse": "المستودع الرئيسي",
-      "invoiceNumber": "INV-0125",
+      "invoiceNumber": "INV-0007",
       "cashPaidAmount": 0,
       "totalAmount": 750,
       "statusHistory": [
@@ -2125,7 +2125,7 @@
       "baseTotalAmount": 750,
       "currency": "ILS",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "subCustomerId": null,
       "subCustomerName": null,
       "paymentNotes": "جوال بي",
@@ -2135,7 +2135,7 @@
     },
     {
       "id": "inv-pos-1793626834211-7-yodkf",
-      "invoiceNumber": "INV-0124",
+      "invoiceNumber": "INV-0008",
       "date": "2026-10-08",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -2216,12 +2216,12 @@
       "cashTreasuryCode": "1101",
       "branch": "الفرع الرئيسي  Main Branch",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "printJobId": "job-1791224382841"
     },
     {
       "id": "inv-pos-1793626834211-8-jlydk",
-      "invoiceNumber": "INV-0123",
+      "invoiceNumber": "INV-0009",
       "date": "2026-10-09",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -2302,12 +2302,12 @@
       "basePaidAmount": 48,
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "printJobId": "job-1791229657229"
     },
     {
       "id": "inv-pos-1793626834211-9-60vvh",
-      "invoiceNumber": "INV-0122",
+      "invoiceNumber": "INV-0010",
       "date": "2026-10-10",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -2388,12 +2388,12 @@
       "additionalCharges": 0,
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "printJobId": "job-1791227355741"
     },
     {
       "id": "inv-pos-1793626834211-10-c1dxa",
-      "invoiceNumber": "INV-0121",
+      "invoiceNumber": "INV-0011",
       "date": "2026-10-11",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -2474,7 +2474,7 @@
       "bankPaidAmount": 30,
       "userId": "user-1789170883526",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "printJobId": "job-1791229657229"
     },
     {
@@ -2516,7 +2516,7 @@
       ],
       "exchangeRate": 1,
       "paidAmount": 0,
-      "invoiceNumber": "INV-0117",
+      "invoiceNumber": "INV-0012",
       "printJobId": "job-1791154406124",
       "isAccountingPosted": true,
       "remainingAmount": 3,
@@ -2552,7 +2552,7 @@
       "currency": "ILS",
       "taxAmount": 0,
       "branchId": "br-1",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "subCustomerPhone": null,
       "subCustomerName": null,
       "customCustomerText": null,
@@ -2624,7 +2624,7 @@
       "notes": "ورقتين ملصق باركود | اسامة ظاهر",
       "baseTotalAmount": 10,
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0112",
+      "invoiceNumber": "INV-0013",
       "branchId": "br-1",
       "printJobId": "job-1791154347969",
       "branch": "الفرع الرئيسي  Main Branch",
@@ -2637,7 +2637,7 @@
       "type": "pos",
       "workflowStatus": "new",
       "remainingAmount": 10,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "paymentNotes": "اسماء صالحة",
@@ -2650,7 +2650,7 @@
     {
       "workflowStatus": "new",
       "postedAt": "2026-10-04T22:52:53.567Z",
-      "invoiceNumber": "INV-0105",
+      "invoiceNumber": "INV-0014",
       "id": "inv-pos-1793626834211-13-b6cku",
       "statusHistory": [
         {
@@ -2722,7 +2722,7 @@
       "userId": "usr-1",
       "representative": "مندوب المبيعات الرئيسي",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.638Z",
       "paymentNotes": "امين بركة",
       "customCustomerText": null,
       "subCustomerName": null,
@@ -2737,7 +2737,7 @@
       "taxAmount": 0,
       "basePaidAmount": 0,
       "userName": "م. رائد صالحة",
-      "invoiceNumber": "INV-0102",
+      "invoiceNumber": "INV-0015",
       "additionalCharges": 0,
       "exchangeRate": 1,
       "userId": "usr-1",
@@ -2854,7 +2854,7 @@
       "workflowStatus": "new",
       "subtotal": 280,
       "paymentMethod": "credit",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "customCustomerText": null,
@@ -2889,7 +2889,7 @@
       "notes": "طباعة ملون | سهام أبو ركاب",
       "currency": "ILS",
       "remainingAmount": 2,
-      "invoiceNumber": "INV-0100",
+      "invoiceNumber": "INV-0016",
       "paidAmount": 0,
       "additionalCharges": 0,
       "printJobId": "job-1791224382841",
@@ -2938,7 +2938,7 @@
           "totalPrice": 2
         }
       ],
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "subCustomerName": null,
@@ -3008,7 +3008,7 @@
       "cashPaidAmount": 0,
       "printJobId": "job-1791327416201",
       "branch": "الفرع الرئيسي  Main Branch",
-      "invoiceNumber": "INV-0098",
+      "invoiceNumber": "INV-0017",
       "paidAmount": 0,
       "userName": "م. رائد صالحة",
       "statusHistory": [
@@ -3045,7 +3045,7 @@
       "paymentStatus": "credit",
       "discountTotal": 0,
       "baseTotalAmount": 45,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "paymentNotes": null,
@@ -3128,7 +3128,7 @@
       "userId": "usr-1",
       "postedAt": "2026-10-05T19:36:49.189Z",
       "paymentMethod": "credit",
-      "invoiceNumber": "INV-0097",
+      "invoiceNumber": "INV-0018",
       "notes": "",
       "statusHistory": [
         {
@@ -3152,7 +3152,7 @@
       "date": "2026-10-18",
       "userName": "م. رائد صالحة",
       "warehouse": "المستودع الرئيسي",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerPhone": null,
       "customCustomerText": null,
       "subCustomerName": null,
@@ -3253,7 +3253,7 @@
       ],
       "baseTotalAmount": 253,
       "customerName": "مهند الغرباوي",
-      "invoiceNumber": "INV-0096",
+      "invoiceNumber": "INV-0019",
       "postedAt": "2026-10-05T18:46:23.819Z",
       "currency": "ILS",
       "remainingAmount": 253,
@@ -3282,7 +3282,7 @@
       "date": "2026-10-19",
       "cashPaidAmount": 0,
       "notes": "",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerName": null,
       "subCustomerPhone": null,
       "paymentNotes": "جوال بي تاجر",
@@ -3294,7 +3294,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "customerName": "زبون نقدي",
       "postedAt": "2026-10-05T19:09:15.741Z",
-      "invoiceNumber": "INV-0095",
+      "invoiceNumber": "INV-0020",
       "date": "2026-10-20",
       "items": [
         {
@@ -3389,7 +3389,7 @@
       "paymentMethod": "card",
       "notes": "محمد زقوت",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "customCustomerText": null,
       "subCustomerName": null,
       "subCustomerId": null,
@@ -3399,7 +3399,7 @@
     },
     {
       "id": "inv-pos-1793626834211-20-kp48h",
-      "invoiceNumber": "INV-0094",
+      "invoiceNumber": "INV-0021",
       "date": "2026-10-21",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -3480,11 +3480,11 @@
       "isAccountingPosted": true,
       "branch": "الفرع الرئيسي  Main Branch",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834211-21-olfj9",
-      "invoiceNumber": "INV-0093",
+      "invoiceNumber": "INV-0022",
       "date": "2026-10-22",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -3565,11 +3565,11 @@
       "customCustomerText": null,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834211-22-zb1na",
-      "invoiceNumber": "INV-0092",
+      "invoiceNumber": "INV-0023",
       "date": "2026-10-23",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -3650,11 +3650,11 @@
       "subCustomerPhone": null,
       "paymentNotes": "علي مهنا",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834211-23-vd9ye",
-      "invoiceNumber": "INV-0091",
+      "invoiceNumber": "INV-0024",
       "date": "2026-10-24",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -3735,11 +3735,11 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834211-24-un5xx",
-      "invoiceNumber": "INV-0090",
+      "invoiceNumber": "INV-0025",
       "date": "2026-10-25",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -3820,11 +3820,11 @@
       "subCustomerId": null,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834211-25-vldep",
-      "invoiceNumber": "INV-0089",
+      "invoiceNumber": "INV-0026",
       "date": "2026-10-26",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -3905,11 +3905,11 @@
       "additionalCharges": 0,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834211-26-nap89",
-      "invoiceNumber": "INV-0088",
+      "invoiceNumber": "INV-0027",
       "date": "2026-10-27",
       "time": "12:00",
       "customerId": "cust-cash",
@@ -3976,12 +3976,12 @@
       "exchangeRate": 1,
       "warehouse": "المستودع الرئيسي",
       "userId": "usr-1",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "_fromCloud": true
     },
     {
       "id": "inv-pos-1793626834211-27-hbbtz",
-      "invoiceNumber": "INV-0087",
+      "invoiceNumber": "INV-0028",
       "date": "2026-10-28",
       "time": "12:05",
       "customerId": "cust-cash",
@@ -4048,12 +4048,12 @@
       "userName": "م. رائد صالحة",
       "userId": "usr-1",
       "warehouse": "المستودع الرئيسي",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "_fromCloud": true
     },
     {
       "id": "inv-pos-1793626834211-28-2sbi0",
-      "invoiceNumber": "INV-0086",
+      "invoiceNumber": "INV-0029",
       "date": "2026-10-29",
       "time": "12:10",
       "customerId": "cust-cash",
@@ -4092,7 +4092,7 @@
       "subCustomerPhone": null,
       "statusHistory": [
         {
-          "notes": "إنشاء الفات��رة وتثبيتها في النظام",
+          "notes": "إنشاء الفاتورة وتثبيتها في النظام",
           "userName": "م. رائد صالحة",
           "newStatus": "new",
           "id": "st-init-1793394491921",
@@ -4120,7 +4120,7 @@
       "warehouse": "المستودع الرئيسي",
       "paymentNotes": "ميساء تمراز",
       "isAccountingPosted": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "_fromCloud": true
     },
     {
@@ -4142,7 +4142,7 @@
       "paymentStatus": "paid_bank",
       "status": "paid",
       "customerId": "pt-1790460764568",
-      "invoiceNumber": "INV-0085",
+      "invoiceNumber": "INV-0030",
       "warehouse": "المستودع الرئيسي",
       "subCustomerName": null,
       "userId": "user-1789170883526",
@@ -4204,7 +4204,7 @@
       "id": "inv-pos-1793626834212-29-554bu",
       "branchId": "br-1",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "userId": "user-1789170883526",
@@ -4284,10 +4284,10 @@
       "currency": "ILS",
       "subCustomerId": null,
       "baseTotalAmount": 2,
-      "invoiceNumber": "INV-0084",
+      "invoiceNumber": "INV-0031",
       "customerId": "pt-1790460764568",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "additionalCharges": 0,
@@ -4337,7 +4337,7 @@
       "subtotal": 2,
       "bankPaidAmount": 2,
       "notes": "",
-      "invoiceNumber": "INV-0083",
+      "invoiceNumber": "INV-0032",
       "paymentNotes": "جوال بي تاجر",
       "taxRate": 0,
       "subCustomerId": null,
@@ -4370,7 +4370,7 @@
       "paidAmount": 0,
       "paymentStatus": "paid_bank",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "items": [
@@ -4401,7 +4401,7 @@
       "baseTotalAmount": 2,
       "type": "pos",
       "subCustomerId": null,
-      "invoiceNumber": "INV-0082",
+      "invoiceNumber": "INV-0033",
       "notes": "",
       "status": "paid",
       "subtotal": 2,
@@ -4453,7 +4453,7 @@
       "exchangeRate": 1,
       "additionalCharges": 0,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "taxRate": 0,
@@ -4467,7 +4467,7 @@
       "date": "2026-10-04",
       "branch": "الفرع الرئيسي  Main Branch",
       "status": "paid",
-      "invoiceNumber": "INV-0081",
+      "invoiceNumber": "INV-0034",
       "userName": "مطبعة لبنان",
       "exchangeRate": 1,
       "representative": "مندوب المبيعات الرئيسي",
@@ -4536,14 +4536,14 @@
       "bankTreasuryCode": "1103",
       "currencySymbol": "₪",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "workflowStatus": "new",
       "subtotal": 8,
       "subCustomerId": null,
       "type": "pos",
-      "invoiceNumber": "INV-0080",
+      "invoiceNumber": "INV-0035",
       "paymentStatus": "paid_bank",
       "subCustomerPhone": null,
       "branch": "الفرع الرئيسي  Main Branch",
@@ -4619,7 +4619,7 @@
       "additionalCharges": 0,
       "customerId": "pt-1790460764568",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "customerId": "pt-1790460764568",
@@ -4695,14 +4695,14 @@
           "totalPrice": 7
         }
       ],
-      "invoiceNumber": "INV-0079",
+      "invoiceNumber": "INV-0036",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "branch": "الفرع الرئيسي  Main Branch",
       "notes": "",
       "taxRate": 0,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "representative": "مندوب المبيعات الرئيسي",
@@ -4712,7 +4712,7 @@
       "paymentStatus": "paid_bank",
       "isAccountingPosted": true,
       "cashTreasuryCode": "1101",
-      "invoiceNumber": "INV-0078",
+      "invoiceNumber": "INV-0037",
       "status": "paid",
       "cashPaidAmount": 0,
       "subCustomerId": null,
@@ -4785,7 +4785,7 @@
       "id": "inv-pos-1793626834212-36-07cos",
       "subCustomerName": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "userName": "مطبعة لبنان",
@@ -4831,7 +4831,7 @@
       "paidAmount": 0,
       "subtotal": 10,
       "subCustomerId": null,
-      "invoiceNumber": "INV-0077",
+      "invoiceNumber": "INV-0038",
       "customerName": "زبون نقدي",
       "id": "inv-pos-1793626834212-37-yhggv",
       "taxAmount": 0,
@@ -4868,7 +4868,7 @@
       "workflowStatus": "new",
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-38-wq6l7",
@@ -4879,7 +4879,7 @@
       "status": "paid",
       "exchangeRate": 1,
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0076",
+      "invoiceNumber": "INV-0039",
       "date": "2026-10-09",
       "subCustomerId": null,
       "isAccountingPosted": true,
@@ -4951,7 +4951,7 @@
       "workflowStatus": "new",
       "subtotal": 12,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "status": "paid",
@@ -4967,7 +4967,7 @@
       "customerName": "زبون نقدي",
       "taxRate": 0,
       "paymentStatus": "paid_bank",
-      "invoiceNumber": "INV-0075",
+      "invoiceNumber": "INV-0040",
       "userName": "مطبعة لبنان",
       "customCustomerText": null,
       "currencySymbol": "₪",
@@ -5034,10 +5034,10 @@
       "paymentNotes": "ابو ستبيتان جوال بي",
       "additionalCharges": 0,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
-      "invoiceNumber": "INV-0074",
+      "invoiceNumber": "INV-0041",
       "currency": "ILS",
       "baseTotalAmount": 1,
       "branch": "الفرع الرئيسي  Main Branch",
@@ -5117,7 +5117,7 @@
       "representative": "مندوب المبيعات الرئيسي",
       "basePaidAmount": 1,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "taxRate": 0,
@@ -5163,7 +5163,7 @@
       "isAccountingPosted": true,
       "subCustomerId": null,
       "customerName": "زبون نقدي",
-      "invoiceNumber": "INV-0073",
+      "invoiceNumber": "INV-0042",
       "userId": "user-1789170883526",
       "branchId": "br-1",
       "customCustomerText": null,
@@ -5200,7 +5200,7 @@
       "additionalCharges": 0,
       "totalAmount": 50,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "totalAmount": 30,
@@ -5240,7 +5240,7 @@
       "bankTreasuryCode": "1103",
       "customerId": "pt-1790460764568",
       "currency": "ILS",
-      "invoiceNumber": "INV-0072",
+      "invoiceNumber": "INV-0043",
       "subCustomerId": null,
       "id": "inv-pos-1793626834212-42-cdsr4",
       "paymentMethod": "card",
@@ -5283,7 +5283,7 @@
       "status": "paid",
       "basePaidAmount": 30,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "cashPaidAmount": 0,
@@ -5322,7 +5322,7 @@
       "remainingAmount": 12,
       "subCustomerPhone": null,
       "subCustomerName": null,
-      "invoiceNumber": "INV-0071",
+      "invoiceNumber": "INV-0044",
       "items": [
         {
           "attachments": [],
@@ -5366,7 +5366,7 @@
       "paymentNotes": "مهند النواجحة",
       "bankTreasuryCode": "1103",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "taxAmount": 0,
@@ -5437,7 +5437,7 @@
       "paymentMethod": "card",
       "customerId": "pt-1790460764568",
       "subCustomerId": null,
-      "invoiceNumber": "INV-0070",
+      "invoiceNumber": "INV-0045",
       "currency": "ILS",
       "additionalCharges": 0,
       "isAccountingPosted": true,
@@ -5449,7 +5449,7 @@
       "id": "inv-pos-1793626834212-44-86jxn",
       "bankPaidAmount": 200,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "currency": "ILS",
@@ -5494,7 +5494,7 @@
       "cashPaidAmount": 0,
       "paymentMethod": "credit",
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0069",
+      "invoiceNumber": "INV-0046",
       "taxRate": 0,
       "type": "pos",
       "customerName": "الجمعية الإسلامية - مدينة بيت لاهيا",
@@ -5526,7 +5526,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "remainingAmount": 120,
       "totalAmount": 120,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "customCustomerText": null,
       "subCustomerPhone": null,
       "paymentNotes": "لبنى أبو شمالة",
@@ -5558,7 +5558,7 @@
       ],
       "subCustomerId": "pt-sub-1790461499785",
       "representative": "مندوب المبيعات الرئيسي",
-      "invoiceNumber": "INV-0068",
+      "invoiceNumber": "INV-0047",
       "date": "2026-10-17",
       "paidAmount": 0,
       "printJobId": "job-1791153424298",
@@ -5612,7 +5612,7 @@
       "paymentStatus": "credit",
       "branchId": "br-1",
       "status": "unpaid",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerPhone": null,
       "paymentNotes": "مهند النواجحة",
       "_fromCloud": true
@@ -5686,13 +5686,13 @@
       "printJobId": "job-1790637682834",
       "paidAmount": 0,
       "branch": "الفرع الرئيسي  Main Branch",
-      "invoiceNumber": "INV-0067",
+      "invoiceNumber": "INV-0048",
       "userName": "مطبعة لبنان",
       "id": "inv-pos-1793626834212-47-audjy",
       "cashPaidAmount": 0,
       "taxRate": 0,
       "customerName": "يحيى خضر",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "paymentNotes": null,
       "subCustomerId": null,
       "subCustomerPhone": null,
@@ -5773,7 +5773,7 @@
       "subtotal": 457,
       "taxRate": 0,
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0066",
+      "invoiceNumber": "INV-0049",
       "currency": "ILS",
       "isAccountingPosted": true,
       "statusHistory": [
@@ -5819,7 +5819,7 @@
       "baseTotalAmount": 457,
       "cashTreasuryCode": "1101",
       "userName": "م. رائد صالحة",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerName": null,
       "subCustomerId": null,
       "customCustomerText": null,
@@ -5885,7 +5885,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "subtotal": 75,
       "warehouse": "المستودع الرئيسي",
-      "invoiceNumber": "INV-0065",
+      "invoiceNumber": "INV-0050",
       "basePaidAmount": 0,
       "bankPaidAmount": 0,
       "branchId": "br-1",
@@ -5902,7 +5902,7 @@
       "cashPaidAmount": 0,
       "customerId": "pt-1791059380400",
       "exchangeRate": 1,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "customCustomerText": null,
       "paymentNotes": null,
@@ -6004,10 +6004,10 @@
           "createdAt": "2026-10-04T20:51:34.801Z"
         }
       ],
-      "invoiceNumber": "INV-0064",
+      "invoiceNumber": "INV-0051",
       "workflowStatus": "new",
       "status": "unpaid",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerName": null,
       "customCustomerText": null,
       "subCustomerId": null,
@@ -6112,7 +6112,7 @@
       "subtotal": 750,
       "userId": "usr-1",
       "warehouse": "المستودع الرئيسي",
-      "invoiceNumber": "INV-0063",
+      "invoiceNumber": "INV-0052",
       "cashPaidAmount": 0,
       "totalAmount": 750,
       "statusHistory": [
@@ -6134,7 +6134,7 @@
       "baseTotalAmount": 750,
       "currency": "ILS",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerName": null,
       "paymentNotes": "جوال بي",
@@ -6144,7 +6144,7 @@
     },
     {
       "id": "inv-pos-1793626834212-52-ygghr",
-      "invoiceNumber": "INV-0062",
+      "invoiceNumber": "INV-0053",
       "date": "2026-10-23",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -6225,11 +6225,11 @@
       "cashTreasuryCode": "1101",
       "branch": "الفرع الرئيسي  Main Branch",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-53-8iflj",
-      "invoiceNumber": "INV-0061",
+      "invoiceNumber": "INV-0054",
       "date": "2026-10-24",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -6310,11 +6310,11 @@
       "basePaidAmount": 48,
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-54-yqbja",
-      "invoiceNumber": "INV-0060",
+      "invoiceNumber": "INV-0055",
       "date": "2026-10-25",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -6395,11 +6395,11 @@
       "additionalCharges": 0,
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-55-0itn9",
-      "invoiceNumber": "INV-0059",
+      "invoiceNumber": "INV-0056",
       "date": "2026-10-26",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -6480,7 +6480,7 @@
       "bankPaidAmount": 30,
       "userId": "user-1789170883526",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "basePaidAmount": 3,
@@ -6521,7 +6521,7 @@
       ],
       "exchangeRate": 1,
       "paidAmount": 0,
-      "invoiceNumber": "INV-0058",
+      "invoiceNumber": "INV-0057",
       "printJobId": "job-1791154406124",
       "isAccountingPosted": true,
       "remainingAmount": 3,
@@ -6557,7 +6557,7 @@
       "currency": "ILS",
       "taxAmount": 0,
       "branchId": "br-1",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerPhone": null,
       "subCustomerName": null,
       "customCustomerText": null,
@@ -6627,7 +6627,7 @@
       "notes": "ورقتين ملصق باركود | اسامة ظاهر",
       "baseTotalAmount": 10,
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0057",
+      "invoiceNumber": "INV-0058",
       "branchId": "br-1",
       "printJobId": "job-1791154347969",
       "branch": "الفرع الرئيسي  Main Branch",
@@ -6640,7 +6640,7 @@
       "type": "pos",
       "workflowStatus": "new",
       "remainingAmount": 10,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "paymentNotes": "اسماء صالحة",
@@ -6651,7 +6651,7 @@
     {
       "workflowStatus": "new",
       "postedAt": "2026-10-04T22:52:53.567Z",
-      "invoiceNumber": "INV-0056",
+      "invoiceNumber": "INV-0059",
       "id": "inv-pos-1793626834212-58-pcfkz",
       "statusHistory": [
         {
@@ -6723,7 +6723,7 @@
       "userId": "usr-1",
       "representative": "مندوب المبيعات الرئيسي",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "paymentNotes": "امين بركة",
       "customCustomerText": null,
       "subCustomerName": null,
@@ -6736,7 +6736,7 @@
       "taxAmount": 0,
       "basePaidAmount": 0,
       "userName": "م. رائد صالحة",
-      "invoiceNumber": "INV-0055",
+      "invoiceNumber": "INV-0060",
       "additionalCharges": 0,
       "exchangeRate": 1,
       "userId": "usr-1",
@@ -6843,7 +6843,7 @@
       "discountTotal": 0,
       "baseTotalAmount": 280,
       "warehouse": "المستودع الرئيسي",
-      "currencySymbol": "���",
+      "currencySymbol": "₪",
       "isAccountingPosted": true,
       "branchId": "br-1",
       "customerId": "pt-1791059380400",
@@ -6853,7 +6853,7 @@
       "workflowStatus": "new",
       "subtotal": 280,
       "paymentMethod": "credit",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "customCustomerText": null,
@@ -6888,7 +6888,7 @@
       "notes": "طباعة ملون | سهام أبو ركاب",
       "currency": "ILS",
       "remainingAmount": 2,
-      "invoiceNumber": "INV-0054",
+      "invoiceNumber": "INV-0061",
       "paidAmount": 0,
       "additionalCharges": 0,
       "printJobId": "job-1791224382841",
@@ -6937,7 +6937,7 @@
           "totalPrice": 2
         }
       ],
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "subCustomerName": null,
@@ -7007,7 +7007,7 @@
       "cashPaidAmount": 0,
       "printJobId": "job-1791327416201",
       "branch": "الفرع الرئيسي  Main Branch",
-      "invoiceNumber": "INV-0053",
+      "invoiceNumber": "INV-0062",
       "paidAmount": 0,
       "userName": "م. رائد صالحة",
       "statusHistory": [
@@ -7044,7 +7044,7 @@
       "paymentStatus": "credit",
       "discountTotal": 0,
       "baseTotalAmount": 45,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "paymentNotes": null,
@@ -7127,7 +7127,7 @@
       "userId": "usr-1",
       "postedAt": "2026-10-05T19:36:49.189Z",
       "paymentMethod": "credit",
-      "invoiceNumber": "INV-0051",
+      "invoiceNumber": "INV-0063",
       "notes": "",
       "statusHistory": [
         {
@@ -7151,7 +7151,7 @@
       "date": "2026-10-03",
       "userName": "م. رائد صالحة",
       "warehouse": "المستودع الرئيسي",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerPhone": null,
       "customCustomerText": null,
       "subCustomerName": null,
@@ -7252,7 +7252,7 @@
       ],
       "baseTotalAmount": 253,
       "customerName": "مهند الغرباوي",
-      "invoiceNumber": "INV-0049",
+      "invoiceNumber": "INV-0064",
       "postedAt": "2026-10-05T18:46:23.819Z",
       "currency": "ILS",
       "remainingAmount": 253,
@@ -7281,7 +7281,7 @@
       "date": "2026-10-04",
       "cashPaidAmount": 0,
       "notes": "",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerName": null,
       "subCustomerPhone": null,
       "paymentNotes": "جوال بي تاجر",
@@ -7293,7 +7293,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "customerName": "زبون نقدي",
       "postedAt": "2026-10-05T19:09:15.741Z",
-      "invoiceNumber": "INV-0048",
+      "invoiceNumber": "INV-0065",
       "date": "2026-10-05",
       "items": [
         {
@@ -7388,7 +7388,7 @@
       "paymentMethod": "card",
       "notes": "محمد زقوت",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "customCustomerText": null,
       "subCustomerName": null,
       "subCustomerId": null,
@@ -7398,7 +7398,7 @@
     },
     {
       "id": "inv-pos-1793626834212-65-1ayma",
-      "invoiceNumber": "INV-0047",
+      "invoiceNumber": "INV-0066",
       "date": "2026-10-06",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -7479,11 +7479,11 @@
       "isAccountingPosted": true,
       "branch": "الفرع الرئيسي  Main Branch",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-66-yk2k6",
-      "invoiceNumber": "INV-0045",
+      "invoiceNumber": "INV-0067",
       "date": "2026-10-07",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -7564,11 +7564,11 @@
       "customCustomerText": null,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-67-2v0sd",
-      "invoiceNumber": "INV-0043",
+      "invoiceNumber": "INV-0068",
       "date": "2026-10-08",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -7649,11 +7649,11 @@
       "subCustomerPhone": null,
       "paymentNotes": "علي مهنا",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-68-ky9kt",
-      "invoiceNumber": "INV-0041",
+      "invoiceNumber": "INV-0069",
       "date": "2026-10-09",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -7734,11 +7734,11 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-69-mtoca",
-      "invoiceNumber": "INV-0039",
+      "invoiceNumber": "INV-0070",
       "date": "2026-10-10",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -7819,11 +7819,11 @@
       "subCustomerId": null,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-70-0c3fp",
-      "invoiceNumber": "INV-0038",
+      "invoiceNumber": "INV-0071",
       "date": "2026-10-11",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -7904,11 +7904,11 @@
       "additionalCharges": 0,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-71-vnxn4",
-      "invoiceNumber": "INV-0037",
+      "invoiceNumber": "INV-0072",
       "date": "2026-10-12",
       "time": "12:00",
       "customerId": "cust-cash",
@@ -7975,12 +7975,12 @@
       "exchangeRate": 1,
       "warehouse": "المستودع الرئيسي",
       "userId": "usr-1",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "_fromCloud": true
     },
     {
       "id": "inv-pos-1793626834212-72-u9clr",
-      "invoiceNumber": "INV-0036",
+      "invoiceNumber": "INV-0073",
       "date": "2026-10-13",
       "time": "12:05",
       "customerId": "cust-cash",
@@ -8047,12 +8047,12 @@
       "userName": "م. رائد صالحة",
       "userId": "usr-1",
       "warehouse": "المستودع الرئيسي",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "_fromCloud": true
     },
     {
       "id": "inv-pos-1793626834212-73-okqrr",
-      "invoiceNumber": "INV-0035",
+      "invoiceNumber": "INV-0074",
       "date": "2026-10-14",
       "time": "12:10",
       "customerId": "cust-cash",
@@ -8119,7 +8119,7 @@
       "warehouse": "المستودع الرئيسي",
       "paymentNotes": "ميساء تمراز",
       "isAccountingPosted": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "_fromCloud": true
     },
     {
@@ -8141,7 +8141,7 @@
       "paymentStatus": "paid_bank",
       "status": "paid",
       "customerId": "pt-1790460764568",
-      "invoiceNumber": "INV-0034",
+      "invoiceNumber": "INV-0075",
       "warehouse": "المستودع الرئيسي",
       "subCustomerName": null,
       "userId": "user-1789170883526",
@@ -8203,7 +8203,7 @@
       "id": "inv-pos-1793626834212-74-ty4b9",
       "branchId": "br-1",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "userId": "user-1789170883526",
@@ -8283,10 +8283,10 @@
       "currency": "ILS",
       "subCustomerId": null,
       "baseTotalAmount": 2,
-      "invoiceNumber": "INV-0033",
+      "invoiceNumber": "INV-0076",
       "customerId": "pt-1790460764568",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "additionalCharges": 0,
@@ -8336,7 +8336,7 @@
       "subtotal": 2,
       "bankPaidAmount": 2,
       "notes": "",
-      "invoiceNumber": "INV-0032",
+      "invoiceNumber": "INV-0077",
       "paymentNotes": "جوال بي تاجر",
       "taxRate": 0,
       "subCustomerId": null,
@@ -8369,7 +8369,7 @@
       "paidAmount": 0,
       "paymentStatus": "paid_bank",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "items": [
@@ -8400,7 +8400,7 @@
       "baseTotalAmount": 2,
       "type": "pos",
       "subCustomerId": null,
-      "invoiceNumber": "INV-0031",
+      "invoiceNumber": "INV-0078",
       "notes": "",
       "status": "paid",
       "subtotal": 2,
@@ -8452,7 +8452,7 @@
       "exchangeRate": 1,
       "additionalCharges": 0,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "taxRate": 0,
@@ -8466,7 +8466,7 @@
       "date": "2026-10-19",
       "branch": "الفرع الرئيسي  Main Branch",
       "status": "paid",
-      "invoiceNumber": "INV-0030",
+      "invoiceNumber": "INV-0079",
       "userName": "مطبعة لبنان",
       "exchangeRate": 1,
       "representative": "مندوب المبيعات الرئيسي",
@@ -8535,14 +8535,14 @@
       "bankTreasuryCode": "1103",
       "currencySymbol": "₪",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "workflowStatus": "new",
       "subtotal": 8,
       "subCustomerId": null,
       "type": "pos",
-      "invoiceNumber": "INV-0029",
+      "invoiceNumber": "INV-0080",
       "paymentStatus": "paid_bank",
       "subCustomerPhone": null,
       "branch": "الفرع الرئيسي  Main Branch",
@@ -8618,7 +8618,7 @@
       "additionalCharges": 0,
       "customerId": "pt-1790460764568",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:10",
       "createdAt": "2026-10-27T12:10:00.000Z"
     },
@@ -8696,14 +8696,14 @@
           "totalPrice": 7
         }
       ],
-      "invoiceNumber": "INV-0028",
+      "invoiceNumber": "INV-0081",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "branch": "الفرع الرئيسي  Main Branch",
       "notes": "",
       "taxRate": 0,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:05",
       "createdAt": "2026-10-27T12:05:00.000Z"
     },
@@ -8715,7 +8715,7 @@
       "paymentStatus": "paid_bank",
       "isAccountingPosted": true,
       "cashTreasuryCode": "1101",
-      "invoiceNumber": "INV-0027",
+      "invoiceNumber": "INV-0082",
       "status": "paid",
       "cashPaidAmount": 0,
       "subCustomerId": null,
@@ -8788,7 +8788,7 @@
       "id": "inv-pos-1793626834212-81-k7g2b",
       "subCustomerName": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:10",
       "createdAt": "2026-10-27T12:10:00.000Z"
     },
@@ -8836,7 +8836,7 @@
       "paidAmount": 0,
       "subtotal": 10,
       "subCustomerId": null,
-      "invoiceNumber": "INV-0026",
+      "invoiceNumber": "INV-0083",
       "customerName": "زبون نقدي",
       "id": "inv-pos-1793626834212-82-7bsdl",
       "taxAmount": 0,
@@ -8873,7 +8873,7 @@
       "workflowStatus": "new",
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:05",
       "createdAt": "2026-10-27T12:05:00.000Z"
     },
@@ -8886,7 +8886,7 @@
       "status": "paid",
       "exchangeRate": 1,
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0025",
+      "invoiceNumber": "INV-0084",
       "date": "2026-10-24",
       "subCustomerId": null,
       "isAccountingPosted": true,
@@ -8958,7 +8958,7 @@
       "workflowStatus": "new",
       "subtotal": 12,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:10",
       "createdAt": "2026-10-27T12:10:00.000Z"
     },
@@ -8976,7 +8976,7 @@
       "customerName": "زبون نقدي",
       "taxRate": 0,
       "paymentStatus": "paid_bank",
-      "invoiceNumber": "INV-0024",
+      "invoiceNumber": "INV-0085",
       "userName": "مطبعة لبنان",
       "customCustomerText": null,
       "currencySymbol": "₪",
@@ -9043,12 +9043,12 @@
       "paymentNotes": "ابو ستبيتان جوال بي",
       "additionalCharges": 0,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:05",
       "createdAt": "2026-10-27T12:05:00.000Z"
     },
     {
-      "invoiceNumber": "INV-0023",
+      "invoiceNumber": "INV-0086",
       "currency": "ILS",
       "baseTotalAmount": 1,
       "branch": "الفرع الرئيسي  Main Branch",
@@ -9128,7 +9128,7 @@
       "representative": "مندوب المبيعات الرئيسي",
       "basePaidAmount": 1,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:10",
       "createdAt": "2026-10-27T12:10:00.000Z"
     },
@@ -9176,7 +9176,7 @@
       "isAccountingPosted": true,
       "subCustomerId": null,
       "customerName": "زبون نقدي",
-      "invoiceNumber": "INV-0022",
+      "invoiceNumber": "INV-0087",
       "userId": "user-1789170883526",
       "branchId": "br-1",
       "customCustomerText": null,
@@ -9213,7 +9213,7 @@
       "additionalCharges": 0,
       "totalAmount": 50,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:05",
       "createdAt": "2026-10-27T12:05:00.000Z"
     },
@@ -9238,7 +9238,7 @@
           "userId": "user-1789170883526",
           "userName": "مطبعة لبنان",
           "previousStatus": "new",
-          "notes": "إنشاء الفاتورة وتثب������������تها في النظام"
+          "notes": "إنشاء الفاتورة وتثبيتها في النظام"
         }
       ],
       "baseTotalAmount": 30,
@@ -9255,7 +9255,7 @@
       "bankTreasuryCode": "1103",
       "customerId": "pt-1790460764568",
       "currency": "ILS",
-      "invoiceNumber": "INV-0021",
+      "invoiceNumber": "INV-0088",
       "subCustomerId": null,
       "id": "inv-pos-1793626834212-87-k5oz9",
       "paymentMethod": "card",
@@ -9298,7 +9298,7 @@
       "status": "paid",
       "basePaidAmount": 30,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:10",
       "createdAt": "2026-10-27T12:10:00.000Z"
     },
@@ -9339,7 +9339,7 @@
       "remainingAmount": 12,
       "subCustomerPhone": null,
       "subCustomerName": null,
-      "invoiceNumber": "INV-0020",
+      "invoiceNumber": "INV-0089",
       "items": [
         {
           "attachments": [],
@@ -9383,7 +9383,7 @@
       "paymentNotes": "مهند النواجحة",
       "bankTreasuryCode": "1103",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:05",
       "createdAt": "2026-10-27T12:05:00.000Z",
       "printJobId": "job-1791227355741"
@@ -9457,7 +9457,7 @@
       "paymentMethod": "card",
       "customerId": "pt-1790460764568",
       "subCustomerId": null,
-      "invoiceNumber": "INV-0019",
+      "invoiceNumber": "INV-0090",
       "currency": "ILS",
       "additionalCharges": 0,
       "isAccountingPosted": true,
@@ -9469,7 +9469,7 @@
       "id": "inv-pos-1793626834212-89-jezx0",
       "bankPaidAmount": 200,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "time": "12:00",
       "createdAt": "2026-10-27T12:00:00.000Z",
       "printJobId": "job-1791225983820"
@@ -9517,7 +9517,7 @@
       "cashPaidAmount": 0,
       "paymentMethod": "credit",
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0018",
+      "invoiceNumber": "INV-0091",
       "taxRate": 0,
       "type": "pos",
       "customerName": "الجمعية الإسلامية - مدينة بيت لاهيا",
@@ -9549,7 +9549,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "remainingAmount": 120,
       "totalAmount": 120,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "customCustomerText": null,
       "subCustomerPhone": null,
       "paymentNotes": "لبنى أبو شمالة",
@@ -9583,7 +9583,7 @@
       ],
       "subCustomerId": "pt-sub-1790461499785",
       "representative": "مندوب المبيعات الرئيسي",
-      "invoiceNumber": "INV-0017",
+      "invoiceNumber": "INV-0092",
       "date": "2026-10-02",
       "paidAmount": 0,
       "printJobId": "job-1791153424298",
@@ -9637,7 +9637,7 @@
       "paymentStatus": "credit",
       "branchId": "br-1",
       "status": "unpaid",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerPhone": null,
       "paymentNotes": "مهند النواجحة",
       "_fromCloud": true,
@@ -9713,13 +9713,13 @@
       "printJobId": "job-1790637682834",
       "paidAmount": 0,
       "branch": "الفرع الرئيسي  Main Branch",
-      "invoiceNumber": "INV-0016",
+      "invoiceNumber": "INV-0093",
       "userName": "مطبعة لبنان",
       "id": "inv-pos-1793626834212-92-qqshu",
       "cashPaidAmount": 0,
       "taxRate": 0,
       "customerName": "يحيى خضر",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "paymentNotes": null,
       "subCustomerId": null,
       "subCustomerPhone": null,
@@ -9802,7 +9802,7 @@
       "subtotal": 457,
       "taxRate": 0,
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0015",
+      "invoiceNumber": "INV-0094",
       "currency": "ILS",
       "isAccountingPosted": true,
       "statusHistory": [
@@ -9848,7 +9848,7 @@
       "baseTotalAmount": 457,
       "cashTreasuryCode": "1101",
       "userName": "م. رائد صالحة",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerName": null,
       "subCustomerId": null,
       "customCustomerText": null,
@@ -9916,7 +9916,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "subtotal": 75,
       "warehouse": "المستودع الرئيسي",
-      "invoiceNumber": "INV-0014",
+      "invoiceNumber": "INV-0095",
       "basePaidAmount": 0,
       "bankPaidAmount": 0,
       "branchId": "br-1",
@@ -9933,7 +9933,7 @@
       "cashPaidAmount": 0,
       "customerId": "pt-1791059380400",
       "exchangeRate": 1,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "customCustomerText": null,
       "paymentNotes": null,
@@ -10037,10 +10037,10 @@
           "createdAt": "2026-10-04T20:51:34.801Z"
         }
       ],
-      "invoiceNumber": "INV-0013",
+      "invoiceNumber": "INV-0096",
       "workflowStatus": "new",
       "status": "unpaid",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerName": null,
       "customCustomerText": null,
       "subCustomerId": null,
@@ -10147,7 +10147,7 @@
       "subtotal": 750,
       "userId": "usr-1",
       "warehouse": "المستودع الرئيسي",
-      "invoiceNumber": "INV-0012",
+      "invoiceNumber": "INV-0097",
       "cashPaidAmount": 0,
       "totalAmount": 750,
       "statusHistory": [
@@ -10169,7 +10169,7 @@
       "baseTotalAmount": 750,
       "currency": "ILS",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerName": null,
       "paymentNotes": "جوال بي",
@@ -10179,7 +10179,7 @@
     },
     {
       "id": "inv-pos-1793626834212-97-lh11w",
-      "invoiceNumber": "INV-0052",
+      "invoiceNumber": "INV-0098",
       "date": "2026-10-08",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -10260,11 +10260,11 @@
       "cashTreasuryCode": "1101",
       "branch": "الفرع الرئيسي  Main Branch",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-98-6zx0g",
-      "invoiceNumber": "INV-0050",
+      "invoiceNumber": "INV-0099",
       "date": "2026-10-09",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -10345,11 +10345,11 @@
       "basePaidAmount": 48,
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-99-pn1mg",
-      "invoiceNumber": "INV-0099",
+      "invoiceNumber": "INV-0100",
       "date": "2026-10-10",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -10430,7 +10430,7 @@
       "additionalCharges": 0,
       "warehouse": "المستودع الرئيسي",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "id": "inv-pos-1793626834212-100-nafye",
@@ -10515,7 +10515,7 @@
       "bankPaidAmount": 30,
       "userId": "user-1789170883526",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     },
     {
       "basePaidAmount": 3,
@@ -10556,7 +10556,7 @@
       ],
       "exchangeRate": 1,
       "paidAmount": 0,
-      "invoiceNumber": "INV-0103",
+      "invoiceNumber": "INV-0102",
       "printJobId": "job-1791154406124",
       "isAccountingPosted": true,
       "remainingAmount": 3,
@@ -10592,7 +10592,7 @@
       "currency": "ILS",
       "taxAmount": 0,
       "branchId": "br-1",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerPhone": null,
       "subCustomerName": null,
       "customCustomerText": null,
@@ -10664,7 +10664,7 @@
       "notes": "ورقتين ملصق باركود | اسامة ظاهر",
       "baseTotalAmount": 10,
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0104",
+      "invoiceNumber": "INV-0103",
       "branchId": "br-1",
       "printJobId": "job-1791154347969",
       "branch": "الفرع الرئيسي  Main Branch",
@@ -10677,7 +10677,7 @@
       "type": "pos",
       "workflowStatus": "new",
       "remainingAmount": 10,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "paymentNotes": "اسماء صالحة",
@@ -10690,7 +10690,7 @@
     {
       "workflowStatus": "new",
       "postedAt": "2026-10-04T22:52:53.567Z",
-      "invoiceNumber": "INV-0108",
+      "invoiceNumber": "INV-0104",
       "id": "inv-pos-1793626834212-103-t4uh7",
       "statusHistory": [
         {
@@ -10762,7 +10762,7 @@
       "userId": "usr-1",
       "representative": "مندوب المبيعات الرئيسي",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "paymentNotes": "امين بركة",
       "customCustomerText": null,
       "subCustomerName": null,
@@ -10777,7 +10777,7 @@
       "taxAmount": 0,
       "basePaidAmount": 0,
       "userName": "م. رائد صالحة",
-      "invoiceNumber": "INV-0111",
+      "invoiceNumber": "INV-0105",
       "additionalCharges": 0,
       "exchangeRate": 1,
       "userId": "usr-1",
@@ -10894,7 +10894,7 @@
       "workflowStatus": "new",
       "subtotal": 280,
       "paymentMethod": "credit",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "customCustomerText": null,
@@ -10931,7 +10931,7 @@
       "notes": "طباعة ملون | سهام أبو ركاب",
       "currency": "ILS",
       "remainingAmount": 2,
-      "invoiceNumber": "INV-0011",
+      "invoiceNumber": "INV-0106",
       "paidAmount": 0,
       "additionalCharges": 0,
       "printJobId": "job-1791224382841",
@@ -10980,7 +10980,7 @@
           "totalPrice": 2
         }
       ],
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "subCustomerName": null,
@@ -11052,7 +11052,7 @@
       "cashPaidAmount": 0,
       "printJobId": "job-1791327416201",
       "branch": "الفرع الرئيسي  Main Branch",
-      "invoiceNumber": "INV-0010",
+      "invoiceNumber": "INV-0107",
       "paidAmount": 0,
       "userName": "م. رائد صالحة",
       "statusHistory": [
@@ -11089,7 +11089,7 @@
       "paymentStatus": "credit",
       "discountTotal": 0,
       "baseTotalAmount": 45,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerId": null,
       "subCustomerPhone": null,
       "paymentNotes": null,
@@ -11174,7 +11174,7 @@
       "userId": "usr-1",
       "postedAt": "2026-10-05T19:36:49.189Z",
       "paymentMethod": "credit",
-      "invoiceNumber": "INV-0009",
+      "invoiceNumber": "INV-0108",
       "notes": "",
       "statusHistory": [
         {
@@ -11198,7 +11198,7 @@
       "date": "2026-10-18",
       "userName": "م. رائد صالحة",
       "warehouse": "المستودع الرئيسي",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerPhone": null,
       "customCustomerText": null,
       "subCustomerName": null,
@@ -11301,7 +11301,7 @@
       ],
       "baseTotalAmount": 253,
       "customerName": "مهند الغرباوي",
-      "invoiceNumber": "INV-0008",
+      "invoiceNumber": "INV-0109",
       "postedAt": "2026-10-05T18:46:23.819Z",
       "currency": "ILS",
       "remainingAmount": 253,
@@ -11330,7 +11330,7 @@
       "date": "2026-10-19",
       "cashPaidAmount": 0,
       "notes": "",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "subCustomerName": null,
       "subCustomerPhone": null,
       "paymentNotes": "جوال بي تاجر",
@@ -11344,7 +11344,7 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "customerName": "زبون نقدي",
       "postedAt": "2026-10-05T19:09:15.741Z",
-      "invoiceNumber": "INV-0007",
+      "invoiceNumber": "INV-0110",
       "date": "2026-10-20",
       "items": [
         {
@@ -11439,7 +11439,7 @@
       "paymentMethod": "card",
       "notes": "محمد زقوت",
       "type": "pos",
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "customCustomerText": null,
       "subCustomerName": null,
       "subCustomerId": null,
@@ -11449,7 +11449,7 @@
     },
     {
       "id": "inv-pos-1793626834212-110-q8miw",
-      "invoiceNumber": "INV-0006",
+      "invoiceNumber": "INV-0111",
       "date": "2026-10-21",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -11530,12 +11530,12 @@
       "isAccountingPosted": true,
       "branch": "الفرع الرئيسي  Main Branch",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "printJobId": "job-1791147094803"
     },
     {
       "id": "inv-pos-1793626834212-111-l0x44",
-      "invoiceNumber": "INV-0005",
+      "invoiceNumber": "INV-0112",
       "date": "2026-10-22",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -11616,12 +11616,12 @@
       "customCustomerText": null,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "printJobId": "job-1791151997010"
     },
     {
       "id": "inv-pos-1793626834212-112-hadcs",
-      "invoiceNumber": "INV-0004",
+      "invoiceNumber": "INV-0113",
       "date": "2026-10-23",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -11702,12 +11702,12 @@
       "subCustomerPhone": null,
       "paymentNotes": "علي مهنا",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "printJobId": "job-1791147186110"
     },
     {
       "id": "inv-pos-1793626834212-113-vzljx",
-      "invoiceNumber": "INV-0003",
+      "invoiceNumber": "INV-0114",
       "date": "2026-10-24",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -11788,12 +11788,12 @@
       "branch": "الفرع الرئيسي  Main Branch",
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "printJobId": "job-1790637682834"
     },
     {
       "id": "inv-pos-1793626834212-114-setmj",
-      "invoiceNumber": "INV-0002",
+      "invoiceNumber": "INV-0115",
       "date": "2026-10-25",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -11874,12 +11874,12 @@
       "subCustomerId": null,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "printJobId": "job-1791153424298"
     },
     {
       "id": "inv-pos-1793626834212-115-vlo4b",
-      "invoiceNumber": "INV-0001",
+      "invoiceNumber": "INV-0116",
       "date": "2026-10-26",
       "time": "12:00",
       "customerId": "pt-1790460764568",
@@ -11960,7 +11960,7 @@
       "additionalCharges": 0,
       "subCustomerPhone": null,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:18:07.753Z",
+      "updatedAt": "2026-11-04T21:37:26.639Z",
       "printJobId": "job-1791151945863"
     },
     {
@@ -11981,7 +11981,7 @@
       "customerName": "مؤسسة وصال - أبو يوسف الوالي",
       "paymentStatus": "credit",
       "currencySymbol": "₪",
-      "invoiceNumber": "INV-0040",
+      "invoiceNumber": "INV-0117",
       "branch": "الفرع الرئيسي  Main Branch",
       "exchangeRate": 1,
       "baseTotalAmount": 5,
@@ -12040,7 +12040,7 @@
       "representative": "مندوب المبيعات الرئيسي",
       "basePaidAmount": 0,
       "createdAt": "2026-11-03T13:47:35.809Z",
-      "updatedAt": "2026-11-04T15:18:07.753Z"
+      "updatedAt": "2026-11-04T21:37:26.639Z"
     }
   ],
   "journalEntries": [
@@ -14765,7 +14765,7 @@
           "description": "المتبقي آجل / ذمم لفاتورة INV-0001",
           "accountCode": "1201",
           "debit": 120,
-          "accountName": "العملاء و������������ذ������م المدينة",
+          "accountName": "العملاء والذمم المدينة",
           "credit": 0
         },
         {
@@ -17099,7 +17099,7 @@
       "lines": [
         {
           "debit": 457,
-          "accountName": "ا��عملاء ��ا��ذ����م المدينة",
+          "accountName": "العملاء والذمم المدينة",
           "description": "المتبقي آجل / ذمم لفاتورة INV-0004",
           "accountCode": "1201",
           "credit": 0
@@ -32246,7 +32246,7 @@
       "notes": "",
       "name": "زبون نقدي",
       "phone": "",
-      "balance": 1050,
+      "balance": 705,
       "email": "",
       "city": "",
       "specialPrices": {},
@@ -32276,7 +32276,7 @@
       "code": "CUST-0002",
       "openingBalance": 0,
       "city": "",
-      "balance": 360,
+      "balance": 840,
       "taxNumber": "",
       "notes": "",
       "creditLimit": 0,
@@ -32298,7 +32298,7 @@
       "type": "customer",
       "city": "",
       "openingBalanceType": "debit",
-      "balance": 420,
+      "balance": 432,
       "code": "CUST-0003",
       "id": "pt-1790637020573",
       "taxNumber": "",
@@ -32322,7 +32322,7 @@
     },
     {
       "type": "customer",
-      "balance": 1371,
+      "balance": 952,
       "openingBalanceType": "debit",
       "id": "pt-1791053034073",
       "code": "CUST-0004",
@@ -32378,7 +32378,7 @@
       "commercialRegister": "",
       "address": "",
       "taxNumber": "",
-      "balance": 4215,
+      "balance": 6130,
       "type": "customer",
       "openingBalanceType": "debit",
       "city": "",
@@ -32391,7 +32391,7 @@
       "payments": []
     },
     {
-      "balance": 0,
+      "balance": 404,
       "openingBalanceDate": "2026-10-03",
       "initialBalance": 0,
       "name": "جمعية قوافل الخير الوسطى",
@@ -32447,7 +32447,7 @@
       },
       "isSubCustomer": false,
       "name": "جمعية دار السبيل الخيرية",
-      "balance": 0,
+      "balance": 600,
       "creditLimit": 0,
       "phone": "",
       "updatedAt": "2026-11-04T15:17:31.976Z",
@@ -32461,7 +32461,7 @@
       "phone": "",
       "code": "CUST-0009",
       "type": "customer",
-      "balance": 0,
+      "balance": 70,
       "isSubCustomer": false,
       "specialPrices": {},
       "openingBalanceType": "debit",
@@ -32488,7 +32488,7 @@
       "initialBalance": 0,
       "openingBalanceDate": "2026-10-04",
       "name": "أبو طارق أبو الحسنة",
-      "balance": 0,
+      "balance": 46,
       "creditLimit": 0,
       "_fromCloud": true,
       "updatedAt": "2026-11-04T15:17:31.976Z",
@@ -32564,7 +32564,7 @@
       "code": "CUST-0014",
       "phone": "",
       "openingBalanceDate": "2026-10-04",
-      "balance": 0,
+      "balance": 260,
       "openingBalance": 0,
       "creditLimit": 0,
       "initialBalance": 0,
@@ -32585,7 +32585,7 @@
       "address": "",
       "openingBalanceDate": "2026-10-04",
       "type": "customer",
-      "balance": 759,
+      "balance": 892,
       "commercialRegister": "",
       "id": "pt-1791153567101",
       "contactPerson": "",
@@ -32608,7 +32608,7 @@
       "city": "",
       "openingBalance": 0,
       "initialBalance": 0,
-      "balance": 360,
+      "balance": 10570.5,
       "id": "pt-1791153609820",
       "taxNumber": "",
       "isSubCustomer": false,
@@ -32655,7 +32655,7 @@
       "contactPerson": "",
       "name": "وزارة الأوقاف",
       "commercialRegister": "",
-      "balance": 0,
+      "balance": 212,
       "id": "pt-1791227874500",
       "payments": [],
       "_fromCloud": true,
@@ -32663,7 +32663,7 @@
       "updatedAt": "2026-11-04T15:17:31.976Z"
     },
     {
-      "balance": 0,
+      "balance": 36,
       "city": "",
       "code": "CUST-0018",
       "openingBalanceType": "debit",
@@ -32694,7 +32694,7 @@
       "email": "",
       "type": "customer",
       "openingBalanceType": "debit",
-      "balance": 0,
+      "balance": 20,
       "phone": "",
       "taxNumber": "",
       "creditLimit": 0,
@@ -32725,7 +32725,7 @@
       "taxNumber": "",
       "code": "CUST-0020",
       "city": "",
-      "balance": 5,
+      "balance": 574,
       "specialPrices": {},
       "isSubCustomer": false,
       "email": "",
@@ -32751,7 +32751,7 @@
       "initialBalance": 0,
       "openingBalance": 0,
       "address": "",
-      "balance": 0,
+      "balance": 39,
       "notes": "",
       "openingBalanceDate": "2026-10-07",
       "contactPerson": "",
@@ -32780,7 +32780,7 @@
       "taxNumber": "",
       "specialPrices": {},
       "isSubCustomer": false,
-      "balance": 0,
+      "balance": 110,
       "contactPerson": "",
       "commercialRegister": "",
       "code": "CUST-0022",
@@ -32806,7 +32806,7 @@
       "openingBalance": 0,
       "name": "جمعية سلامة",
       "email": "",
-      "balance": 0,
+      "balance": 270,
       "type": "customer",
       "openingBalanceDate": "2026-10-09",
       "phone": "",
@@ -32850,7 +32850,7 @@
       "id": "pt-1791549704191",
       "commercialRegister": "",
       "taxNumber": "",
-      "balance": 0,
+      "balance": 200,
       "payments": [],
       "_fromCloud": true,
       "updatedAt": "2026-11-04T15:17:31.976Z",
@@ -32860,7 +32860,7 @@
       "name": "فريق واصل للعمل الإنساني",
       "creditLimit": 0,
       "openingBalance": 0,
-      "balance": 0,
+      "balance": 8528,
       "code": "CUST-0025",
       "openingBalanceDate": "2026-10-09",
       "openingBalanceType": "debit",
@@ -32884,7 +32884,7 @@
       "creditLimit": 0,
       "openingBalanceType": "debit",
       "openingBalanceDate": "2026-10-09",
-      "balance": 0,
+      "balance": 150,
       "openingBalance": 0,
       "type": "customer",
       "_fromCloud": true,
@@ -32895,7 +32895,7 @@
     {
       "id": "pt-1791562088636",
       "creditLimit": 0,
-      "balance": 0,
+      "balance": 216,
       "type": "customer",
       "code": "CUST-0027",
       "openingBalance": 0,
@@ -32908,7 +32908,7 @@
       "payments": []
     },
     {
-      "balance": 0,
+      "balance": 245,
       "type": "customer",
       "openingBalanceDate": "2026-10-09",
       "openingBalanceType": "debit",
@@ -32927,7 +32927,7 @@
       "items": []
     },
     {
-      "balance": 0,
+      "balance": 287.5,
       "id": "pt-1791562479032",
       "openingBalanceDate": "2026-10-09",
       "openingBalanceType": "debit",
@@ -32948,7 +32948,7 @@
       "creditLimit": 0,
       "name": "منذر أبو ربيع",
       "code": "CUST-0030",
-      "balance": 0,
+      "balance": 67.5,
       "openingBalanceType": "debit",
       "openingBalanceDate": "2026-10-09",
       "id": "pt-1791562974435",
@@ -32964,7 +32964,7 @@
     },
     {
       "contactPerson": "",
-      "balance": 0,
+      "balance": 92,
       "commercialRegister": "",
       "specialPrices": {
         "inv-1791563273601-buefc": 4
@@ -32989,7 +32989,7 @@
       "updatedAt": "2026-11-04T15:17:31.976Z"
     },
     {
-      "balance": 0,
+      "balance": 2624,
       "specialPrices": {
         "inv-1790461128067": 120,
         "inv-1791555668284-654on": 200
@@ -33013,7 +33013,7 @@
       "openingBalance": 0,
       "openingBalanceDate": "2026-10-10",
       "initialBalance": 0,
-      "balance": 0,
+      "balance": 5,
       "taxNumber": "",
       "commercialRegister": "",
       "type": "customer",
@@ -33042,7 +33042,7 @@
       "openingBalanceDate": "2026-10-10",
       "initialBalance": 0,
       "contactPerson": "",
-      "balance": 0,
+      "balance": 10,
       "commercialRegister": "",
       "phone": "",
       "isSubCustomer": false,
@@ -33082,7 +33082,7 @@
       "openingBalanceDate": "2026-10-10",
       "city": "",
       "email": "",
-      "balance": 0,
+      "balance": 417,
       "phone": "",
       "items": [],
       "updatedAt": "2026-11-04T15:17:31.976Z",
@@ -33108,7 +33108,7 @@
       "initialBalance": 0,
       "openingBalance": 0,
       "openingBalanceType": "debit",
-      "balance": 0,
+      "balance": 5,
       "name": "أنس مهدى",
       "payments": [],
       "items": [],
@@ -33116,7 +33116,7 @@
       "updatedAt": "2026-11-04T15:17:31.976Z"
     },
     {
-      "balance": 0,
+      "balance": 15,
       "code": "CUST-0038",
       "openingBalanceType": "debit",
       "openingBalanceDate": "2026-10-11",
@@ -33139,7 +33139,7 @@
       "openingBalance": 0,
       "type": "customer",
       "code": "CUST-0039",
-      "balance": 0,
+      "balance": 30,
       "creditLimit": 0,
       "id": "pt-1791699605929",
       "name": "إسماعيل أبو زياد",
@@ -33175,7 +33175,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791700794719",
       "code": "CUST-0042",
-      "balance": 0,
+      "balance": 294.06,
       "specialPrices": {
         "inv-1790461128067": 130,
         "inv-1791052957759": 130
@@ -33194,7 +33194,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791701436869",
       "code": "CUST-0043",
-      "balance": 0,
+      "balance": 1401.76,
       "specialPrices": {
         "inv-1790461128067": 80,
         "inv-1791052957759": 80
@@ -33213,7 +33213,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791702392550",
       "code": "CUST-0044",
-      "balance": 0,
+      "balance": 48,
       "specialPrices": {
         "inv-1790637265942": 3
       },
@@ -33231,7 +33231,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791702465196",
       "code": "CUST-0045",
-      "balance": 0,
+      "balance": 99,
       "specialPrices": {
         "inv-1790637265942": 3
       },
@@ -33249,7 +33249,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791702552848",
       "code": "CUST-0046",
-      "balance": 0,
+      "balance": 10,
       "payments": [],
       "_fromCloud": true,
       "updatedAt": "2026-11-04T15:17:31.976Z",
@@ -33264,7 +33264,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791702594099",
       "code": "CUST-0047",
-      "balance": 0,
+      "balance": 15,
       "items": [],
       "updatedAt": "2026-11-04T15:17:31.976Z",
       "_fromCloud": true,
@@ -33279,7 +33279,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791702805382",
       "code": "CUST-0048",
-      "balance": 0,
+      "balance": 26,
       "specialPrices": {
         "inv-1790637265942": 3
       },
@@ -33297,7 +33297,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791702913726",
       "code": "CUST-0049",
-      "balance": 0,
+      "balance": 10,
       "specialPrices": {
         "inv-1791228730647": 5
       },
@@ -33315,7 +33315,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791703514060",
       "code": "CUST-0050",
-      "balance": 0,
+      "balance": 77,
       "payments": [],
       "_fromCloud": true,
       "items": [],
@@ -33330,7 +33330,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791703674542",
       "code": "CUST-0051",
-      "balance": 0,
+      "balance": 74,
       "specialPrices": {
         "inv-1790637265942": 3
       },
@@ -33348,7 +33348,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791703860326",
       "code": "CUST-0052",
-      "balance": 0,
+      "balance": 13,
       "specialPrices": {
         "inv-1790637265942": 3
       },
@@ -33366,7 +33366,7 @@
       "openingBalanceDate": "2026-10-11",
       "id": "pt-1791703932414",
       "code": "CUST-0053",
-      "balance": 0,
+      "balance": 40,
       "specialPrices": {
         "inv-1791146215437": 3
       },
@@ -33381,7 +33381,7 @@
       "isSubCustomer": true,
       "notes": "زبون فرعي / دين مؤقت متصل بالعميل الرئيسي: عميل كاشير نقدي",
       "type": "customer",
-      "balance": 1050,
+      "balance": 700,
       "code": "SUB-0001",
       "openingBalance": 0,
       "phone": "",
@@ -33479,7 +33479,7 @@
       "id": "job-1791327643844",
       "customerName": "المبادرة الجزائرية الفلسطينية",
       "quantity": 2,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": [],
       "payments": []
@@ -33506,7 +33506,7 @@
       "customerName": "زبون نقدي",
       "id": "job-1791327611154",
       "deliveryDate": "2026-10-01",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -33535,7 +33535,7 @@
       "deliveryDate": "2026-10-01",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -33562,7 +33562,7 @@
       "totalPrice": 8,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true
     },
     {
@@ -33588,7 +33588,7 @@
       "remainingBalance": 0,
       "notes": "",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "items": []
     },
@@ -33615,7 +33615,7 @@
       "unitCost": 58.8,
       "paperType": "حسب مواصفات الفاتورة",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": []
     },
@@ -33644,7 +33644,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "createdAt": "2026-10-06",
@@ -33670,7 +33670,7 @@
       "quantity": 12,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true
     },
     {
@@ -33698,7 +33698,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "colorType": "ألوان كاملة",
@@ -33724,7 +33724,7 @@
       "depositPaid": 0,
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": []
     },
     {
@@ -33750,7 +33750,7 @@
       "createdAt": "2026-10-06",
       "status": "new",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": []
     },
@@ -33777,7 +33777,7 @@
       "serviceType": "custom_print",
       "paperType": "حسب مواصفات الفاتورة",
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -33806,7 +33806,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "status": "new",
@@ -33831,7 +33831,7 @@
       "customerName": "زبون نقدي",
       "id": "job-1791325312072",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "items": []
     },
@@ -33858,7 +33858,7 @@
       "colorType": "ألوان كاملة",
       "deliveryDate": "2026-10-01",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -33887,7 +33887,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "depositPaid": 9,
@@ -33914,7 +33914,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "createdAt": "2026-10-06",
@@ -33938,7 +33938,7 @@
       "depositPaid": 4,
       "customerId": "pt-1790460764568",
       "dimensions": "0 × 0 سم",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": [],
       "payments": []
@@ -33967,7 +33967,7 @@
       "customerId": "pt-1790460764568",
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true
     },
     {
@@ -33995,7 +33995,7 @@
       "_fromCloud": true,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "customerPhone": "",
@@ -34022,7 +34022,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "notes": "",
@@ -34047,7 +34047,7 @@
       "id": "job-1791325110574",
       "createdAt": "2026-10-06",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": []
     },
@@ -34074,7 +34074,7 @@
       "customerPhone": "",
       "colorType": "ألوان كاملة",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -34101,7 +34101,7 @@
       "unitCost": 7,
       "createdAt": "2026-10-06",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": []
     },
@@ -34128,7 +34128,7 @@
       "customerId": "pt-1790460764568",
       "customerPhone": "",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": []
     },
@@ -34154,7 +34154,7 @@
       "quantity": 1,
       "title": "مقوى A4  مطبوع",
       "customerName": "يحيى خضر",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "items": [],
       "_fromCloud": true
@@ -34182,7 +34182,7 @@
       "orderNumber": "JOB-2026-0075",
       "quantity": 2,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -34208,7 +34208,7 @@
       "colorType": "ألوان كاملة",
       "id": "job-1791324774790",
       "associatedInvoiceId": "inv-pos-1791324774789",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -34238,7 +34238,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "id": "job-1791324707259",
@@ -34265,7 +34265,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "deliveryDate": "2026-10-01",
@@ -34289,7 +34289,7 @@
       "dimensions": "0 × 0 سم",
       "colorType": "ألوان كاملة",
       "title": "طباعة ورق A4 ",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "_fromCloud": true,
       "items": []
@@ -34318,7 +34318,7 @@
       "finishingOptions": [],
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -34346,7 +34346,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "finishingOptions": [],
@@ -34371,7 +34371,7 @@
       "remainingBalance": 285,
       "customerId": "pt-1791324255771",
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -34400,7 +34400,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "depositPaid": 0,
@@ -34427,7 +34427,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "id": "job-1791324141652",
@@ -34452,7 +34452,7 @@
       "totalPrice": 29,
       "remainingBalance": 0,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -34478,7 +34478,7 @@
       "notes": "",
       "associatedInvoiceId": "inv-pos-1791324060523",
       "deliveryDate": "2026-10-01",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "items": [],
       "_fromCloud": true
@@ -34507,7 +34507,7 @@
       "deliveryDate": "2026-10-01",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -34534,7 +34534,7 @@
       "depositPaid": 6,
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": []
     },
     {
@@ -34561,7 +34561,7 @@
       "quantity": 1,
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": []
     },
     {
@@ -34586,7 +34586,7 @@
       "associatedInvoiceId": "inv-pos-1791235850596",
       "notes": "",
       "unitCost": 1.4,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "items": [],
       "_fromCloud": true
@@ -34615,7 +34615,7 @@
       "totalPrice": 70,
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": []
     },
     {
@@ -34643,7 +34643,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "remainingBalance": 0,
@@ -34667,7 +34667,7 @@
       "customerId": "pt-1790460764568",
       "finishingOptions": [],
       "dimensions": "0 × 0 سم",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -34695,7 +34695,7 @@
       "id": "job-1791235620853",
       "createdAt": "2026-10-05",
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -34724,7 +34724,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "customerName": "زبون نقدي",
@@ -34749,7 +34749,7 @@
       "colorType": "ألوان كاملة",
       "notes": "أحمد المشهراوي",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": []
     },
@@ -34778,7 +34778,7 @@
       "items": [],
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "finishingOptions": [],
@@ -34805,7 +34805,7 @@
       "_fromCloud": true,
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "id": "job-1791230944336",
@@ -34829,7 +34829,7 @@
       "deliveryDate": "2026-10-01",
       "finishingOptions": [],
       "paperType": "حسب مواصفات الفاتورة",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -34856,7 +34856,7 @@
       "customerId": "pt-1791153609820",
       "dimensions": "0 × 0 سم",
       "finishingOptions": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": [],
       "payments": []
@@ -34886,7 +34886,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "associatedInvoiceId": "inv-pos-1791227958515",
@@ -34911,7 +34911,7 @@
       "title": "مضاريف 11×23 مع طباعة",
       "createdAt": "2026-10-05",
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -34938,7 +34938,7 @@
       "customerName": "مؤسسة 4TDK",
       "deliveryDate": "2026-10-01",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": []
     },
@@ -34964,7 +34964,7 @@
       "orderNumber": "JOB-2026-0046",
       "serviceType": "custom_print",
       "paperType": "حسب مواصفات الفاتورة",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": [],
       "_fromCloud": true
@@ -34993,7 +34993,7 @@
       "id": "job-1791227958529",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35020,7 +35020,7 @@
       "deliveryDate": "2026-10-01",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35048,7 +35048,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "colorType": "ألوان كاملة",
@@ -35072,7 +35072,7 @@
       "createdAt": "2026-10-05",
       "customerPhone": "",
       "quantity": 1,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -35101,7 +35101,7 @@
       "totalPrice": 5,
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35127,7 +35127,7 @@
       "customerId": "pt-1790460764568",
       "notes": "محمد زقوت",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -35154,7 +35154,7 @@
       "dimensions": "0 × 0 سم",
       "customerId": "pt-1791153609820",
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -35180,7 +35180,7 @@
       "remainingBalance": 253,
       "quantity": 8,
       "createdAt": "2026-10-05",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "_fromCloud": true,
       "items": []
@@ -35209,7 +35209,7 @@
       "orderNumber": "JOB-2026-0037",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35236,7 +35236,7 @@
       "title": "مطبوعات جلدية - جلد",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35262,7 +35262,7 @@
       "remainingBalance": 75,
       "depositPaid": 0,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": []
     },
@@ -35289,7 +35289,7 @@
       "quantity": 1,
       "id": "job-1791224479414",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": []
     },
@@ -35315,7 +35315,7 @@
       "deliveryDate": "2026-10-01",
       "remainingBalance": 0,
       "id": "job-1791224382841",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -35344,7 +35344,7 @@
       "customerName": "جمعية قوافل الخير - غزة",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35372,7 +35372,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "title": "طباعة ورق A4 ",
@@ -35399,7 +35399,7 @@
       "items": [],
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "title": "مقوى A4  مطبوع",
@@ -35423,7 +35423,7 @@
       "colorType": "ألوان كاملة",
       "id": "job-1791154373568",
       "unitCost": 3.5,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": [],
       "items": []
@@ -35453,7 +35453,7 @@
       "_fromCloud": true,
       "payments": [],
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "orderNumber": "JOB-2026-0027",
@@ -35478,7 +35478,7 @@
       "customerId": "pt-1790460764568",
       "title": "ختم دائري 4 سم قلاب",
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "payments": []
     },
@@ -35505,7 +35505,7 @@
       "createdAt": "2026-10-04",
       "unitCost": 3.5,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": []
     },
@@ -35533,7 +35533,7 @@
       "dimensions": "0 × 0 سم",
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": []
     },
     {
@@ -35558,7 +35558,7 @@
       "serviceType": "custom_print",
       "customerName": "الجمعية الإسلامية - مدينة بيت لاهيا",
       "depositPaid": 0,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -35585,7 +35585,7 @@
       "status": "new",
       "associatedInvoiceId": "inv-pos-1791150772256",
       "totalPrice": 350,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -35612,7 +35612,7 @@
       "deliveryDate": "2026-10-04",
       "paperType": "حسب مواصفات الفاتورة",
       "remainingBalance": 0,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": [],
       "_fromCloud": true
@@ -35642,7 +35642,7 @@
       "payments": [],
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "orderNumber": "JOB-2026-0020",
@@ -35668,7 +35668,7 @@
       "customerName": "جمعية قوافل الخير - غزة",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35694,7 +35694,7 @@
       "colorType": "ألوان كاملة",
       "customerName": "جمعية قوافل الخير - غزة",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -35721,7 +35721,7 @@
       "title": "مطبوعات جلدية - جلد",
       "remainingBalance": 120,
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": []
     },
@@ -35748,7 +35748,7 @@
       "notes": "",
       "quantity": 4,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -35775,7 +35775,7 @@
       "createdAt": "2026-10-04",
       "customerId": "pt-1791059380400",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -35801,7 +35801,7 @@
       "unitCost": 3.5,
       "id": "job-1791147132628",
       "associatedInvoiceId": "inv-pos-1791146794821",
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true,
       "payments": []
@@ -35830,7 +35830,7 @@
       "paperType": "حسب مواصفات الفاتورة",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35857,7 +35857,7 @@
       "paperType": "حسب مواصفات الفاتورة",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -35883,7 +35883,7 @@
       "notes": "",
       "customerPhone": "",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": []
     },
@@ -35910,7 +35910,7 @@
       "orderNumber": "JOB-2026-0011",
       "remainingBalance": 300,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -35938,7 +35938,7 @@
       "deliveryDate": "2026-10-01",
       "_fromCloud": true,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": []
     },
     {
@@ -35964,7 +35964,7 @@
       "customerId": "pt-1790460764568",
       "dimensions": "0 × 0 سم",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "items": []
     },
@@ -35992,7 +35992,7 @@
       "quantity": 2,
       "payments": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": []
     },
     {
@@ -36018,7 +36018,7 @@
       "notes": "",
       "colorType": "ألوان كاملة",
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "_fromCloud": true
     },
@@ -36046,7 +36046,7 @@
       "colorType": "ألوان كاملة",
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -36074,7 +36074,7 @@
       "payments": [],
       "_fromCloud": true,
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z"
+      "updatedAt": "2026-11-04T21:37:26.635Z"
     },
     {
       "dimensions": "1 × 1 سم",
@@ -36099,7 +36099,7 @@
       "status": "new",
       "serviceType": "custom_print",
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "items": [],
       "payments": []
     },
@@ -36126,7 +36126,7 @@
       "status": "new",
       "title": "خنم دائري 4سم قلاب",
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": [],
       "_fromCloud": true
     },
@@ -36153,7 +36153,7 @@
       "customerName": "الجمعية الإسلامية - مدينة بيت لاهيا",
       "totalPrice": 120,
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "_fromCloud": true,
       "items": []
     },
@@ -36181,7 +36181,7 @@
       "title": "مطبوعات جلدية - جلد",
       "items": [],
       "_fromCloud": true,
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "payments": []
     },
     {
@@ -36214,7 +36214,7 @@
           "itemId": "inv-1790637265942"
         }
       ],
-      "updatedAt": "2026-11-04T15:17:31.978Z",
+      "updatedAt": "2026-11-04T21:37:26.635Z",
       "id": "job-1792073325537",
       "_fromCloud": true,
       "notes": null,
@@ -41643,7 +41643,7 @@
       "payments": [],
       "createdAt": "2026-01-01",
       "notes": "الخزينة النقدية الرئيسية لمكتب المبيعات والكاشير والسيولة متعددة العملات (شيكل، دولار، دينار)",
-      "updatedAt": "2026-11-04T15:17:31.984Z",
+      "updatedAt": "2026-11-04T21:37:26.641Z",
       "items": [],
       "status": "active",
       "currencyBalances": {
@@ -41673,9 +41673,9 @@
           "exchangeRate": 1,
           "baseCurrency": "ILS",
           "baseAmount": 14,
-          "voucherNumber": "INV-0086",
+          "voucherNumber": "INV-0029",
           "partyName": "زبون نقدي",
-          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0086 (زبون نقدي)",
+          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0029 (زبون نقدي)",
           "referenceType": "pos_sale",
           "referenceId": "inv-pos-1793626834211-28-2sbi0",
           "paymentMethod": "card",
@@ -41695,9 +41695,9 @@
           "exchangeRate": 1,
           "baseCurrency": "ILS",
           "baseAmount": 2000,
-          "voucherNumber": "INV-0087",
+          "voucherNumber": "INV-0028",
           "partyName": "زبون نقدي",
-          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0087 (زبون نقدي)",
+          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0028 (زبون نقدي)",
           "referenceType": "pos_sale",
           "referenceId": "inv-pos-1793626834211-27-hbbtz",
           "paymentMethod": "card",
@@ -41717,9 +41717,9 @@
           "exchangeRate": 1,
           "baseCurrency": "ILS",
           "baseAmount": 8,
-          "voucherNumber": "INV-0088",
+          "voucherNumber": "INV-0027",
           "partyName": "زبون نقدي",
-          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0088 (زبون نقدي)",
+          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0027 (زبون نقدي)",
           "referenceType": "pos_sale",
           "referenceId": "inv-pos-1793626834211-26-nap89",
           "paymentMethod": "card",
@@ -41739,9 +41739,9 @@
           "exchangeRate": 1,
           "baseCurrency": "ILS",
           "baseAmount": 14,
-          "voucherNumber": "INV-0035",
+          "voucherNumber": "INV-0074",
           "partyName": "زبون نقدي",
-          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0035 (زبون نقدي)",
+          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0074 (زبون نقدي)",
           "referenceType": "pos_sale",
           "referenceId": "inv-pos-1793626834212-73-okqrr",
           "paymentMethod": "card",
@@ -41761,9 +41761,9 @@
           "exchangeRate": 1,
           "baseCurrency": "ILS",
           "baseAmount": 2000,
-          "voucherNumber": "INV-0036",
+          "voucherNumber": "INV-0073",
           "partyName": "زبون نقدي",
-          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0036 (زبون نقدي)",
+          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0073 (زبون نقدي)",
           "referenceType": "pos_sale",
           "referenceId": "inv-pos-1793626834212-72-u9clr",
           "paymentMethod": "card",
@@ -41783,9 +41783,9 @@
           "exchangeRate": 1,
           "baseCurrency": "ILS",
           "baseAmount": 8,
-          "voucherNumber": "INV-0037",
+          "voucherNumber": "INV-0072",
           "partyName": "زبون نقدي",
-          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0037 (زبون نقدي)",
+          "description": "تحصيل شبكة / بنك - فاتورة مبيعات رقم INV-0072 (زبون نقدي)",
           "referenceType": "pos_sale",
           "referenceId": "inv-pos-1793626834212-71-vnxn4",
           "paymentMethod": "card",
@@ -41797,7 +41797,7 @@
       "status": "active",
       "createdAt": "2026-09-28",
       "items": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z",
+      "updatedAt": "2026-11-04T21:37:26.641Z",
       "payments": [],
       "currencyBalances": {
         "ILS": 4044
@@ -41819,7 +41819,7 @@
       "accountNumber": null,
       "items": [],
       "notes": "رائد صالحة - ال باي - جوال باي - مال شات",
-      "updatedAt": "2026-11-04T15:17:31.984Z",
+      "updatedAt": "2026-11-04T21:37:26.641Z",
       "payments": [],
       "bankName": "الحساب البنكي",
       "status": "active"
@@ -41839,7 +41839,7 @@
       "items": [],
       "accountNumber": null,
       "notes": null,
-      "updatedAt": "2026-11-04T15:17:31.984Z",
+      "updatedAt": "2026-11-04T21:37:26.641Z",
       "currencyBalances": {
         "ILS": 0
       },
@@ -41860,7 +41860,7 @@
       },
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.641Z"
     }
   ],
   "users": [
@@ -42019,7 +42019,7 @@
       "paymentMethod": "card",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     },
     {
       "type": "receipt",
@@ -42034,7 +42034,7 @@
       "accountCode": "1201",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     },
     {
       "type": "receipt",
@@ -42049,7 +42049,7 @@
       "id": "vch-inv-inv-pos-1791225511753",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     },
     {
       "voucherNumber": "RCT-INV-0016",
@@ -42064,7 +42064,7 @@
       "paymentMethod": "card",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     },
     {
       "date": "2026-01-10",
@@ -42079,7 +42079,7 @@
       "description": "سند تحصيل فوري لفاتورة مبيعات رقم INV-0014",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     },
     {
       "type": "receipt",
@@ -42094,7 +42094,7 @@
       "accountCode": "1201",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     },
     {
       "voucherNumber": "RCT-INV-0012",
@@ -42109,7 +42109,7 @@
       "paymentMethod": "card",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     },
     {
       "partyId": "pt-1790460764568",
@@ -42124,7 +42124,7 @@
       "description": "سند تحصيل فوري لفاتورة مبيعات رقم INV-0010",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     },
     {
       "id": "vch-inv-inv-pos-1791146794821",
@@ -42139,7 +42139,7 @@
       "partyName": "زبون نقدي",
       "items": [],
       "payments": [],
-      "updatedAt": "2026-11-04T15:17:31.984Z"
+      "updatedAt": "2026-11-04T21:37:26.640Z"
     }
   ],
   "warehouseOperations": [],
