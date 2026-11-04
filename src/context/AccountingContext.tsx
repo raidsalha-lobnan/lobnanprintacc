@@ -1616,8 +1616,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     const unsubscribes: (() => void)[] = [];
     
-    // List of entities to listen to
-    const collectionsToListen = ['invoices', 'parties', 'inventory']; // Start with critical entities
+    // Comprehensive list of entities to listen to for real-time synchronization
+    const collectionsToListen = [
+      'invoices', 'parties', 'inventory', 'vouchers', 'purchases', 
+      'accounts', 'treasuries', 'employees', 'journalEntries', 'expenses'
+    ];
     
     collectionsToListen.forEach(entity => {
       const docRef = doc(db, 'lobnan_accounting_db_v3', entity);
@@ -1626,9 +1629,18 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const data = snap.data();
           if (data && Array.isArray(data.items)) {
             console.log(`Live update received for ${entity}`);
-            if (entity === 'invoices') setInvoices(data.items);
-            if (entity === 'parties') setParties(data.items);
-            if (entity === 'inventory') setInventory(data.items);
+            switch(entity) {
+              case 'invoices': setInvoices(data.items); break;
+              case 'parties': setParties(data.items); break;
+              case 'inventory': setInventory(data.items); break;
+              case 'vouchers': setVouchers(data.items); break;
+              case 'purchases': setPurchases(data.items); break;
+              case 'accounts': setAccounts(data.items); break;
+              case 'treasuries': setTreasuries(data.items); break;
+              case 'employees': setEmployees(data.items); break;
+              case 'journalEntries': setJournalEntries(data.items); break;
+              case 'expenses': setExpenses(data.items); break;
+            }
           }
         }
       });
