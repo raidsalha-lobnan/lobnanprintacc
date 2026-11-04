@@ -1612,6 +1612,32 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => clearInterval(interval);
   }, []);
 
+  // Real-time Firestore Listeners
+  useEffect(() => {
+    const unsubscribes: (() => void)[] = [];
+    
+    // List of entities to listen to
+    const collectionsToListen = ['invoices', 'parties', 'inventory']; // Start with critical entities
+    
+    collectionsToListen.forEach(entity => {
+      const docRef = doc(db, 'lobnan_accounting_db_v3', entity);
+      const unsub = onSnapshot(docRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items)) {
+            console.log(`Live update received for ${entity}`);
+            if (entity === 'invoices') setInvoices(data.items);
+            if (entity === 'parties') setParties(data.items);
+            if (entity === 'inventory') setInventory(data.items);
+          }
+        }
+      });
+      unsubscribes.push(unsub);
+    });
+    
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, []);
+
   // Aggressive Master Database Hydration: Transition directly to the unified cloud database on app startup when online
   useEffect(() => {
     const aggressiveHydrate = async () => {
