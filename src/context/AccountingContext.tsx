@@ -1612,229 +1612,85 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => clearInterval(interval);
   }, []);
 
-  // Smart Master Database Hydration: Transition directly to the unified cloud database on app startup when online
+  // Aggressive Master Database Hydration: Transition directly to the unified cloud database on app startup when online
   useEffect(() => {
-
-    const autoHydrateMasterDb = async () => {
+    const aggressiveHydrate = async () => {
       if (isLocalOnlyMode || !navigator.onLine) return;
       try {
-        const fsData = await fetchFullDatabaseFromFirestore();
-        if (fsData && Object.keys(fsData).some(k => Array.isArray(fsData[k]) && fsData[k].length > 0)) {
-          let updatedInvoicesList: Invoice[] = invoices || [];
-          let updatedVouchersList: PaymentVoucher[] = vouchers || [];
-
-          if (Array.isArray(fsData.invoices)) {
-            updatedInvoicesList = mergeInvoicesWithUpsertAndConflictResolution(invoices || [], fsData.invoices);
-            setInvoices(updatedInvoicesList);
-            try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(updatedInvoicesList)); } catch {}
-          }
-          if (Array.isArray(fsData.parties)) {
-            const pList = mergeEntityLists(parties || [], fsData.parties.filter((p: any) => !isTestSyncProbeParty(p)));
-            setParties(pList);
-            try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(pList)); } catch {}
-          }
-          if (Array.isArray(fsData.inventory)) {
-            const iList = mergeEntityLists(inventory || [], fsData.inventory.filter((i: any) => i && i.id !== 'inv-probe-sync-1' && i.id !== 'inv-test-full-1' && i.name !== 'صنف تجربة المزامنة' && i.name !== 'صنف فحص المزامنة الشاملة'));
-            setInventory(iList);
-            try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(iList)); } catch {}
-          }
-          if (Array.isArray(fsData.vouchers)) {
-            updatedVouchersList = mergeEntityLists(vouchers || [], fsData.vouchers);
-            setVouchers(updatedVouchersList);
-            try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(updatedVouchersList)); } catch {}
-          }
-          if (Array.isArray(fsData.printOrders)) {
-            const poList = mergeEntityLists(printOrders || [], fsData.printOrders);
-            setPrintOrders(poList);
-            try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(poList)); } catch {}
-          }
-          if (Array.isArray(fsData.purchases)) {
-            const purList = mergeEntityLists(purchases || [], fsData.purchases);
-            setPurchases(purList);
-            try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(purList)); } catch {}
-          }
-          if (Array.isArray(fsData.accounts)) {
-            const accList = mergeEntityLists(accounts || [], fsData.accounts);
-            setAccounts(accList);
-            try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(accList)); } catch {}
-          }
-          if (Array.isArray(fsData.treasuries)) {
-            setTreasuries(prev => {
-              const merged = ensureUniqueTreasuryAccountCodes(mergeEntityLists(prev || [], fsData.treasuries));
-              const finalTrs = auditAndRecalculateTreasuries(merged, updatedInvoicesList, updatedVouchersList);
-              try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(finalTrs)); } catch {}
-              return finalTrs;
-            });
-          }
-          if (Array.isArray(fsData.employees)) {
-            const empList = mergeEntityLists(employees || [], fsData.employees);
-            setEmployees(empList);
-            try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(empList)); } catch {}
-          }
-          if (Array.isArray(fsData.branches)) {
-            const brList = mergeEntityLists(branches || [], fsData.branches);
-            setBranches(brList);
-            try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(brList)); } catch {}
-          }
-          if (Array.isArray(fsData.warehouses)) {
-            const whList = mergeEntityLists(warehouses || [], fsData.warehouses);
-            setWarehouses(whList);
-            try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(whList)); } catch {}
-          }
-          if (Array.isArray(fsData.purchaseReturns)) {
-            const prList = mergeEntityLists(purchaseReturns || [], fsData.purchaseReturns);
-            setPurchaseReturns(prList);
-            try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(prList)); } catch {}
-          }
-          if (Array.isArray(fsData.salesReturns)) {
-            const srList = mergeEntityLists(salesReturns || [], fsData.salesReturns);
-            setSalesReturns(srList);
-            try { localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(srList)); } catch {}
-          }
-          if (Array.isArray(fsData.journalEntries)) {
-            const jeList = mergeEntityLists(journalEntries || [], fsData.journalEntries);
-            setJournalEntries(jeList);
-            try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(jeList)); } catch {}
-          }
-          if (Array.isArray(fsData.stockMovements)) {
-            const smList = mergeEntityLists(stockMovements || [], fsData.stockMovements);
-            setStockMovements(smList);
-            try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(smList)); } catch {}
-          }
-          if (Array.isArray(fsData.expenses)) {
-            const expList = mergeEntityLists(expenses || [], fsData.expenses);
-            setExpenses(expList);
-            try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(expList)); } catch {}
-          }
-          if (Array.isArray(fsData.debtClearings)) {
-            const dcList = mergeEntityLists(debtClearings || [], fsData.debtClearings);
-            setDebtClearings(dcList);
-            try { localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(dcList)); } catch {}
-          }
-          if (Array.isArray(fsData.employeeAdvances)) {
-            const advList = mergeEntityLists(employeeAdvances || [], fsData.employeeAdvances);
-            setEmployeeAdvances(advList);
-            try { localStorage.setItem(`${STORAGE_KEY}_advances`, JSON.stringify(advList)); } catch {}
-          }
-          if (Array.isArray(fsData.employeeDeductions)) {
-            const dedList = mergeEntityLists(employeeDeductions || [], fsData.employeeDeductions);
-            setEmployeeDeductions(dedList);
-            try { localStorage.setItem(`${STORAGE_KEY}_deductions`, JSON.stringify(dedList)); } catch {}
-          }
-          if (Array.isArray(fsData.employeeIncentives)) {
-            const incList = mergeEntityLists(employeeIncentives || [], fsData.employeeIncentives);
-            setEmployeeIncentives(incList);
-            try { localStorage.setItem(`${STORAGE_KEY}_incentives`, JSON.stringify(incList)); } catch {}
-          }
-          if (Array.isArray(fsData.payrollSheets)) {
-            const payList = mergeEntityLists(payrollSheets || [], fsData.payrollSheets);
-            setPayrollSheets(payList);
-            try { localStorage.setItem(`${STORAGE_KEY}_payrollSheets`, JSON.stringify(payList)); } catch {}
-          }
-          if (Array.isArray(fsData.warehouseOperations)) {
-            const woList = mergeEntityLists(warehouseOperations || [], fsData.warehouseOperations);
-            setWarehouseOperations(woList);
-            try { localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(woList)); } catch {}
-          }
-          if (Array.isArray(fsData.companies)) {
-            const cmpList = mergeEntityLists(companies || [], fsData.companies);
-            setCompanies(cmpList);
-            try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(cmpList)); } catch {}
-          }
-          if (Array.isArray(fsData.roles)) {
-            const rlList = mergeEntityLists(roles || [], fsData.roles);
-            setRoles(rlList);
-            try { localStorage.setItem(`${STORAGE_KEY}_roles`, JSON.stringify(rlList)); } catch {}
-          }
-          if (Array.isArray(fsData.users) && fsData.users.length > 0) {
-            const uList = mergeEntityLists(users || [], fsData.users);
-            setUsers(uList);
-            try { localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(uList)); } catch {}
-          }
-          if (fsData.settings && typeof fsData.settings === 'object') {
-            const sObj = Array.isArray(fsData.settings) ? fsData.settings[0] : fsData.settings;
-            if (sObj) {
-              setSettings(prev => {
-                const merged = { ...prev, ...sObj };
-                try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(merged)); } catch {}
-                return merged;
-              });
-            }
-          }
-          isCloudHydratedRef.current = true;
-        }
+        console.log('Aggressive Master Sync Hydration...');
+        // Force sync from server
+        await executeServerFullSync();
+        isCloudHydratedRef.current = true;
       } catch (err) {
-        console.debug('autoHydrateMasterDb note:', err);
+        console.warn('Aggressive Master Sync hydration note:', err);
       }
     };
+    aggressiveHydrate();
+  }, []);
 
-    autoHydrateMasterDb();
-  }, [isLocalOnlyMode]);
-
-  const [accounts, setAccounts] = useState<Account[]>(() => {
-    const loaded = safeLoadArray(`${STORAGE_KEY}_accounts`, initialAccounts);
-    if (!loaded.some(a => a.code === '2104')) {
-      const deliveryAcc: Account = {
-        code: '2104',
-        name: 'أمانات ومستحقات خدمة التوصيل (عمال وشركات التوصيل)',
-        type: 'liability',
-        balance: 0,
-        isSystem: true,
-        description: 'مستحقات التوصيل المحصلة من الزبائن لصالح عمال التوصيل - خدمة صفرية الربح ولا أثر مخزني لها'
-      };
-      return [...loaded, deliveryAcc];
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  useEffect(() => {
+    if (!isCloudHydratedRef.current) {
+      setAccounts(safeLoadArray(`${STORAGE_KEY}_accounts`, initialAccounts));
     }
-    return loaded;
-  });
+  }, []);
 
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => {
-    const loaded = safeLoadArray(`${STORAGE_KEY}_journals`, initialJournalEntries);
-    return deduplicateById(loaded, 'je');
-  });
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  useEffect(() => {
+    if (!isCloudHydratedRef.current) {
+      setJournalEntries(deduplicateById(safeLoadArray(`${STORAGE_KEY}_journals`, initialJournalEntries), 'je'));
+    }
+  }, []);
 
-  const [inventory, setInventory] = useState<InventoryItem[]>(() => {
-    const loaded = safeLoadArray(`${STORAGE_KEY}_inventory`, initialInventory);
-    const filtered = loaded.filter(it => it && it.id !== 'inv-probe-sync-1' && it.id !== 'inv-test-full-1' && it.name !== 'صنف تجربة المزامنة' && it.name !== 'صنف فحص المزامنة الشاملة');
-    const mapped = filtered.map(it => {
-      if (!it) return it;
-      if (
-        it.code === 'PRI-0009' ||
-        it.name?.includes('جاليه سيلكون') ||
-        (it.name?.includes('جاليه') && (it.category === 'مطبوعات قماش' || it.category === 'textiles'))
-      ) {
-        return { ...it, code: 'TEX-0001', category: 'textiles' };
-      }
-      return it;
-    });
-    return deduplicateById(mapped, 'inv');
-  });
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  useEffect(() => {
+    if (!isCloudHydratedRef.current) {
+      const loaded = safeLoadArray(`${STORAGE_KEY}_inventory`, initialInventory);
+      const filtered = loaded.filter(it => it && it.id !== 'inv-probe-sync-1' && it.id !== 'inv-test-full-1' && it.name !== 'صنف تجربة المزامنة' && it.name !== 'صنف فحص المزامنة الشاملة');
+      const mapped = filtered.map(it => {
+        if (!it) return it;
+        if (
+          it.code === 'PRI-0009' ||
+          it.name?.includes('جاليه سيلكون') ||
+          (it.name?.includes('جاليه') && (it.category === 'مطبوعات قماش' || it.category === 'textiles'))
+        ) {
+          return { ...it, code: 'TEX-0001', category: 'textiles' };
+        }
+        return it;
+      });
+      setInventory(deduplicateById(mapped, 'inv'));
+    }
+  }, []);
 
-  const [parties, setParties] = useState<Party[]>(() => {
-    const raw = safeLoadArray(`${STORAGE_KEY}_parties`, initialParties);
-    // Deduplicate any accidental duplicate cash customer records & purge invalid phantom records
-    const seenGenericCash = new Set<string>();
-    const cleanedRaw = raw.filter(p => {
-      if (!p || !p.id || !p.name || !p.name.trim() || p.id.startsWith('emp-') || isTestSyncProbeParty(p)) return false;
-      const trimmed = (p.name || '').trim();
-      const isGeneric = trimmed === 'زبون نقدي' || trimmed === 'عميل نقدي' || trimmed === 'عميل كاشير نقدي' || trimmed === 'زبون عام';
-      if (isGeneric) {
-        if (seenGenericCash.has(trimmed)) return false;
-        seenGenericCash.add(trimmed);
-      }
-      return true;
-    });
-    // Migration: ensure every single party has a guaranteed unique sequential code
-    const result: Party[] = [];
-    cleanedRaw.forEach(p => {
-      if (p.code && !result.some(r => r.code.toLowerCase() === p.code.toLowerCase())) {
-        result.push(p);
-      } else {
-        const code = generateSequentialPartyCode(p.type, result);
-        result.push({ ...p, code });
-      }
-    });
-    return result;
-  });
+  const [parties, setParties] = useState<Party[]>([]);
+  useEffect(() => {
+    if (!isCloudHydratedRef.current) {
+      const raw = safeLoadArray(`${STORAGE_KEY}_parties`, initialParties);
+      // Deduplicate any accidental duplicate cash customer records & purge invalid phantom records
+      const seenGenericCash = new Set<string>();
+      const cleanedRaw = raw.filter(p => {
+        if (!p || !p.id || !p.name || !p.name.trim() || p.id.startsWith('emp-') || isTestSyncProbeParty(p)) return false;
+        const trimmed = (p.name || '').trim();
+        const isGeneric = trimmed === 'زبون نقدي' || trimmed === 'عميل نقدي' || trimmed === 'عميل كاشير نقدي' || trimmed === 'زبون عام';
+        if (isGeneric) {
+          if (seenGenericCash.has(trimmed)) return false;
+          seenGenericCash.add(trimmed);
+        }
+        return true;
+      });
+      // Migration: ensure every single party has a guaranteed unique sequential code
+      const result: Party[] = [];
+      cleanedRaw.forEach(p => {
+        if (p.code && !result.some(r => r.code.toLowerCase() === p.code.toLowerCase())) {
+          result.push(p);
+        } else {
+          const code = generateSequentialPartyCode(p.type, result);
+          result.push({ ...p, code });
+        }
+      });
+      setParties(result);
+    }
+  }, []);
 
   const [employees, setEmployees] = useState<Employee[]>(() => {
     return safeLoadArray(`${STORAGE_KEY}_employees`, initialEmployees);
