@@ -3921,9 +3921,9 @@ const getInitialPosDraft = (): PosFullDraftData => {
                 >
                   <Lock className={`w-3.5 h-3.5 text-blue-200`} />
                   <span>
-                    {(editingPosInvoiceId || currentEditingInvoiceIdRef.current)
-                      ? `#${(invoices.find(i => i.id === (currentEditingInvoiceIdRef.current || editingPosInvoiceId))?.invoiceNumber || `INV-${invoiceSeqNumber.padStart(4, '0')}`)}`
-                      : 'تلقائي بعد الحفظ'}
+                    {(editingPosInvoiceId && invoices.some(i => i.id === editingPosInvoiceId))
+                      ? `#${(invoices.find(i => i.id === editingPosInvoiceId)?.invoiceNumber)}`
+                      : 'تلقائي عند الحفظ'}
                   </span>
                 </div>
               </div>

@@ -107,17 +107,7 @@ export const PaymentVoucherModal: React.FC<PaymentVoucherModalProps> = ({
         setTransferReference('');
 
         // Generate next sequence preview
-        const currentYear = new Date().getFullYear();
-        const yearPrefix = `PAY-${currentYear}-`;
-        let maxSeq = 0;
-        vouchers.forEach(v => {
-          if (v.voucherNumber && v.voucherNumber.startsWith(yearPrefix)) {
-            const seq = parseInt(v.voucherNumber.substring(yearPrefix.length), 10);
-            if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
-          }
-        });
-        const nextSeq = Math.max(vouchers.length + 1, maxSeq + 1);
-        setPreviewVoucherNumber(`${yearPrefix}${String(nextSeq).padStart(4, '0')}`);
+        setPreviewVoucherNumber('تلقائي عند الحفظ');
       }
     }
   }, [isOpen, voucherToEdit, defaultSupplier, defaultAmount, suppliers, vouchers, settings]);

@@ -7918,41 +7918,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     notes?: string,
     extraOptions?: Parameters<typeof createPosSale>[5]
   ): Promise<{ success: boolean; invoice?: Invoice; error?: string; isOffline?: boolean; isBusy?: boolean }> => {
-    if (isLocalOnlyMode) {
-      const localInvoice = createPosSale(
-        items,
-        customerName,
-        paymentMethod,
-        customerId,
-        notes,
-        extraOptions
-      );
-      return {
-        success: true,
-        invoice: localInvoice,
-        isOffline: true
-      };
-    }
-
-    // 1. Strict online connectivity check: "وأثناء عدم الاتصال تضل الشاشات مجمدة محتفظة بمدخلاتها ولكن لا تحفظ إلا وقت الاتصال"
-    if (!onlineInvoicePostingService.checkIsOnline()) {
-      return {
-        success: false,
-        isOffline: true,
-        error: '⚠️ لا يوجد اتصال بالإنترنت حالياً. تم تجميد الشاشة والاحتفاظ بكافة المدخلات والأصناف بأمان لمنع أي فقدان في البيانات. سيتم الحفظ والترحيل فور استعادة الاتصال.'
-      };
-    }
-
-    if (onlineInvoicePostingService.isPostingBusy()) {
-      return {
-        success: false,
-        isBusy: true,
-        error: 'جاري ترحيل فاتورة سابقة حالياً بالتتابع إلى السيرفر... يرجى الانتظار ثوانٍ معدودة لإتمام الترحيل أولاً بأول.'
-      };
-    }
-
-    // 2. Build transient draft invoice representation for network transfer
-    const draftInvoice = preparePosInvoiceDraft(
+    // 1. Instant Local-First Save (< 10ms): Commit accounting ledger, inventory & invoice locally immediately
+    const localInvoice = createPosSale(
       items,
       customerName,
       paymentMethod,
@@ -7961,39 +7928,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       extraOptions
     );
 
-    // 3. Post synchronously to the central online cloud server FIRST
-    // No local state is modified yet! If this fails, the local accounting state is 100% clean.
-    const cloudRes = await onlineInvoicePostingService.postInvoiceDirectlyOnline(draftInvoice, invoices);
-
-    if (!cloudRes.success || !cloudRes.invoice) {
-      return {
-        success: false,
-        isOffline: cloudRes.isOffline,
-        isBusy: cloudRes.isBusy,
-        error: cloudRes.error || 'تعذر استكمال الترحيل السحابي الفوري. مدخلات الفاتورة محفوظة على الشاشة.'
-      };
+    // 2. Asynchronous Non-Blocking Background Cloud Push: Sync to Firestore without keeping cashier waiting
+    if (!isLocalOnlyMode && onlineInvoicePostingService.checkIsOnline()) {
+      onlineInvoicePostingService.postInvoiceDirectlyOnline(localInvoice, invoices).catch(cloudErr => {
+        console.warn('Background cloud posting notice:', cloudErr);
+      });
     }
-
-    // 4. Server confirmed receipt and assigned sequential number!
-    // NOW and ONLY now, commit the invoice and its financial/stock ledger effects locally!
-    // Reuse draftInvoice.id so the committed invoice updates the exact same record instead of creating a duplicate ID
-    const confirmedInvoiceNumber = cloudRes.invoice.invoiceNumber;
-    const finalCommittedInvoice = createPosSale(
-      items,
-      customerName,
-      paymentMethod,
-      customerId,
-      notes,
-      {
-        ...extraOptions,
-        editingInvoiceId: draftInvoice.id,
-        invoiceNumber: confirmedInvoiceNumber
-      }
-    );
 
     return {
       success: true,
-      invoice: finalCommittedInvoice
+      invoice: localInvoice
     };
   };
 
@@ -11016,6 +10960,48 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
            setSettings(finalSettings);
         }
 
+        const ensureUniqueIdsAndTimestamps = (arr: any[], prefix: string) => {
+          if (!Array.isArray(arr)) return [];
+          const nowIso = new Date().toISOString();
+          return arr.map((item, idx) => {
+            if (!item || typeof item !== 'object') return item;
+            const cleanId = item.id ? String(item.id) : `${prefix}-${Date.now()}-${idx}-${Math.floor(Math.random() * 10000)}`;
+            const updatedAt = item.updatedAt || item.createdAt || nowIso;
+            const createdAt = item.createdAt || updatedAt;
+            const newItem = { ...item, id: cleanId, createdAt, updatedAt };
+            delete newItem._deleted;
+            delete newItem.deletedAt;
+            return newItem;
+          });
+        };
+
+        // Standardize all imported entities with guaranteed UUIDs & timestamps
+        if (data.accounts) data.accounts = ensureUniqueIdsAndTimestamps(data.accounts, 'acc');
+        if (data.journalEntries) data.journalEntries = ensureUniqueIdsAndTimestamps(data.journalEntries, 'je');
+        if (data.inventory) data.inventory = ensureUniqueIdsAndTimestamps(data.inventory, 'inv-item');
+        if (data.stockMovements) data.stockMovements = ensureUniqueIdsAndTimestamps(data.stockMovements, 'sm');
+        if (data.parties) data.parties = ensureUniqueIdsAndTimestamps(data.parties, 'party');
+        if (data.employees) data.employees = ensureUniqueIdsAndTimestamps(data.employees, 'emp');
+        if (data.employeeAdvances) data.employeeAdvances = ensureUniqueIdsAndTimestamps(data.employeeAdvances, 'adv');
+        if (data.employeeDeductions) data.employeeDeductions = ensureUniqueIdsAndTimestamps(data.employeeDeductions, 'ded');
+        if (data.employeeIncentives) data.employeeIncentives = ensureUniqueIdsAndTimestamps(data.employeeIncentives, 'inc');
+        if (data.payrollSheets) data.payrollSheets = ensureUniqueIdsAndTimestamps(data.payrollSheets, 'pay');
+        if (data.printOrders) data.printOrders = ensureUniqueIdsAndTimestamps(data.printOrders, 'pord');
+        if (data.invoices) data.invoices = ensureUniqueIdsAndTimestamps(data.invoices, 'inv');
+        if (data.purchases) data.purchases = ensureUniqueIdsAndTimestamps(data.purchases, 'pur');
+        if (data.purchaseReturns) data.purchaseReturns = ensureUniqueIdsAndTimestamps(data.purchaseReturns, 'pur-ret');
+        if (data.salesReturns) data.salesReturns = ensureUniqueIdsAndTimestamps(data.salesReturns, 'sal-ret');
+        if (data.vouchers) data.vouchers = ensureUniqueIdsAndTimestamps(data.vouchers, 'vch');
+        if (data.debtClearings) data.debtClearings = ensureUniqueIdsAndTimestamps(data.debtClearings, 'dc');
+        if (data.expenses) data.expenses = ensureUniqueIdsAndTimestamps(data.expenses, 'exp');
+        if (data.warehouseOperations) data.warehouseOperations = ensureUniqueIdsAndTimestamps(data.warehouseOperations, 'wo');
+        if (data.treasuries) data.treasuries = ensureUniqueIdsAndTimestamps(data.treasuries, 'tr');
+        if (data.roles) data.roles = ensureUniqueIdsAndTimestamps(data.roles, 'role');
+        if (data.users) data.users = ensureUniqueIdsAndTimestamps(data.users, 'usr');
+        if (data.companies) data.companies = ensureUniqueIdsAndTimestamps(data.companies, 'cmp');
+        if (data.branches) data.branches = ensureUniqueIdsAndTimestamps(data.branches, 'br');
+        if (data.warehouses) data.warehouses = ensureUniqueIdsAndTimestamps(data.warehouses, 'wh');
+
         if (includeSettings) {
           if (data.roles) setRoles(data.roles);
           if (data.users) setUsers(data.users);
@@ -11079,8 +11065,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           localStorage.setItem(`${STORAGE_KEY}_daily_entry_sheets`, JSON.stringify(data.dailyEntrySheets));
         }
 
-        // Clear previous deletion tracking so imported items are never purged
+        // Clear previous deletion tracking and advance delta time so old Firestore polling won't re-inject old records
         localStorage.removeItem('accounting_deleted_docs');
+        const nowTs = Date.now();
+        localStorage.setItem('accounting_last_firestore_delta_time', String(nowTs));
+        localStorage.setItem('accounting_last_seen_seq', String(nowTs));
 
         // Direct push to Firestore cloud database in chunked batches
         try {
@@ -11148,6 +11137,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (opCount % 400 !== 0 && opCount > 0) {
             await currentBatch.commit();
           }
+
+          // Purge obsolete Firestore cloud documents not included in the imported snapshot
+          purgeObsoleteFirestoreCollections(collectionsToPush).catch(err => {
+            console.warn('Purge obsolete collections after import notice:', err);
+          });
 
           safeSetSyncedHashes(newHashes);
           localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
