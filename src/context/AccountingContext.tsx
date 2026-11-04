@@ -716,12 +716,26 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
   const map = new Map<string, T>();
   const unpushedDeltas: T[] = [];
 
+  const importCutoffStr = localStorage.getItem('accounting_database_imported_at');
+  const importCutoffTs = importCutoffStr ? parseInt(importCutoffStr, 10) || 0 : 0;
+
   const safeServerItems = Array.isArray(serverItems) ? serverItems.filter(i => i && typeof i === 'object' && i.id != null && !isTestSyncProbeItem(i)) : [];
   const safeLocalItems = Array.isArray(localItems) ? localItems.filter(i => i && typeof i === 'object' && i.id != null && !isTestSyncProbeItem(i)) : [];
+
+  const localKeys = new Set(safeLocalItems.map(i => String(i.id)));
 
   // 1. Load server items
   for (const sItem of safeServerItems) {
     if (delSet.has(`${entityName}_${sItem.id}`)) continue;
+
+    // Discard any server item NOT present in local state if it was created prior to a full database import
+    if (importCutoffTs > 0 && !localKeys.has(String(sItem.id))) {
+      const sTime = getEntityRecordTimestamp(sItem);
+      if (sTime > 0 && sTime < importCutoffTs) {
+        continue;
+      }
+    }
+
     map.set(String(sItem.id), sItem);
   }
 
@@ -733,7 +747,7 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
     const sItem = map.get(idStr);
 
     if (!sItem) {
-      // Local item exists, server does NOT have it -> New local operation!
+      // Local item exists, server does NOT have it -> New local operation or imported record!
       map.set(idStr, lItem);
       unpushedDeltas.push(lItem);
     } else {
@@ -741,13 +755,15 @@ function mergeEntitiesWithDeltaSync<T extends { id?: string }>(
       const localTime = getEntityRecordTimestamp(lItem);
       const serverTime = getEntityRecordTimestamp(sItem);
 
-      if (localTime > serverTime) {
-        // Local modification is newer -> local wins and auto-push to server
+      if (localTime >= serverTime) {
+        // Local modification is newer or equal -> local wins and auto-push to server if newer
         const mergedObj = { ...sItem, ...lItem };
         map.set(idStr, mergedObj);
-        unpushedDeltas.push(mergedObj);
+        if (localTime > serverTime) {
+          unpushedDeltas.push(mergedObj);
+        }
       } else {
-        // Server version is newer or equal -> server wins
+        // Server version is strictly newer -> server wins
         map.set(idStr, { ...lItem, ...sItem });
       }
     }
@@ -11070,6 +11086,28 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const nowTs = Date.now();
         localStorage.setItem('accounting_last_firestore_delta_time', String(nowTs));
         localStorage.setItem('accounting_last_seen_seq', String(nowTs));
+        localStorage.setItem('accounting_database_imported_at', String(nowTs));
+
+        // Overwrite backend Express server state at /api/sync/replace-database so server polling stays 100% matched
+        try {
+          fetch('/api/sync/replace-database', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data })
+          }).catch(err => {
+            console.warn('Replace server database route notice:', err);
+          });
+        } catch (e) {}
+
+        // Broadcast cross-tab live notification
+        if (syncChannelRef.current) {
+          try {
+            syncChannelRef.current.postMessage({
+              type: 'DATABASE_IMPORTED',
+              payload: { timestamp: nowTs }
+            });
+          } catch {}
+        }
 
         // Direct push to Firestore cloud database in chunked batches
         try {
@@ -11303,37 +11341,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!jsonData || typeof jsonData !== 'object') {
         return { success: false, message: 'صيغة ملف النسخة الاحتياطية غير صحيحة' };
       }
-      if (Array.isArray(jsonData.invoices)) {
-        setInvoices(jsonData.invoices);
-        try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(jsonData.invoices)); } catch {}
+      const jsonString = JSON.stringify(jsonData);
+      const success = await importDataJSON(jsonString, true, true, true);
+      if (success) {
+        return { success: true, message: 'تمت استعادة وتحديث قاعدة البيانات بالكامل سحابياً ومحلياً وسيرفر بنجاح!' };
+      } else {
+        return { success: false, message: 'فشل تطبيق ملف النسخة الاحتياطية' };
       }
-      if (Array.isArray(jsonData.parties)) {
-        setParties(jsonData.parties);
-        try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(jsonData.parties)); } catch {}
-      }
-      if (Array.isArray(jsonData.inventory)) {
-        setInventory(jsonData.inventory);
-        try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(jsonData.inventory)); } catch {}
-      }
-      if (Array.isArray(jsonData.accounts)) {
-        setAccounts(jsonData.accounts);
-        try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(jsonData.accounts)); } catch {}
-      }
-      if (Array.isArray(jsonData.treasuries)) {
-        setTreasuries(jsonData.treasuries);
-        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(jsonData.treasuries)); } catch {}
-      }
-      if (Array.isArray(jsonData.vouchers)) {
-        setVouchers(jsonData.vouchers);
-        try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(jsonData.vouchers)); } catch {}
-      }
-      if (Array.isArray(jsonData.purchases)) {
-        setPurchases(jsonData.purchases);
-        try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(jsonData.purchases)); } catch {}
-      }
-      return { success: true, message: 'تمت استعادة وتحديث قاعدة البيانات المحلية بنجاح من الملف المرفق!' };
     } catch (err: any) {
-      return { success: false, message: 'حدث خطأ أثناء استعادة البيانات المحلية: ' + err.message };
+      return { success: false, message: 'حدث خطأ أثناء استعادة البيانات: ' + err.message };
     }
   };
 

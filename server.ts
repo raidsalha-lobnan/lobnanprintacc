@@ -468,6 +468,45 @@ app.post('/api/sync/push', (req, res) => {
   }
 });
 
+// Atomically overwrite server database with newly imported backup snapshot
+app.post('/api/sync/replace-database', (req, res) => {
+  try {
+    const rawData = req.body?.data || req.body;
+    if (!rawData || typeof rawData !== 'object') {
+      return res.status(400).json({ error: 'Invalid database snapshot' });
+    }
+
+    for (const ent of ALL_SYNC_ENTITIES) {
+      const items = Array.isArray(rawData[ent]) ? rawData[ent] : [];
+      saveEntityData(ent, items);
+    }
+
+    // Also update dailyEntrySheets if present in imported snapshot
+    if (rawData.dailyEntrySheets && typeof rawData.dailyEntrySheets === 'object') {
+      const dailyPath = path.join(SYNC_DATA_DIR, 'dailyEntrySheets.json');
+      try {
+        fs.writeFileSync(dailyPath, JSON.stringify(rawData.dailyEntrySheets), 'utf8');
+      } catch {}
+    }
+
+    // Reset deltas history log to 1
+    const newSeq = 1;
+    const initialDelta = { entity: 'all', op: 'replace_database', seq: newSeq, timestamp: Date.now() };
+    try {
+      fs.writeFileSync(DELTAS_FILE, JSON.stringify({ currentSeq: newSeq, deltas: [initialDelta] }), 'utf8');
+    } catch {}
+
+    res.json({
+      success: true,
+      message: 'تم استبدال قاعدة البيانات المركزية بالكامل على السيرفر بنجاح',
+      currentSeq: newSeq
+    });
+  } catch (err: any) {
+    console.error('Failed to replace server database:', err);
+    res.status(500).json({ error: err?.message || 'Server database replacement failed' });
+  }
+});
+
 // Master bidirectional full-sync endpoint: synchronizes all local data with server in one atomic call
 app.all('/api/sync/full-sync', (req, res) => {
   if (req.method === 'OPTIONS') return res.sendStatus(204);
