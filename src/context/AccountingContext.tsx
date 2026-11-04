@@ -1567,17 +1567,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     const rawStored = localStorage.getItem(`${STORAGE_KEY}_invoices`);
-    let loaded: Invoice[] = [];
     if (rawStored !== null) {
       try {
         const parsed = JSON.parse(rawStored);
         if (Array.isArray(parsed)) {
-          loaded = parsed;
+          return parsed;
         }
       } catch {}
     }
     const snapshotInvoices = Array.isArray(initialInvoices) ? initialInvoices : [];
-    return mergeInvoicesWithUpsertAndConflictResolution(loaded, snapshotInvoices);
+    return snapshotInvoices;
   });
 
   const [purchases, setPurchases] = useState<PurchaseInvoice[]>(() => {
