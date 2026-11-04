@@ -1265,6 +1265,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               const emp = safeLoadArray(`${STORAGE_KEY}_employees`, []);
               const po = safeLoadArray(`${STORAGE_KEY}_printOrders`, []);
               const dc = safeLoadArray(`${STORAGE_KEY}_debt_clearings`, []);
+              const adv = safeLoadArray(`${STORAGE_KEY}_advances`, []);
+              const ded = safeLoadArray(`${STORAGE_KEY}_deductions`, []);
+              const inc = safeLoadArray(`${STORAGE_KEY}_incentives`, []);
+              const pay = safeLoadArray(`${STORAGE_KEY}_payrollSheets`, []);
+              const wo = safeLoadArray(`${STORAGE_KEY}_warehouse_operations`, []);
+              const cmp = safeLoadArray(`${STORAGE_KEY}_companies`, []);
+              const br = safeLoadArray(`${STORAGE_KEY}_branches`, []);
+              const wh = safeLoadArray(`${STORAGE_KEY}_warehouses`, []);
+              const rl = safeLoadArray(`${STORAGE_KEY}_roles`, []);
+              const usr = safeLoadArray(`${STORAGE_KEY}_users`, []);
 
               setInvoices(inv);
               setParties(pty);
@@ -1281,6 +1291,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               setEmployees(emp);
               setPrintOrders(po);
               setDebtClearings(dc);
+              setEmployeeAdvances(adv);
+              setEmployeeDeductions(ded);
+              setEmployeeIncentives(inc);
+              setPayrollSheets(pay);
+              setWarehouseOperations(wo);
+              setCompanies(cmp);
+              setBranches(br);
+              setWarehouses(wh);
+              setRoles(rl);
+              setUsers(usr);
             } catch (err) {
               console.warn('DATABASE_IMPORTED reload notice:', err);
             }
@@ -1311,13 +1331,54 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               } else if (entity === 'inventory') {
                 setInventory(data);
                 try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'treasuries') {
+                setTreasuries(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'accounts') {
+                setAccounts(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'journalEntries') {
+                setJournalEntries(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'stockMovements') {
+                setStockMovements(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(data)); } catch {}
               } else if (entity === 'vouchers') {
                 setVouchers(data);
                 try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(data)); } catch {}
-              } else if (entity === 'printOrders') {
-                setPrintOrders(data);
               } else if (entity === 'purchases') {
                 setPurchases(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'purchaseReturns') {
+                setPurchaseReturns(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'salesReturns') {
+                setSalesReturns(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'expenses') {
+                setExpenses(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'employees') {
+                setEmployees(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'employeeAdvances') {
+                setEmployeeAdvances(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_advances`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'employeeDeductions') {
+                setEmployeeDeductions(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_deductions`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'employeeIncentives') {
+                setEmployeeIncentives(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_incentives`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'payrollSheets') {
+                setPayrollSheets(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_payrollSheets`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'printOrders') {
+                setPrintOrders(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'debtClearings') {
+                setDebtClearings(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(data)); } catch {}
               } else if (entity === 'companies') {
                 setCompanies(data);
                 try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(data)); } catch {}
@@ -1327,6 +1388,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               } else if (entity === 'warehouses') {
                 setWarehouses(data);
                 try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'warehouseOperations') {
+                setWarehouseOperations(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'roles') {
+                setRoles(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_roles`, JSON.stringify(data)); } catch {}
+              } else if (entity === 'users') {
+                setUsers(data);
+                try { localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(data)); } catch {}
               }
             }
           }
@@ -1349,12 +1419,54 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } else if (e.key === `${STORAGE_KEY}_inventory`) {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) setInventory(parsed);
+        } else if (e.key === `${STORAGE_KEY}_treasuries`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setTreasuries(parsed);
+        } else if (e.key === `${STORAGE_KEY}_accounts`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setAccounts(parsed);
+        } else if (e.key === `${STORAGE_KEY}_journals`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setJournalEntries(parsed);
+        } else if (e.key === `${STORAGE_KEY}_stockMovements`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setStockMovements(parsed);
         } else if (e.key === `${STORAGE_KEY}_vouchers`) {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) setVouchers(parsed);
+        } else if (e.key === `${STORAGE_KEY}_purchases`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setPurchases(parsed);
+        } else if (e.key === `${STORAGE_KEY}_purchaseReturns`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setPurchaseReturns(parsed);
+        } else if (e.key === `${STORAGE_KEY}_salesReturns`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setSalesReturns(parsed);
+        } else if (e.key === `${STORAGE_KEY}_expenses`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setExpenses(parsed);
+        } else if (e.key === `${STORAGE_KEY}_employees`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setEmployees(parsed);
+        } else if (e.key === `${STORAGE_KEY}_advances`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setEmployeeAdvances(parsed);
+        } else if (e.key === `${STORAGE_KEY}_deductions`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setEmployeeDeductions(parsed);
+        } else if (e.key === `${STORAGE_KEY}_incentives`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setEmployeeIncentives(parsed);
+        } else if (e.key === `${STORAGE_KEY}_payrollSheets`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setPayrollSheets(parsed);
         } else if (e.key === `${STORAGE_KEY}_printOrders`) {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) setPrintOrders(parsed);
+        } else if (e.key === `${STORAGE_KEY}_debt_clearings`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setDebtClearings(parsed);
         } else if (e.key === `${STORAGE_KEY}_settings`) {
           const parsed = JSON.parse(e.newValue);
           if (parsed && typeof parsed === 'object') setSettings(prev => ({ ...prev, ...parsed }));
@@ -1367,6 +1479,15 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } else if (e.key === `${STORAGE_KEY}_warehouses`) {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) setWarehouses(parsed);
+        } else if (e.key === `${STORAGE_KEY}_warehouse_operations`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setWarehouseOperations(parsed);
+        } else if (e.key === `${STORAGE_KEY}_roles`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setRoles(parsed);
+        } else if (e.key === `${STORAGE_KEY}_users`) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setUsers(parsed);
         }
       } catch {}
     };
@@ -1471,6 +1592,86 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             const whList = mergeEntityLists(warehouses || [], fsData.warehouses);
             setWarehouses(whList);
             try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(whList)); } catch {}
+          }
+          if (Array.isArray(fsData.purchaseReturns)) {
+            const prList = mergeEntityLists(purchaseReturns || [], fsData.purchaseReturns);
+            setPurchaseReturns(prList);
+            try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(prList)); } catch {}
+          }
+          if (Array.isArray(fsData.salesReturns)) {
+            const srList = mergeEntityLists(salesReturns || [], fsData.salesReturns);
+            setSalesReturns(srList);
+            try { localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(srList)); } catch {}
+          }
+          if (Array.isArray(fsData.journalEntries)) {
+            const jeList = mergeEntityLists(journalEntries || [], fsData.journalEntries);
+            setJournalEntries(jeList);
+            try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(jeList)); } catch {}
+          }
+          if (Array.isArray(fsData.stockMovements)) {
+            const smList = mergeEntityLists(stockMovements || [], fsData.stockMovements);
+            setStockMovements(smList);
+            try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(smList)); } catch {}
+          }
+          if (Array.isArray(fsData.expenses)) {
+            const expList = mergeEntityLists(expenses || [], fsData.expenses);
+            setExpenses(expList);
+            try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(expList)); } catch {}
+          }
+          if (Array.isArray(fsData.debtClearings)) {
+            const dcList = mergeEntityLists(debtClearings || [], fsData.debtClearings);
+            setDebtClearings(dcList);
+            try { localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(dcList)); } catch {}
+          }
+          if (Array.isArray(fsData.employeeAdvances)) {
+            const advList = mergeEntityLists(employeeAdvances || [], fsData.employeeAdvances);
+            setEmployeeAdvances(advList);
+            try { localStorage.setItem(`${STORAGE_KEY}_advances`, JSON.stringify(advList)); } catch {}
+          }
+          if (Array.isArray(fsData.employeeDeductions)) {
+            const dedList = mergeEntityLists(employeeDeductions || [], fsData.employeeDeductions);
+            setEmployeeDeductions(dedList);
+            try { localStorage.setItem(`${STORAGE_KEY}_deductions`, JSON.stringify(dedList)); } catch {}
+          }
+          if (Array.isArray(fsData.employeeIncentives)) {
+            const incList = mergeEntityLists(employeeIncentives || [], fsData.employeeIncentives);
+            setEmployeeIncentives(incList);
+            try { localStorage.setItem(`${STORAGE_KEY}_incentives`, JSON.stringify(incList)); } catch {}
+          }
+          if (Array.isArray(fsData.payrollSheets)) {
+            const payList = mergeEntityLists(payrollSheets || [], fsData.payrollSheets);
+            setPayrollSheets(payList);
+            try { localStorage.setItem(`${STORAGE_KEY}_payrollSheets`, JSON.stringify(payList)); } catch {}
+          }
+          if (Array.isArray(fsData.warehouseOperations)) {
+            const woList = mergeEntityLists(warehouseOperations || [], fsData.warehouseOperations);
+            setWarehouseOperations(woList);
+            try { localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(woList)); } catch {}
+          }
+          if (Array.isArray(fsData.companies)) {
+            const cmpList = mergeEntityLists(companies || [], fsData.companies);
+            setCompanies(cmpList);
+            try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(cmpList)); } catch {}
+          }
+          if (Array.isArray(fsData.roles)) {
+            const rlList = mergeEntityLists(roles || [], fsData.roles);
+            setRoles(rlList);
+            try { localStorage.setItem(`${STORAGE_KEY}_roles`, JSON.stringify(rlList)); } catch {}
+          }
+          if (Array.isArray(fsData.users) && fsData.users.length > 0) {
+            const uList = mergeEntityLists(users || [], fsData.users);
+            setUsers(uList);
+            try { localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(uList)); } catch {}
+          }
+          if (fsData.settings && typeof fsData.settings === 'object') {
+            const sObj = Array.isArray(fsData.settings) ? fsData.settings[0] : fsData.settings;
+            if (sObj) {
+              setSettings(prev => {
+                const merged = { ...prev, ...sObj };
+                try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(merged)); } catch {}
+                return merged;
+              });
+            }
           }
           isCloudHydratedRef.current = true;
         }
@@ -2371,6 +2572,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       applyToGenericState<PrintJobOrder>(setPrintOrders, 'printOrders');
     } else if (entity === 'purchases') {
       applyToGenericState<PurchaseInvoice>(setPurchases, 'purchases');
+    } else if (entity === 'purchaseReturns') {
+      applyToGenericState<PurchaseReturn>(setPurchaseReturns, 'purchaseReturns');
+    } else if (entity === 'salesReturns') {
+      applyToGenericState<SalesReturn>(setSalesReturns, 'salesReturns');
     } else if (entity === 'journalEntries') {
       applyToGenericState<JournalEntry>(setJournalEntries, 'journals');
     } else if (entity === 'expenses') {
@@ -3233,45 +3438,197 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         
         if (isMounted && hasCloudData) {
-            if (Array.isArray(data.parties)) setParties(prev => mergeEntityLists(prev || [], data.parties));
-            if (Array.isArray(data.invoices)) setInvoices(prev => mergeInvoicesWithUpsertAndConflictResolution(prev || [], data.invoices));
-            if (Array.isArray(data.employees)) setEmployees(prev => mergeEntityLists(prev || [], data.employees));
-            if (Array.isArray(data.vouchers)) setVouchers(prev => mergeEntityLists(prev || [], data.vouchers));
-            if (Array.isArray(data.printOrders)) setPrintOrders(prev => mergeEntityLists(prev || [], data.printOrders));
-            if (Array.isArray(data.inventory)) setInventory(prev => mergeEntityLists(prev || [], data.inventory));
-            if (Array.isArray(data.accounts)) setAccounts(prev => mergeEntityLists(prev || [], data.accounts));
-            if (Array.isArray(data.treasuries)) setTreasuries(prev => mergeEntityLists(prev || [], data.treasuries));
-            if (Array.isArray(data.purchases)) setPurchases(prev => mergeEntityLists(prev || [], data.purchases));
-            if (Array.isArray(data.purchaseReturns)) setPurchaseReturns(prev => mergeEntityLists(prev || [], data.purchaseReturns));
-            if (Array.isArray(data.salesReturns)) setSalesReturns(prev => mergeEntityLists(prev || [], data.salesReturns));
-            if (Array.isArray(data.journalEntries)) setJournalEntries(prev => mergeEntityLists(prev || [], data.journalEntries));
-            if (Array.isArray(data.employeeAdvances)) setEmployeeAdvances(prev => mergeEntityLists(prev || [], data.employeeAdvances));
-            if (Array.isArray(data.employeeDeductions)) setEmployeeDeductions(prev => mergeEntityLists(prev || [], data.employeeDeductions));
-            if (Array.isArray(data.employeeIncentives)) setEmployeeIncentives(prev => mergeEntityLists(prev || [], data.employeeIncentives));
-            if (Array.isArray(data.payrollSheets)) setPayrollSheets(prev => mergeEntityLists(prev || [], data.payrollSheets));
-            if (Array.isArray(data.stockMovements)) setStockMovements(prev => mergeEntityLists(prev || [], data.stockMovements));
-            if (Array.isArray(data.companies)) setCompanies(prev => mergeEntityLists(prev || [], data.companies));
-            if (Array.isArray(data.branches)) setBranches(prev => mergeEntityLists(prev || [], data.branches));
-            if (Array.isArray(data.warehouses)) setWarehouses(prev => mergeEntityLists(prev || [], data.warehouses));
-            if (Array.isArray(data.warehouseOperations)) setWarehouseOperations(prev => mergeEntityLists(prev || [], data.warehouseOperations));
-            if (Array.isArray(data.roles)) setRoles(prev => mergeEntityLists(prev || [], data.roles));
+            if (Array.isArray(data.parties)) {
+              setParties(prev => {
+                const next = mergeEntityLists(prev || [], data.parties);
+                try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.invoices)) {
+              setInvoices(prev => {
+                const next = mergeInvoicesWithUpsertAndConflictResolution(prev || [], data.invoices);
+                try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.employees)) {
+              setEmployees(prev => {
+                const next = mergeEntityLists(prev || [], data.employees);
+                try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.vouchers)) {
+              setVouchers(prev => {
+                const next = mergeEntityLists(prev || [], data.vouchers);
+                try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.printOrders)) {
+              setPrintOrders(prev => {
+                const next = mergeEntityLists(prev || [], data.printOrders);
+                try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.inventory)) {
+              setInventory(prev => {
+                const next = mergeEntityLists(prev || [], data.inventory);
+                try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.accounts)) {
+              setAccounts(prev => {
+                const next = mergeEntityLists(prev || [], data.accounts);
+                try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.treasuries)) {
+              setTreasuries(prev => {
+                const next = mergeEntityLists(prev || [], data.treasuries);
+                try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.purchases)) {
+              setPurchases(prev => {
+                const next = mergeEntityLists(prev || [], data.purchases);
+                try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.purchaseReturns)) {
+              setPurchaseReturns(prev => {
+                const next = mergeEntityLists(prev || [], data.purchaseReturns);
+                try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.salesReturns)) {
+              setSalesReturns(prev => {
+                const next = mergeEntityLists(prev || [], data.salesReturns);
+                try { localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.journalEntries)) {
+              setJournalEntries(prev => {
+                const next = mergeEntityLists(prev || [], data.journalEntries);
+                try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.employeeAdvances)) {
+              setEmployeeAdvances(prev => {
+                const next = mergeEntityLists(prev || [], data.employeeAdvances);
+                try { localStorage.setItem(`${STORAGE_KEY}_advances`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.employeeDeductions)) {
+              setEmployeeDeductions(prev => {
+                const next = mergeEntityLists(prev || [], data.employeeDeductions);
+                try { localStorage.setItem(`${STORAGE_KEY}_deductions`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.employeeIncentives)) {
+              setEmployeeIncentives(prev => {
+                const next = mergeEntityLists(prev || [], data.employeeIncentives);
+                try { localStorage.setItem(`${STORAGE_KEY}_incentives`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.payrollSheets)) {
+              setPayrollSheets(prev => {
+                const next = mergeEntityLists(prev || [], data.payrollSheets);
+                try { localStorage.setItem(`${STORAGE_KEY}_payrollSheets`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.stockMovements)) {
+              setStockMovements(prev => {
+                const next = mergeEntityLists(prev || [], data.stockMovements);
+                try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.companies)) {
+              setCompanies(prev => {
+                const next = mergeEntityLists(prev || [], data.companies);
+                try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.branches)) {
+              setBranches(prev => {
+                const next = mergeEntityLists(prev || [], data.branches);
+                try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.warehouses)) {
+              setWarehouses(prev => {
+                const next = mergeEntityLists(prev || [], data.warehouses);
+                try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.warehouseOperations)) {
+              setWarehouseOperations(prev => {
+                const next = mergeEntityLists(prev || [], data.warehouseOperations);
+                try { localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.roles)) {
+              setRoles(prev => {
+                const next = mergeEntityLists(prev || [], data.roles);
+                try { localStorage.setItem(`${STORAGE_KEY}_roles`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
             if (Array.isArray(data.users) && data.users.length > 0) {
               const cleanCloudUsers = data.users.filter((u: any) => u && u.id && !deletedDocsSet.has(`users_${u.id}`));
               if (cleanCloudUsers.length > 0) {
-                setUsers(prev => mergeEntityLists(prev || [], cleanCloudUsers));
+                setUsers(prev => {
+                  const next = mergeEntityLists(prev || [], cleanCloudUsers);
+                  try { localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(next)); } catch {}
+                  return next;
+                });
               }
             }
-            if (Array.isArray(data.debtClearings)) setDebtClearings(prev => mergeEntityLists(prev || [], data.debtClearings));
-            if (Array.isArray(data.expenses)) setExpenses(prev => mergeEntityLists(prev || [], data.expenses));
+            if (Array.isArray(data.debtClearings)) {
+              setDebtClearings(prev => {
+                const next = mergeEntityLists(prev || [], data.debtClearings);
+                try { localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+            if (Array.isArray(data.expenses)) {
+              setExpenses(prev => {
+                const next = mergeEntityLists(prev || [], data.expenses);
+                try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
             
             if (data.settings && typeof data.settings === 'object') {
-              setSettings(prev => ({
-                ...prev,
-                ...data.settings,
-                currency: data.settings.currency || prev.currency || '₪',
-                baseCurrencyCode: data.settings.baseCurrencyCode || prev.baseCurrencyCode || 'ILS',
-                currencies: (data.settings.currencies && data.settings.currencies.length > 0) ? data.settings.currencies : prev.currencies
-              }));
+              setSettings(prev => {
+                const merged = {
+                  ...prev,
+                  ...data.settings,
+                  currency: data.settings.currency || prev.currency || '₪',
+                  baseCurrencyCode: data.settings.baseCurrencyCode || prev.baseCurrencyCode || 'ILS',
+                  currencies: (data.settings.currencies && data.settings.currencies.length > 0) ? data.settings.currencies : prev.currencies
+                };
+                try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(merged)); } catch {}
+                return merged;
+              });
             }
 
             // Build accurate local hashes from cloud content so we don't treat fresh deployment as unsynced
@@ -4674,7 +5031,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const map = new Map<string, any>();
         for (const item of snapshotList) if (item && item.id) map.set(String(item.id), item);
         for (const item of serverList) if (item && item.id) map.set(String(item.id), item);
-        for (const item of localList) if (item && item.id && !map.has(String(item.id))) map.set(String(item.id), item);
+        for (const item of localList) {
+          if (item && item.id) {
+            const existing = map.get(String(item.id));
+            if (!existing || getEntityRecordTimestamp(item) >= getEntityRecordTimestamp(existing)) {
+              map.set(String(item.id), item);
+            }
+          }
+        }
         return Array.from(map.values());
       };
 
@@ -5736,7 +6100,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!target) return prev;
       matchedAccountCode = target.accountCode;
 
-      return prev.map(t => {
+      const nextTrs = prev.map(t => {
         if (t.id === target!.id) {
           const prevCurrBal = (t.currencyBalances && t.currencyBalances[curr] !== undefined)
             ? t.currencyBalances[curr]
@@ -5774,26 +6138,35 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             referenceType: refType || 'manual',
             referenceId: refId
           };
-          return {
+          const updatedT = {
             ...t,
             balance: totalEstimatedBase,
             currencyBalances: updatedBalances,
             transactions: [tx, ...(t.transactions || [])]
           };
+          return updatedT;
         }
         return t;
       });
+
+      try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(nextTrs)); } catch {}
+      broadcastEntityChange('treasuries', nextTrs);
+      pushToServerSync('treasuries', undefined, nextTrs);
+      return nextTrs;
     });
 
     // Also update account in Chart of Accounts by baseDelta (in ILS)
-    setAccounts(prev =>
-      prev.map(acc => {
+    setAccounts(prev => {
+      const nextAccs = prev.map(acc => {
         if (acc.code === treasuryIdOrCode || (matchedAccountCode && acc.code === matchedAccountCode)) {
           return { ...acc, balance: Number((acc.balance + baseDelta).toFixed(2)) };
         }
         return acc;
-      })
-    );
+      });
+      try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(nextAccs)); } catch {}
+      broadcastEntityChange('accounts', nextAccs);
+      return nextAccs;
+    });
   };
   /**
    * نقل وتطهير حركات الفاتورة بين الصناديق والمحافط البنكية (User Request 2)
@@ -5994,7 +6367,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       createdAt
     };
 
-    setJournalEntries(prev => [newEntry, ...prev]);
+    setJournalEntries(prev => {
+      const next = [newEntry, ...prev];
+      try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(next)); } catch {}
+      broadcastEntityChange('journalEntries', next);
+      pushToServerSync('journalEntries', newEntry);
+      return next;
+    });
 
     // Direct cloud save
     setDoc(doc(db, 'journals', newEntry.id), cleanDocForFirestore(newEntry)).catch(err => {
@@ -6028,6 +6407,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
       });
+      try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(updated)); } catch {}
+      broadcastEntityChange('accounts', updated);
       return updated;
     });
   };
@@ -6154,7 +6535,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       id,
       time: movement.time || new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
     };
-    setStockMovements(prev => [newMovement, ...prev]);
+    setStockMovements(prev => {
+      const next = [newMovement, ...prev];
+      try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(next)); } catch {}
+      broadcastEntityChange('stockMovements', next);
+      pushToServerSync('stockMovements', newMovement);
+      return next;
+    });
     setDoc(doc(db, 'stockMovements', newMovement.id), cleanDocForFirestore(newMovement)).catch(() => {});
   };
 
@@ -10245,8 +10632,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.warn('Replace server database during cleanAndSync notice:', err);
       }
 
-      // 4. Direct push to Firestore cloud database
-      await pushFullDatabaseToFirestore(fullSnapshot).catch(err => {
+      // 4. Direct push to Firestore cloud database with 5s safety timeout
+      await Promise.race([
+        pushFullDatabaseToFirestore(fullSnapshot),
+        new Promise(resolve => setTimeout(resolve, 5000))
+      ]).catch(err => {
         console.warn('Push full DB notice:', err);
       });
 
