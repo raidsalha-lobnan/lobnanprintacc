@@ -22,21 +22,7 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     }
   } catch {}
 
-  function extractSeq(numStr?: string): number | null {
-    if (!numStr) return null;
-    const matches = String(numStr).match(/\d+/g);
-    if (!matches || matches.length === 0) return null;
-    const lastNum = parseInt(matches[matches.length - 1], 10);
-    if (isNaN(lastNum) || lastNum <= 0) return null;
-    if (lastNum === 2027) return 27;
-    if (lastNum === 2028) return 28;
-    if (lastNum === 2029) return 29;
-    if (lastNum >= 2001 && lastNum <= 2099) return lastNum - 2000;
-    return lastNum;
-  }
-
-  const seqMap = new Map<number, Invoice>();
-  const extraInvoicesMap = new Map<string, Invoice>();
+  const invoiceMap = new Map<string, Invoice>();
 
   function processInvoice(inv: Invoice) {
     if (!inv || typeof inv !== 'object' || inv.id == null) return;
@@ -46,82 +32,34 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
       return;
     }
 
-    let seq = extractSeq(inv.invoiceNumber);
-    if (seq === 2027) seq = 27;
-    if (seq === 2028) seq = 28;
-    if (seq === 2029) seq = 29;
+    // Ignore legacy ghost/recovery test items
+    if (
+      idStr.includes('recovered') ||
+      idStr.includes('INV-2026') ||
+      idStr.includes('inv-pos-1001') ||
+      (inv.invoiceNumber && (inv.invoiceNumber.includes('INV-2026') || inv.invoiceNumber.includes('STAT-')))
+    ) {
+      return;
+    }
 
-    if (seq !== null && seq >= 1 && seq <= 29) {
-      const existing = seqMap.get(seq);
-      const normalizedNumber = `INV-${String(seq).padStart(4, '0')}`;
-      if (!existing) {
-        seqMap.set(seq, {
-          ...inv,
-          invoiceNumber: normalizedNumber
-        });
-      } else {
-        const tExisting = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-        const tInv = new Date(inv.updatedAt || inv.createdAt || 0).getTime();
+    const existing = invoiceMap.get(idStr);
+    if (!existing) {
+      invoiceMap.set(idStr, { ...inv });
+    } else {
+      const tExisting = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      const tInv = new Date(inv.updatedAt || inv.createdAt || 0).getTime();
+      const base = tInv >= tExisting ? inv : existing;
+      const fallback = tInv >= tExisting ? existing : inv;
 
-        const base = tInv >= tExisting ? inv : existing;
-        const fallback = tInv >= tExisting ? existing : inv;
-
-        seqMap.set(seq, {
-          ...fallback,
-          ...base,
-          invoiceNumber: normalizedNumber,
-          items: (Array.isArray(base.items) && base.items.length > 0) ? base.items : (fallback.items || []),
-          totalAmount: base.totalAmount ?? fallback.totalAmount,
-          paidAmount: base.paidAmount ?? fallback.paidAmount,
-          updatedAt: new Date(Math.max(tExisting, tInv, Date.now())).toISOString()
-        });
-      }
-    } else if (seq !== null && seq > 29) {
-      // Discard legacy/ghost invoices from old versions (e.g. INV-0133, INV-0236, INV-0276, INV-10001, etc.)
-      const isLegacyGhost = (
-        seq === 133 || seq === 134 || seq === 236 || seq === 276 || seq === 275 || seq === 274 || seq === 10001 ||
-        idStr.includes('recovered') || idStr.includes('INV-2026') || idStr.includes('inv-pos-1001') ||
-        (inv.invoiceNumber && (inv.invoiceNumber.includes('INV-2026') || inv.invoiceNumber.includes('STAT-')))
-      );
-
-      if (!isLegacyGhost) {
-        const key = idStr;
-        let normalizedNumber = `INV-${String(seq).padStart(4, '0')}`;
-        if (seq === 2027) normalizedNumber = 'INV-0027';
-        if (seq === 2028) normalizedNumber = 'INV-0028';
-        if (seq === 2029) normalizedNumber = 'INV-0029';
-
-        if (!extraInvoicesMap.has(key)) {
-          extraInvoicesMap.set(key, {
-            ...inv,
-            invoiceNumber: normalizedNumber
-          });
-        } else {
-          const existing = extraInvoicesMap.get(key)!;
-          const tExisting = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-          const tInv = new Date(inv.updatedAt || inv.createdAt || 0).getTime();
-          const base = tInv >= tExisting ? inv : existing;
-          const fallback = tInv >= tExisting ? existing : inv;
-
-          extraInvoicesMap.set(key, {
-            ...fallback,
-            ...base,
-            invoiceNumber: normalizedNumber,
-            bankTreasuryCode: base.bankTreasuryCode || fallback.bankTreasuryCode,
-            cashTreasuryCode: base.cashTreasuryCode || fallback.cashTreasuryCode,
-            paymentStatus: base.paymentStatus || fallback.paymentStatus,
-            workflowStatus: base.workflowStatus || fallback.workflowStatus,
-            subCustomerName: base.subCustomerName || fallback.subCustomerName,
-            subCustomerId: base.subCustomerId || fallback.subCustomerId,
-            customCustomerText: base.customCustomerText || fallback.customCustomerText,
-            items: (Array.isArray(base.items) && base.items.length > 0) ? base.items : (fallback.items || []),
-            totalAmount: base.totalAmount ?? fallback.totalAmount,
-            paidAmount: base.paidAmount ?? fallback.paidAmount,
-            remainingAmount: base.remainingAmount ?? fallback.remainingAmount,
-            updatedAt: new Date(Math.max(tExisting, tInv, Date.now())).toISOString()
-          });
-        }
-      }
+      invoiceMap.set(idStr, {
+        ...fallback,
+        ...base,
+        items: (Array.isArray(base.items) && base.items.length > 0) ? base.items : (fallback.items || []),
+        totalAmount: base.totalAmount ?? fallback.totalAmount,
+        paidAmount: base.paidAmount ?? fallback.paidAmount,
+        remainingAmount: base.remainingAmount ?? fallback.remainingAmount,
+        updatedAt: new Date(Math.max(tExisting, tInv, Date.now())).toISOString()
+      });
     }
   }
 
@@ -132,27 +70,59 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     remoteInvoices.forEach(processInvoice);
   }
 
-  const result: Invoice[] = [];
+  const allValid = Array.from(invoiceMap.values()).filter(inv => !deletedIds.has(String(inv.id)));
 
-  for (let seq = 1; seq <= 29; seq++) {
-    if (seqMap.has(seq)) {
-      result.push(seqMap.get(seq)!);
-    }
+  // Helper to extract numeric invoice number
+  function parseInvoiceNum(inv: Invoice): number {
+    const raw = String(inv.invoiceNumber || '');
+    const matches = raw.match(/\d+/g);
+    if (!matches || matches.length === 0) return 0;
+    return parseInt(matches[matches.length - 1], 10) || 0;
   }
 
-  extraInvoicesMap.forEach((inv) => {
-    if (!deletedIds.has(String(inv.id))) {
-      result.push(inv);
+  // Sort chronologically ascending to assign sequential invoice numbers
+  allValid.sort((a, b) => {
+    const dateA = a.date || a.createdAt || '';
+    const dateB = b.date || b.createdAt || '';
+    const dateCmp = dateA.localeCompare(dateB);
+    if (dateCmp !== 0) return dateCmp;
+
+    const createdA = a.createdAt || '';
+    const createdB = b.createdAt || '';
+    const createdCmp = createdA.localeCompare(createdB);
+    if (createdCmp !== 0) return createdCmp;
+
+    return parseInvoiceNum(a) - parseInvoiceNum(b);
+  });
+
+  // Re-assign sequential invoice numbers (INV-0001, INV-0002, ...) ensuring NO duplicate numbers
+  const usedNumbers = new Set<string>();
+  const renumberedResult = allValid.map((inv, idx) => {
+    const origSeq = parseInvoiceNum(inv);
+    let targetSeq = origSeq > 0 ? origSeq : (idx + 1);
+    let candidateNumber = `INV-${String(targetSeq).padStart(4, '0')}`;
+
+    // If duplicate invoiceNumber exists across different IDs, resolve collision sequentially
+    while (usedNumbers.has(candidateNumber)) {
+      targetSeq++;
+      candidateNumber = `INV-${String(targetSeq).padStart(4, '0')}`;
     }
+
+    usedNumbers.add(candidateNumber);
+    return {
+      ...inv,
+      invoiceNumber: candidateNumber
+    };
   });
 
-  result.sort((a, b) => {
-    const seqA = extractSeq(a.invoiceNumber) || 0;
-    const seqB = extractSeq(b.invoiceNumber) || 0;
-    return seqB - seqA;
+  // Return sorted descending by invoice number for UI tables
+  renumberedResult.sort((a, b) => {
+    const numA = parseInvoiceNum(a);
+    const numB = parseInvoiceNum(b);
+    return numB - numA;
   });
 
-  return result;
+  return renumberedResult;
 }
 
 export function resolveInvoiceConflicts(

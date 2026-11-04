@@ -69,11 +69,14 @@ export const InvoicesReviewModal: React.FC<InvoicesReviewModalProps> = ({
       return matchesSearch && matchesPayment;
     })
     .sort((a, b) => {
-      const dateCmp = (b.date || '').localeCompare(a.date || '');
-      if (dateCmp !== 0) return dateCmp;
+      const numA = parseInt((a.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+      const numB = parseInt((b.invoiceNumber || '').replace(/\D/g, ''), 10) || 0;
+      if (numA !== numB) return numB - numA;
+      const strCmp = (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '', undefined, { numeric: true });
+      if (strCmp !== 0) return strCmp;
       const createdCmp = (b.createdAt || '').localeCompare(a.createdAt || '');
       if (createdCmp !== 0) return createdCmp;
-      return (b.invoiceNumber || b.id || '').localeCompare(a.invoiceNumber || a.id || '', undefined, { numeric: true });
+      return (b.date || '').localeCompare(a.date || '');
     });
 
   return (
