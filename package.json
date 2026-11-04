@@ -7,7 +7,7 @@
   "description": "برنامج الأيهم المحاسبي - مطبعة ومكتبة لبنان",
   "author": "Lobnan Press",
   "scripts": {
-    "dev": "python3 ensure_nginx_api.py; vite --port=3000 --host=0.0.0.0",
+    "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outfile=server.js --packages=external",
     "build:exe": "vite build && npx electron-builder --win nsis",
     "electron": "electron .",

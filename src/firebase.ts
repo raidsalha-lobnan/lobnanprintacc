@@ -43,6 +43,8 @@ console.log("Firebase initialized.");
 
 export const auth = getAuth(app);
 
+const dbId = (firebaseConfig as any).firestoreDatabaseId;
+
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
@@ -50,28 +52,28 @@ try {
       tabManager: persistentMultipleTabManager()
     }),
     experimentalForceLongPolling: true
-  }, firebaseConfig.firestoreDatabaseId);
+  }, dbId);
 } catch {
   try {
     firestoreInstance = initializeFirestore(app, {
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
       })
-    }, firebaseConfig.firestoreDatabaseId);
+    }, dbId);
   } catch {
     try {
       firestoreInstance = initializeFirestore(app, {
         experimentalForceLongPolling: true
-      }, firebaseConfig.firestoreDatabaseId);
+      }, dbId);
     } catch {
-      firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+      firestoreInstance = getFirestore(app, dbId);
     }
   }
 }
 
 export const db = firestoreInstance;
 
-console.log("Firestore initialized with persistent local cache & database ID:", firebaseConfig.firestoreDatabaseId || '(default)');
+console.log("Firestore initialized with persistent local cache & database ID:", dbId || '(default)');
 
 import { firebaseQuotaTracker } from './services/firebaseQuotaTracker';
 

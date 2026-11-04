@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAccounting } from '../context/AccountingContext';
 import { 
   Database, 
@@ -19,8 +19,15 @@ import {
   Sparkles,
   ServerOff,
   Cloud,
-  Trash2
+  Trash2,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
+import { 
+  connectGoogleDrive, 
+  getCachedDriveToken, 
+  executeHourlyDriveBackupFlow 
+} from '../services/googleDriveBackupService';
 
 interface LocalDatabaseModalProps {
   isOpen: boolean;
@@ -50,6 +57,130 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
   const [feedback, setFeedback] = useState<{ message: string; success: boolean } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Google Drive 30-Min Automated Periodic Backup State
+  const [driveToken, setDriveToken] = useState<string | null>(() => getCachedDriveToken());
+  const [driveUserEmail, setDriveUserEmail] = useState<string>('raid.salha@gmail.com');
+  const [isAutoBackupEnabled, setIsAutoBackupEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('google_drive_auto_backup_enabled') !== 'false';
+  });
+  const [isUploadingToDrive, setIsUploadingToDrive] = useState(false);
+  const [lastDriveBackupTime, setLastDriveBackupTime] = useState<string | null>(() => {
+    return localStorage.getItem('google_drive_last_backup_time');
+  });
+  const [lastDriveBackupFileName, setLastDriveBackupFileName] = useState<string | null>(() => {
+    return localStorage.getItem('google_drive_last_backup_file');
+  });
+
+  // Handle Google Drive Auth Connect
+  const handleConnectDrive = async () => {
+    try {
+      setFeedback({ message: 'جاري الربط مع Google Drive والحصول على التصريح...', success: true });
+      const res = await connectGoogleDrive();
+      setDriveToken(res.accessToken);
+      if (res.user?.email) {
+        setDriveUserEmail(res.user.email);
+      }
+      setFeedback({ 
+        message: `تم التوصيل بنجاح بحساب Google Drive (${res.user?.email || 'raid.salha@gmail.com'})! خاصية النسخ الاحتياطي كل 30 دقيقة مفعّلة الآن.`, 
+        success: true 
+      });
+    } catch (err: any) {
+      setFeedback({ message: 'فشل الربط مع Google Drive: ' + (err?.message || 'خطأ غير معروف'), success: false });
+    } finally {
+      setTimeout(() => setFeedback(null), 6000);
+    }
+  };
+
+  // Helper to execute single Drive backup snapshot
+  const runDriveBackupSnapshot = async (token: string, isAuto: boolean = false) => {
+    setIsUploadingToDrive(true);
+    try {
+      const dbExport = exportLocalDatabaseJSON();
+      const payload = {
+        timestamp: new Date().toISOString(),
+        backupType: isAuto ? '30-Minute-Automated-Periodic' : 'Manual-Instant',
+        userEmail: driveUserEmail,
+        totalInvoices: invoices?.length || 0,
+        totalParties: parties?.length || 0,
+        totalInventory: inventory?.length || 0,
+        data: dbExport
+      };
+
+      const result = await executeHourlyDriveBackupFlow(token, payload, { autoCleanOld: true, retentionDays: 7 });
+      
+      if (result.success) {
+        const timeStr = new Date().toLocaleTimeString('ar-PS', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastDriveBackupTime(timeStr);
+        setLastDriveBackupFileName(result.fileName);
+        localStorage.setItem('google_drive_last_backup_time', timeStr);
+        localStorage.setItem('google_drive_last_backup_file', result.fileName || '');
+
+        setFeedback({ 
+          message: `تم رفع النسخة الاحتياطية (${isAuto ? 'التلقائية كل 30 دقيقة' : 'الفورية'}) بنجاح إلى Google Drive (${result.fileName})!`, 
+          success: true 
+        });
+      } else {
+        setFeedback({ message: 'فشل رفع النسخة الاحتياطية لـ Google Drive: ' + (result.error || 'خطأ غير معروف'), success: false });
+      }
+    } catch (e: any) {
+      setFeedback({ message: 'خطأ أثناء النسخ لـ Google Drive: ' + e.message, success: false });
+    } finally {
+      setIsUploadingToDrive(false);
+      setTimeout(() => setFeedback(null), 6000);
+    }
+  };
+
+  // Manual Trigger Button for Google Drive Backup
+  const handleManualDriveBackup = async () => {
+    let currentToken = driveToken || getCachedDriveToken();
+    if (!currentToken) {
+      if (!window.confirm('يتطلب إجراء النسخ الاتصال بـ Google Drive أولاً. هل تريد الاتصال الآن؟')) return;
+      try {
+        const res = await connectGoogleDrive();
+        currentToken = res.accessToken;
+        setDriveToken(currentToken);
+        if (res.user?.email) setDriveUserEmail(res.user.email);
+      } catch (err: any) {
+        setFeedback({ message: 'فشل التوصيل بـ Google Drive: ' + err.message, success: false });
+        return;
+      }
+    }
+
+    if (!window.confirm('هل تريد إنشاء ورفع نسخة احتياطية فورية 100% مطابقة للشاشة الحالية وكافة المدخلات إلى Google Drive؟')) {
+      return;
+    }
+
+    await runDriveBackupSnapshot(currentToken, false);
+  };
+
+  // Toggle Auto 30-Minute Periodic Backup
+  const toggleAutoBackup = () => {
+    const nextVal = !isAutoBackupEnabled;
+    setIsAutoBackupEnabled(nextVal);
+    localStorage.setItem('google_drive_auto_backup_enabled', String(nextVal));
+    setFeedback({
+      message: nextVal 
+        ? 'تم تفعيل النسخ الاحتياطي الدوري كل 30 دقيقة إلى Google Drive بنجاح.' 
+        : 'تم إيقاف النسخ الدوري التلقائي مؤقتاً.',
+      success: true
+    });
+    setTimeout(() => setFeedback(null), 4000);
+  };
+
+  // 30-Minute Automated Periodic Backup Effect (Interval Timer)
+  useEffect(() => {
+    if (!isAutoBackupEnabled) return;
+
+    const intervalId = setInterval(() => {
+      const token = driveToken || getCachedDriveToken();
+      if (token) {
+        runDriveBackupSnapshot(token, true);
+      }
+    }, 30 * 60 * 1000); // 30 minutes in milliseconds
+
+    return () => clearInterval(intervalId);
+  }, [isAutoBackupEnabled, driveToken, invoices, parties, inventory]);
 
   if (!isOpen) return null;
 
@@ -142,8 +273,8 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
               <HardDrive className="w-5 h-5 text-emerald-200" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold tracking-wide">إدارة واستقلال قاعدة البيانات المحلية (Offline Local Mode)</h2>
-              <p className="text-xs text-emerald-100/90 font-medium">العمل المحلي الخالص 100% وحماية الفواتير والمدخلات من أي حذف أو مزامنة سحابية</p>
+              <h2 className="text-base font-extrabold tracking-wide">إدارة واستقلال قاعدة البيانات والنسخ الاحتياطي الدوري</h2>
+              <p className="text-xs text-emerald-100/90 font-medium">العمل المحلي الخالص وتفعيل النسخ الاحتياطي الدوري لـ Google Drive كل 30 دقيقة</p>
             </div>
           </div>
           <button 
@@ -168,6 +299,84 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
               <span>{feedback.message}</span>
             </div>
           )}
+
+          {/* GOOGLE DRIVE 30-MINUTE AUTOMATED PERIODIC BACKUP CARD */}
+          <div className="p-4 bg-gradient-to-r from-blue-950 via-slate-900 to-teal-950 text-white rounded-lg border-2 border-blue-500 shadow-xl space-y-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-blue-600 rounded-lg text-white shrink-0 shadow">
+                  <Cloud className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-blue-100 flex items-center gap-2">
+                    <span>النسخ الاحتياطي التلقائي لـ Google Drive كل 30 دقيقة</span>
+                    <span className="text-[10px] bg-blue-500/30 text-blue-200 border border-blue-400/40 px-2 py-0.5 rounded-full font-mono">
+                      {driveUserEmail}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                    يتم حفظ نسخة كاملة 100% مطابقة للشاشات والمدخلات الأخيرة في حساب Google Drive الخاص بك تلقائياً وبأمان كل نصف ساعة.
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggle switch for 30-min periodic auto backup */}
+              <button
+                type="button"
+                onClick={toggleAutoBackup}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer shrink-0 ${
+                  isAutoBackupEnabled
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500'
+                    : 'bg-slate-700 hover:bg-slate-800 text-slate-300 border-slate-600'
+                }`}
+                title="تفعيل/تعطيل النسخ الدوري التلقائي كل 30 دقيقة"
+              >
+                {isAutoBackupEnabled ? (
+                  <>
+                    <ToggleRight className="w-4 h-4 text-emerald-300" />
+                    <span>النسخ الدوري: مفعل 🟢</span>
+                  </>
+                ) : (
+                  <>
+                    <ToggleLeft className="w-4 h-4 text-slate-400" />
+                    <span>النسخ الدوري: معطل ⚪</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Last Backup Info & Action Buttons */}
+            <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+              <div className="text-[11px] text-slate-300 flex items-center gap-1.5 font-mono">
+                <Clock className="w-3.5 h-3.5 text-blue-400" />
+                <span>
+                  آخر نسخة احتياطية لـ Google Drive:{' '}
+                  <strong className="text-emerald-400">{lastDriveBackupTime || 'لم يتم النسخ بعد'}</strong>
+                  {lastDriveBackupFileName && ` (${lastDriveBackupFileName})`}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleConnectDrive}
+                  className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-md transition shadow cursor-pointer border border-blue-500"
+                >
+                  {driveToken ? 'تحديث الاتصال بـ Drive' : 'ربط Google Drive'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleManualDriveBackup}
+                  disabled={isUploadingToDrive}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-md flex items-center gap-1.5 transition shadow cursor-pointer border border-emerald-500 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isUploadingToDrive ? 'animate-spin' : ''}`} />
+                  <span>{isUploadingToDrive ? 'جاري الرفع...' : 'إجراء نسخة احتياطية فورية لـ Drive الآن'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* STANDALONE LOCAL MODE TOGGLE CARD */}
           <div className={`p-4 rounded-lg border-2 transition-all ${
@@ -410,7 +619,7 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
         {/* Modal Footer */}
         <div className="bg-slate-100 px-5 py-3 border-t border-slate-200 flex items-center justify-between">
           <span className="text-[11px] text-slate-600 font-medium">
-            برنامج الأيهم المحاسبي - إصدار التشغيل المحلي المستقل v1.0
+            برنامج الأيهم المحاسبي - إصدار التشغيل المحلي والنسخ الاحتياطي لـ Google Drive v1.0
           </span>
           <button
             onClick={onClose}
