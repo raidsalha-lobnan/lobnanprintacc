@@ -612,13 +612,4 @@ process.on('SIGTERM', () => {
 });
 
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Application server running on http://0.0.0.0:${PORT}`);
-});
 
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-  });
-});
