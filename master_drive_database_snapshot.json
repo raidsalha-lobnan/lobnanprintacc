@@ -336,7 +336,6 @@
     {
       "address": "",
       "id": "comp-1",
-      "password": "123456",
       "isDefault": true,
       "tradeName": "طلة لبنان للتجارة العامة",
       "taxNumber": "",
@@ -3629,7 +3628,6 @@
   ],
   "users": [
     {
-      "password": "Aa@12345678",
       "customPermissions": {
         "edit_prices": true
       },
@@ -3658,7 +3656,6 @@
     },
     {
       "allowedPriceTier": "all",
-      "password": "Aa@12345678",
       "driveSharedAt": "2026-09-28T18:47:50.053Z",
       "customPermissions": {
         "edit_prices": true
@@ -3686,7 +3683,6 @@
     },
     {
       "id": "user-1790535831510",
-      "password": "Aa@12345678",
       "driveSharedAt": "2026-09-27T21:20:29.892Z",
       "companyId": "comp-1",
       "roleId": "role-print-tech",
@@ -3728,7 +3724,6 @@
       "customPermissions": {
         "edit_prices": false
       },
-      "password": "Aa@12345678",
       "companyId": "comp-1",
       "allowedPriceTier": "all",
       "defaultBranchId": "br-1",
@@ -3751,7 +3746,6 @@
       ],
       "companyId": "comp-1",
       "email": "raid.salha@gmail.com",
-      "password": "Aa@12345678",
       "avatarColor": "bg-blue-600",
       "phone": "0592840352",
       "fullName": "م. رائد صالحة",

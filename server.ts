@@ -216,7 +216,19 @@ function isTestSyncProbeItem(item: any): boolean {
   return id === 'inv-probe-sync-1' || id === 'inv-test-full-1' || code === 'ITEM-9999' || name === 'صنف تجربة المزامنة' || name === 'صنف فحص المزامنة الشاملة';
 }
 
-function loadEntityData(entity: string): any[] {
+function sanitizeEntityName(entity: string): string {
+  if (!entity || typeof entity !== 'string') return '';
+  const cleaned = entity.replace(/[^a-zA-Z0-9_-]/g, '');
+  if (ALL_SYNC_ENTITIES.includes(cleaned as any)) {
+    return cleaned;
+  }
+  return '';
+}
+
+function loadEntityData(rawEntity: string): any[] {
+  const entity = sanitizeEntityName(rawEntity);
+  if (!entity) return [];
+
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
   let existingData: any[] = [];
   if (fs.existsSync(filePath)) {
@@ -234,7 +246,10 @@ function loadEntityData(entity: string): any[] {
   return existingData;
 }
 
-function saveEntityData(entity: string, data: any[]) {
+function saveEntityData(rawEntity: string, data: any[]) {
+  const entity = sanitizeEntityName(rawEntity);
+  if (!entity) return;
+
   const cleanData = (data || []).filter(it => !isTestSyncProbeItem(it));
   syncCache[entity] = cleanData;
   syncTimestamps[entity] = Date.now();

@@ -6562,7 +6562,34 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const addJournalEntry = (entry: Omit<JournalEntry, 'id' | 'entryNumber' | 'createdAt'>) => {
+  const addJournalEntry = (entry: Omit<JournalEntry, 'id' | 'entryNumber' | 'createdAt'>): JournalEntry => {
+    // Validate double-entry balance (Debit === Credit)
+    const totalDebit = entry.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+    const totalCredit = entry.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+    const diff = Number((totalDebit - totalCredit).toFixed(2));
+    
+    let validLines = [...entry.lines];
+    if (Math.abs(diff) > 0.001) {
+      console.warn(`[Journal Integrity] Unbalanced journal entry detected (Debit: ${totalDebit}, Credit: ${totalCredit}, Diff: ${diff}). Balancing automatically...`);
+      if (diff > 0) {
+        validLines.push({
+          accountCode: '3201',
+          accountName: 'الأرباح والخسائر المبقاة والمرحلة (تسوية توازن القيد)',
+          debit: 0,
+          credit: diff,
+          description: 'تسوية ميزان توازن القيد تلقائياً'
+        });
+      } else {
+        validLines.push({
+          accountCode: '3201',
+          accountName: 'الأرباح والخسائر المبقاة والمرحلة (تسوية توازن القيد)',
+          debit: Math.abs(diff),
+          credit: 0,
+          description: 'تسوية ميزان توازن القيد تلقائياً'
+        });
+      }
+    }
+
     const uniqueSuffix = Math.random().toString(36).substring(2, 8) + '-' + Math.floor(Math.random() * 1000);
     const id = 'je-' + Date.now() + '-' + uniqueSuffix;
     const createdAt = new Date().toISOString();
@@ -6570,6 +6597,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const entryNumber = `JE-2026-${String(nextIndex).padStart(4, '0')}`;
     const newEntry: JournalEntry = {
       ...entry,
+      lines: validLines,
       id,
       entryNumber,
       createdAt
@@ -6583,10 +6611,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return next;
     });
 
-    // Direct cloud save
-    setDoc(doc(db, 'journals', newEntry.id), cleanDocForFirestore(newEntry)).catch(err => {
+    // Direct cloud save (unified on journalEntries collection and legacy fallback journals)
+    setDoc(doc(db, 'journalEntries', newEntry.id), cleanDocForFirestore(newEntry)).catch(err => {
       console.warn('Direct cloud save journal notice:', err);
     });
+    setDoc(doc(db, 'journals', newEntry.id), cleanDocForFirestore(newEntry)).catch(() => {});
 
     // Telegram Notification - Do not send daily journal proofs for invoice/POS transactions
     try {
@@ -6596,7 +6625,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         entry.referenceType === ('invoice' as any) ||
         (entry.description && (entry.description.includes('فاتورة مبيعات') || entry.description.includes('تكلفة البضاعة المباعة')));
       if (!isInvoiceRelated) {
-        const msg2 = `📝 <b>قيد يومية جديد</b>\nالبيان: ${entry.description}\nالقيمة: ${entry.lines.reduce((sum, l) => sum + l.debit, 0)} ${settings?.currency || ''}`;
+        const msg2 = `📝 <b>قيد يومية جديد</b>\nالبيان: ${entry.description}\nالقيمة: ${validLines.reduce((sum, l) => sum + l.debit, 0)} ${settings?.currency || ''}`;
         TelegramService.sendMessage(msg2, settings);
       }
     } catch(e) {}
@@ -6604,7 +6633,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Update account balances according to double entry rule
     setAccounts(prev => {
       const updated = [...prev];
-      entry.lines.forEach(line => {
+      validLines.forEach(line => {
         const acc = updated.find(a => a.code === line.accountCode);
         if (acc) {
           // Normal balance: Asset & Expense = Debit - Credit; Liability, Equity, Revenue = Credit - Debit
@@ -6619,6 +6648,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       broadcastEntityChange('accounts', updated);
       return updated;
     });
+
+    return newEntry;
   };
 
   // Expenses & Operating Costs (المصروفات والمصاريف التشغيلية)
@@ -6627,7 +6658,6 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   ): ExpenseItem => {
     const id = `exp-${Date.now()}`;
     const createdAt = new Date().toISOString();
-    const jId = `entry-exp-${Date.now()}`;
     const voucherNum = `PV-EXP-${Date.now().toString().slice(-5)}`;
 
     const selectedAcc = accounts.find(a => a.code === expenseData.expenseAccountCode) || {
@@ -6646,27 +6676,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const rate = expenseData.exchangeRate || 1.0;
     const baseAmount = Number((amount * rate).toFixed(2));
 
-    const newExpense: ExpenseItem = {
-      ...expenseData,
-      id,
-      createdAt,
-      voucherNumber: voucherNum,
-      journalEntryId: jId,
-      treasuryAccountCode: treasuryCode,
-      treasuryName,
-      currency: curr,
-      exchangeRate: rate
-    };
-
-    setExpenses(prev => [newExpense, ...prev]);
-
-    // Direct cloud save
-    setDoc(doc(db, 'expenses', newExpense.id), cleanDocForFirestore(newExpense)).catch(err => {
-      console.warn('Direct cloud save expense notice:', err);
-    });
-
-    // 1. Post balanced double-entry journal (Debit Expense, Credit Treasury)
-    addJournalEntry({
+    // 1. Post balanced double-entry journal first to obtain real journalEntryId
+    const postedJournal = addJournalEntry({
       date: expenseData.date,
       description: `سداد مصروف تشغيلي: ${selectedAcc.name} - ${expenseData.beneficiary || ''} (${expenseData.notes || expenseData.categoryName})`,
       referenceType: 'expense' as any,
@@ -6687,6 +6698,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           description: `صرف من: ${treasuryName}`
         }
       ]
+    });
+
+    const newExpense: ExpenseItem = {
+      ...expenseData,
+      id,
+      createdAt,
+      voucherNumber: voucherNum,
+      journalEntryId: postedJournal.id,
+      treasuryAccountCode: treasuryCode,
+      treasuryName,
+      currency: curr,
+      exchangeRate: rate
+    };
+
+    setExpenses(prev => [newExpense, ...prev]);
+
+    // Direct cloud save
+    setDoc(doc(db, 'expenses', newExpense.id), cleanDocForFirestore(newExpense)).catch(err => {
+      console.warn('Direct cloud save expense notice:', err);
     });
 
     // 2. Adjust treasury register balance and transaction history
@@ -6725,9 +6755,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     // 2. Revert journal entry
-    if (existing.journalEntryId) {
-      setJournalEntries(prev => prev.filter(je => je.id !== existing.journalEntryId));
-      deleteDoc(doc(db, 'journals', existing.journalEntryId)).catch(() => {});
+    const targetJournalId = existing.journalEntryId;
+    setJournalEntries(prev => prev.filter(je => je.id !== targetJournalId && je.referenceId !== id));
+    if (targetJournalId) {
+      deleteDoc(doc(db, 'journalEntries', targetJournalId)).catch(() => {});
+      deleteDoc(doc(db, 'journals', targetJournalId)).catch(() => {});
     }
 
     // 3. Remove expense item from state & cloud
@@ -8151,11 +8183,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (isAccountingEligible) {
       const movementTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
       setInventory(prev => prev.map(invItem => {
-        const sold = items.find(i => i.item.id === invItem.id);
+        const matchingLines = items.filter(i => i.item.id === invItem.id);
+        const totalSoldQuantity = matchingLines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0);
         const isDeliveryOrService = invItem.category === 'copy_scan' || invItem.category === 'services' || invItem.id === 'srv-delivery' || invItem.id === 'srv-delivery-mobile' || invItem.barcode === 'DELIVERY' || invItem.name === 'خدمة توصيل' || invItem.name?.trim().startsWith('توصيل');
-        if (sold && !isDeliveryOrService) {
-          const oldQty = invItem.stockQuantity;
-          const newQty = Math.max(0, oldQty - sold.quantity);
+        if (totalSoldQuantity > 0 && !isDeliveryOrService) {
+          const oldQty = Number(invItem.stockQuantity) || 0;
+          const newQty = Number((oldQty - totalSoldQuantity).toFixed(2));
           addStockMovement({
             itemId: invItem.id,
             itemCode: invItem.code,
@@ -8164,11 +8197,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             date: today,
             time: movementTime,
             type: 'out_sale',
-            quantity: sold.quantity,
+            quantity: totalSoldQuantity,
             balanceBefore: oldQty,
             balanceAfter: newQty,
             unitPrice: invItem.purchasePrice,
-            totalValue: sold.quantity * invItem.purchasePrice,
+            totalValue: Number((totalSoldQuantity * invItem.purchasePrice).toFixed(2)),
             referenceType: 'pos_invoice',
             referenceNumber: invoiceNumber,
             reason: `مبيعات كاشير (${customerName || 'عميل نقدي'})`,
