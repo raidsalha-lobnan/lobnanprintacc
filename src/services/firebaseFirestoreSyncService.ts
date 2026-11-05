@@ -1,7 +1,7 @@
 import { db, doc, setDoc, getDoc, deleteDoc, onSnapshot, collection, getDocs, query, where, orderBy, limit } from '../firebase';
 import { syncAuditService, SyncAuditItem, SyncConnectionIssue } from './syncAuditService';
 
-const DB_COLLECTION = 'lobnan_accounting_db_v3';
+const DB_COLLECTION = 'lobnan_accounting_db_v4';
 const DELTAS_COLLECTION = 'lobnan_accounting_deltas';
 const AUDIT_COLLECTION = 'lobnan_accounting_sync_audit_logs';
 const ISSUES_COLLECTION = 'lobnan_accounting_sync_connection_issues';

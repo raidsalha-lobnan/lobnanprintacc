@@ -26,7 +26,7 @@ export const FirebaseConnectionDiagnostic: React.FC = () => {
         return;
       }
       // Test real read connection to settings document
-      const docRef = doc(db, 'lobnan_accounting_db_v3', 'settings');
+      const docRef = doc(db, 'lobnan_accounting_db_v4', 'settings');
       await getDoc(docRef);
       setStatus('success');
       setErrorMessage('');

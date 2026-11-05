@@ -7,7 +7,7 @@ import { Invoice } from '../types';
 import { syncAuditService } from './syncAuditService';
 import { isFirestoreQuotaExceeded, markQuotaExceeded } from './firebaseFirestoreSyncService';
 
-const DB_COLLECTION = 'lobnan_accounting_db_v3';
+const DB_COLLECTION = 'lobnan_accounting_db_v4';
 const STAGED_POS_DRAFT_KEY = 'alnoor_pos_staged_in_flight_draft';
 
 // Mutex to ensure strictly sequential posting: "ولا تحفظ أي فاتورة قبل ترحيل الفاتورة السابقة"

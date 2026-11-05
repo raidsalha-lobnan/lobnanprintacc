@@ -9223,7 +9223,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     (async () => {
       try {
         // تحديث وثيقة الفواتير المجمعة
-        setDoc(doc(db, 'lobnan_accounting_db_v3', 'invoices'), {
+        setDoc(doc(db, 'lobnan_accounting_db_v4', 'invoices'), {
           items: [],
           updatedAt: new Date().toISOString(),
           count: 0
@@ -10627,7 +10627,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
 
       try {
-        setDoc(doc(db, 'lobnan_accounting_db_v3', 'dailyEntrySheets'), {
+        setDoc(doc(db, 'lobnan_accounting_db_v4', 'dailyEntrySheets'), {
           sheets: dailyEntrySheets || {},
           updatedAt: new Date().toISOString()
         }).catch(() => {});
