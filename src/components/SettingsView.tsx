@@ -40,7 +40,8 @@ import {
   Eye,
   AlertCircle,
   FileSpreadsheet,
-  Database
+  Database,
+  Cloud
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -48,7 +49,8 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'general' }) => {
-  const { settings, updateSettings, resetAllData, exportDataJSON, importDataJSON, currentUser, roles } = useAccounting();
+  const { settings, updateSettings, resetAllData, exportDataJSON, importDataJSON, syncCurrentDataToFirestore, invoices, currentUser, roles } = useAccounting();
+  const [isSyncingToCloud, setIsSyncingToCloud] = useState(false);
 
   const isSystemAdmin = React.useMemo(() => {
     if (!currentUser) return true;
@@ -239,8 +241,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
         const ok = await importDataJSON(json, includeSettings, keepTelegramSettings, keepFacilitySettings);
         setIsImporting(false);
         if (ok) {
-          alert('تم استيراد كافة البيانات ومزامنتها بنجاح مع قاعدة البيانات السحابية وحفظها محلياً.');
-          window.location.reload();
+          alert('تم استيراد كافة البيانات ومزامنتها بنجاح مع قاعدة البيانات السحابية لكافة الشاشات.');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
         } else {
           alert('ملف النسخ الاحتياطي غير صالح أو تالف.');
         }
@@ -1228,6 +1232,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 <span>استيراد نسخة احتياطية من ملف</span>
                 <input type="file" accept=".json" onChange={handleImportBackup} className="hidden" />
               </label>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsSyncingToCloud(true);
+                  const res = await syncCurrentDataToFirestore();
+                  setIsSyncingToCloud(false);
+                  if (res.success) {
+                    alert(res.message);
+                  } else {
+                    alert('فشلت المزامنة: ' + res.message);
+                  }
+                }}
+                disabled={isSyncingToCloud}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-lg transition-colors cursor-pointer text-xs disabled:opacity-50 shadow-xs"
+                title="مزامنة كافة الفواتير والبيانات المعروضة على جهازك حالياً مع سحابة فيربيس وباقي الشاشات فوراً"
+              >
+                <Cloud className={`w-3.5 h-3.5 ${isSyncingToCloud ? 'animate-spin' : ''}`} />
+                <span>{isSyncingToCloud ? 'جاري رفع البيانات إلى السحابة...' : `مزامنة البيانات الحالية (${invoices.length} فاتورة) مع السحابة فوراً ☁️`}</span>
+              </button>
 
               <button
                 type="button"

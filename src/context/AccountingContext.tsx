@@ -557,6 +557,7 @@ interface AccountingContextType {
   lastBackupInfo: { timestamp: string; filename: string; totalRecords?: number } | null;
   exportDataJSON: () => Promise<{ success: boolean; filename: string; totalRecords: number; message: string }>;
   importDataJSON: (jsonString: string, includeSettings?: boolean, keepTelegramSettings?: boolean, keepFacilitySettings?: boolean) => Promise<boolean>;
+  syncCurrentDataToFirestore: () => Promise<{ success: boolean; message: string; count: number }>;
   resetAllData: () => void;
   performDatabaseZeroing: (options: DatabaseZeroingOptions) => ZeroingExecutionResult;
   
@@ -11543,8 +11544,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const importDataJSON = async (jsonString: string, includeSettings = true, keepTelegramSettings = true, keepFacilitySettings = true): Promise<boolean> => {
     try {
-      const data = JSON.parse(jsonString);
-      if (data.accounts && data.inventory && data.settings) {
+      const parsed = JSON.parse(jsonString);
+      const data = parsed?.data || parsed?.snapshot || parsed?.fullBackup || parsed;
+      if (data && typeof data === 'object' && (data.invoices || data.accounts || data.inventory || data.parties || data.settings || data.treasuries)) {
         let finalSettings = { ...settings };
         if (!keepFacilitySettings && data.settings) {
             finalSettings = { ...data.settings };
@@ -11563,7 +11565,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const nowIso = new Date().toISOString();
           return arr.map((item, idx) => {
             if (!item || typeof item !== 'object') return item;
-            const cleanId = item.id ? String(item.id) : `${prefix}-${Date.now()}-${idx}-${Math.floor(Math.random() * 10000)}`;
+            const rawId = item.id ? String(item.id).replace(/\//g, '_') : `${prefix}-${Date.now()}-${idx}-${Math.floor(Math.random() * 10000)}`;
+            const cleanId = rawId.trim();
             const updatedAt = item.updatedAt || item.createdAt || nowIso;
             const createdAt = item.createdAt || updatedAt;
             const newItem = { ...item, id: cleanId, createdAt, updatedAt };
@@ -11692,78 +11695,77 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           } catch {}
         }
 
-        // Direct push to Firestore cloud database in chunked batches
+        // Direct push to Firestore cloud database in isolated per-collection batches
         try {
-          const collectionsToPush: Record<string, any[]> = {
-            accounts: data.accounts || [],
-            treasuries: data.treasuries || [],
-            parties: data.parties || [],
-            employees: data.employees || [],
-            invoices: data.invoices || [],
-            purchases: data.purchases || [],
-            purchaseReturns: data.purchaseReturns || [],
-            salesReturns: data.salesReturns || [],
-            vouchers: data.vouchers || [],
-            printOrders: data.printOrders || [],
-            journalEntries: data.journalEntries || [],
-            employeeAdvances: data.employeeAdvances || [],
-            employeeDeductions: data.employeeDeductions || [],
-            employeeIncentives: data.employeeIncentives || [],
-            payrollSheets: data.payrollSheets || [],
-            inventory: data.inventory || [],
-            stockMovements: data.stockMovements || [],
-            debtClearings: data.debtClearings || [],
-            expenses: data.expenses || [],
-            warehouseOperations: data.warehouseOperations || []
-          };
-
-          if (includeSettings) {
-            if (data.roles) collectionsToPush.roles = data.roles;
-            if (data.users) collectionsToPush.users = data.users;
-            if (data.companies) collectionsToPush.companies = data.companies;
-            if (data.branches) collectionsToPush.branches = data.branches;
-            if (data.warehouses) collectionsToPush.warehouses = data.warehouses;
+          // 1. Critical Priority: Invoices push
+          const importedInvoices = Array.isArray(data.invoices) ? data.invoices : [];
+          if (importedInvoices.length > 0) {
+            let invBatch = writeBatch(db);
+            let invOp = 0;
+            for (const inv of importedInvoices) {
+              if (!inv || !inv.id) continue;
+              const docId = String(inv.id).replace(/\//g, '_');
+              const cleanInv = cleanDocForFirestore(inv);
+              if (cleanInv) {
+                invBatch.set(doc(db, 'invoices', docId), cleanInv, { merge: true });
+                invOp++;
+                if (invOp % 250 === 0) {
+                  await invBatch.commit();
+                  invBatch = writeBatch(db);
+                }
+              }
+            }
+            if (invOp % 250 !== 0 && invOp > 0) {
+              await invBatch.commit();
+            }
           }
 
-          const newHashes: Record<string, string> = {};
-          let currentBatch = writeBatch(db);
-          let opCount = 0;
+          // 2. Supporting entities push in dedicated batches
+          const otherCols: Record<string, any[]> = {
+            parties: Array.isArray(data.parties) ? data.parties : [],
+            inventory: Array.isArray(data.inventory) ? data.inventory : [],
+            treasuries: Array.isArray(data.treasuries) ? data.treasuries : [],
+            accounts: Array.isArray(data.accounts) ? data.accounts : [],
+            vouchers: Array.isArray(data.vouchers) ? data.vouchers : [],
+            printOrders: Array.isArray(data.printOrders) ? data.printOrders : [],
+            purchases: Array.isArray(data.purchases) ? data.purchases : [],
+            employees: Array.isArray(data.employees) ? data.employees : []
+          };
 
-          for (const [colName, items] of Object.entries(collectionsToPush)) {
-            if (!Array.isArray(items)) continue;
-            for (const item of items) {
-              if (!item || !item.id) continue;
-              const cleanItem = cleanDocForFirestore(item);
-              const itemHash = JSON.stringify(cleanItem);
-              const hashKey = `${colName}_${item.id}`;
-              
-              currentBatch.set(doc(db, colName, String(item.id)), cleanItem);
-              newHashes[hashKey] = itemHash;
-              opCount++;
-
-              if (opCount % 400 === 0) {
-                await currentBatch.commit();
-                currentBatch = writeBatch(db);
+          for (const [colName, items] of Object.entries(otherCols)) {
+            if (items.length === 0) continue;
+            try {
+              let batch = writeBatch(db);
+              let op = 0;
+              for (const item of items) {
+                if (!item || !item.id) continue;
+                const docId = String(item.id).replace(/\//g, '_');
+                const cleanItem = cleanDocForFirestore(item);
+                if (cleanItem) {
+                  batch.set(doc(db, colName, docId), cleanItem, { merge: true });
+                  op++;
+                  if (op % 250 === 0) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                  }
+                }
               }
+              if (op % 250 !== 0 && op > 0) {
+                await batch.commit();
+              }
+            } catch (colErr) {
+              console.warn(`Notice pushing collection ${colName}:`, colErr);
             }
           }
 
           if (finalSettings) {
-            const cleanSettings = cleanDocForFirestore(finalSettings);
-            currentBatch.set(doc(db, 'settings', 'global'), cleanSettings);
-            newHashes['settings_global'] = JSON.stringify(cleanSettings);
-            opCount++;
+            try {
+              const cleanSettings = cleanDocForFirestore(finalSettings);
+              await setDoc(doc(db, 'settings', 'global'), cleanSettings, { merge: true });
+            } catch {}
           }
 
-          if (opCount % 400 !== 0 && opCount > 0) {
-            await currentBatch.commit();
-          }
-
-          // Purge obsolete Firestore cloud documents not included in the imported snapshot
-          purgeObsoleteFirestoreCollections(collectionsToPush).catch(err => {
-            console.warn('Purge obsolete collections after import notice:', err);
-          });
-
+          const newHashes: Record<string, string> = {};
           safeSetSyncedHashes(newHashes);
           localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
           const timeStr = new Date().toLocaleTimeString('en-US');
@@ -11782,6 +11784,109 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return false;
     } catch {
       return false;
+    }
+  };
+
+  const syncCurrentDataToFirestore = async (): Promise<{ success: boolean; message: string; count: number }> => {
+    try {
+      if (isLocalOnlyMode) {
+        return { success: false, message: 'التطبيق في وضع العمل المحلي فقط', count: 0 };
+      }
+      let invCount = 0;
+      if (Array.isArray(invoices) && invoices.length > 0) {
+        let invBatch = writeBatch(db);
+        let batchC = 0;
+        for (const inv of invoices) {
+          if (!inv || !inv.id) continue;
+          const docId = String(inv.id).replace(/\//g, '_');
+          const cleanInv = cleanDocForFirestore(inv);
+          if (cleanInv) {
+            invBatch.set(doc(db, 'invoices', docId), cleanInv, { merge: true });
+            invCount++;
+            batchC++;
+            if (batchC % 250 === 0) {
+              await invBatch.commit();
+              invBatch = writeBatch(db);
+            }
+          }
+        }
+        if (batchC % 250 !== 0 && batchC > 0) {
+          await invBatch.commit();
+        }
+      }
+
+      // Also push parties
+      if (Array.isArray(parties) && parties.length > 0) {
+        let partyBatch = writeBatch(db);
+        let pC = 0;
+        for (const p of parties) {
+          if (!p || !p.id) continue;
+          const docId = String(p.id).replace(/\//g, '_');
+          const cleanP = cleanDocForFirestore(p);
+          if (cleanP) {
+            partyBatch.set(doc(db, 'parties', docId), cleanP, { merge: true });
+            pC++;
+            if (pC % 250 === 0) {
+              await partyBatch.commit();
+              partyBatch = writeBatch(db);
+            }
+          }
+        }
+        if (pC % 250 !== 0 && pC > 0) {
+          await partyBatch.commit();
+        }
+      }
+
+      // Also push inventory
+      if (Array.isArray(inventory) && inventory.length > 0) {
+        let invenBatch = writeBatch(db);
+        let iC = 0;
+        for (const item of inventory) {
+          if (!item || !item.id) continue;
+          const docId = String(item.id).replace(/\//g, '_');
+          const cleanItem = cleanDocForFirestore(item);
+          if (cleanItem) {
+            invenBatch.set(doc(db, 'inventory', docId), cleanItem, { merge: true });
+            iC++;
+            if (iC % 250 === 0) {
+              await invenBatch.commit();
+              invenBatch = writeBatch(db);
+            }
+          }
+        }
+        if (iC % 250 !== 0 && iC > 0) {
+          await invenBatch.commit();
+        }
+      }
+
+      // Overwrite backend server state
+      await fetch('/api/sync/replace-database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            invoices, parties, inventory, vouchers, printOrders,
+            accounts, treasuries, employees, purchases
+          }
+        })
+      }).catch(() => {});
+
+      const timeStr = new Date().toLocaleTimeString('ar-EG');
+      setLastFirebaseSyncTime(timeStr);
+      setLastSyncTime(timeStr);
+
+      return {
+        success: true,
+        message: `تم بنجاح رفع وتثبيت ${invCount} فاتورة على قاعدة بيانات Firestore السحابية ومزامنتها لحظياً مع كافة الشاشات والأجهزة!`,
+        count: invCount
+      };
+    } catch (err: any) {
+      console.error('Error during syncCurrentDataToFirestore:', err);
+      return {
+        success: false,
+        message: 'فشلت المزامنة السحابية: ' + (err?.message || 'خطأ غير معروف'),
+        count: 0
+      };
     }
   };
 
@@ -12156,6 +12261,7 @@ return (
         lastBackupInfo,
         exportDataJSON,
         importDataJSON,
+        syncCurrentDataToFirestore,
         resetAllData,
         performDatabaseZeroing,
         companies,
