@@ -47,28 +47,9 @@ const dbId = (firebaseConfig as any).firestoreDatabaseId;
 
 let firestoreInstance;
 try {
-  firestoreInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    }),
-    experimentalForceLongPolling: true
-  }, dbId);
+  firestoreInstance = getFirestore(app, dbId);
 } catch {
-  try {
-    firestoreInstance = initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
-    }, dbId);
-  } catch {
-    try {
-      firestoreInstance = initializeFirestore(app, {
-        experimentalForceLongPolling: true
-      }, dbId);
-    } catch {
-      firestoreInstance = getFirestore(app, dbId);
-    }
-  }
+  firestoreInstance = initializeFirestore(app, {}, dbId);
 }
 
 export const db = firestoreInstance;
@@ -133,17 +114,19 @@ const trackedOnSnapshot = ((...args: any[]) => {
         // If snapshot data is served from local IndexedDB cache, 0 cloud quota is consumed!
         const fromCache = snapshot.metadata?.fromCache === true;
         if (!fromCache) {
-          if (typeof snapshot.docChanges === 'function') {
-            const changes = snapshot.docChanges();
-            if (changes && changes.length > 0) {
-              const serverChanges = changes.filter((c: any) => !c.doc?.metadata?.hasPendingWrites);
-              if (serverChanges.length > 0) {
-                firebaseQuotaTracker.trackRead(serverChanges.length);
+          try {
+            if (typeof snapshot.docChanges === 'function') {
+              const changes = snapshot.docChanges();
+              if (changes && changes.length > 0) {
+                const serverChanges = changes.filter((c: any) => !c.doc?.metadata?.hasPendingWrites);
+                if (serverChanges.length > 0) {
+                  firebaseQuotaTracker.trackRead(serverChanges.length);
+                }
               }
+            } else if (snapshot.docs) {
+              firebaseQuotaTracker.trackRead(snapshot.docs.length);
             }
-          } else if (snapshot.docs) {
-            firebaseQuotaTracker.trackRead(snapshot.docs.length);
-          }
+          } catch {}
         }
       }
       return originalCallback(snapshot);
