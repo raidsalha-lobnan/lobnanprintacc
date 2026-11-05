@@ -50,7 +50,7 @@ export const initialEmployeeIncentives: EmployeeIncentive[] = Array.isArray(snap
 export const initialPayrollSheets: PayrollSheet[] = Array.isArray(snap.payrollSheets) ? snap.payrollSheets : [];
 const rawSnapTreasuries: Treasury[] = Array.isArray(snap.treasuries) ? snap.treasuries : [];
 
-export const initialTreasuries: Treasury[] = rawSnapTreasuries.length > 0 ? rawSnapTreasuries : [
+export const initialTreasuries: Treasury[] = (rawSnapTreasuries.length > 0 ? rawSnapTreasuries : [
   {
     id: 'treasury-cash-main',
     name: 'الصندوق النقدي الرئيسي (الكاشير)',
@@ -65,10 +65,10 @@ export const initialTreasuries: Treasury[] = rawSnapTreasuries.length > 0 ? rawS
     transactions: []
   },
   {
-    id: 'treasury-1790639512764',
-    name: 'بنك فلسطين - ماهر صالحة 0599992615',
+    id: 'treasury-1793633324279',
+    name: 'البنك الإسلامي الفلسطيني - إيهاب',
     type: 'bank_account',
-    balance: 4044,
+    balance: 0,
     accountCode: 'CASH-1102',
     status: 'active',
     currency: 'ILS',
@@ -89,9 +89,9 @@ export const initialTreasuries: Treasury[] = rawSnapTreasuries.length > 0 ? rawS
     transactions: []
   },
   {
-    id: 'treasury-1791324119020',
-    name: 'محفظة بال باي - PalPay',
-    type: 'digital_wallet',
+    id: 'treasury-1790639512764',
+    name: 'بنك فلسطين - ماهر 0599992615',
+    type: 'bank_account',
     balance: 0,
     accountCode: 'CASH-1104',
     status: 'active',
@@ -101,8 +101,8 @@ export const initialTreasuries: Treasury[] = rawSnapTreasuries.length > 0 ? rawS
     transactions: []
   },
   {
-    id: 'treasury-1791395958599-1107',
-    name: 'رائد صالحة - جوال باي - بال باي - مال شات',
+    id: 'treasury-1791324119020',
+    name: 'محفظة بال باي - PalPay / ماهر صالحة',
     type: 'digital_wallet',
     balance: 0,
     accountCode: 'CASH-1105',
@@ -111,8 +111,28 @@ export const initialTreasuries: Treasury[] = rawSnapTreasuries.length > 0 ? rawS
     currencySymbol: '₪',
     createdAt: '2024-01-01',
     transactions: []
+  },
+  {
+    id: 'treasury-1791395958599-1107',
+    name: 'رائد صالحة - بال بي - جوال باي - مال شات',
+    type: 'digital_wallet',
+    balance: 0,
+    accountCode: 'CASH-1106',
+    status: 'active',
+    currency: 'ILS',
+    currencySymbol: '₪',
+    createdAt: '2024-01-01',
+    transactions: []
   }
-];
+]).map(t => {
+  let accountCode = t.accountCode ? String(t.accountCode).trim() : '';
+  if (t.id === 'treasury-cash-main' || t.name.includes('النقدي الرئيسي') || t.name.includes('الكاشير')) {
+    accountCode = 'CASH-1101';
+  } else if (accountCode && !accountCode.startsWith('CASH-') && !accountCode.startsWith('BANK-') && !accountCode.startsWith('TR-')) {
+    accountCode = `CASH-${accountCode}`;
+  }
+  return { ...t, accountCode };
+});
 export const initialVouchers: PaymentVoucher[] = Array.isArray(snap.vouchers) ? snap.vouchers : [];
 export const initialStockMovements: StockMovement[] = Array.isArray(snap.stockMovements) ? snap.stockMovements : [];
 export const initialExpenses: ExpenseItem[] = Array.isArray(snap.expenses) ? snap.expenses : [];

@@ -264,6 +264,7 @@ export function mergeEntityLists(localList: any[], remoteList: any[], customDelS
         map.set(key, {
           ...secondary,
           ...primary,
+          code: primary.code || secondary.code,
           items: (Array.isArray(primary.items) && primary.items.length > 0) ? primary.items : (secondary.items || []),
           payments: (Array.isArray(primary.payments) && primary.payments.length > 0) ? primary.payments : (secondary.payments || []),
           updatedAt: new Date(Math.max(tExist, tRemote, Date.now())).toISOString()

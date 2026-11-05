@@ -277,40 +277,43 @@ function syncHubPlugin() {
                 const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
                 if (fs.existsSync(configPath)) {
                   const { initializeApp, getApps } = await import('firebase/app');
-                  const { getFirestore, writeBatch, doc } = await import('firebase/firestore');
+                  const { getFirestore, writeBatch, doc, setDoc } = await import('firebase/firestore');
                   const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
                   const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
                   const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
-                  const pushMap: Record<string, any[]> = {
-                    invoices: Array.isArray(rawData.invoices) ? rawData.invoices : [],
-                    parties: Array.isArray(rawData.parties) ? rawData.parties : [],
-                    inventory: Array.isArray(rawData.inventory) ? rawData.inventory : [],
-                    vouchers: Array.isArray(rawData.vouchers) ? rawData.vouchers : [],
-                    purchases: Array.isArray(rawData.purchases) ? rawData.purchases : [],
-                    accounts: Array.isArray(rawData.accounts) ? rawData.accounts : [],
-                    treasuries: Array.isArray(rawData.treasuries) ? rawData.treasuries : [],
-                    employees: Array.isArray(rawData.employees) ? rawData.employees : [],
-                    printOrders: Array.isArray(rawData.printOrders) ? rawData.printOrders : []
-                  };
-
-                  for (const [col, items] of Object.entries(pushMap)) {
+                  for (const col of ALL_SYNC_ENTITIES) {
+                    const items = Array.isArray(rawData[col]) ? rawData[col] : [];
                     if (items.length === 0) continue;
                     let batch = writeBatch(db);
                     let opCount = 0;
-                    for (const item of items) {
-                      if (!item || !item.id) continue;
-                      const docId = String(item.id).replace(/\//g, '_');
+                    for (let idx = 0; idx < items.length; idx++) {
+                      const item = items[idx];
+                      if (!item) continue;
+                      const docId = String(item.id || `${col}_${idx}`).replace(/\//g, '_');
                       const cleanItem = JSON.parse(JSON.stringify(item, (_, v) => (typeof v === 'undefined' ? null : v)));
                       batch.set(doc(db, col, docId), cleanItem, { merge: true });
                       opCount++;
-                      if (opCount % 300 === 0) {
+                      if (opCount % 250 === 0) {
                         await batch.commit();
                         batch = writeBatch(db);
                       }
                     }
-                    if (opCount % 300 !== 0 && opCount > 0) {
+                    if (opCount % 250 !== 0 && opCount > 0) {
                       await batch.commit();
+                    }
+                  }
+
+                  if (rawData.settings && typeof rawData.settings === 'object') {
+                    const cleanSettings = JSON.parse(JSON.stringify(rawData.settings, (_, v) => (typeof v === 'undefined' ? null : v)));
+                    await setDoc(doc(db, 'settings', 'global'), cleanSettings, { merge: true });
+                  }
+
+                  if (rawData.dailyEntrySheets && typeof rawData.dailyEntrySheets === 'object') {
+                    for (const [dateKey, sheetData] of Object.entries(rawData.dailyEntrySheets)) {
+                      if (!sheetData) continue;
+                      const cleanSheet = JSON.parse(JSON.stringify(sheetData, (_, v) => (typeof v === 'undefined' ? null : v)));
+                      await setDoc(doc(db, 'dailyEntrySheets', String(dateKey).replace(/\//g, '_')), { date: dateKey, ...(cleanSheet as any) }, { merge: true });
                     }
                   }
                 }

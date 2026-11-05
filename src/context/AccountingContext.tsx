@@ -557,7 +557,7 @@ interface AccountingContextType {
   lastBackupInfo: { timestamp: string; filename: string; totalRecords?: number } | null;
   exportDataJSON: () => Promise<{ success: boolean; filename: string; totalRecords: number; message: string }>;
   importDataJSON: (jsonString: string, includeSettings?: boolean, keepTelegramSettings?: boolean, keepFacilitySettings?: boolean) => Promise<boolean>;
-  syncCurrentDataToFirestore: () => Promise<{ success: boolean; message: string; count: number }>;
+  syncCurrentDataToFirestore: () => Promise<{ success: boolean; message: string; count: number; breakdown?: string }>;
   resetAllData: () => void;
   performDatabaseZeroing: (options: DatabaseZeroingOptions) => ZeroingExecutionResult;
   
@@ -800,15 +800,23 @@ export function auditAndRecalculateTreasuries(
 
   treasuriesList.forEach((t, idx) => {
     if (!t) return;
-    if (!t.accountCode || (!t.accountCode.startsWith('CASH-') && !t.accountCode.startsWith('BANK-') && !t.accountCode.startsWith('TR-'))) {
-      t.accountCode = `CASH-${1101 + idx}`;
-    }
-    if (t.id === 'treasury-cash-main' || t.isDefault) {
+    const isMain = t.id === 'treasury-cash-main' || t.name.includes('النقدي الرئيسي') || t.name.includes('الكاشير');
+    if (isMain) {
+      t.accountCode = 'CASH-1101';
       t.isDefault = true;
+    } else if (t.accountCode) {
+      if (!t.accountCode.startsWith('CASH-') && !t.accountCode.startsWith('BANK-') && !t.accountCode.startsWith('TR-')) {
+        t.accountCode = `CASH-${t.accountCode}`;
+      }
+    } else {
+      t.accountCode = `CASH-${1102 + idx}`;
     }
 
     tById.set(t.id, t);
-    if (t.accountCode) tByCode.set(t.accountCode, t);
+    if (t.accountCode) {
+      tByCode.set(t.accountCode, t);
+      tByCode.set(t.accountCode.replace('CASH-', ''), t);
+    }
   });
 
   const defaultCash = treasuriesList.find(t => t.isDefault || t.type === 'cash_box') || treasuriesList[0];
@@ -1638,6 +1646,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // 2. Parties live listener
     const unsubParties = onSnapshot(collection(db, 'parties'), (snap) => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Party));
+      items.sort((a, b) => {
+        const codeA = (a.code || '').toLowerCase();
+        const codeB = (b.code || '').toLowerCase();
+        if (codeA && codeB) return codeA.localeCompare(codeB, 'en', { numeric: true });
+        return (a.name || '').localeCompare(b.name || '', 'ar');
+      });
       setParties(items);
       try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(items)); } catch {}
     }, (err) => {
@@ -1698,7 +1712,14 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // 8. Treasuries live listener
     const unsubTreasuries = onSnapshot(collection(db, 'treasuries'), (snap) => {
       if (!snap.empty) {
-        const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        let items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Treasury));
+        items.sort((a, b) => {
+          const aIsMain = a.id === 'treasury-cash-main' || a.isDefault || a.accountCode === 'CASH-1101' || a.name.includes('النقدي الرئيسي') || a.name.includes('الكاشير');
+          const bIsMain = b.id === 'treasury-cash-main' || b.isDefault || b.accountCode === 'CASH-1101' || b.name.includes('النقدي الرئيسي') || b.name.includes('الكاشير');
+          if (aIsMain && !bIsMain) return -1;
+          if (!aIsMain && bIsMain) return 1;
+          return (a.accountCode || a.id).localeCompare(b.accountCode || b.id, 'en', { numeric: true });
+        });
         setTreasuries(items);
         try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(items)); } catch {}
       }
@@ -1769,18 +1790,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!isCloudHydratedRef.current) {
       const loaded = safeLoadArray(`${STORAGE_KEY}_inventory`, initialInventory);
       const filtered = loaded.filter(it => it && it.id !== 'inv-probe-sync-1' && it.id !== 'inv-test-full-1' && it.name !== 'صنف تجربة المزامنة' && it.name !== 'صنف فحص المزامنة الشاملة');
-      const mapped = filtered.map(it => {
-        if (!it) return it;
-        if (
-          it.code === 'PRI-0009' ||
-          it.name?.includes('جاليه سيلكون') ||
-          (it.name?.includes('جاليه') && (it.category === 'مطبوعات قماش' || it.category === 'textiles'))
-        ) {
-          return { ...it, code: 'TEX-0001', category: 'textiles' };
-        }
-        return it;
-      });
-      setInventory(deduplicateById(mapped, 'inv'));
+      setInventory(deduplicateById(filtered, 'inv'));
     }
   }, []);
 
@@ -1803,13 +1813,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Migration: ensure every single party has a guaranteed unique sequential code
       const result: Party[] = [];
       cleanedRaw.forEach(p => {
-        if (p.code && !result.some(r => r.code.toLowerCase() === p.code.toLowerCase())) {
-          result.push(p);
-        } else {
-          const code = generateSequentialPartyCode(p.type, result);
+        let code = p.code ? String(p.code).trim() : '';
+        if (code && !result.some(r => r.code.toLowerCase() === code.toLowerCase())) {
           result.push({ ...p, code });
+        } else if (!code) {
+          code = generateSequentialPartyCode(p.type, result);
+          result.push({ ...p, code });
+        } else {
+          const nextCode = generateSequentialPartyCode(p.type, result);
+          result.push({ ...p, code: nextCode });
         }
       });
+
+      result.sort((a, b) => {
+        const codeA = (a.code || '').toLowerCase();
+        const codeB = (b.code || '').toLowerCase();
+        if (codeA && codeB) return codeA.localeCompare(codeB, 'en', { numeric: true });
+        return (a.name || '').localeCompare(b.name || '', 'ar');
+      });
+
       setParties(result);
     }
   }, []);
@@ -1894,10 +1916,37 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const ensureUniqueTreasuryAccountCodes = (list: Treasury[]): Treasury[] => {
     if (!list || list.length === 0) return list;
     const accs = accounts || [];
-    return list.map((t, idx) => {
-      const code = `CASH-${1101 + idx}`;
 
-      const matchedAcc = accs.find(a => a.code === code);
+    // Ensure main cash box is always recognized, set to CASH-1101, and sorted first
+    const sortedList = [...list].sort((a, b) => {
+      const aIsMain = a.id === 'treasury-cash-main' || a.isDefault || a.accountCode === 'CASH-1101' || a.name.includes('النقدي الرئيسي') || a.name.includes('الكاشير');
+      const bIsMain = b.id === 'treasury-cash-main' || b.isDefault || b.accountCode === 'CASH-1101' || b.name.includes('النقدي الرئيسي') || b.name.includes('الكاشير');
+      if (aIsMain && !bIsMain) return -1;
+      if (!aIsMain && bIsMain) return 1;
+      return (a.accountCode || a.id).localeCompare(b.accountCode || b.id, 'en', { numeric: true });
+    });
+
+    const usedCodes = new Set<string>();
+
+    return sortedList.map((t, idx) => {
+      let code = t.accountCode ? String(t.accountCode).trim() : '';
+      if (code && !code.startsWith('CASH-') && !code.startsWith('BANK-') && !code.startsWith('TR-')) {
+        code = `CASH-${code}`;
+      }
+
+      const isMainCash = t.id === 'treasury-cash-main' || t.name.includes('النقدي الرئيسي') || t.name.includes('الكاشير') || (idx === 0 && (!code || code === 'CASH-1101'));
+      if (isMainCash) {
+        code = 'CASH-1101';
+      } else if (!code || code === 'CASH-1101' || usedCodes.has(code)) {
+        let n = 1102;
+        while (usedCodes.has(`CASH-${n}`)) {
+          n++;
+        }
+        code = `CASH-${n}`;
+      }
+      usedCodes.add(code);
+
+      const matchedAcc = accs.find(a => a.code === code || a.code === code.replace('CASH-', '') || (code === 'CASH-1101' && (a.code === '1101' || a.code === 'CASH-1101')));
       const targetBal = matchedAcc ? matchedAcc.balance : t.balance;
       const curBal = { ...(t.currencyBalances || {}) };
 
@@ -1915,6 +1964,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return {
         ...t,
         accountCode: code,
+        isDefault: isMainCash ? true : Boolean(t.isDefault && !isMainCash),
         balance: targetBal,
         currencyBalances: curBal
       };
@@ -2278,6 +2328,91 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return updated;
     });
   }, [invoices, vouchers, purchases, expenses]);
+
+  // Real-time Firestore listeners for secondary operational entities
+  useEffect(() => {
+    if (isLocalOnlyMode) return;
+    const secondaryUnsubs: (() => void)[] = [];
+
+    try {
+      const uExp = onSnapshot(collection(db, 'expenses'), (snap) => {
+        if (!snap.empty) {
+          const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as ExpenseItem));
+          setExpenses(items);
+          try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(items)); } catch {}
+        }
+      }, (err) => console.warn('Real-time expenses sync notice:', err));
+      secondaryUnsubs.push(uExp);
+    } catch {}
+
+    try {
+      const uJE = onSnapshot(collection(db, 'journalEntries'), (snap) => {
+        if (!snap.empty) {
+          const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
+          setJournalEntries(items);
+          try { localStorage.setItem(`${STORAGE_KEY}_journal_entries`, JSON.stringify(items)); } catch {}
+        }
+      }, (err) => console.warn('Real-time journalEntries sync notice:', err));
+      secondaryUnsubs.push(uJE);
+    } catch {}
+
+    try {
+      const uPR = onSnapshot(collection(db, 'purchaseReturns'), (snap) => {
+        if (!snap.empty) {
+          const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseReturn));
+          setPurchaseReturns(items);
+          try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(items)); } catch {}
+        }
+      }, (err) => console.warn('Real-time purchaseReturns sync notice:', err));
+      secondaryUnsubs.push(uPR);
+    } catch {}
+
+    try {
+      const uSR = onSnapshot(collection(db, 'salesReturns'), (snap) => {
+        if (!snap.empty) {
+          const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as SalesReturn));
+          setSalesReturns(items);
+          try { localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(items)); } catch {}
+        }
+      }, (err) => console.warn('Real-time salesReturns sync notice:', err));
+      secondaryUnsubs.push(uSR);
+    } catch {}
+
+    try {
+      const uSM = onSnapshot(collection(db, 'stockMovements'), (snap) => {
+        if (!snap.empty) {
+          const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as StockMovement));
+          setStockMovements(items);
+          try { localStorage.setItem(`${STORAGE_KEY}_stock_movements`, JSON.stringify(items)); } catch {}
+        }
+      }, (err) => console.warn('Real-time stockMovements sync notice:', err));
+      secondaryUnsubs.push(uSM);
+    } catch {}
+
+    try {
+      const uDC = onSnapshot(collection(db, 'debtClearings'), (snap) => {
+        if (!snap.empty) {
+          const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as DebtClearingRecord));
+          setDebtClearings(items);
+          try { localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(items)); } catch {}
+        }
+      }, (err) => console.warn('Real-time debtClearings sync notice:', err));
+      secondaryUnsubs.push(uDC);
+    } catch {}
+
+    try {
+      const uWO = onSnapshot(collection(db, 'warehouseOperations'), (snap) => {
+        if (!snap.empty) {
+          const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as WarehouseOperation));
+          setWarehouseOperations(items);
+          try { localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(items)); } catch {}
+        }
+      }, (err) => console.warn('Real-time warehouseOperations sync notice:', err));
+      secondaryUnsubs.push(uWO);
+    } catch {}
+
+    return () => secondaryUnsubs.forEach(u => u());
+  }, [isLocalOnlyMode]);
 
   const [tabHistory, setTabHistory] = useState<string[]>(() => {
     try {
@@ -6678,18 +6813,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const existing = inventory.find(it => it.id === id);
     let merged: InventoryItem;
     if (existing) {
-      if (updated.code) {
-        const trimmed = updated.code.trim();
-        const conflict = inventory.some(other => other.id !== id && (other.code || '').trim().toLowerCase() === trimmed.toLowerCase());
-        if (conflict) {
-          console.warn(`SKU conflict: "${trimmed}" already in use. Retaining original SKU "${existing.code}".`);
-          merged = { ...existing, ...updated, code: existing.code };
-        } else {
-          merged = { ...existing, ...updated };
-        }
-      } else {
-        merged = { ...existing, ...updated };
-      }
+      // Permanent Code Immutability Guarantee: Once created, the item's SKU/Code is locked forever
+      const { code: _ignored, ...allowedUpdates } = updated;
+      merged = { ...existing, ...allowedUpdates, code: existing.code };
     } else {
       merged = { ...updated, id } as InventoryItem;
     }
@@ -11729,7 +11855,23 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             vouchers: Array.isArray(data.vouchers) ? data.vouchers : [],
             printOrders: Array.isArray(data.printOrders) ? data.printOrders : [],
             purchases: Array.isArray(data.purchases) ? data.purchases : [],
-            employees: Array.isArray(data.employees) ? data.employees : []
+            purchaseReturns: Array.isArray(data.purchaseReturns) ? data.purchaseReturns : [],
+            salesReturns: Array.isArray(data.salesReturns) ? data.salesReturns : [],
+            journalEntries: Array.isArray(data.journalEntries) ? data.journalEntries : [],
+            stockMovements: Array.isArray(data.stockMovements) ? data.stockMovements : [],
+            expenses: Array.isArray(data.expenses) ? data.expenses : [],
+            employees: Array.isArray(data.employees) ? data.employees : [],
+            employeeAdvances: Array.isArray(data.employeeAdvances) ? data.employeeAdvances : [],
+            employeeDeductions: Array.isArray(data.employeeDeductions) ? data.employeeDeductions : [],
+            employeeIncentives: Array.isArray(data.employeeIncentives) ? data.employeeIncentives : [],
+            payrollSheets: Array.isArray(data.payrollSheets) ? data.payrollSheets : [],
+            debtClearings: Array.isArray(data.debtClearings) ? data.debtClearings : [],
+            companies: Array.isArray(data.companies) ? data.companies : [],
+            branches: Array.isArray(data.branches) ? data.branches : [],
+            warehouses: Array.isArray(data.warehouses) ? data.warehouses : [],
+            warehouseOperations: Array.isArray(data.warehouseOperations) ? data.warehouseOperations : [],
+            roles: Array.isArray(data.roles) ? data.roles : [],
+            users: Array.isArray(data.users) ? data.users : []
           };
 
           for (const [colName, items] of Object.entries(otherCols)) {
@@ -11737,9 +11879,11 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             try {
               let batch = writeBatch(db);
               let op = 0;
-              for (const item of items) {
-                if (!item || !item.id) continue;
-                const docId = String(item.id).replace(/\//g, '_');
+              for (let idx = 0; idx < items.length; idx++) {
+                const item = items[idx];
+                if (!item) continue;
+                const rawId = item.id ? String(item.id) : `${colName}_${idx}`;
+                const docId = rawId.replace(/\//g, '_');
                 const cleanItem = cleanDocForFirestore(item);
                 if (cleanItem) {
                   batch.set(doc(db, colName, docId), cleanItem, { merge: true });
@@ -11755,6 +11899,17 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               }
             } catch (colErr) {
               console.warn(`Notice pushing collection ${colName}:`, colErr);
+            }
+          }
+
+          if (data.dailyEntrySheets && typeof data.dailyEntrySheets === 'object') {
+            for (const [dateKey, sheetData] of Object.entries(data.dailyEntrySheets)) {
+              if (!sheetData) continue;
+              try {
+                const docId = String(dateKey).replace(/\//g, '_');
+                const cleanSheet = cleanDocForFirestore({ date: dateKey, ...(sheetData as any) });
+                await setDoc(doc(db, 'dailyEntrySheets', docId), cleanSheet, { merge: true });
+              } catch {}
             }
           }
 
@@ -11787,104 +11942,154 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const syncCurrentDataToFirestore = async (): Promise<{ success: boolean; message: string; count: number }> => {
+  const syncCurrentDataToFirestore = async (): Promise<{ success: boolean; message: string; count: number; breakdown?: string }> => {
     try {
       if (isLocalOnlyMode) {
         return { success: false, message: 'التطبيق في وضع العمل المحلي فقط', count: 0 };
       }
-      let invCount = 0;
-      if (Array.isArray(invoices) && invoices.length > 0) {
-        let invBatch = writeBatch(db);
-        let batchC = 0;
-        for (const inv of invoices) {
-          if (!inv || !inv.id) continue;
-          const docId = String(inv.id).replace(/\//g, '_');
-          const cleanInv = cleanDocForFirestore(inv);
-          if (cleanInv) {
-            invBatch.set(doc(db, 'invoices', docId), cleanInv, { merge: true });
-            invCount++;
-            batchC++;
-            if (batchC % 250 === 0) {
-              await invBatch.commit();
-              invBatch = writeBatch(db);
-            }
-          }
-        }
-        if (batchC % 250 !== 0 && batchC > 0) {
-          await invBatch.commit();
-        }
-      }
 
-      // Also push parties
-      if (Array.isArray(parties) && parties.length > 0) {
-        let partyBatch = writeBatch(db);
-        let pC = 0;
-        for (const p of parties) {
-          if (!p || !p.id) continue;
-          const docId = String(p.id).replace(/\//g, '_');
-          const cleanP = cleanDocForFirestore(p);
-          if (cleanP) {
-            partyBatch.set(doc(db, 'parties', docId), cleanP, { merge: true });
-            pC++;
-            if (pC % 250 === 0) {
-              await partyBatch.commit();
-              partyBatch = writeBatch(db);
-            }
-          }
-        }
-        if (pC % 250 !== 0 && pC > 0) {
-          await partyBatch.commit();
-        }
-      }
+      const allEntitiesToSync: Record<string, { label: string; items: any[] }> = {
+        invoices: { label: 'فواتير المبيعات', items: Array.isArray(invoices) ? invoices : [] },
+        parties: { label: 'العملاء والموردين', items: Array.isArray(parties) ? parties : [] },
+        inventory: { label: 'الأصناف والمخزون', items: Array.isArray(inventory) ? inventory : [] },
+        vouchers: { label: 'سندات القبض والصرف', items: Array.isArray(vouchers) ? vouchers : [] },
+        purchases: { label: 'فواتير المشتريات', items: Array.isArray(purchases) ? purchases : [] },
+        purchaseReturns: { label: 'مردودات المشتريات', items: Array.isArray(purchaseReturns) ? purchaseReturns : [] },
+        salesReturns: { label: 'مردودات المبيعات', items: Array.isArray(salesReturns) ? salesReturns : [] },
+        accounts: { label: 'دليل الحسابات', items: Array.isArray(accounts) ? accounts : [] },
+        treasuries: { label: 'الخزن والبنوك', items: Array.isArray(treasuries) ? treasuries : [] },
+        journalEntries: { label: 'القيود اليومية', items: Array.isArray(journalEntries) ? journalEntries : [] },
+        stockMovements: { label: 'حركات المخزون', items: Array.isArray(stockMovements) ? stockMovements : [] },
+        expenses: { label: 'المصروفات', items: Array.isArray(expenses) ? expenses : [] },
+        employees: { label: 'الموظفين', items: Array.isArray(employees) ? employees : [] },
+        employeeAdvances: { label: 'سلف الموظفين', items: Array.isArray(employeeAdvances) ? employeeAdvances : [] },
+        employeeDeductions: { label: 'خصومات الموظفين', items: Array.isArray(employeeDeductions) ? employeeDeductions : [] },
+        employeeIncentives: { label: 'حوافز ومكافآت الموظفين', items: Array.isArray(employeeIncentives) ? employeeIncentives : [] },
+        payrollSheets: { label: 'مسيرات الرواتب', items: Array.isArray(payrollSheets) ? payrollSheets : [] },
+        printOrders: { label: 'طلبات وأوامر الطباعة', items: Array.isArray(printOrders) ? printOrders : [] },
+        debtClearings: { label: 'تسويات ومقاصات الديون', items: Array.isArray(debtClearings) ? debtClearings : [] },
+        companies: { label: 'الشركات', items: Array.isArray(companies) ? companies : [] },
+        branches: { label: 'الفروع', items: Array.isArray(branches) ? branches : [] },
+        warehouses: { label: 'المستودعات', items: Array.isArray(warehouses) ? warehouses : [] },
+        warehouseOperations: { label: 'عمليات وتحويلات المستودعات', items: Array.isArray(warehouseOperations) ? warehouseOperations : [] },
+        roles: { label: 'الأدوار والصلاحيات', items: Array.isArray(roles) ? roles : [] },
+        users: { label: 'المستخدمين', items: Array.isArray(users) ? users : [] },
+      };
 
-      // Also push inventory
-      if (Array.isArray(inventory) && inventory.length > 0) {
-        let invenBatch = writeBatch(db);
-        let iC = 0;
-        for (const item of inventory) {
-          if (!item || !item.id) continue;
-          const docId = String(item.id).replace(/\//g, '_');
+      let totalSyncedCount = 0;
+      const breakdownSummary: string[] = [];
+
+      for (const [colName, colData] of Object.entries(allEntitiesToSync)) {
+        const items = colData.items;
+        if (!items || items.length === 0) continue;
+
+        let batch = writeBatch(db);
+        let batchOpCount = 0;
+        let colPushed = 0;
+
+        for (let idx = 0; idx < items.length; idx++) {
+          const item = items[idx];
+          if (!item) continue;
+          const rawId = item.id ? String(item.id) : `${colName}_${idx}`;
+          const docId = rawId.replace(/\//g, '_');
           const cleanItem = cleanDocForFirestore(item);
           if (cleanItem) {
-            invenBatch.set(doc(db, 'inventory', docId), cleanItem, { merge: true });
-            iC++;
-            if (iC % 250 === 0) {
-              await invenBatch.commit();
-              invenBatch = writeBatch(db);
+            batch.set(doc(db, colName, docId), cleanItem, { merge: true });
+            colPushed++;
+            totalSyncedCount++;
+            batchOpCount++;
+
+            if (batchOpCount % 250 === 0) {
+              await batch.commit();
+              batch = writeBatch(db);
             }
           }
         }
-        if (iC % 250 !== 0 && iC > 0) {
-          await invenBatch.commit();
+
+        if (batchOpCount % 250 !== 0 && batchOpCount > 0) {
+          await batch.commit();
+        }
+
+        if (colPushed > 0) {
+          breakdownSummary.push(`${colData.label}: ${colPushed}`);
         }
       }
 
-      // Overwrite backend server state
+      // Sync dailyEntrySheets
+      if (dailyEntrySheets && typeof dailyEntrySheets === 'object') {
+        let sheetsCount = 0;
+        for (const [dateKey, sheetData] of Object.entries(dailyEntrySheets)) {
+          if (!sheetData) continue;
+          try {
+            const docId = String(dateKey).replace(/\//g, '_');
+            const cleanSheet = cleanDocForFirestore({ date: dateKey, ...(sheetData as any) });
+            await setDoc(doc(db, 'dailyEntrySheets', docId), cleanSheet, { merge: true });
+            sheetsCount++;
+            totalSyncedCount++;
+          } catch {}
+        }
+        if (sheetsCount > 0) {
+          breakdownSummary.push(`شيت القيود السريعة: ${sheetsCount}`);
+        }
+      }
+
+      // Sync settings
+      if (settings) {
+        try {
+          const cleanSettings = cleanDocForFirestore(settings);
+          await setDoc(doc(db, 'settings', 'global'), cleanSettings, { merge: true });
+          totalSyncedCount++;
+          breakdownSummary.push('إعدادات النظام العامة');
+        } catch {}
+      }
+
+      // Overwrite backend server state with complete dataset
+      const serverPayload: Record<string, any> = {};
+      for (const [colName, colData] of Object.entries(allEntitiesToSync)) {
+        serverPayload[colName] = colData.items;
+      }
+      serverPayload.dailyEntrySheets = dailyEntrySheets;
+      serverPayload.settings = settings;
+
       await fetch('/api/sync/replace-database', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: {
-            invoices, parties, inventory, vouchers, printOrders,
-            accounts, treasuries, employees, purchases
-          }
-        })
+        body: JSON.stringify({ data: serverPayload })
       }).catch(() => {});
 
       const timeStr = new Date().toLocaleTimeString('ar-EG');
       setLastFirebaseSyncTime(timeStr);
       setLastSyncTime(timeStr);
+      setHasUnsyncedChanges(false);
+      setPendingSyncCount(0);
+      safeSetSyncedHashes({});
+      localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+      localStorage.setItem(`${STORAGE_KEY}_last_sync`, timeStr);
+
+      if (syncChannelRef.current) {
+        try {
+          syncChannelRef.current.postMessage({
+            type: 'DATABASE_IMPORTED',
+            payload: { timestamp: Date.now() }
+          });
+        } catch {}
+      }
+      window.dispatchEvent(new CustomEvent('accounting_database_updated'));
+
+      const breakdownText = breakdownSummary.join(' • ');
 
       return {
         success: true,
-        message: `تم بنجاح رفع وتثبيت ${invCount} فاتورة على قاعدة بيانات Firestore السحابية ومزامنتها لحظياً مع كافة الشاشات والأجهزة!`,
-        count: invCount
+        message: `تم بنجاح نقل ومزامنة قاعدة البيانات بالكامل (${totalSyncedCount} سجل عبر كافة الشاشات والعمليات) إلى سحابة Firestore!\n\nتفاصيل السجلات المتزامنة:\n${breakdownText}`,
+        count: totalSyncedCount,
+        breakdown: breakdownText
       };
     } catch (err: any) {
       console.error('Error during syncCurrentDataToFirestore:', err);
       return {
         success: false,
-        message: 'فشلت المزامنة السحابية: ' + (err?.message || 'خطأ غير معروف'),
+        message: 'فشلت المزامنة السحابية الشاملة: ' + (err?.message || 'خطأ غير معروف'),
         count: 0
       };
     }

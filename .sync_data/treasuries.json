@@ -1,1 +1,88 @@
-[]
+[
+  {
+    "id": "treasury-cash-main",
+    "name": "الصندوق النقدي الرئيسي (الكاشير)",
+    "type": "cash_box",
+    "accountCode": "CASH-1101",
+    "balance": 0,
+    "currency": "ILS",
+    "currencySymbol": "₪",
+    "isDefault": true,
+    "status": "active",
+    "createdAt": "2024-01-01",
+    "notes": "الخزينة النقدية الرئيسية لمكتب المبيعات والكاشير والسيولة متعددة العملات (شيكل، دولار، دينار)",
+    "currencyBalances": {
+      "ILS": 0
+    }
+  },
+  {
+    "id": "treasury-1793633324279",
+    "name": "البنك الإسلامي الفلسطيني - إيهاب",
+    "type": "bank_account",
+    "accountCode": "CASH-1102",
+    "balance": 0,
+    "currency": "ILS",
+    "currencySymbol": "₪",
+    "status": "active",
+    "createdAt": "2024-01-01",
+    "currencyBalances": {
+      "ILS": 0
+    }
+  },
+  {
+    "id": "treasury-1791395958513",
+    "name": "طلة لبنان - محفظة جوال باي",
+    "type": "digital_wallet",
+    "accountCode": "CASH-1103",
+    "balance": 0,
+    "currency": "ILS",
+    "currencySymbol": "₪",
+    "status": "active",
+    "createdAt": "2024-01-01",
+    "currencyBalances": {
+      "ILS": 0
+    }
+  },
+  {
+    "id": "treasury-1790639512764",
+    "name": "بنك فلسطين - ماهر 0599992615",
+    "type": "bank_account",
+    "accountCode": "CASH-1104",
+    "balance": 0,
+    "currency": "ILS",
+    "currencySymbol": "₪",
+    "status": "active",
+    "createdAt": "2024-01-01",
+    "currencyBalances": {
+      "ILS": 0
+    }
+  },
+  {
+    "id": "treasury-1791324119020",
+    "name": "محفظة بال باي - PalPay / ماهر صالحة",
+    "type": "digital_wallet",
+    "accountCode": "CASH-1105",
+    "balance": 0,
+    "currency": "ILS",
+    "currencySymbol": "₪",
+    "status": "active",
+    "createdAt": "2024-01-01",
+    "currencyBalances": {
+      "ILS": 0
+    }
+  },
+  {
+    "id": "treasury-1791395958599-1107",
+    "name": "رائد صالحة - بال بي - جوال باي - مال شات",
+    "type": "digital_wallet",
+    "accountCode": "CASH-1106",
+    "balance": 0,
+    "currency": "ILS",
+    "currencySymbol": "₪",
+    "status": "active",
+    "createdAt": "2024-01-01",
+    "currencyBalances": {
+      "ILS": 0
+    }
+  }
+]

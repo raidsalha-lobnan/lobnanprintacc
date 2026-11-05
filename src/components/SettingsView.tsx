@@ -49,8 +49,42 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'general' }) => {
-  const { settings, updateSettings, resetAllData, exportDataJSON, importDataJSON, syncCurrentDataToFirestore, invoices, currentUser, roles } = useAccounting();
+  const {
+    settings,
+    updateSettings,
+    resetAllData,
+    exportDataJSON,
+    importDataJSON,
+    syncCurrentDataToFirestore,
+    invoices,
+    parties,
+    inventory,
+    vouchers,
+    purchases,
+    accounts,
+    treasuries,
+    employees,
+    printOrders,
+    expenses,
+    journalEntries,
+    currentUser,
+    roles
+  } = useAccounting();
   const [isSyncingToCloud, setIsSyncingToCloud] = useState(false);
+
+  const totalDatabaseRecords = React.useMemo(() => {
+    return (invoices?.length || 0) +
+      (parties?.length || 0) +
+      (inventory?.length || 0) +
+      (vouchers?.length || 0) +
+      (purchases?.length || 0) +
+      (accounts?.length || 0) +
+      (treasuries?.length || 0) +
+      (employees?.length || 0) +
+      (printOrders?.length || 0) +
+      (expenses?.length || 0) +
+      (journalEntries?.length || 0);
+  }, [invoices, parties, inventory, vouchers, purchases, accounts, treasuries, employees, printOrders, expenses, journalEntries]);
 
   const isSystemAdmin = React.useMemo(() => {
     if (!currentUser) return true;
@@ -1247,10 +1281,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'genera
                 }}
                 disabled={isSyncingToCloud}
                 className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-lg transition-colors cursor-pointer text-xs disabled:opacity-50 shadow-xs"
-                title="مزامنة كافة الفواتير والبيانات المعروضة على جهازك حالياً مع سحابة فيربيس وباقي الشاشات فوراً"
+                title="مزامنة ونقل قاعدة البيانات بالكامل (كافة الفواتير، العمليات، القيود، الحسابات، والأصناف والعملاء) إلى سحابة فيربيس وباقي الشاشات فوراً"
               >
                 <Cloud className={`w-3.5 h-3.5 ${isSyncingToCloud ? 'animate-spin' : ''}`} />
-                <span>{isSyncingToCloud ? 'جاري رفع البيانات إلى السحابة...' : `مزامنة البيانات الحالية (${invoices.length} فاتورة) مع السحابة فوراً ☁️`}</span>
+                <span>{isSyncingToCloud ? 'جاري رفع ومزامنة كامل القاعدة سحابياً...' : `مزامنة كامل قاعدة البيانات (${totalDatabaseRecords} سجل) مع السحابة فوراً ☁️`}</span>
               </button>
 
               <button
