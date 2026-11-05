@@ -80,38 +80,34 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     return parseInt(matches[matches.length - 1], 10) || 0;
   }
 
-  // Sort chronologically ascending to assign sequential invoice numbers
-  allValid.sort((a, b) => {
-    const dateA = a.date || a.createdAt || '';
-    const dateB = b.date || b.createdAt || '';
-    const dateCmp = dateA.localeCompare(dateB);
-    if (dateCmp !== 0) return dateCmp;
-
-    const createdA = a.createdAt || '';
-    const createdB = b.createdAt || '';
-    const createdCmp = createdA.localeCompare(createdB);
-    if (createdCmp !== 0) return createdCmp;
-
-    return parseInvoiceNum(a) - parseInvoiceNum(b);
+  // Detect and resolve invoice number collision across different IDs deterministically by timestamp
+  const sortedForCollisionCheck = [...allValid].sort((a, b) => {
+    const tA = new Date(a.createdAt || a.date || 0).getTime();
+    const tB = new Date(b.createdAt || b.date || 0).getTime();
+    if (tA !== tB) return tA - tB;
+    return String(a.id).localeCompare(String(b.id));
   });
 
-  // Re-assign sequential invoice numbers (INV-0001, INV-0002, ...) ensuring NO duplicate numbers
   const usedNumbers = new Set<string>();
-  const renumberedResult = allValid.map((inv, idx) => {
-    const origSeq = parseInvoiceNum(inv);
-    let targetSeq = origSeq > 0 ? origSeq : (idx + 1);
-    let candidateNumber = `INV-${String(targetSeq).padStart(4, '0')}`;
+  let maxSeq = 0;
 
-    // If duplicate invoiceNumber exists across different IDs, resolve collision sequentially
-    while (usedNumbers.has(candidateNumber)) {
-      targetSeq++;
-      candidateNumber = `INV-${String(targetSeq).padStart(4, '0')}`;
+  // First pass: register existing unique invoice numbers and find highest sequence
+  sortedForCollisionCheck.forEach(inv => {
+    const seq = parseInvoiceNum(inv);
+    if (seq > maxSeq) maxSeq = seq;
+  });
+
+  const renumberedResult = sortedForCollisionCheck.map(inv => {
+    let numStr = (inv.invoiceNumber || '').trim();
+    if (!numStr || numStr === 'INV-0000' || usedNumbers.has(numStr)) {
+      // Collision detected! The older invoice keeps its number, the newer invoice receives the next available unique sequential number
+      maxSeq++;
+      numStr = `INV-${String(maxSeq).padStart(4, '0')}`;
     }
-
-    usedNumbers.add(candidateNumber);
+    usedNumbers.add(numStr);
     return {
       ...inv,
-      invoiceNumber: candidateNumber
+      invoiceNumber: numStr
     };
   });
 
@@ -119,7 +115,8 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
   renumberedResult.sort((a, b) => {
     const numA = parseInvoiceNum(a);
     const numB = parseInvoiceNum(b);
-    return numB - numA;
+    if (numB !== numA) return numB - numA;
+    return new Date(b.createdAt || b.date || 0).getTime() - new Date(a.createdAt || a.date || 0).getTime();
   });
 
   return renumberedResult;

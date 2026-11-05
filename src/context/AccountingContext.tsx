@@ -1630,14 +1630,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // 1. Invoices live listener
     const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snap) => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Invoice));
-      items.sort((a, b) => {
-        const dateA = a.date || a.createdAt || '';
-        const dateB = b.date || b.createdAt || '';
-        if (dateB !== dateA) return dateB.localeCompare(dateA);
-        return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '');
-      });
-      setInvoices(items);
-      try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(items)); } catch {}
+      const deduplicatedItems = mergeInvoicesWithUpsertAndConflictResolution([], items);
+      setInvoices(deduplicatedItems);
+      try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(deduplicatedItems)); } catch {}
     }, (err) => {
       console.warn('Real-time invoices sync notice:', err);
     });
