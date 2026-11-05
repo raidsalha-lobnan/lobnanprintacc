@@ -6564,30 +6564,23 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const addJournalEntry = (entry: Omit<JournalEntry, 'id' | 'entryNumber' | 'createdAt'>): JournalEntry => {
     // Validate double-entry balance (Debit === Credit)
-    const totalDebit = entry.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
-    const totalCredit = entry.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+    const totalDebit = Number(entry.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0).toFixed(2));
+    const totalCredit = Number(entry.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0).toFixed(2));
     const diff = Number((totalDebit - totalCredit).toFixed(2));
     
     let validLines = [...entry.lines];
-    if (Math.abs(diff) > 0.001) {
-      console.warn(`[Journal Integrity] Unbalanced journal entry detected (Debit: ${totalDebit}, Credit: ${totalCredit}, Diff: ${diff}). Balancing automatically...`);
+    if (Math.abs(diff) > 0.01) {
+      console.error(`[Journal Integrity Failure] Rejected unbalanced journal entry. Total Debit: ${totalDebit}, Total Credit: ${totalCredit}, Difference: ${diff}`);
+      throw new Error(`تعذر حفظ القيد المحاسبي: القيد غير متزن (مجموع المدين ${totalDebit} لا يساوي مجموع الدائن ${totalCredit}).`);
+    } else if (Math.abs(diff) > 0 && validLines.length > 0) {
+      // Micro-rounding adjustment on last line for floating point precision
+      const lastLine = { ...validLines[validLines.length - 1] };
       if (diff > 0) {
-        validLines.push({
-          accountCode: '3201',
-          accountName: 'الأرباح والخسائر المبقاة والمرحلة (تسوية توازن القيد)',
-          debit: 0,
-          credit: diff,
-          description: 'تسوية ميزان توازن القيد تلقائياً'
-        });
+        lastLine.credit = Number((lastLine.credit + diff).toFixed(2));
       } else {
-        validLines.push({
-          accountCode: '3201',
-          accountName: 'الأرباح والخسائر المبقاة والمرحلة (تسوية توازن القيد)',
-          debit: Math.abs(diff),
-          credit: 0,
-          description: 'تسوية ميزان توازن القيد تلقائياً'
-        });
+        lastLine.debit = Number((lastLine.debit + Math.abs(diff)).toFixed(2));
       }
+      validLines[validLines.length - 1] = lastLine;
     }
 
     const uniqueSuffix = Math.random().toString(36).substring(2, 8) + '-' + Math.floor(Math.random() * 1000);

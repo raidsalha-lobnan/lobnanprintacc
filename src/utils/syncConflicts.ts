@@ -135,9 +135,50 @@ export function resolveInvoiceConflicts(
   updatedStockMovements: StockMovement[];
 } {
   const mergedInvoices = mergeInvoicesWithUpsertAndConflictResolution(localInvoices, serverInvoices);
-  const updatedJournalEntries = [...journalEntries];
-  const updatedVouchers = [...vouchers];
-  const updatedStockMovements = [...stockMovements];
+  
+  // Build lookup maps for immutable invoice ID -> updated invoice number
+  const invoiceNumberByIdMap = new Map<string, string>();
+  mergedInvoices.forEach(inv => {
+    if (inv.id && inv.invoiceNumber) {
+      invoiceNumberByIdMap.set(inv.id, inv.invoiceNumber);
+    }
+  });
+
+  // Cascade invoice number updates to linked journal entries, payment vouchers, and stock movements
+  const updatedJournalEntries = journalEntries.map(je => {
+    if (je.referenceId && invoiceNumberByIdMap.has(je.referenceId)) {
+      const newNum = invoiceNumberByIdMap.get(je.referenceId)!;
+      return {
+        ...je,
+        description: je.description ? je.description.replace(/INV-\d+/gi, newNum) : je.description
+      };
+    }
+    return je;
+  });
+
+  const updatedVouchers = vouchers.map(v => {
+    const targetId = v.referenceInvoiceId || (v as any).referenceId || (v as any).invoiceId;
+    if (targetId && invoiceNumberByIdMap.has(targetId)) {
+      const newNum = invoiceNumberByIdMap.get(targetId)!;
+      return {
+        ...v,
+        description: v.description ? v.description.replace(/INV-\d+/gi, newNum) : v.description
+      };
+    }
+    return v;
+  });
+
+  const updatedStockMovements = stockMovements.map(sm => {
+    const refId = (sm as any).referenceId || sm.referenceNumber;
+    if (refId && invoiceNumberByIdMap.has(refId)) {
+      const newNum = invoiceNumberByIdMap.get(refId)!;
+      return {
+        ...sm,
+        referenceNumber: newNum
+      };
+    }
+    return sm;
+  });
 
   return {
     updatedInvoices: mergedInvoices,
