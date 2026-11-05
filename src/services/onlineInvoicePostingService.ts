@@ -170,7 +170,7 @@ export const onlineInvoicePostingService = {
         }
 
         // 5. Calculate the highest authoritative invoice number on the cloud/known records (excluding current invoice ID)
-        let maxSeq = 29; // Enforce minimum floor of 29 so next invoice is INV-0030
+        let maxSeq = 0; // Natural sequence start
         const allKnown = [...cloudInvoices, ...currentInvoicesList].filter(inv => inv && inv.id !== invoice.id);
         allKnown.forEach(inv => {
           if (inv && inv.invoiceNumber) {
@@ -194,10 +194,6 @@ export const onlineInvoicePostingService = {
           const m = String(invoice.invoiceNumber).match(/\d+/g);
           return (m && m.length > 0) ? parseInt(m[m.length - 1], 10) : null;
         })();
-
-        if (requestedSeq === 2027) requestedSeq = 27;
-        if (requestedSeq === 2028) requestedSeq = 28;
-        if (requestedSeq === 2029) requestedSeq = 29;
 
         if (requestedSeq && !isNaN(requestedSeq) && requestedSeq > 0 && requestedSeq < 100000) {
           finalInvoiceNumber = `INV-${String(requestedSeq).padStart(4, '0')}`;

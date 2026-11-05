@@ -19,27 +19,6 @@ function getEntityData(entity: string): any[] {
     } catch {}
   }
 
-  // Fallback / merge seed from public/master_drive_database_snapshot.json
-  const snapshotPath = path.join(__dirname, 'public', 'master_drive_database_snapshot.json');
-  if (fs.existsSync(snapshotPath)) {
-    try {
-      const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-      if (snap && Array.isArray(snap[entity]) && snap[entity].length > 0) {
-        const itemMap = new Map<string, any>();
-        for (const it of snap[entity]) {
-          if (it && typeof it === 'object' && it.id != null) itemMap.set(String(it.id), it);
-        }
-        for (const it of existingData) {
-          if (it && typeof it === 'object' && it.id != null) {
-            const existing = itemMap.get(String(it.id));
-            itemMap.set(String(it.id), existing ? { ...existing, ...it } : it);
-          }
-        }
-        existingData = Array.from(itemMap.values());
-      }
-    } catch {}
-  }
-
   syncCache[entity] = existingData;
   syncTimestamps[entity] = fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : Date.now();
   return existingData;

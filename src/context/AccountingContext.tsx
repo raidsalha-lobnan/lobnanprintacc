@@ -1612,43 +1612,126 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => clearInterval(interval);
   }, []);
 
-  // Real-time Firestore Listeners
+  // Real-time Firestore Collection Listeners
+  // Keeps all screens, tabs, and devices 100% in sync with Cloud Firestore in real time
   useEffect(() => {
+    if (isLocalOnlyMode) return;
     const unsubscribes: (() => void)[] = [];
-    
-    // Comprehensive list of entities to listen to for real-time synchronization
-    const collectionsToListen = [
-      'invoices', 'parties', 'inventory', 'vouchers', 'purchases', 
-      'accounts', 'treasuries', 'employees', 'journalEntries', 'expenses'
-    ];
-    
-    collectionsToListen.forEach(entity => {
-      const docRef = doc(db, 'lobnan_accounting_db_v3', entity);
-      const unsub = onSnapshot(docRef, (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data && Array.isArray(data.items)) {
-            console.log(`Live update received for ${entity}`);
-            switch(entity) {
-              case 'invoices': setInvoices(data.items); break;
-              case 'parties': setParties(data.items); break;
-              case 'inventory': setInventory(data.items); break;
-              case 'vouchers': setVouchers(data.items); break;
-              case 'purchases': setPurchases(data.items); break;
-              case 'accounts': setAccounts(data.items); break;
-              case 'treasuries': setTreasuries(data.items); break;
-              case 'employees': setEmployees(data.items); break;
-              case 'journalEntries': setJournalEntries(data.items); break;
-              case 'expenses': setExpenses(data.items); break;
-            }
-          }
-        }
+
+    // 1. Invoices live listener
+    const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Invoice));
+      items.sort((a, b) => {
+        const dateA = a.date || a.createdAt || '';
+        const dateB = b.date || b.createdAt || '';
+        if (dateB !== dateA) return dateB.localeCompare(dateA);
+        return (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '');
       });
-      unsubscribes.push(unsub);
+      setInvoices(items);
+      try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(items)); } catch {}
+    }, (err) => {
+      console.warn('Real-time invoices sync notice:', err);
     });
-    
+    unsubscribes.push(unsubInvoices);
+
+    // 2. Parties live listener
+    const unsubParties = onSnapshot(collection(db, 'parties'), (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Party));
+      setParties(items);
+      try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(items)); } catch {}
+    }, (err) => {
+      console.warn('Real-time parties sync notice:', err);
+    });
+    unsubscribes.push(unsubParties);
+
+    // 3. Inventory live listener
+    const unsubInventory = onSnapshot(collection(db, 'inventory'), (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as InventoryItem));
+      setInventory(items);
+      try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(items)); } catch {}
+    }, (err) => {
+      console.warn('Real-time inventory sync notice:', err);
+    });
+    unsubscribes.push(unsubInventory);
+
+    // 4. Vouchers live listener
+    const unsubVouchers = onSnapshot(collection(db, 'vouchers'), (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentVoucher));
+      setVouchers(items);
+      try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(items)); } catch {}
+    }, (err) => {
+      console.warn('Real-time vouchers sync notice:', err);
+    });
+    unsubscribes.push(unsubVouchers);
+
+    // 5. Purchases live listener
+    const unsubPurchases = onSnapshot(collection(db, 'purchases'), (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseInvoice));
+      setPurchases(items);
+      try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(items)); } catch {}
+    }, (err) => {
+      console.warn('Real-time purchases sync notice:', err);
+    });
+    unsubscribes.push(unsubPurchases);
+
+    // 6. Print orders live listener
+    const unsubPrintOrders = onSnapshot(collection(db, 'printOrders'), (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      setPrintOrders(items);
+      try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(items)); } catch {}
+    }, (err) => {
+      console.warn('Real-time printOrders sync notice:', err);
+    });
+    unsubscribes.push(unsubPrintOrders);
+
+    // 7. Deleted Invoices live listener
+    const unsubDeletedInvoices = onSnapshot(collection(db, 'deletedInvoices'), (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Invoice));
+      setDeletedInvoices(items);
+      try { localStorage.setItem(`${STORAGE_KEY}_deletedInvoices`, JSON.stringify(items)); } catch {}
+    }, (err) => {
+      console.warn('Real-time deletedInvoices sync notice:', err);
+    });
+    unsubscribes.push(unsubDeletedInvoices);
+
+    // 8. Treasuries live listener
+    const unsubTreasuries = onSnapshot(collection(db, 'treasuries'), (snap) => {
+      if (!snap.empty) {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        setTreasuries(items);
+        try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(items)); } catch {}
+      }
+    }, (err) => {
+      console.warn('Real-time treasuries sync notice:', err);
+    });
+    unsubscribes.push(unsubTreasuries);
+
+    // 9. Accounts live listener
+    const unsubAccounts = onSnapshot(collection(db, 'accounts'), (snap) => {
+      if (!snap.empty) {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        setAccounts(items);
+        try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(items)); } catch {}
+      }
+    }, (err) => {
+      console.warn('Real-time accounts sync notice:', err);
+    });
+    unsubscribes.push(unsubAccounts);
+
+    // 10. Employees live listener
+    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
+      if (!snap.empty) {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        setEmployees(items);
+        try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(items)); } catch {}
+      }
+    }, (err) => {
+      console.warn('Real-time employees sync notice:', err);
+    });
+    unsubscribes.push(unsubEmployees);
+
     return () => unsubscribes.forEach(unsub => unsub());
-  }, []);
+  }, [isLocalOnlyMode]);
 
   // Aggressive Master Database Hydration: Transition directly to the unified cloud database on app startup when online
   useEffect(() => {
@@ -9235,6 +9318,22 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           deleteDoc(doc(db, 'invoices', id)).catch(() => {});
           deleteDoc(doc(db, 'deletedInvoices', id)).catch(() => {});
         }
+
+        // حذف كافة وثائق الفواتير المتبقية مباشرة من مجموعة Firestore
+        const invSnap = await getDocs(collection(db, 'invoices'));
+        if (!invSnap.empty) {
+          const b = writeBatch(db);
+          invSnap.docs.forEach(d => b.delete(doc(db, 'invoices', d.id)));
+          await b.commit();
+        }
+        if (clearDeletedInvoicesTrash) {
+          const delSnap = await getDocs(collection(db, 'deletedInvoices'));
+          if (!delSnap.empty) {
+            const b = writeBatch(db);
+            delSnap.docs.forEach(d => b.delete(doc(db, 'deletedInvoices', d.id)));
+            await b.commit();
+          }
+        }
       } catch (err) {
         console.warn('Notice during Firestore sales invoices purge:', err);
       }
@@ -11687,11 +11786,26 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const resetAllData = async () => {
-    if (window.confirm('هذا سيقوم بتصفير شامل لقاعدة البيانات على السيرفر وعلى جهازك. هل أنت متأكد؟')) {
-      // 1. Call server to wipe sync data
+    if (window.confirm('هذا سيقوم بتصفير شامل لقاعدة البيانات على السيرفر والسحابة وعلى كافة الأجهزة. هل أنت متأكد؟')) {
+      // 1. Wipe Cloud Firestore transactional collections
+      try {
+        const collectionsToWipe = ['invoices', 'deletedInvoices', 'printOrders', 'stockMovements', 'vouchers', 'purchases', 'dailyEntrySheets'];
+        for (const colName of collectionsToWipe) {
+          const snap = await getDocs(collection(db, colName));
+          if (!snap.empty) {
+            const batch = writeBatch(db);
+            snap.docs.forEach(d => batch.delete(doc(db, colName, d.id)));
+            await batch.commit();
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('Notice during cloud Firestore wipe:', cloudErr);
+      }
+
+      // 2. Call server to wipe sync data
       await fetch('/api/sync/hard-reset', { method: 'POST' }).catch(console.error);
 
-      // 2. Clear all local storage keys
+      // 3. Clear all local storage keys
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith(STORAGE_KEY) || key.includes('accounting_') || key.includes('pos_')) {
           localStorage.removeItem(key);
