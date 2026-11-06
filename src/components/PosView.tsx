@@ -2694,7 +2694,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
     }
 
     // Reset to a fresh blank invoice with strictly sequential gap-filling sequence
-    const freshNextSeq = getNextSequentialInvoiceNumber(invoices);
+    const freshNextSeq = getNextSequentialInvoiceNumber(savedInvoice ? [savedInvoice, ...invoices] : invoices);
     setInvoiceSeqNumber(freshNextSeq);
 
     setTableLines([

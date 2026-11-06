@@ -35,9 +35,8 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
     // Ignore legacy ghost/recovery test items
     if (
       idStr.includes('recovered') ||
-      idStr.includes('INV-2026') ||
       idStr.includes('inv-pos-1001') ||
-      (inv.invoiceNumber && (inv.invoiceNumber.includes('INV-2026') || inv.invoiceNumber.includes('STAT-')))
+      (inv.invoiceNumber && inv.invoiceNumber.includes('STAT-'))
     ) {
       return;
     }
