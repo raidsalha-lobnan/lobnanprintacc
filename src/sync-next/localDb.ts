@@ -1,0 +1,560 @@
+import {
+  AppliedChange, EntityName, LocalView,
+  ProposedChange, recordKey, ServerCursor,
+  ServerEvent, StoredRecord, SyncCommand,
+  toJsonObject, validateChanges
+} from './types';
+
+const DB_VERSION = 2;
+const RECORDS = 'records';
+const OUTBOX = 'outbox';
+const META = 'meta';
+const RECEIPTS = 'receipts';
+const CURSOR_KEY = 'serverCursor';
+
+function request<T>(r: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+function completed(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onabort = () =>
+      reject(tx.error ?? new Error('Transaction aborted'));
+    tx.onerror = () =>
+      reject(tx.error ?? new Error('Transaction failed'));
+  });
+}
+
+export class LocalSyncDb {
+  private dbPromise: Promise<IDBDatabase>;
+  private listeners = new Set<() => void>();
+  private channel: BroadcastChannel | null = null;
+
+  constructor(private workspaceId: string) {
+    if (!workspaceId || /[/\u001f]/.test(workspaceId)) {
+      throw new Error('Invalid workspace ID');
+    }
+
+    this.dbPromise = new Promise((resolve, reject) => {
+      const r = indexedDB.open(
+        `lobnan-offline-v1-${workspaceId}`,
+        DB_VERSION
+      );
+
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        const tx = r.transaction!;
+
+        const records = db.objectStoreNames.contains(RECORDS)
+          ? tx.objectStore(RECORDS)
+          : db.createObjectStore(RECORDS, {
+              keyPath: 'key'
+            });
+
+        if (!records.indexNames.contains('byEntity')) {
+          records.createIndex('byEntity', 'entity');
+        }
+
+        if (!db.objectStoreNames.contains(OUTBOX)) {
+          db.createObjectStore(OUTBOX, {
+            keyPath: 'id'
+          });
+        }
+
+        if (!db.objectStoreNames.contains(META)) {
+          db.createObjectStore(META, {
+            keyPath: 'key'
+          });
+        }
+
+        if (!db.objectStoreNames.contains(RECEIPTS)) {
+          db.createObjectStore(RECEIPTS, {
+            keyPath: 'id'
+          });
+        }
+      };
+
+      r.onsuccess = () => {
+        r.result.onversionchange = () => r.result.close();
+        resolve(r.result);
+      };
+
+      r.onerror = () => reject(r.error);
+      r.onblocked = () =>
+        console.warn('IndexedDB upgrade is blocked');
+    });
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      this.channel = new BroadcastChannel(
+        `lobnan-sync-${workspaceId}`
+      );
+
+      this.channel.onmessage = () => {
+        for (const fn of this.listeners) fn();
+      };
+    }
+  }
+
+  private changed() {
+    for (const fn of this.listeners) fn();
+    this.channel?.postMessage('changed');
+  }
+
+  subscribe(fn: () => void): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  async close(): Promise<void> {
+    this.channel?.close();
+    (await this.dbPromise).close();
+  }
+
+  async enqueue(
+    changes: ProposedChange[],
+    commandId: string = crypto.randomUUID()
+  ): Promise<SyncCommand> {
+    validateChanges(changes);
+
+    if (!/^[a-zA-Z0-9_-]{8,128}$/.test(commandId)) {
+      throw new Error('Invalid command ID');
+    }
+
+    const safeChanges = changes.map(c => ({
+      ...c,
+      value: c.value === null
+        ? null
+        : toJsonObject(c.value)
+    }));
+
+    const db = await this.dbPromise;
+    const tx = db.transaction(
+      [RECORDS, OUTBOX, RECEIPTS],
+      'readwrite'
+    );
+    const done = completed(tx);
+
+    try {
+      const receipt = await request(
+        tx.objectStore(RECEIPTS).get(commandId)
+      ) as any;
+
+      if (receipt) {
+        if (
+          JSON.stringify(receipt.requestChanges) !==
+          JSON.stringify(safeChanges)
+        ) {
+          throw new Error('Command ID reused');
+        }
+
+        await done;
+
+        return {
+          id: commandId,
+          workspaceId: this.workspaceId,
+          changes: [],
+          createdAt: 0,
+          attempts: 0,
+          retryAt: 0,
+          status: 'pending'
+        };
+      }
+
+      const records = await request(
+        tx.objectStore(RECORDS).getAll()
+      ) as StoredRecord[];
+
+      const outbox = await request(
+        tx.objectStore(OUTBOX).getAll()
+      ) as SyncCommand[];
+
+      const earlier = outbox.find(c => c.id === commandId);
+
+      if (earlier) {
+        const prior = earlier.changes.map(
+          ({ expectedVersion, ...rest }) => rest
+        );
+
+        if (
+          JSON.stringify(prior) !==
+          JSON.stringify(safeChanges)
+        ) {
+          throw new Error('Command payload mismatch');
+        }
+
+        await done;
+        return earlier;
+      }
+
+      const recordMap = new Map(
+        records.map(r => [r.key, r])
+      );
+
+      const queued = [...outbox].sort(
+        (a, b) =>
+          a.createdAt - b.createdAt ||
+          a.id.localeCompare(b.id)
+      );
+
+      const versioned = safeChanges.map(c => {
+        const key = recordKey(c.entity, c.id);
+
+        const earlierCount = queued.filter(op =>
+          op.changes.some(
+            x => recordKey(x.entity, x.id) === key
+          )
+        ).length;
+
+        return {
+          ...c,
+          expectedVersion:
+            (recordMap.get(key)?.version ?? 0) +
+            earlierCount
+        };
+      });
+
+      const cmd: SyncCommand = {
+        id: commandId,
+        workspaceId: this.workspaceId,
+        changes: versioned,
+        createdAt: Date.now(),
+        attempts: 0,
+        retryAt: 0,
+        status: 'pending'
+      };
+
+      tx.objectStore(OUTBOX).add(cmd);
+
+      await done;
+      this.changed();
+      return cmd;
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await done.catch(() => {});
+      throw error;
+    }
+  }
+
+  async pending(): Promise<SyncCommand[]> {
+    const db = await this.dbPromise;
+    const tx = db.transaction(OUTBOX, 'readonly');
+
+    const data = await request(
+      tx.objectStore(OUTBOX).getAll()
+    ) as SyncCommand[];
+
+    return data.sort(
+      (a, b) =>
+        a.createdAt - b.createdAt ||
+        a.id.localeCompare(b.id)
+    );
+  }
+
+  async cursor(): Promise<ServerCursor | null> {
+    const db = await this.dbPromise;
+    const tx = db.transaction(META, 'readonly');
+
+    const row = await request(
+      tx.objectStore(META).get(CURSOR_KEY)
+    ) as { value: ServerCursor } | undefined;
+
+    return row?.value ?? null;
+  }
+
+  async applyEvent(event: ServerEvent): Promise<void> {
+    const db = await this.dbPromise;
+
+    const tx = db.transaction(
+      [RECORDS, OUTBOX, META, RECEIPTS],
+      'readwrite'
+    );
+    const done = completed(tx);
+
+    try {
+      const records = tx.objectStore(RECORDS);
+
+      for (const c of event.changes) {
+        const key = recordKey(c.entity, c.id);
+
+        const previous = await request(
+          records.get(key)
+        ) as StoredRecord | undefined;
+
+        if (!previous || previous.version < c.version) {
+          records.put({
+            key,
+            entity: c.entity,
+            id: c.id,
+            version: c.version,
+            value: c.value
+          });
+        }
+      }
+
+      const owned = await request(
+        tx.objectStore(OUTBOX).get(event.commandId)
+      ) as SyncCommand | undefined;
+
+      tx.objectStore(OUTBOX).delete(event.commandId);
+
+      if (owned) {
+        const requestChanges = owned.changes.map(
+          ({ expectedVersion, ...rest }) => rest
+        );
+
+        tx.objectStore(RECEIPTS).put({
+          id: event.commandId,
+          requestChanges,
+          changes: event.changes
+        });
+      }
+
+      const meta = tx.objectStore(META);
+
+      const last = await request(
+        meta.get(CURSOR_KEY)
+      ) as { value: ServerCursor } | undefined;
+
+      if (
+        !last ||
+        compareCursor(last.value, event.cursor) < 0
+      ) {
+        meta.put({
+          key: CURSOR_KEY,
+          value: event.cursor
+        });
+      }
+
+      await done;
+      this.changed();
+    } catch (e) {
+      try { tx.abort(); } catch {}
+      await done.catch(() => {});
+      throw e;
+    }
+  }
+
+  async ack(
+    commandId: string,
+    changes: AppliedChange[]
+  ): Promise<void> {
+    const db = await this.dbPromise;
+
+    const tx = db.transaction(
+      [RECORDS, OUTBOX, RECEIPTS],
+      'readwrite'
+    );
+    const done = completed(tx);
+
+    try {
+      const records = tx.objectStore(RECORDS);
+
+      for (const c of changes) {
+        const key = recordKey(c.entity, c.id);
+
+        const previous = await request(
+          records.get(key)
+        ) as StoredRecord | undefined;
+
+        if (!previous || previous.version < c.version) {
+          records.put({
+            key,
+            entity: c.entity,
+            id: c.id,
+            version: c.version,
+            value: c.value
+          });
+        }
+      }
+
+      const cmd = await request(
+        tx.objectStore(OUTBOX).get(commandId)
+      ) as SyncCommand | undefined;
+
+      tx.objectStore(OUTBOX).delete(commandId);
+
+      if (cmd) {
+        tx.objectStore(RECEIPTS).put({
+          id: commandId,
+          requestChanges: cmd.changes.map(
+            ({ expectedVersion, ...rest }) => rest
+          ),
+          changes
+        });
+      }
+
+      await done;
+      this.changed();
+    } catch (e) {
+      try { tx.abort(); } catch {}
+      await done.catch(() => {});
+      throw e;
+    }
+  }
+
+  async markError(
+    commandId: string,
+    status: SyncCommand['status'],
+    error: string,
+    retryAt = 0
+  ): Promise<void> {
+    const db = await this.dbPromise;
+    const tx = db.transaction(OUTBOX, 'readwrite');
+    const done = completed(tx);
+    const store = tx.objectStore(OUTBOX);
+
+    const cmd = await request(
+      store.get(commandId)
+    ) as SyncCommand | undefined;
+
+    if (cmd) {
+      store.put({
+        ...cmd,
+        status,
+        attempts: cmd.attempts + 1,
+        error,
+        retryAt
+      });
+    }
+
+    await done;
+    this.changed();
+  }
+
+  async listVisible(
+    entity: EntityName
+  ): Promise<LocalView[]> {
+    const db = await this.dbPromise;
+
+    const tx = db.transaction(
+      [RECORDS, OUTBOX],
+      'readonly'
+    );
+
+    const records = await request(
+      tx.objectStore(RECORDS)
+        .index('byEntity')
+        .getAll(entity)
+    ) as StoredRecord[];
+
+    const pending = await request(
+      tx.objectStore(OUTBOX).getAll()
+    ) as SyncCommand[];
+
+    const result = new Map<string, LocalView>();
+
+    for (const r of records) {
+      result.set(r.id, {
+        id: r.id,
+        value: r.value,
+        version: r.version,
+        pending: false
+      });
+    }
+
+    pending.sort(
+      (a, b) =>
+        a.createdAt - b.createdAt ||
+        a.id.localeCompare(b.id)
+    );
+
+    for (const cmd of pending) {
+      for (const c of cmd.changes) {
+        if (c.entity !== entity) continue;
+
+        result.set(c.id, {
+          id: c.id,
+          value: c.value,
+          version: c.expectedVersion,
+          pending: true
+        });
+      }
+    }
+
+    return [...result.values()].filter(
+      row => row.value !== null
+    );
+  }
+
+  async getConflicts(): Promise<SyncCommand[]> {
+    const db = await this.dbPromise;
+    const tx = db.transaction(OUTBOX, 'readonly');
+    const commands = await request(
+      tx.objectStore(OUTBOX).getAll()
+    ) as SyncCommand[];
+    return commands.filter(c => c.status === 'conflict' || c.status === 'rejected');
+  }
+
+  async retryCommand(commandId: string): Promise<void> {
+    const db = await this.dbPromise;
+    const tx = db.transaction([RECORDS, OUTBOX], 'readwrite');
+    const done = completed(tx);
+    const store = tx.objectStore(OUTBOX);
+    const c = await request(store.get(commandId)) as SyncCommand | undefined;
+    if (!c) {
+      await done;
+      return;
+    }
+    const records = await request(tx.objectStore(RECORDS).getAll()) as StoredRecord[];
+    const recordMap = new Map(records.map(r => [r.key, r]));
+    const updatedChanges = c.changes.map(ch => {
+      const key = recordKey(ch.entity, ch.id);
+      const actual = recordMap.get(key)?.version ?? 0;
+      return { ...ch, expectedVersion: actual };
+    });
+    store.put({ ...c, changes: updatedChanges, status: 'pending', attempts: 0, retryAt: 0, error: undefined });
+    await done;
+    this.changed();
+  }
+
+  async resolveConflict(commandId: string, updatedChanges: ProposedChange[]): Promise<void> {
+    validateChanges(updatedChanges);
+    const db = await this.dbPromise;
+    const tx = db.transaction([RECORDS, OUTBOX], 'readwrite');
+    const done = completed(tx);
+    const store = tx.objectStore(OUTBOX);
+    const c = await request(store.get(commandId)) as SyncCommand | undefined;
+    if (!c) {
+      await done;
+      return;
+    }
+    const records = await request(tx.objectStore(RECORDS).getAll()) as StoredRecord[];
+    const recordMap = new Map(records.map(r => [r.key, r]));
+    const safeChanges = updatedChanges.map(ch => ({
+      ...ch,
+      value: ch.value == null ? null : toJsonObject(ch.value),
+      expectedVersion: recordMap.get(recordKey(ch.entity, ch.id))?.version ?? 0
+    }));
+    store.put({ ...c, changes: safeChanges, status: 'pending', attempts: 0, retryAt: 0, error: undefined });
+    await done;
+    this.changed();
+  }
+
+  async discardCommand(commandId: string): Promise<void> {
+    const db = await this.dbPromise;
+    const tx = db.transaction(OUTBOX, 'readwrite');
+    const done = completed(tx);
+    tx.objectStore(OUTBOX).delete(commandId);
+    await done;
+    this.changed();
+  }
+}
+
+function compareCursor(
+  a: ServerCursor,
+  b: ServerCursor
+): number {
+  if (a.seconds !== b.seconds) {
+    return a.seconds - b.seconds;
+  }
+
+  if (a.nanoseconds !== b.nanoseconds) {
+    return a.nanoseconds - b.nanoseconds;
+  }
+
+  return a.eventId.localeCompare(b.eventId);
+}

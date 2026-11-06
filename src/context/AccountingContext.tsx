@@ -1,6 +1,10 @@
 import { TelegramService } from '../services/TelegramService';
 import { onlineInvoicePostingService } from '../services/onlineInvoicePostingService';
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createUnifiedDataLayer } from '../sync-next/boot';
+import { UnifiedRepository } from '../sync-next/repository';
+import { SyncCoordinator, SyncState } from '../sync-next/coordinator';
+import { ProposedChange, EntityName } from '../sync-next/types';
 import {
   pushFullDatabaseToFirestore,
   purgeObsoleteFirestoreCollections,
@@ -467,6 +471,11 @@ interface AccountingContextType {
   forcePushAndPullSync: () => Promise<{ success: boolean; message: string; invoicesCount: number }>;
   importMasterDatabaseSnapshot: () => Promise<{ success: boolean; message: string }>;
   cleanAndSyncFirebaseWithScreen: () => Promise<{ success: boolean; message: string; purgedCount: number }>;
+  unifiedRepository: UnifiedRepository | null;
+  syncCoordinatorState: SyncState;
+  openConflictModal: () => void;
+  closeConflictModal: () => void;
+  isConflictModalOpen: boolean;
 
   // SQL Server Export & Web Server Integration (التصدير والمزامنة مع خادم ويب خارجي)
   sqlServerConfig: SqlServerConfig;
@@ -1223,6 +1232,58 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       } catch {}
     }
   };
+
+  const [unifiedRepository, setUnifiedRepository] = useState<UnifiedRepository | null>(null);
+  const [syncCoordinatorState, setSyncCoordinatorState] = useState<SyncState>({
+    running: false,
+    pending: 0,
+    conflict: 0,
+    lastSuccessAt: null,
+    lastError: null,
+    isLeader: false
+  });
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const openConflictModal = () => setIsConflictModalOpen(true);
+  const closeConflictModal = () => setIsConflictModalOpen(false);
+  const unifiedRepoRef = React.useRef<UnifiedRepository | null>(null);
+
+  // Initialize unified offline-first data layer (LocalSyncDb + FirestoreSyncTransport + SyncCoordinator)
+  useEffect(() => {
+    let unmounted = false;
+    let stopFn: (() => void) | null = null;
+    let unsubscribeState: (() => void) | null = null;
+
+    const initLayer = async () => {
+      try {
+        const workspaceId = 'lobnan_main';
+        const layer = await createUnifiedDataLayer(workspaceId);
+        if (unmounted) {
+          layer.stop();
+          return;
+        }
+        unifiedRepoRef.current = layer.repository;
+        setUnifiedRepository(layer.repository);
+        stopFn = layer.stop;
+        unsubscribeState = layer.coordinator.onState(st => {
+          if (!unmounted) {
+            setSyncCoordinatorState(st);
+            setPendingSyncCount(st.pending);
+            setHasUnsyncedChanges(st.pending > 0 || st.conflict > 0);
+          }
+        });
+      } catch (e) {
+        console.warn('Unified data layer init notice:', e);
+      }
+    };
+
+    initLayer();
+
+    return () => {
+      unmounted = true;
+      if (unsubscribeState) unsubscribeState();
+      if (stopFn) stopFn();
+    };
+  }, []);
 
   const isInitialMount = React.useRef<boolean>(true);
   const isCloudHydratedRef = React.useRef<boolean>(false);
@@ -2378,38 +2439,25 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         detail: { entity, op: effectiveOp, item, items } 
       }));
 
-      // 2. Direct Real-Time Firebase Firestore Persistence (Smart Incremental Delta)
-      if (!isLocalOnlyMode) {
-        listToSave.forEach(it => {
-          if (it && it.id) {
-            const docId = String(it.id);
-            if (effectiveOp === 'delete' || it._deleted) {
-              deleteDoc(doc(db, entity, docId)).catch(err => {
-                if (err?.code === 'resource-exhausted') {
-                  markQuotaExceeded(300000);
-                }
-              });
-            } else {
-              setDoc(doc(db, entity, docId), cleanDocForFirestore(it), { merge: true }).catch(err => {
-                if (err?.code === 'resource-exhausted') {
-                  markQuotaExceeded(300000);
-                }
-              });
-            }
-          }
+      // 2. Route atomically through UnifiedRepository (Offline-First Durable Outbox + Atomic Firestore Transport)
+      if (listToSave.length > 0) {
+        const proposedChanges: ProposedChange[] = listToSave.map(it => {
+          const docId = String(it.id || it.code || crypto.randomUUID());
+          return {
+            entity: entity as EntityName,
+            id: docId,
+            value: (effectiveOp === 'delete' || it._deleted) ? null : it
+          };
         });
 
-        // Push delta entry to Firestore deltas stream for real-time cross-device reception
-        saveDeltaToFirestore({
-          entity,
-          op: effectiveOp,
-          item,
-          items,
-          clientId: myClientIdRef.current
-        }).catch(() => {});
+        if (unifiedRepoRef.current) {
+          unifiedRepoRef.current.commit(proposedChanges).catch(err => {
+            console.warn('UnifiedRepository commit warning:', err);
+          });
+        }
       }
 
-      // Log success and mark synced
+      // 3. Log audit event
       const targetDocId = item?.id || items?.[0]?.id;
       if (targetDocId) syncAuditService.markDocumentAsSynced(targetDocId);
       syncAuditService.logEvent({
@@ -2419,37 +2467,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         status: 'success',
         documentId: targetDocId,
         documentNumber: item?.invoiceNumber || item?.code || item?.voucherNumber || item?.itemNumber,
-        details: effectiveOp === 'delete' ? 'تم حذف العنصر ومزامنة الحذف لسحابة Firebase بنجاح 🔴' : 'تم الحفظ والرفع المباشر لسحابة Firebase Firestore بنجاح 🟢'
+        details: effectiveOp === 'delete' ? 'تم تسجيل الحذف عبر النواة المحاسبية الآمنة 🔴' : 'تم الحفظ في طابور التزامن الآمن والنواة المحاسبية 🟢'
       });
-
-      // 3. Post delta record to local server endpoint /api/sync/delta (optional background route)
-      const payloadStr = JSON.stringify({ entity, op: effectiveOp, item, items, clientId: myClientIdRef.current });
-      const baseUrl = getSyncBaseUrl();
-
-      const attemptPush = async (url: string) => {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payloadStr
-        }).catch(() => null);
-        if (!res) return null;
-        if (res.status === 405 || res.status === 404) {
-          if (baseUrl) {
-            try { localStorage.removeItem('master_server_host_url'); } catch {}
-          }
-          return null;
-        }
-        if (!res.ok) return null;
-        const text = await res.text().catch(() => '');
-        if (!text || !text.trim().startsWith('{')) return null;
-        return JSON.parse(text);
-      };
-
-      let primaryUrl = '/api/sync/delta';
-      if (baseUrl && baseUrl.trim() && !baseUrl.includes(window.location.host)) {
-        primaryUrl = `${baseUrl}/api/sync/delta`;
-      }
-      attemptPush(primaryUrl).catch(() => {});
     } catch (e) {
       console.warn('pushDeltaToServer notice:', e);
     }
@@ -12284,6 +12303,11 @@ return (
         forcePushAndPullSync,
         importMasterDatabaseSnapshot,
         cleanAndSyncFirebaseWithScreen,
+        unifiedRepository,
+        syncCoordinatorState,
+        openConflictModal,
+        closeConflictModal,
+        isConflictModalOpen,
         activeTab,
         setActiveTab,
         goBack,

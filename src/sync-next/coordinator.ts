@@ -1,0 +1,410 @@
+import { LocalSyncDb } from './localDb';
+
+import {
+  sleep, PermanentSyncError,
+  ServerCursor, SyncCommand,
+  VersionConflict
+} from './types';
+
+export interface SyncTransport {
+  push(command: SyncCommand): Promise<{
+    commandId: string;
+    changes: any[];
+  }>;
+
+  pull(
+    cursor: ServerCursor | null,
+    pageSize?: number
+  ): Promise<Array<{
+    commandId: string;
+    changes: any[];
+    cursor: ServerCursor;
+  }>>;
+
+  watchLatest(
+    onChanged: () => void,
+    onError: (error: unknown) => void
+  ): () => void;
+}
+
+export interface SyncState {
+  running: boolean;
+  pending: number;
+  conflict: number;
+  lastSuccessAt: number | null;
+  lastError: string | null;
+  isLeader: boolean;
+}
+
+export class SyncCoordinator {
+  private started = false;
+  private busy = false;
+  private requested = false;
+
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private unsubscribe: (() => void) | null = null;
+
+  private listeners =
+    new Set<(state: SyncState) => void>();
+
+  private state: SyncState = {
+    running: false,
+    pending: 0,
+    conflict: 0,
+    lastSuccessAt: null,
+    lastError: null,
+    isLeader: false
+  };
+
+  private online = () =>
+    typeof navigator === 'undefined' ||
+    navigator.onLine !== false;
+
+  private onlineHandler = () => this.requestSync();
+
+  private visibilityHandler = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      this.requestSync();
+    }
+  };
+
+  private lockAbortController: AbortController | null = null;
+  private lockRelease: (() => void) | null = null;
+  private coordChannel: BroadcastChannel | null = null;
+
+  constructor(
+    private local: LocalSyncDb,
+    private remote: SyncTransport,
+    private workspaceId: string = 'default'
+  ) {
+    if (typeof BroadcastChannel !== 'undefined') {
+      this.coordChannel = new BroadcastChannel(`lobnan-coord-${this.workspaceId}`);
+      this.coordChannel.onmessage = (ev) => {
+        if (ev.data === 'REQUEST_SYNC' && this.state.isLeader) {
+          this.requestSync();
+        }
+      };
+    }
+  }
+
+  onState(
+    fn: (state: SyncState) => void
+  ): () => void {
+    this.listeners.add(fn);
+    fn({ ...this.state });
+
+    return () => this.listeners.delete(fn);
+  }
+
+  private report(partial: Partial<SyncState>) {
+    this.state = { ...this.state, ...partial };
+
+    for (const fn of this.listeners) {
+      fn({ ...this.state });
+    }
+  }
+
+  async start() {
+    if (this.started) return;
+
+    this.started = true;
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(
+        'online',
+        this.onlineHandler
+      );
+
+      document.addEventListener(
+        'visibilitychange',
+        this.visibilityHandler
+      );
+    }
+
+    // Single-leader election using Web Locks when available
+    if (typeof navigator !== 'undefined' && (navigator as any).locks?.request) {
+      this.lockAbortController = new AbortController();
+      (navigator as any).locks.request(
+        `lobnan_sync_leader_${this.workspaceId}`,
+        { signal: this.lockAbortController.signal },
+        async () => {
+          this.report({ isLeader: true });
+          this.timer = setInterval(
+            () => this.requestSync(),
+            120000
+          );
+          this.unsubscribe = this.remote.watchLatest(
+            () => this.requestSync(),
+            error => this.report({
+              lastError: String(error)
+            })
+          );
+          this.requestSync();
+          return new Promise<void>(resolve => {
+            this.lockRelease = resolve;
+          });
+        }
+      ).catch(() => {
+        // Lock released or aborted on stop
+      });
+    } else {
+      // Environments without Web Locks (e.g. node:test or non-browser) act as direct leader
+      this.report({ isLeader: true });
+      this.timer = setInterval(
+        () => this.requestSync(),
+        120000
+      );
+      this.unsubscribe = this.remote.watchLatest(
+        () => this.requestSync(),
+        error => this.report({
+          lastError: String(error)
+        })
+      );
+      this.requestSync();
+    }
+  }
+
+  stop() {
+    this.started = false;
+
+    if (this.timer) clearInterval(this.timer);
+
+    this.timer = null;
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+
+    if (this.lockRelease) {
+      this.lockRelease();
+      this.lockRelease = null;
+    }
+
+    if (this.lockAbortController) {
+      this.lockAbortController.abort();
+      this.lockAbortController = null;
+    }
+
+    if (this.coordChannel) {
+      this.coordChannel.close();
+      this.coordChannel = null;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(
+        'online',
+        this.onlineHandler
+      );
+
+      document.removeEventListener(
+        'visibilitychange',
+        this.visibilityHandler
+      );
+    }
+
+    this.report({ isLeader: false });
+  }
+
+  requestSync() {
+    if (!this.started) return;
+
+    if (!this.state.isLeader) {
+      // Non-leader tab requests the active leader tab to drain outbox
+      this.coordChannel?.postMessage('REQUEST_SYNC');
+      void this.refreshCounts().catch(error =>
+        this.report({
+          lastError: String(error)
+        })
+      );
+      return;
+    }
+
+    this.requested = true;
+
+    void this.refreshCounts().catch(error =>
+      this.report({
+        lastError: String(error)
+      })
+    );
+
+    void this.drain();
+  }
+
+  private async drain() {
+    if (this.busy || !this.online()) return;
+
+    this.busy = true;
+    this.report({ running: true });
+
+    try {
+      while (
+        this.requested &&
+        this.started &&
+        this.online()
+      ) {
+        this.requested = false;
+
+        await this.pushPending();
+        await this.pullAllPages();
+      }
+
+      await this.refreshCounts();
+
+      if (this.state.pending === 0) {
+        this.report({
+          lastSuccessAt: Date.now(),
+          lastError: null
+        });
+      }
+    } catch (error) {
+      this.report({
+        lastError: String(error)
+      });
+    } finally {
+      this.busy = false;
+      this.report({ running: false });
+
+      if (this.requested && this.started) {
+        void this.drain();
+      }
+    }
+  }
+
+  private async refreshCounts() {
+    const commands = await this.local.pending();
+
+    this.report({
+      pending: commands.length,
+      conflict: commands.filter(
+        c => c.status !== 'pending'
+      ).length
+    });
+  }
+
+  private async pushPending() {
+    const commands = await this.local.pending();
+
+    for (const cmd of commands) {
+      if (!this.started || !this.online()) return;
+
+      // Never skip a blocked command silently.
+      if (cmd.status !== 'pending') {
+        this.report({
+          lastError: `Blocked by ${cmd.status}: ${cmd.id}`
+        });
+        return;
+      }
+
+      if (cmd.retryAt > Date.now()) return;
+
+      try {
+        const receipt = await this.remote.push(cmd);
+
+        // ACK means a confirmed cloud transaction.
+        await this.local.ack(
+          receipt.commandId,
+          receipt.changes
+        );
+      } catch (error) {
+        if (error instanceof VersionConflict) {
+          await this.local.markError(
+            cmd.id,
+            'conflict',
+            error.message
+          );
+
+          this.report({
+            lastError: error.message
+          });
+          return;
+        }
+
+        if (
+          error instanceof PermanentSyncError ||
+          isPermanentFirebaseError(error)
+        ) {
+          await this.local.markError(
+            cmd.id,
+            'rejected',
+            String(error)
+          );
+
+          this.report({
+            lastError: String(error)
+          });
+          return;
+        }
+
+        const delay = Math.min(
+          300000,
+          1000 * Math.pow(
+            2,
+            Math.min(cmd.attempts, 8)
+          )
+        );
+
+        await this.local.markError(
+          cmd.id,
+          'pending',
+          String(error),
+          Date.now() +
+            delay +
+            Math.floor(Math.random() * 500)
+        );
+
+        this.report({
+          lastError: String(error)
+        });
+
+        return;
+      }
+    }
+  }
+
+  private async pullAllPages() {
+    let cursor = await this.local.cursor();
+
+    while (this.started && this.online()) {
+      const page = await this.remote.pull(
+        cursor,
+        100
+      );
+
+      if (page.length === 0) break;
+
+      for (const event of page) {
+        // Local data and cursor advance atomically.
+        await this.local.applyEvent(event);
+        cursor = event.cursor;
+      }
+
+      if (page.length < 100) break;
+    }
+  }
+
+  async waitUntilIdle(
+    timeoutMs = 10000
+  ): Promise<void> {
+    const start = Date.now();
+
+    while (this.busy) {
+      if (Date.now() - start > timeoutMs) {
+        throw new Error('Sync timeout');
+      }
+
+      await sleep(25);
+    }
+  }
+}
+
+function isPermanentFirebaseError(
+  error: unknown
+): boolean {
+  const code = String(
+    (error as any)?.code ?? ''
+  );
+
+  return (
+    code === 'permission-denied' ||
+    code === 'invalid-argument' ||
+    code === 'failed-precondition'
+  );
+}

@@ -40,6 +40,7 @@ import {
   CheckCircle2,
   HardDrive,
   CalendarCheck,
+  ShieldAlert,
   Menu,
   ArrowRight,
   ArrowLeft,
@@ -108,7 +109,9 @@ export const Navbar: React.FC = () => {
     lastLocalSaveTime,
     forceSyncNow,
     hasPermission,
-    importMasterDatabaseSnapshot
+    importMasterDatabaseSnapshot,
+    syncCoordinatorState,
+    openConflictModal
   } = useAccounting();
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -1090,6 +1093,18 @@ export const Navbar: React.FC = () => {
           </button>
 
           {/* PROMINENT FORCED REAL-TIME RELOAD BUTTON */}
+          {syncCoordinatorState?.conflict > 0 && (
+            <button
+              type="button"
+              onClick={openConflictModal}
+              className="px-2 py-0.5 flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-xs shadow-xs active:translate-y-px transition cursor-pointer border border-rose-800 animate-pulse"
+              title="يوجد تعارض في التزامن يتطلب المراجعة اليدوية"
+            >
+              <ShieldAlert className="w-3 h-3 text-white" />
+              <span>{syncCoordinatorState.conflict} تعارض</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleManualSync}
