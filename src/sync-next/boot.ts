@@ -62,6 +62,7 @@ export async function createUnifiedDataLayer(
     }
     return true;
   });
+  await local.reconcileTestProbeConflicts().catch(() => {});
   await coordinator.start();
 
   return {

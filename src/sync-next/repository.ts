@@ -83,8 +83,8 @@ export class UnifiedRepository {
     this.sync.requestSync();
   }
 
-  async resolveConflict(commandId: string, updatedChanges: ProposedChange[]) {
-    await this.local.resolveConflict(commandId, updatedChanges);
+  async resolveConflict(commandId: string) {
+    await this.local.retryCommand(commandId);
     this.sync.requestSync();
   }
 
