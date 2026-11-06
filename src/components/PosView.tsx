@@ -654,9 +654,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
     }
     return 'المخزن الرئيسي';
   });
-  const [invoiceSeqNumber, setInvoiceSeqNumber] = useState<string>(() => {
-    return getNextSequentialInvoiceNumber(invoices);
-  });
+  const [invoiceSeqNumber, setInvoiceSeqNumber] = useState<string>('');
   const [invoiceDate, setInvoiceDate] = useState<string>(() => {
     return savedPosDraft.invoiceDate || new Date().toISOString().split('T')[0];
   });
@@ -2693,9 +2691,8 @@ const getInitialPosDraft = (): PosFullDraftData => {
       setLastSavedInvoiceNotice(savedInvoice);
     }
 
-    // Reset to a fresh blank invoice with strictly sequential gap-filling sequence
-    const freshNextSeq = getNextSequentialInvoiceNumber(savedInvoice ? [savedInvoice, ...invoices] : invoices);
-    setInvoiceSeqNumber(freshNextSeq);
+    // Reset to a fresh blank invoice
+    setInvoiceSeqNumber('');
 
     setTableLines([
       {
@@ -3286,8 +3283,7 @@ const getInitialPosDraft = (): PosFullDraftData => {
     setCashAmountInput('0');
     setBankAmountInput('0');
 
-    const freshNextSeq = getNextSequentialInvoiceNumber(invoices);
-    setInvoiceSeqNumber(freshNextSeq);
+    setInvoiceSeqNumber('');
     try {
       localStorage.removeItem(POS_FULL_DRAFT_KEY);
       localStorage.removeItem('pos_active_draft_lines');

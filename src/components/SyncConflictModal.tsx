@@ -6,16 +6,17 @@ import {
   CheckCircle2,
   Clock,
   HardDrive,
-  Database,
   X,
-  FileText,
   ShieldAlert,
-  ChevronRight,
-  Eye
+  Eye,
+  Search,
+  Server,
+  Layers
 } from 'lucide-react';
 import { SyncCommand } from '../sync-next/types';
 import { assessLocalStorageHealth } from '../sync-next/storageHealth';
 import { useAccounting } from '../context/AccountingContext';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 interface SyncConflictModalProps {
   isOpen: boolean;
@@ -23,12 +24,15 @@ interface SyncConflictModalProps {
 }
 
 export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, onClose }) => {
-  const { unifiedRepository, syncCoordinatorState, isOnline } = useAccounting();
+  const { unifiedRepository, isOnline, invoices } = useAccounting();
   const [conflicts, setConflicts] = useState<SyncCommand[]>([]);
   const [pendingCommands, setPendingCommands] = useState<SyncCommand[]>([]);
   const [selectedCommand, setSelectedCommand] = useState<SyncCommand | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'queue' | 'diagnostic'>('queue');
+  const [searchQuery, setSearchQuery] = useState('INV-0063');
+  const [searchResult, setSearchResult] = useState<any[] | null>(null);
   const [storageHealth, setStorageHealth] = useState<{
     idbAvailable: boolean;
     persistent: boolean | null;
@@ -55,6 +59,29 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
       loadData();
     }
   }, [isOpen, unifiedRepository]);
+
+  const handleSearchDiagnostic = async () => {
+    if (!searchQuery.trim() || !unifiedRepository) return;
+    setIsLoading(true);
+    try {
+      const q = searchQuery.trim().toLowerCase();
+      const allInvoices = await unifiedRepository.all('invoices');
+      const matches = allInvoices.filter(r => {
+        if (!r.value) return false;
+        const inv = r.value as any;
+        const idMatch = String(inv.id || '').toLowerCase().includes(q);
+        const numMatch = String(inv.invoiceNumber || '').toLowerCase().includes(q);
+        const tempMatch = String(inv.tempInvoiceNumber || '').toLowerCase().includes(q);
+        const custMatch = String(inv.customerName || '').toLowerCase().includes(q);
+        return idMatch || numMatch || tempMatch || custMatch;
+      });
+      setSearchResult(matches);
+    } catch (err: any) {
+      setFeedback(`فشل البحث التشخيصي: ${err?.message || 'خطأ غير معروف'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -125,7 +152,7 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
             </div>
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                لوحة فحص طابور المزامنة وإدارة التعارضات
+                لوحة فحص طابور المزامنة والتشخيص المركزي
                 {conflicts.length > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40">
                     {conflicts.length} بحاجة لمعالجة
@@ -133,154 +160,269 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
                 )}
               </h2>
               <p className="text-xs text-slate-400">
-                متابعة العمليات المعلقة وحالات عدم التطابق بين نسخ الأجهزة والسيرفر السحابي
+                متابعة المزامنة والبحث عن المعرفات الداخلية وتدقيق تطابق البيانات بين الأجهزة
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            <div className="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700">
+              <button
+                onClick={() => setActiveTab('queue')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${activeTab === 'queue' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}
+              >
+                طابور المزامنة
+              </button>
+              <button
+                onClick={() => setActiveTab('diagnostic')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${activeTab === 'diagnostic' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}
+              >
+                الفحص والتحقيق (INV-0063/0064)
+              </button>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Status Banners */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                <Clock className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[11px] text-slate-400">طابور الانتظار المحلي</div>
-                <div className="text-sm font-bold text-white">{pendingCommands.length} عملية</div>
-              </div>
-            </div>
+          {activeTab === 'queue' && (
+            <>
+              {/* Status Banners */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-slate-400">طابور الانتظار المحلي</div>
+                    <div className="text-sm font-bold text-white">{pendingCommands.length} عملية</div>
+                  </div>
+                </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[11px] text-slate-400">حالات التعارض / الرفض</div>
-                <div className="text-sm font-bold text-amber-300">{conflicts.length} عملية</div>
-              </div>
-            </div>
+                <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-slate-400">حالات التعارض / الرفض</div>
+                    <div className="text-sm font-bold text-amber-300">{conflicts.length} عملية</div>
+                  </div>
+                </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                <HardDrive className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[11px] text-slate-400">تخزين المتصفح المحلي</div>
-                <div className="text-sm font-bold text-emerald-300">
-                  {storageHealth?.usageBytes ? formatBytes(storageHealth.usageBytes) : 'نشط ومستقر'}
+                <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <HardDrive className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-slate-400">تخزين المتصفح المحلي</div>
+                    <div className="text-sm font-bold text-emerald-300">
+                      {storageHealth?.usageBytes ? formatBytes(storageHealth.usageBytes) : 'نشط ومستقر'}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {feedback && (
-            <div className="p-3 rounded-xl bg-blue-950/60 border border-blue-500/40 text-xs text-blue-200">
-              {feedback}
-            </div>
+              {feedback && (
+                <div className="p-3 rounded-xl bg-blue-950/60 border border-blue-500/40 text-xs text-blue-200">
+                  {feedback}
+                </div>
+              )}
+
+              {/* Conflict List */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  قائمة العمليات التي تتطلب مراجعة
+                </h3>
+
+                {conflicts.length === 0 ? (
+                  <div className="p-8 text-center rounded-xl bg-slate-950/40 border border-slate-800/80">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2 opacity-80" />
+                    <h4 className="text-sm font-bold text-slate-200">لا توجد أي تعارضات معلقة</h4>
+                    <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                      جميع القيود والفواتير والسجلات متطابقة ومتزامنة مع سحابة Firebase بنجاح تام وفق النواة المحاسبية الآمنة.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {conflicts.map(cmd => (
+                      <div
+                        key={cmd.id}
+                        className="p-4 rounded-xl bg-slate-800/80 border border-amber-500/30 hover:border-amber-500/60 transition"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                {cmd.status === 'conflict' ? 'تعارض نسخة (Version Conflict)' : 'رفض من السيرفر'}
+                              </span>
+                              <span className="text-xs font-mono text-slate-400">ID: {cmd.id}</span>
+                            </div>
+                            <div className="text-xs font-bold text-white mt-1">
+                              الكيانات المتأثرة:{' '}
+                              {cmd.changes.map(c => getEntityLabel(c.entity)).join('، ')}
+                            </div>
+                            <div className="text-[11px] text-rose-300 mt-1 font-mono">
+                              الخطأ: {cmd.error || 'تم اكتشاف تعديل مسبق للنسخة على جهاز آخر'}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 ml-auto">
+                            <button
+                              onClick={() => setSelectedCommand(selectedCommand?.id === cmd.id ? null : cmd)}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-slate-200 font-medium transition flex items-center gap-1.5"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>معاينة</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleRetry(cmd.id)}
+                              disabled={isLoading}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              <span>إعادة المحاولة مع التحديث</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDiscard(cmd.id)}
+                              disabled={isLoading}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-xs text-rose-200 font-medium transition flex items-center gap-1.5 disabled:opacity-50"
+                              title="استبعاد الحركة"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {selectedCommand?.id === cmd.id && (
+                          <div className="mt-3 pt-3 border-t border-slate-700/60 space-y-2">
+                            <div className="text-[11px] font-bold text-slate-300">تفاصيل التغييرات داخل المعاملة الذرية:</div>
+                            <pre className="p-3 rounded-lg bg-slate-950 font-mono text-[10px] text-slate-300 overflow-x-auto max-h-48 border border-slate-800">
+                              {JSON.stringify(cmd.changes, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
-          {/* Conflict List */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-              قائمة العمليات التي تتطلب مراجعة
-            </h3>
+          {activeTab === 'diagnostic' && (
+            <div className="space-y-6">
+              {/* Configuration Parity Spec Card */}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-400">
+                  <Server className="w-4 h-4 text-blue-400" />
+                  <span>معلمات مطابقة الإعدادات السحابية والمساحة المعتمدة (Configuration Parity)</span>
+                </div>
 
-            {conflicts.length === 0 ? (
-              <div className="p-8 text-center rounded-xl bg-slate-950/40 border border-slate-800/80">
-                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2 opacity-80" />
-                <h4 className="text-sm font-bold text-slate-200">لا توجد أي تعارضات معلقة</h4>
-                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                  جميع القيود والفواتير والسجلات متطابقة ومتزامنة مع سحابة Firebase بنجاح تام وفق النواة المحاسبية الآمنة.
-                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">Project ID:</span>
+                    <span className="text-emerald-300 font-bold">{firebaseConfig.projectId || 'gen-lang-client-0984774155'}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">Firestore Database ID:</span>
+                    <span className="text-emerald-300 font-bold">{firebaseConfig.firestoreDatabaseId || 'ai-studio-remixcopyofcopyo-917f7ef2-bd2e-44c7-b6f8-f5661310c7a9'}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">Workspace Namespace:</span>
+                    <span className="text-blue-300 font-bold">lobnan_main</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 block text-[10px]">Sync Endpoint Path:</span>
+                    <span className="text-blue-300 font-bold">lobnan_sync_workspaces/lobnan_main/events</span>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-2.5">
-                {conflicts.map(cmd => (
-                  <div
-                    key={cmd.id}
-                    className="p-4 rounded-xl bg-slate-800/80 border border-amber-500/30 hover:border-amber-500/60 transition"
+
+              {/* Diagnostic Search Tool */}
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-white">
+                    <Search className="w-4 h-4 text-amber-400" />
+                    <span>البحث والتحقيق التشخيصي بالفواتير بالمعرف الداخلي أو الرقم الرسمي (مثل INV-0063 / INV-0064)</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400">إجمالي الفواتير بالمستودع الموحد: {invoices.length}</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="أدخل رقم الفاتورة أو المعرف الداخلي (UUID)..."
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                  <button
+                    onClick={handleSearchDiagnostic}
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white rounded-xl transition flex items-center gap-2 disabled:opacity-50"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            {cmd.status === 'conflict' ? 'تعارض نسخة (Version Conflict)' : 'رفض من السيرفر'}
-                          </span>
-                          <span className="text-xs font-mono text-slate-400">ID: {cmd.id}</span>
-                        </div>
-                        <div className="text-xs font-bold text-white mt-1">
-                          الكيانات المتأثرة:{' '}
-                          {cmd.changes.map(c => getEntityLabel(c.entity)).join('، ')}
-                        </div>
-                        <div className="text-[11px] text-rose-300 mt-1 font-mono">
-                          الخطأ: {cmd.error || 'تم اكتشاف تعديل مسبق للنسخة على جهاز آخر'}
-                        </div>
-                      </div>
+                    <Search className="w-3.5 h-3.5" />
+                    <span>فحص وتحقيق</span>
+                  </button>
+                </div>
 
-                      <div className="flex items-center gap-2 ml-auto">
-                        <button
-                          onClick={() => setSelectedCommand(selectedCommand?.id === cmd.id ? null : cmd)}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-slate-200 font-medium transition flex items-center gap-1.5"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>معاينة</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleRetry(cmd.id)}
-                          disabled={isLoading}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-bold transition flex items-center gap-1.5 disabled:opacity-50"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          <span>إعادة المحاولة مع التحديث</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleDiscard(cmd.id)}
-                          disabled={isLoading}
-                          className="px-2.5 py-1.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-xs text-rose-200 font-medium transition flex items-center gap-1.5 disabled:opacity-50"
-                          title="استبعاد الحركة"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                {searchResult && (
+                  <div className="space-y-3 mt-3">
+                    <div className="text-xs text-slate-300 font-bold flex items-center gap-2">
+                      <Layers className="w-3.5 h-3.5 text-blue-400" />
+                      <span>نتائج البحث ({searchResult.length} فاتورة):</span>
                     </div>
 
-                    {/* Expanded Detail */}
-                    {selectedCommand?.id === cmd.id && (
-                      <div className="mt-3 pt-3 border-t border-slate-700/60 space-y-2">
-                        <div className="text-[11px] font-bold text-slate-300">تفاصيل التغييرات داخل المعاملة الذرية:</div>
-                        <pre className="p-3 rounded-lg bg-slate-950 font-mono text-[10px] text-slate-300 overflow-x-auto max-h-48 border border-slate-800">
-                          {JSON.stringify(cmd.changes, null, 2)}
-                        </pre>
+                    {searchResult.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-amber-300 text-center">
+                        لم يتم العثور على أي فاتورة تطابق القيمة الموضحة ({searchQuery}).
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {searchResult.map((res: any, idx) => {
+                          const val = res.value || {};
+                          return (
+                            <div key={res.id || idx} className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                    الرقم الرسمي: {val.invoiceNumber || 'مؤقت'}
+                                  </span>
+                                  {val.tempInvoiceNumber && (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] bg-slate-800 text-slate-400 font-mono">
+                                      مؤقت: {val.tempInvoiceNumber}
+                                    </span>
+                                  )}
+                                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${res.pending ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                                    {res.pending ? 'قيد الانتظار أوفلاين' : 'مؤكد سحابياً'}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] font-mono text-slate-400">UUID ID: {res.id}</span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                <div><span className="text-slate-400">العميل:</span> <span className="text-white font-bold">{val.customerName || 'نقدي'}</span></div>
+                                <div><span className="text-slate-400">المبلغ الإجمالي:</span> <span className="text-emerald-400 font-bold">{val.totalAmount} ₪</span></div>
+                                <div><span className="text-slate-400">الإصدار (Version):</span> <span className="text-blue-300 font-mono font-bold">{res.version}</span></div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-
-          {/* Pending Queue Summary */}
-          {pendingCommands.filter(c => c.status === 'pending').length > 0 && (
-            <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 space-y-2">
-              <h4 className="text-xs font-bold text-slate-300 flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-blue-400" />
-                حركات قيد الإرسال والتزامن السحابي ({pendingCommands.filter(c => c.status === 'pending').length})
-              </h4>
-              <p className="text-[11px] text-slate-400">
-                تُحفظ العمليات محلياً وفورياً داخل IndexedDB على هذا الجهاز، وترسل إلى سحابة Firebase تلقائياً فور توفر الاتصال.
-              </p>
             </div>
           )}
         </div>
@@ -289,7 +431,7 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
         <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-800 bg-slate-950/80">
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-            <span>حالة الشبكة: {isOnline ? 'متصل بالإنترنت' : 'غير متصل (يعمل محلياً بالكامل)'}</span>
+            <span>حالة الشبكة: {isOnline ? 'متصل بالإنترنت (تزامن تفاضلي نشط)' : 'غير متصل (نسخة محلية بها حركات معلقة)'}</span>
           </div>
 
           <div className="flex items-center gap-2">

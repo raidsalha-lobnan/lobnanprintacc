@@ -1067,27 +1067,7 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
         };
       }
 
-      // Helper to compute strictly sequential and gap-filling invoice numbers starting from 1
-      const usedNumbers = new Set<number>();
-      for (const inv of invoices || []) {
-        if (inv && inv.invoiceNumber) {
-          const match = inv.invoiceNumber.match(/\d+/g);
-          if (match && match.length > 0) {
-            for (const m of match) {
-              const num = parseInt(m, 10);
-              if (!isNaN(num) && num > 0 && num < 100000) {
-                usedNumbers.add(num);
-              }
-            }
-          }
-        }
-      }
-
-      let nextSeqNum = 1;
-      while (usedNumbers.has(nextSeqNum)) {
-        nextSeqNum++;
-      }
-      const generatedInvoiceNumber = `INV-${String(nextSeqNum).padStart(4, '0')}`;
+      const generatedInvoiceNumber = draft.invoiceNumber || `TEMP-INV-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8)}`;
 
       // Date resolution: strictly take and parse invoice date from imported file
       const finalInvoiceDate = parseAnyDate(draft.date);

@@ -7698,43 +7698,20 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // 2. الفحص الصارم لرقم الفاتورة ومنع تكرار أي رقم فاتورة مطلقاً - اعتماد الترقيم التسلسلي القياسي INV-XXXX
+    // 2. Centralized atomic numbering gate:
+    // Offline/local entries get a non-colliding temporary number until official cloud confirmation.
     let invoiceNumber = oldInvoice ? oldInvoice.invoiceNumber : undefined;
 
-    function normalizeSeqNumber(rawStr?: string): string | undefined {
-      if (!rawStr) return undefined;
-      const matched = String(rawStr).match(/\d+/g);
-      if (!matched || matched.length === 0) return undefined;
-      let num = parseInt(matched[matched.length - 1], 10);
-      if (isNaN(num) || num <= 0 || num > 100000) return undefined;
-      return `INV-${String(num).padStart(4, '0')}`;
-    }
-
     if (!invoiceNumber && extraOptions?.invoiceNumber) {
-      const normalizedCandidate = normalizeSeqNumber(extraOptions.invoiceNumber);
-      if (normalizedCandidate && !invoices.some(inv => inv.id !== invId && inv.invoiceNumber && inv.invoiceNumber.trim() === normalizedCandidate.trim())) {
-        invoiceNumber = normalizedCandidate;
+      if (!extraOptions.invoiceNumber.startsWith('TEMP-')) {
+        invoiceNumber = extraOptions.invoiceNumber;
       }
     }
 
     if (!invoiceNumber) {
-      const usedNumbers = new Set<number>();
-      invoices.forEach(inv => {
-        if (inv && inv.invoiceNumber && inv.id !== invId) {
-          const matched = inv.invoiceNumber.match(/\d+/g);
-          if (matched && matched.length > 0) {
-            const num = parseInt(matched[matched.length - 1], 10);
-            if (!isNaN(num) && num > 0 && num < 100000) {
-              usedNumbers.add(num);
-            }
-          }
-        }
-      });
-      let candidateNum = 1;
-      while (usedNumbers.has(candidateNum)) {
-        candidateNum++;
-      }
-      invoiceNumber = `INV-${String(candidateNum).padStart(4, '0')}`;
+      const year = new Date().getFullYear();
+      const shortUid = crypto.randomUUID().slice(0, 8);
+      invoiceNumber = `TEMP-INV-${year}-${shortUid}`;
     }
     const today = extraOptions?.date || new Date().toISOString().split('T')[0];
     const appliedTaxRate = extraOptions?.taxRate !== undefined ? extraOptions.taxRate : settings.vatRate;
