@@ -3,6 +3,7 @@ import { Invoice, JournalEntry, PaymentVoucher, StockMovement } from '../types';
 /**
  * Upserts sales invoices by ID and resolves invoice number concurrency collisions.
  * Guarantees NO invoice is ever deleted or lost during central server / cloud sync.
+ * Primary key of truth is the immutable invoice UUID (`id`).
  */
 export function mergeInvoicesWithUpsertAndConflictResolution(
   localInvoices: Invoice[],
@@ -90,7 +91,7 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
   const usedNumbers = new Set<string>();
   let maxSeq = 0;
 
-  // First pass: register existing unique invoice numbers and find highest sequence
+  // Register existing unique valid non-temp invoice numbers
   sortedForCollisionCheck.forEach(inv => {
     const seq = parseInvoiceNum(inv);
     if (seq > maxSeq) maxSeq = seq;
@@ -98,8 +99,8 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
 
   const renumberedResult = sortedForCollisionCheck.map(inv => {
     let numStr = (inv.invoiceNumber || '').trim();
-    if (!numStr || numStr === 'INV-0000' || usedNumbers.has(numStr)) {
-      // Collision detected! The older invoice keeps its number, the newer invoice receives the next available unique sequential number
+    if (!numStr || numStr === 'INV-0000' || usedNumbers.has(numStr) || numStr.startsWith('TEMP-')) {
+      // Collision or temporary number detected! Re-assign next available unique sequential number
       maxSeq++;
       numStr = `INV-${String(maxSeq).padStart(4, '0')}`;
     }
@@ -121,12 +122,16 @@ export function mergeInvoicesWithUpsertAndConflictResolution(
   return renumberedResult;
 }
 
+/**
+ * Reconciles invoice conflicts and cascades official invoice number alignment & deletions
+ * across linked Journal Entries, Payment Vouchers, Stock Movements, and Treasuries.
+ */
 export function resolveInvoiceConflicts(
   localInvoices: Invoice[],
   serverInvoices: Invoice[],
-  journalEntries: JournalEntry[],
-  vouchers: PaymentVoucher[],
-  stockMovements: StockMovement[]
+  journalEntries: JournalEntry[] = [],
+  vouchers: PaymentVoucher[] = [],
+  stockMovements: StockMovement[] = []
 ): {
   updatedInvoices: Invoice[];
   updatedJournalEntries: JournalEntry[];
@@ -135,49 +140,76 @@ export function resolveInvoiceConflicts(
 } {
   const mergedInvoices = mergeInvoicesWithUpsertAndConflictResolution(localInvoices, serverInvoices);
   
-  // Build lookup maps for immutable invoice ID -> updated invoice number
+  // Build lookup maps for immutable invoice ID (UUID) -> updated official invoice number
   const invoiceNumberByIdMap = new Map<string, string>();
+  const activeInvoiceIds = new Set<string>();
+
   mergedInvoices.forEach(inv => {
     if (inv.id && inv.invoiceNumber) {
-      invoiceNumberByIdMap.set(inv.id, inv.invoiceNumber);
+      invoiceNumberByIdMap.set(String(inv.id), inv.invoiceNumber);
+      activeInvoiceIds.add(String(inv.id));
     }
   });
 
-  // Cascade invoice number updates to linked journal entries, payment vouchers, and stock movements
-  const updatedJournalEntries = journalEntries.map(je => {
-    if (je.referenceId && invoiceNumberByIdMap.has(je.referenceId)) {
-      const newNum = invoiceNumberByIdMap.get(je.referenceId)!;
-      return {
-        ...je,
-        description: je.description ? je.description.replace(/INV-\d+/gi, newNum) : je.description
-      };
-    }
-    return je;
-  });
+  // Cascade invoice number updates & deletions to linked journal entries, payment vouchers, and stock movements
+  const updatedJournalEntries = journalEntries
+    .filter(je => {
+      // If linked to an invoice UUID that was explicitly deleted, remove the orphan journal entry
+      if (je.referenceId && je.referenceId.startsWith('uuid-') && !activeInvoiceIds.has(je.referenceId)) {
+        return false;
+      }
+      return true;
+    })
+    .map(je => {
+      if (je.referenceId && invoiceNumberByIdMap.has(je.referenceId)) {
+        const newNum = invoiceNumberByIdMap.get(je.referenceId)!;
+        return {
+          ...je,
+          description: je.description ? je.description.replace(/INV-\d+/gi, newNum) : je.description
+        };
+      }
+      return je;
+    });
 
-  const updatedVouchers = vouchers.map(v => {
-    const targetId = v.referenceInvoiceId || (v as any).referenceId || (v as any).invoiceId;
-    if (targetId && invoiceNumberByIdMap.has(targetId)) {
-      const newNum = invoiceNumberByIdMap.get(targetId)!;
-      return {
-        ...v,
-        description: v.description ? v.description.replace(/INV-\d+/gi, newNum) : v.description
-      };
-    }
-    return v;
-  });
+  const updatedVouchers = vouchers
+    .filter(v => {
+      const targetId = v.referenceInvoiceId || (v as any).referenceId || (v as any).invoiceId;
+      if (targetId && targetId.startsWith('uuid-') && !activeInvoiceIds.has(targetId)) {
+        return false;
+      }
+      return true;
+    })
+    .map(v => {
+      const targetId = v.referenceInvoiceId || (v as any).referenceId || (v as any).invoiceId;
+      if (targetId && invoiceNumberByIdMap.has(targetId)) {
+        const newNum = invoiceNumberByIdMap.get(targetId)!;
+        return {
+          ...v,
+          description: v.description ? v.description.replace(/INV-\d+/gi, newNum) : v.description
+        };
+      }
+      return v;
+    });
 
-  const updatedStockMovements = stockMovements.map(sm => {
-    const refId = (sm as any).referenceId || sm.referenceNumber;
-    if (refId && invoiceNumberByIdMap.has(refId)) {
-      const newNum = invoiceNumberByIdMap.get(refId)!;
-      return {
-        ...sm,
-        referenceNumber: newNum
-      };
-    }
-    return sm;
-  });
+  const updatedStockMovements = stockMovements
+    .filter(sm => {
+      const refId = (sm as any).referenceId;
+      if (refId && refId.startsWith('uuid-') && !activeInvoiceIds.has(refId)) {
+        return false;
+      }
+      return true;
+    })
+    .map(sm => {
+      const refId = (sm as any).referenceId || sm.referenceNumber;
+      if (refId && invoiceNumberByIdMap.has(refId)) {
+        const newNum = invoiceNumberByIdMap.get(refId)!;
+        return {
+          ...sm,
+          referenceNumber: newNum
+        };
+      }
+      return sm;
+    });
 
   return {
     updatedInvoices: mergedInvoices,

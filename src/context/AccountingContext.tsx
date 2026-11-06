@@ -2529,6 +2529,24 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (upserts.length > 0) {
           filtered = mergeInvoicesWithUpsertAndConflictResolution(filtered, upserts as Invoice[]);
         }
+
+        // Cascade invoice alignment & deletions across all linked screens and entities
+        try {
+          const cascaded = resolveInvoiceConflicts(filtered, [], journalEntries, vouchers, stockMovements);
+          filtered = cascaded.updatedInvoices;
+          if (cascaded.updatedJournalEntries && cascaded.updatedJournalEntries.length !== journalEntries.length) {
+            setJournalEntries(cascaded.updatedJournalEntries);
+          }
+          if (cascaded.updatedVouchers && cascaded.updatedVouchers.length !== vouchers.length) {
+            setVouchers(cascaded.updatedVouchers);
+          }
+          if (cascaded.updatedStockMovements && cascaded.updatedStockMovements.length !== stockMovements.length) {
+            setStockMovements(cascaded.updatedStockMovements);
+          }
+        } catch (e) {
+          console.warn('Cascading invoice reconciliation notice:', e);
+        }
+
         try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(filtered)); } catch {}
         return filtered;
       });
