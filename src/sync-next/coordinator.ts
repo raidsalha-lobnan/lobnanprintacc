@@ -285,13 +285,17 @@ export class SyncCoordinator {
     for (const cmd of commands) {
       if (!this.started || !this.online()) return;
 
-      // Never skip a blocked command silently.
       if (cmd.status !== 'pending') {
-        this.report({
-          lastError: `Blocked by ${cmd.status}: ${cmd.id}`
-        });
-        return;
+        if (cmd.status === 'rejected' && cmd.error?.includes('permission-denied')) {
+          await this.local.retryCommand(cmd.id);
+        } else {
+          this.report({
+            lastError: `Blocked by ${cmd.status}: ${cmd.id}`
+          });
+          return;
+        }
       }
+
 
       if (cmd.retryAt > Date.now()) return;
 

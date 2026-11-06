@@ -1,19 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    match /dailyEntrySheets/{date} {
-      allow read, write: if isSignedIn();
-      match /rows/{rowId} {
-        allow read, write: if isSignedIn();
-      }
-    }
-
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
   }
 }
+
