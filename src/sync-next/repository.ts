@@ -83,9 +83,10 @@ export class UnifiedRepository {
     this.sync.requestSync();
   }
 
-  async resolveConflict(commandId: string) {
-    await this.local.retryCommand(commandId);
+  async autoResolveInvoiceConflict(commandId: string): Promise<string> {
+    const newNum = await this.local.autoResolveInvoiceConflict(commandId);
     this.sync.requestSync();
+    return newNum;
   }
 
   async discardCommand(commandId: string) {

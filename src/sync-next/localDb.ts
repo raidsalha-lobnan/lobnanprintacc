@@ -634,6 +634,77 @@ export class LocalSyncDb {
     await done;
     this.changed();
   }
+
+  async autoResolveInvoiceConflict(commandId: string): Promise<string> {
+    const commands = await this.pending();
+    const command = commands.find(c => c.id === commandId);
+    if (!command) throw new Error('لم يتم العثور على العملية المعلقة في الطابور');
+
+    const allRecords = await this.listVisible('invoices');
+    let maxSeq = 0;
+    allRecords.forEach(r => {
+      const inv = r.value as any;
+      if (inv && inv.invoiceNumber) {
+        const matches = String(inv.invoiceNumber).match(/\d+/g);
+        if (matches && matches.length > 0) {
+          const num = parseInt(matches[matches.length - 1], 10) || 0;
+          if (num > maxSeq) maxSeq = num;
+        }
+      }
+    });
+
+    const nextSeq = maxSeq + 1;
+    const newInvoiceNumber = `INV-${String(nextSeq).padStart(4, '0')}`;
+
+    let actualFromError = 0;
+    if (command.error) {
+      const match = command.error.match(/actual=(\d+)/);
+      if (match) actualFromError = parseInt(match[1], 10);
+    }
+
+    const db = await this.dbPromise;
+    const tx = db.transaction([RECORDS, OUTBOX], 'readwrite');
+    const done = completed(tx);
+    try {
+      const recordsStore = tx.objectStore(RECORDS);
+      const store = tx.objectStore(OUTBOX);
+
+      const updatedChanges: VersionedChange[] = [];
+      for (const c of command.changes) {
+        const key = recordKey(c.entity, c.id);
+        const row = (await request(recordsStore.get(key))) as StoredRecord | undefined;
+        const targetVersion = Math.max(row?.version ?? 0, actualFromError);
+
+        if (c.entity === 'invoices' && c.value) {
+          const updatedInv = {
+            ...(c.value as any),
+            invoiceNumber: newInvoiceNumber,
+            updatedAt: new Date().toISOString()
+          };
+          updatedChanges.push({ ...c, expectedVersion: targetVersion, value: updatedInv });
+        } else {
+          updatedChanges.push({ ...c, expectedVersion: targetVersion });
+        }
+      }
+
+      store.put({
+        ...command,
+        changes: updatedChanges,
+        status: 'pending',
+        error: undefined,
+        attempts: 0,
+        retryAt: 0
+      });
+
+      await done;
+      this.changed();
+      return newInvoiceNumber;
+    } catch (err) {
+      try { tx.abort(); } catch {}
+      await done.catch(() => {});
+      throw err;
+    }
+  }
 }
 
 function compareCursor(

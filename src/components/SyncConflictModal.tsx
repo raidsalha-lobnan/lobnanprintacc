@@ -100,6 +100,22 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
     }
   };
 
+  const handleAutoRenumberInvoice = async (commandId: string) => {
+    if (!unifiedRepository) return;
+    setIsLoading(true);
+    setFeedback(null);
+    try {
+      const newNum = await (unifiedRepository as any).autoResolveInvoiceConflict(commandId);
+      setFeedback(`تمت إعادة ترقيم الفاتورة تلقائياً إلى الرقم المعتمد الجديد (${newNum}) وتحديث كافة القيود والمخزون والشاشات بنجاح 🟢`);
+      setSelectedCommand(null);
+      await loadData();
+    } catch (err: any) {
+      setFeedback(`فشلت إعادة الترقيم والتحديث: ${err?.message || 'خطأ غير معروف'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDiscard = async (commandId: string) => {
     if (!unifiedRepository) return;
     if (!window.confirm('هل أنت متأكد من استبعاد هذه الحركة المعلقة نهائياً من الطابور؟ لا يمكن التراجع.')) return;
@@ -275,6 +291,18 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
                           </div>
 
                           <div className="flex items-center gap-2 ml-auto">
+                            {cmd.changes.some(c => c.entity === 'invoices') && (
+                              <button
+                                onClick={() => handleAutoRenumberInvoice(cmd.id)}
+                                disabled={isLoading}
+                                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs text-white font-bold transition flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                                title="إعادة ترقيم الفاتورة المعتمد تلقائياً وتحديث الشاشات المترابطة"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>تعديل رقم الفاتورة تلقائياً وتحديث كافة الشاشات</span>
+                              </button>
+                            )}
+
                             <button
                               onClick={() => setSelectedCommand(selectedCommand?.id === cmd.id ? null : cmd)}
                               className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-slate-200 font-medium transition flex items-center gap-1.5"
