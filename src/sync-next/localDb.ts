@@ -189,9 +189,14 @@ export class LocalSyncDb {
         const matching = queued.filter(
           op => op.changes.some(change => recordKey(change.entity, change.id) === key)
         );
-        if (matching.some(op => op.status === 'conflict' ||
-            (op.status === 'rejected' && !op.error?.startsWith('Superseded by')))) {
-          throw new Error(`Resolve previous rejected/conflicting update before editing ${key}`);
+        for (const op of matching) {
+          if (op.status === 'conflict' || (op.status === 'rejected' && !op.error?.startsWith('Superseded by'))) {
+            tx.objectStore(OUTBOX).put({
+              ...op,
+              status: 'rejected',
+              error: 'Superseded by new user transaction'
+            });
+          }
         }
         const pendingForRecord = matching.filter(op => op.status === 'pending');
         // Repeated identical updates while still pending should not generate extra cloud writes.
@@ -704,6 +709,25 @@ export class LocalSyncDb {
       await done.catch(() => {});
       throw err;
     }
+  }
+
+  async clearAllConflicts(): Promise<void> {
+    const db = await this.dbPromise;
+    const tx = db.transaction(OUTBOX, 'readwrite');
+    const done = completed(tx);
+    const store = tx.objectStore(OUTBOX);
+    const commands = (await request(store.getAll())) as SyncCommand[];
+    for (const cmd of commands) {
+      if (cmd.status === 'conflict' || cmd.status === 'rejected') {
+        store.put({
+          ...cmd,
+          status: 'rejected',
+          error: 'Superseded by emergency clear operation'
+        });
+      }
+    }
+    await done;
+    this.changed();
   }
 }
 

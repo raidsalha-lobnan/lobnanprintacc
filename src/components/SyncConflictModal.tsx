@@ -116,6 +116,23 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
     }
   };
 
+  const handleClearAllConflicts = async () => {
+    if (!unifiedRepository) return;
+    if (!window.confirm('هل أنت متأكد من رغبتك في تنظيف وتعطيل كافة التعارضات العالقة واستئناف الحفظ الفوري؟')) return;
+    setIsLoading(true);
+    setFeedback(null);
+    try {
+      await (unifiedRepository as any).clearAllConflicts();
+      setFeedback('تم تنظيف وتعطيل كافة التعارضات العالقة واستئناف الحفظ الفوري بنجاح تام 🟢');
+      setSelectedCommand(null);
+      await loadData();
+    } catch (err: any) {
+      setFeedback(`فشل التنظيف: ${err?.message || 'خطأ غير معروف'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDiscard = async (commandId: string) => {
     if (!unifiedRepository) return;
     if (!window.confirm('هل أنت متأكد من استبعاد هذه الحركة المعلقة نهائياً من الطابور؟ لا يمكن التراجع.')) return;
@@ -253,10 +270,23 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
 
               {/* Conflict List */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  قائمة العمليات التي تتطلب مراجعة
-                </h3>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    قائمة العمليات التي تتطلب مراجعة
+                  </h3>
+                  {conflicts.length > 0 && (
+                    <button
+                      onClick={handleClearAllConflicts}
+                      disabled={isLoading}
+                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-xs text-white font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                      title="تنظيف وتعطيل كافة التعارضات العالقة واستئناف الحفظ الفوري"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>تنظيف وتعطيل كافة التعارضات واستئناف الحفظ الفوري</span>
+                    </button>
+                  )}
+                </div>
 
                 {conflicts.length === 0 ? (
                   <div className="p-8 text-center rounded-xl bg-slate-950/40 border border-slate-800/80">

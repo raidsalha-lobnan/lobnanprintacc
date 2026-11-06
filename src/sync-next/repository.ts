@@ -89,6 +89,11 @@ export class UnifiedRepository {
     return newNum;
   }
 
+  async clearAllConflicts(): Promise<void> {
+    await (this.local as any).clearAllConflicts();
+    this.sync.requestSync();
+  }
+
   async discardCommand(commandId: string) {
     await this.local.discardCommand(commandId);
     this.sync.requestSync();
