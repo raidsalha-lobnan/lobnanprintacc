@@ -1,0 +1,1719 @@
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/scripts/audit_legacy_data.cjs /mnt/data/lobnan_work/lobnanprintacc-main/scripts/audit_legacy_data.cjs
+--- /mnt/data/lobnan_original/lobnanprintacc-main/scripts/audit_legacy_data.cjs	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/scripts/audit_legacy_data.cjs	2026-11-06 14:55:47.286437170 +0000
+@@ -0,0 +1,35 @@
++// Read-only reconciliation report. Does NOT alter any accounting data.
++const fs = require('node:fs');
++const path = require('node:path');
++const root = path.resolve(__dirname, '..');
++const snapshot = JSON.parse(fs.readFileSync(path.join(root, 'master_drive_database_snapshot.json'), 'utf8'));
++const all = ['accounts','treasuries','parties','inventory','vouchers','invoices','purchases',
++  'purchaseReturns','salesReturns','journalEntries','expenses','stockMovements'];
++const result = { auditedAt: new Date().toISOString(), status: 'read-only', entities: {}, mismatches: [] };
++for(const entity of all){
++ const a = Array.isArray(snapshot[entity]) ? snapshot[entity] : [];
++ const syncPath = path.join(root, '.sync_data', `${entity}.json`);
++ const b = fs.existsSync(syncPath) ? JSON.parse(fs.readFileSync(syncPath,'utf8')) : [];
++ const fromServer = Array.isArray(b) ? b : [];
++ result.entities[entity] = { snapshotCount: a.length, serverCount: fromServer.length };
++ if(!fs.existsSync(syncPath))continue;
++ const byId = new Map(a.filter(v=>v?.id != null).map(v=>[String(v.id),v]));
++ const second = new Map(fromServer.filter(v=>v?.id != null).map(v=>[String(v.id),v]));
++ for(const [id, first] of byId){
++   if(!second.has(id)){result.mismatches.push({entity,id,type:'missing_from_server'});continue;}
++   const other=second.get(id);
++   for(const field of ['balance','accountCode','name','code','totalAmount','status']){
++     if(Object.hasOwn(first,field)||Object.hasOwn(other,field)){
++       if(JSON.stringify(first[field]??null)!==JSON.stringify(other[field]??null)){
++         result.mismatches.push({entity,id,type:'field_mismatch',field,
++           snapshotValue:first[field]??null,serverValue:other[field]??null});
++       }
++     }
++   }
++ }
++ for(const id of second.keys()) if(!byId.has(id)) result.mismatches.push({entity,id,type:'missing_from_snapshot'});
++}
++const out=path.join(root, 'reconciliation_report.json');
++fs.writeFileSync(out,JSON.stringify(result,null,2));
++console.log(`Read-only reconciliation: ${result.mismatches.length} differences; report: ${out}`);
++if(result.mismatches.length)process.exitCode=2;
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/src/context/AccountingContext.tsx /mnt/data/lobnan_work/lobnanprintacc-main/src/context/AccountingContext.tsx
+--- /mnt/data/lobnan_original/lobnanprintacc-main/src/context/AccountingContext.tsx	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/src/context/AccountingContext.tsx	2026-11-06 14:57:49.482461948 +0000
+@@ -21,7 +21,7 @@
+   db,
+   doc,
+   getDoc,
+-  setDoc,
++  setDoc as firebaseDirectSetDoc,
+   deleteDoc,
+   writeBatch,
+   collection,
+@@ -1207,11 +1207,8 @@
+         localStorage.setItem('accounting_is_local_only_mode', String(next));
+       } catch {}
+       if (!next && navigator.onLine) {
+-        resetQuotaExceeded();
+-        setTimeout(() => {
+-          if (fetchFromFirebaseRef.current) fetchFromFirebaseRef.current();
+-          if (syncToFirebaseRef.current) syncToFirebaseRef.current(true);
+-        }, 100);
++        // Resume the single durable coordinator without re-uploading old snapshots.
++        setTimeout(() => unifiedRepoRef.current?.requestSync(), 100);
+       }
+       return next;
+     });
+@@ -1246,6 +1243,44 @@
+   const openConflictModal = () => setIsConflictModalOpen(true);
+   const closeConflictModal = () => setIsConflictModalOpen(false);
+   const unifiedRepoRef = React.useRef<UnifiedRepository | null>(null);
++  const unifiedRepoReadyRef = React.useRef<Promise<UnifiedRepository> | null>(null);
++
++  // Migration adapter: top-level legacy cloud writes now enter the same durable
++  // per-record outbox as the new sync service. Nested specialty documents remain
++  // legacy until their data model has been migrated and reconciled.
++  const setDoc: typeof firebaseDirectSetDoc = ((reference: any, raw: any, options?: any) => {
++    const path: string = String(reference?.path ?? '');
++    const parts = path.split('/');
++    const entities = new Set<string>([
++      'invoices', 'parties', 'inventory', 'vouchers', 'purchases',
++      'purchaseReturns', 'salesReturns', 'accounts', 'treasuries',
++      'treasuryTransactions', 'employees', 'employeeAdvances',
++      'employeeDeductions', 'employeeIncentives', 'payrollSheets',
++      'journalEntries', 'expenses', 'stockMovements', 'printOrders',
++      'debtClearings', 'companies', 'branches', 'warehouses',
++      'warehouseOperations', 'roles', 'users', 'dailyEntrySheets', 'settings'
++    ]);
++    const entity = parts[0] === 'journals' ? 'journalEntries' : parts[0];
++    if (parts.length !== 2 || !entities.has(entity)) {
++      // Do not silently drop unsupported nested documents.
++      return firebaseDirectSetDoc(reference, raw, options);
++    }
++    return (async () => {
++      const repo = unifiedRepoRef.current ?? await unifiedRepoReadyRef.current;
++      if (!repo) throw new Error('Durable local database is unavailable');
++      const id = parts[1];
++      const input = raw && typeof raw === 'object' ? { ...raw, id } : null;
++      if (!input) throw new Error('Invalid entity document');
++      let value = input;
++      if (options?.merge) {
++        const prior = (await repo.all(entity as EntityName)).find(row => row.id === id)?.value;
++        value = { ...(prior || {}), ...input, id };
++      }
++      await repo.put(entity as EntityName, id, value);
++      // Local durability ACK only; cloud approval is asynchronous and visible
++      // through SyncCoordinator, not this compatibility API.
++    })();
++  }) as typeof firebaseDirectSetDoc;
+ 
+   // Initialize unified offline-first data layer (LocalSyncDb + FirestoreSyncTransport + SyncCoordinator)
+   useEffect(() => {
+@@ -1256,7 +1291,9 @@
+     const initLayer = async () => {
+       try {
+         const workspaceId = 'lobnan_main';
+-        const layer = await createUnifiedDataLayer(workspaceId);
++        const layerPromise = createUnifiedDataLayer(workspaceId);
++        unifiedRepoReadyRef.current = layerPromise.then(layer => layer.repository);
++        const layer = await layerPromise;
+         if (unmounted) {
+           layer.stop();
+           return;
+@@ -1651,35 +1688,24 @@
+ 
+ 
+ 
+-  // Sync Integrity Check: Wipe local data if it's from an older reset epoch (Checks every 30 seconds to save quota)
++  // A remote epoch mismatch is informational only. Never delete local data or
++  // pending invoices/sales automatically; reconciliation requires a verified backup.
+   useEffect(() => {
+-    const verifySyncIntegrity = async () => {
++    const verify = async () => {
++      if (!navigator.onLine) return;
+       try {
+-        const res = await fetch('/api/sync/metadata', { cache: 'no-cache' });
++        const res = await fetch('/api/sync/metadata', { cache: 'no-store' });
++        if (!res.ok) return;
+         const { epoch } = await res.json();
+-        const localEpoch = localStorage.getItem('accounting_sync_epoch');
+-        
+-        console.log('Sync Check: Remote Epoch=', epoch, 'Local Epoch=', localEpoch);
+-        
+-        if (localEpoch !== String(epoch)) {
+-          console.log('Sync epoch mismatch! Remote:', epoch, 'Local:', localEpoch, '. Wiping local data...');
+-          Object.keys(localStorage).forEach(key => {
+-            if (key.startsWith(STORAGE_KEY) || key.includes('accounting_') || key.includes('pos_')) {
+-              localStorage.removeItem(key);
+-            }
+-          });
++        const local = localStorage.getItem('accounting_sync_epoch');
++        if (local && epoch != null && local !== String(epoch)) {
++          console.warn('Remote epoch changed. Local pending records have NOT been erased. Manual reconciliation is required.');
++        } else if (!local && epoch != null) {
+           localStorage.setItem('accounting_sync_epoch', String(epoch));
+-          window.location.reload();
+         }
+-      } catch (err) {
+-        console.warn('Sync integrity check failed', err);
+-      }
++      } catch { /* Offline/unsupported sync API: no destructive fallback. */ }
+     };
+-    
+-    // Check initially, then every 30 seconds
+-    verifySyncIntegrity();
+-    const interval = setInterval(verifySyncIntegrity, 30000);
+-    return () => clearInterval(interval);
++    void verify();
+   }, []);
+ 
+   // Real-time Firestore Collection Listeners
+@@ -1690,21 +1716,9 @@
+     // Single change feed subscription handles incoming live changes without re-reading whole collections.
+   }, [isLocalOnlyMode]);
+ 
+-  // Aggressive Master Database Hydration: Transition directly to the unified cloud database on app startup when online
+-  useEffect(() => {
+-    const aggressiveHydrate = async () => {
+-      if (isLocalOnlyMode || !navigator.onLine) return;
+-      try {
+-        console.log('Aggressive Master Sync Hydration...');
+-        // Force sync from server
+-        await executeServerFullSync();
+-        isCloudHydratedRef.current = true;
+-      } catch (err) {
+-        console.warn('Aggressive Master Sync hydration note:', err);
+-      }
+-    };
+-    aggressiveHydrate();
+-  }, []);
++  // Do not run legacy whole-database uploads while initializing React state.
++  // Local legacy state still hydrates below; the unified coordinator then
++  // receives authoritative incremental changes separately.
+ 
+   const [accounts, setAccounts] = useState<Account[]>([]);
+   useEffect(() => {
+@@ -2414,71 +2428,70 @@
+     } catch {}
+   }, []);
+ 
+-  // Send single operation delta to server (Fire-and-forget + sequence tracking)
+-  const pushDeltaToServer = (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]) => {
++  // All legacy mutations must persist into the durable IndexedDB outbox.
++  // The cloud ACK is handled exclusively by the coordinator: never log SYNCED here.
++  const pushDeltaToServer = async (
++    entity: string,
++    op: 'upsert' | 'delete' = 'upsert',
++    item?: any,
++    items?: any[]
++  ): Promise<string[]> => {
++    const raw = items ?? (Array.isArray(item) ? item : item != null ? [item] : []);
++    const seen = new Map<string, ProposedChange>();
++    for (const it of raw) {
++      if (!it || typeof it !== 'object' || Array.isArray(it)) {
++        throw new Error(`Invalid ${entity} record; each item needs a stable ID`);
++      }
++      const id = String(it.id ?? (entity === 'settings' ? 'global' : ''));
++      if (!id) throw new Error(`${entity}: record is missing an immutable ID`);
++      const deleted = op === 'delete' || it._deleted === true || Boolean(it.deletedAt);
++      seen.set(id, {
++        entity: entity as EntityName,
++        id,
++        value: deleted ? null : it
++      });
++    }
++    if (seen.size === 0) return [];
+     try {
+-      const listToSave: any[] = items || (item ? [item] : []);
+-      const effectiveOp = (op === 'delete' || listToSave.some(i => i && typeof i === 'object' && (i._deleted || i.deletedAt))) ? 'delete' : 'upsert';
+-
+-      // 1. Instant local BroadcastChannel notification for all open tabs in same browser + local DOM CustomEvent
+-      try {
+-        window.dispatchEvent(new CustomEvent('accounting_state_mutated', { detail: { entity, op: effectiveOp, item, items } }));
+-      } catch {}
+-
+-      if (syncChannelRef.current) {
+-        try {
+-          syncChannelRef.current.postMessage({
+-            type: 'SYNC_DELTA_EVENT',
+-            payload: { entity, op: effectiveOp, item, items, clientId: myClientIdRef.current }
+-          });
+-        } catch {}
+-      }
+-
+-      // Also force immediate state update in the current tab
+-      window.dispatchEvent(new CustomEvent('accounting_database_updated', { 
+-        detail: { entity, op: effectiveOp, item, items } 
+-      }));
+-
+-      // 2. Route atomically through UnifiedRepository (Offline-First Durable Outbox + Atomic Firestore Transport)
+-      if (listToSave.length > 0) {
+-        const proposedChanges: ProposedChange[] = listToSave.map(it => {
+-          const docId = String(it.id || it.code || crypto.randomUUID());
+-          return {
+-            entity: entity as EntityName,
+-            id: docId,
+-            value: (effectiveOp === 'delete' || it._deleted) ? null : it
+-          };
+-        });
+-
+-        if (unifiedRepoRef.current) {
+-          unifiedRepoRef.current.commit(proposedChanges).catch(err => {
+-            console.warn('UnifiedRepository commit warning:', err);
+-          });
+-        }
++      const repository = unifiedRepoRef.current ?? await unifiedRepoReadyRef.current;
++      if (!repository) throw new Error('IndexedDB sync layer has not initialized');
++      const changes = [...seen.values()];
++      // Do not split a single financial posting into separately accepted cloud transactions.
++      const financial = new Set(['invoices', 'purchases', 'vouchers',
++        'journalEntries', 'expenses', 'salesReturns', 'purchaseReturns',
++        'stockMovements', 'treasuryTransactions']);
++      if (changes.length > 80 && financial.has(entity)) {
++        throw new Error(`Financial operation contains ${changes.length} records; group it as one valid posting`);
++      }
++      const ids: string[] = [];
++      for (let offset = 0; offset < changes.length; offset += 80) {
++        ids.push(await repository.commit(changes.slice(offset, offset + 80)));
+       }
+-
+-      // 3. Log audit event
+-      const targetDocId = item?.id || items?.[0]?.id;
+-      if (targetDocId) syncAuditService.markDocumentAsSynced(targetDocId);
++      const documentId = changes.length === 1 ? changes[0].id : undefined;
+       syncAuditService.logEvent({
+-        direction: 'push',
+-        entity,
+-        op: effectiveOp,
+-        status: 'success',
+-        documentId: targetDocId,
+-        documentNumber: item?.invoiceNumber || item?.code || item?.voucherNumber || item?.itemNumber,
+-        details: effectiveOp === 'delete' ? 'تم تسجيل الحذف عبر النواة المحاسبية الآمنة 🔴' : 'تم الحفظ في طابور التزامن الآمن والنواة المحاسبية 🟢'
++        direction: 'push', entity, op, status: 'success',
++        documentId,
++        details: 'حُفظ محلياً في طابور IndexedDB؛ لم يُعتمد سحابياً بعد'
+       });
+-    } catch (e) {
+-      console.warn('pushDeltaToServer notice:', e);
++      return ids;
++    } catch (error) {
++      setHasUnsyncedChanges(true);
++      setSyncCoordinatorState(previous => ({ ...previous, lastError: String(error) }));
++      syncAuditService.logEvent({
++        direction: 'push', entity, op, status: 'error',
++        details: `فشل حفظ عملية المزامنة محلياً: ${String(error)}`
++      });
++      throw error;
+     }
+   };
+ 
+-  // Backward-compatible alias for existing entity calls
++  // Legacy void callers intentionally report errors; they do NOT mark records cloud-synced.
+   const pushToServerSync = (entity: string, item?: any, items?: any[]) => {
+-    const listToSave: any[] = items || (item ? [item] : []);
+-    const isDelete = listToSave.some(i => i && typeof i === 'object' && (i._deleted || i.deletedAt));
+-    pushDeltaToServer(entity, isDelete ? 'delete' : 'upsert', item, items);
++    const raw = items ?? (Array.isArray(item) ? item : item != null ? [item] : []);
++    // Each record decides whether it is a tombstone; never delete an entire batch
++    // merely because one item was marked deleted.
++    void pushDeltaToServer(entity, 'upsert', item, items)
++      .catch(error => console.error('Offline save failed:', entity, error));
+   };
+ 
+   // Apply single or batch deltas to React state & localStorage
+@@ -2588,6 +2601,85 @@
+     }
+   };
+ 
++  // Firestore ACK / pull is the only source of authoritative cross-device changes.
++  // Update the SAME React context consumed by all existing screens, without
++  // re-enqueuing a cloud write or generating a fresh invoice number.
++  useEffect(() => {
++    if (!unifiedRepository) return;
++    const handlers: Record<string, { set: React.Dispatch<React.SetStateAction<any[]>>; storage: string }> = {
++      invoices: { set: setInvoices, storage: 'invoices' },
++      parties: { set: setParties, storage: 'parties' },
++      inventory: { set: setInventory, storage: 'inventory' },
++      vouchers: { set: setVouchers, storage: 'vouchers' },
++      printOrders: { set: setPrintOrders, storage: 'printOrders' },
++      purchases: { set: setPurchases, storage: 'purchases' },
++      purchaseReturns: { set: setPurchaseReturns, storage: 'purchaseReturns' },
++      salesReturns: { set: setSalesReturns, storage: 'salesReturns' },
++      journalEntries: { set: setJournalEntries, storage: 'journals' },
++      expenses: { set: setExpenses, storage: 'expenses' },
++      accounts: { set: setAccounts, storage: 'accounts' },
++      treasuries: { set: setTreasuries, storage: 'treasuries' },
++      stockMovements: { set: setStockMovements, storage: 'stockMovements' },
++      employees: { set: setEmployees, storage: 'employees' },
++      employeeAdvances: { set: setEmployeeAdvances, storage: 'advances' },
++      employeeDeductions: { set: setEmployeeDeductions, storage: 'deductions' },
++      employeeIncentives: { set: setEmployeeIncentives, storage: 'incentives' },
++      payrollSheets: { set: setPayrollSheets, storage: 'payrollSheets' },
++      companies: { set: setCompanies, storage: 'companies' },
++      branches: { set: setBranches, storage: 'branches' },
++      warehouses: { set: setWarehouses, storage: 'warehouses' },
++      warehouseOperations: { set: setWarehouseOperations, storage: 'warehouse_operations' },
++      roles: { set: setRoles, storage: 'roles' },
++      users: { set: setUsers, storage: 'users' },
++      debtClearings: { set: setDebtClearings, storage: 'debt_clearings' }
++    };
++    // A local unsynced edit is shown on top of older server state until resolved.
++    const unsub = unifiedRepository.getCoordinator().onApplied(async changes => {
++      const byEntity = new Map<string, string[]>();
++      for (const change of changes) {
++        const ids = byEntity.get(change.entity) ?? [];
++        ids.push(change.id);
++        byEntity.set(change.entity, ids);
++      }
++      for (const [entity, ids] of byEntity) {
++        try {
++          if (entity === 'settings') {
++            const data = await unifiedRepository.all('settings');
++            const global = data.find(r => r.id === 'global');
++            if (global?.value) {
++              setSettings(prev => ({ ...prev, ...global.value }));
++              localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(global.value));
++            }
++            continue;
++          }
++          const handler = handlers[entity];
++          if (!handler) continue;
++          const visible = await unifiedRepository.all(entity as EntityName);
++          const byId = new Map(visible.map(r => [r.id, r.value]));
++          const idsToRefresh = new Set(ids);
++          handler.set((previous: any[]) => {
++            const merged = new Map((previous || []).filter(r => r && r.id).map(r => [String(r.id), r]));
++            for (const id of idsToRefresh) {
++              const value = byId.get(id);
++              if (value) merged.set(id, { ...value, id });
++              else merged.delete(id);
++            }
++            const next = [...merged.values()];
++            try { localStorage.setItem(`${STORAGE_KEY}_${handler.storage}`, JSON.stringify(next)); } catch (error) {
++              console.error(`Local UI cache failed for ${entity}`, error);
++            }
++            return next;
++          });
++          window.dispatchEvent(new CustomEvent('accounting_database_updated', { detail: { entity, source: 'cloud-confirmed' } }));
++        } catch (error) {
++          console.error('Cannot apply authoritative event to screen', entity, error);
++          setSyncCoordinatorState(old => ({ ...old, lastError: String(error) }));
++        }
++      }
++    });
++    return unsub;
++  }, [unifiedRepository]);
++
+   // Poll server for new deltas since lastSeenSeq
+   const pullDeltasFromServer = async () => {
+     if (isLocalOnlyMode || !navigator.onLine) return;
+@@ -2756,18 +2848,8 @@
+ 
+   const pullServerSyncState = pullDeltasFromServer;
+ 
+-      // Lightweight delta polling loop for instant cross-device sync
+-  // Ensures all devices reflect invoices and changes in real-time even if Firestore quota is paused
+-  useEffect(() => {
+-    pullDeltasFromServer();
+-    const interval = setInterval(() => {
+-      if (navigator.onLine) {
+-        console.log('Polling server for deltas...');
+-        pullDeltasFromServer();
+-      }
+-    }, 5000);
+-    return () => clearInterval(interval);
+-  }, []);
++      // Legacy HTTP 5-second polling is disabled: the one shared coordinator
++  // receives a lightweight signal and paginates the change feed.
+ 
+   // One-time startup purge: ensure cash customer parties ("زبون نقدي") never carry accidental special prices from past auto-save bugs
+   useEffect(() => {
+@@ -2809,49 +2891,8 @@
+     });
+   }, []);
+ 
+-  // Live Firebase Firestore Real-Time Delta Listener across all devices
+-  // SMART DELTA: Listens ONLY to newly created/updated transactions via Firestore delta stream
+-  // Zero full-database reads and zero periodic listener churn!
+-  useEffect(() => {
+-    if (isLocalOnlyMode) return;
+-
+-    let unsubDeltas = () => {};
+-    const storedLastSync = parseInt(localStorage.getItem('accounting_last_firestore_delta_time') || '0', 10);
+-    // If we have a recent stored sync timestamp (within last 48 hours), use it to catch up missed deltas;
+-    // Otherwise fallback to 10 minutes lookback to prevent burning queries on historical deltas.
+-    const lookbackFallback = Date.now() - (10 * 60 * 1000);
+-    const startTime = (storedLastSync > 0 && storedLastSync > Date.now() - (48 * 60 * 60 * 1000))
+-      ? storedLastSync
+-      : lookbackFallback;
+-
+-    try {
+-      unsubDeltas = subscribeToFirestoreLiveDeltas(startTime, (delta) => {
+-        if (!delta || !delta.entity) return;
+-        if (delta.timestamp) {
+-          localStorage.setItem('accounting_last_firestore_delta_time', String(delta.timestamp));
+-        }
+-        // Skip deltas emitted by this local client to prevent duplicate application
+-        if (delta.clientId && delta.clientId === myClientIdRef.current) return;
+-
+-        applyDeltaToState(delta.entity, delta.op || 'upsert', delta.item, delta.items);
+-        syncAuditService.logEvent({
+-          direction: 'pull',
+-          entity: delta.entity,
+-          op: delta.op || 'upsert',
+-          status: 'success',
+-          documentId: delta.item?.id || delta.items?.[0]?.id,
+-          documentNumber: delta.item?.invoiceNumber || delta.item?.code || delta.item?.voucherNumber,
+-          details: `تم استلام حركة جديدة فقط (${delta.entity}) من سحابة Firestore مباشرة ⚡ (جلب ذكي وخفيف)`
+-        });
+-      });
+-    } catch (e) {
+-      console.warn('Firestore live deltas listener init notice:', e);
+-    }
+-
+-    return () => {
+-      try { unsubDeltas(); } catch {}
+-    };
+-  }, [isLocalOnlyMode]);
++  // Legacy limited(100) delta listener retired. The coordinator has a
++  // persistent cursor and loops through ALL pages after a long offline period.
+ 
+   // Active deletion & permanent filtering of test sync items from Firestore cloud database
+   useEffect(() => {
+@@ -3037,11 +3078,14 @@
+         const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+         setLastFirebaseSyncTime(nowStr);
+         setLastSyncTime(nowStr);
+-        setHasUnsyncedChanges(false);
+-        setPendingSyncCount(0);
++        // Legacy bootstrap/backup success is not proof that the cloud outbox is empty.
++        void unifiedRepoRef.current?.getLocalDb().pending().then(queue => {
++          setHasUnsyncedChanges(queue.length > 0);
++          setPendingSyncCount(queue.length);
++        }).catch(console.error);
+         localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
+-        localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+-        localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
++        // Do not reset durable-outbox status from legacy backup paths.
++        // Pending count comes from IndexedDB, never a hardcoded legacy zero.
+         lastSyncErrorRef.current = null;
+         setIsFirebaseSyncing(false);
+         return true;
+@@ -3055,25 +3099,30 @@
+     }
+   };
+ 
+-  // Real Firebase Firestore Cloud Synchronization Engine (Strict Incremental Delta Mode Only)
+-  const syncToFirebase = async (force: boolean = false): Promise<boolean> => {
+-    if (!navigator.onLine || isFirestoreQuotaExceeded() || isLocalOnlyMode) return false;
+-
+-    // STRICT DELTA SYNC ENFORCEMENT:
+-    // Never re-upload all 25 collections! Individual operations already stream as single-item deltas via pushDeltaToServer.
+-    const nowStr = new Date().toLocaleTimeString('ar-EG', {
+-      hour: '2-digit',
+-      minute: '2-digit',
+-      second: '2-digit'
+-    });
+-    setLastSyncTime(nowStr);
+-    setLastFirebaseSyncTime(nowStr);
+-    setHasUnsyncedChanges(false);
+-    setPendingSyncCount(0);
+-    localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
+-    localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+-    localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+-    return true;
++  // A cloud sync is confirmed only when the coordinator has a real server ACK
++  // and the IndexedDB outbox has no blocked or pending commands.
++  const syncToFirebase = async (_force = false): Promise<boolean> => {
++    if (!navigator.onLine || isLocalOnlyMode) return false;
++    const repository = unifiedRepoRef.current ?? await unifiedRepoReadyRef.current;
++    if (!repository) return false;
++    const state = await repository.getCoordinator().syncNow();
++    const pending = await repository.getLocalDb().pending();
++    const success = state.isLeader && !state.running && pending.length === 0 && !state.lastError;
++    if (success) {
++      const now = new Date().toLocaleTimeString('ar-EG');
++      setLastSyncTime(now);
++      setLastFirebaseSyncTime(now);
++      // Legacy bootstrap/backup success is not proof that the cloud outbox is empty.
++      void unifiedRepoRef.current?.getLocalDb().pending().then(queue => {
++        setHasUnsyncedChanges(queue.length > 0);
++        setPendingSyncCount(queue.length);
++      }).catch(console.error);
++      localStorage.setItem(`${STORAGE_KEY}_last_sync`, now);
++    } else {
++      setHasUnsyncedChanges(pending.length > 0);
++      setPendingSyncCount(pending.length);
++    }
++    return success;
+   };
+   syncToFirebaseRef.current = syncToFirebase;
+ 
+@@ -3272,95 +3321,35 @@
+     return json;
+   };
+ 
+-  // Manual immediate sync trigger with user feedback
++  // User-facing manual sync: no Google Drive/server full-upload and no fake success.
+   const forceSyncNow = async (): Promise<{ success: boolean; message: string }> => {
++    if (!navigator.onLine) return {
++      success: false,
++      message: 'الجهاز غير متصل؛ الإدخالات المحفوظة محلياً تنتظر عودة الإنترنت.'
++    };
+     setIsFirebaseSyncing(true);
+-    if (navigator.onLine) {
+-      resetQuotaExceeded();
+-      setIsLocalOnlyMode(false);
+-      try {
+-        localStorage.setItem('accounting_is_local_only_mode', 'false');
+-      } catch {}
+-    }
+     try {
+-      console.log('🚀 Executing Forced Master Sync with Central Server & Google Drive...');
+-
+-      // 1. Central Server Sync Hub (First & Instant Real-Time authorizer)
+-      let serverJson: any = null;
+-      try {
+-        serverJson = await executeServerFullSync();
+-      } catch (sErr: any) {
+-        console.warn('Server sync notice during forceSyncNow:', sErr);
+-      }
+-
+-      // 2. Google Drive Cloud Sync
+-      let driveOk = false;
+-      try {
+-        driveOk = await syncToGoogleDrive(false);
+-      } catch (dErr) {
+-        console.warn('Drive sync error during forceSyncNow:', dErr);
+-      }
+-
+-      // 3. Free Firebase Firestore Real-Time Cloud Sync (Incremental Delta Mode Only)
+-      const firestoreOk = true;
+-      syncAuditService.logEvent({
+-        direction: 'push',
+-        entity: 'all_tables',
+-        op: 'sync',
+-        status: 'success',
+-        details: 'مزامنة ذكية خفيفة: تم التراسل وتأكيد الإدخالات والتعديلات الجديدة فقط دون أي إعادات رفع كاملة لبيانات السحابة ⚡'
+-      });
+-
+-      const nowStr = new Date().toLocaleTimeString('ar-EG', {
+-        hour: '2-digit',
+-        minute: '2-digit',
+-        second: '2-digit'
+-      });
+-
+-      setLastSyncTime(nowStr);
+-      setLastFirebaseSyncTime(nowStr);
+-      setHasUnsyncedChanges(false);
+-      setPendingSyncCount(0);
+-      localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
+-      localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+-      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
+-      lastSyncErrorRef.current = null;
+-
+-      if (syncChannelRef.current) {
+-        try {
+-          syncChannelRef.current.postMessage({
+-            type: 'SYNC_ENTITY_UPDATE',
+-            payload: { entity: 'all_synced', time: nowStr }
+-          });
+-        } catch {}
+-      }
+-
+-      const invCount = serverJson?.counts?.invoices ?? invoices.length;
+-      const partCount = serverJson?.counts?.parties ?? parties.length;
+-      const itemCount = serverJson?.counts?.inventory ?? inventory.length;
+-
+-      const driveStatusText = firestoreOk || driveOk
+-        ? 'تمت المزامنة وحفظ قاعدة البيانات سحابياً في Firebase Firestore وسيرفر المحل بنجاح! ⚡'
+-        : 'تمت المزامنة الفورية مع السيرفر المركزي والذاكرة المحلية بنجاح!';
+-
+-      return {
+-        success: true,
+-        message: `${driveStatusText} (${nowStr}) - البيانات الحالية: ${invCount} فاتورة، ${partCount} عميل، ${itemCount} صنف.`
++      const repo = unifiedRepoRef.current ?? await unifiedRepoReadyRef.current;
++      if (!repo) throw new Error('قاعدة البيانات المحلية غير جاهزة');
++      const state = await repo.getCoordinator().syncNow();
++      const queue = await repo.getLocalDb().pending();
++      setPendingSyncCount(queue.length);
++      setHasUnsyncedChanges(queue.length > 0);
++      if (!state.isLeader) return {
++        success: false,
++        message: 'المزامنة تعمل في نافذة أخرى؛ تحقق من اكتمالها قبل الاعتماد.'
+       };
+-    } catch (err: any) {
+-      console.error('Sync execution note:', err);
+-      const nowStr = new Date().toLocaleTimeString('ar-EG', {
+-        hour: '2-digit',
+-        minute: '2-digit',
+-        second: '2-digit'
+-      });
+-      setLastSyncTime(nowStr);
+-      setHasUnsyncedChanges(false);
+-      setPendingSyncCount(0);
+-      return {
+-        success: true,
+-        message: `تمت المزامنة وتحديث الشاشة بنجاح (${nowStr}).`
++      if (state.running || queue.length || state.lastError) return {
++        success: false,
++        message: `المزامنة غير مكتملة: ${queue.length} عملية معلقة. ${state.lastError || 'ستتم المحاولة مجدداً عند توفر الاتصال.'}`
+       };
++      const now = new Date().toLocaleTimeString('ar-EG');
++      setLastSyncTime(now);
++      setLastFirebaseSyncTime(now);
++      localStorage.setItem(`${STORAGE_KEY}_last_sync`, now);
++      return { success: true, message: `تأكد اكتمال المزامنة دون عمليات معلقة (${now}).` };
++    } catch (error) {
++      return { success: false, message: `فشلت المزامنة: ${String(error)}` };
+     } finally {
+       setIsFirebaseSyncing(false);
+     }
+@@ -3696,17 +3685,23 @@
+             const timeStr = new Date().toLocaleTimeString('en-US');
+             setLastFirebaseSyncTime(timeStr);
+             setLastSyncTime(timeStr);
+-            setHasUnsyncedChanges(false);
+-            setPendingSyncCount(0);
++            // Legacy bootstrap/backup success is not proof that the cloud outbox is empty.
++            void unifiedRepoRef.current?.getLocalDb().pending().then(queue => {
++              setHasUnsyncedChanges(queue.length > 0);
++              setPendingSyncCount(queue.length);
++            }).catch(console.error);
+             localStorage.setItem(`${STORAGE_KEY}_last_sync`, timeStr);
+-            localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+-            localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
++            // Do not reset durable-outbox status from legacy backup paths.
++            // Pending count comes from IndexedDB, never a hardcoded legacy zero.
+         } else if (isMounted && !hasCloudData) {
+           await pullServerSyncState();
+           const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+           setLastSyncTime(nowStr);
+-          setHasUnsyncedChanges(false);
+-          setPendingSyncCount(0);
++          // Legacy bootstrap/backup success is not proof that the cloud outbox is empty.
++          void unifiedRepoRef.current?.getLocalDb().pending().then(queue => {
++            setHasUnsyncedChanges(queue.length > 0);
++            setPendingSyncCount(queue.length);
++          }).catch(console.error);
+           localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
+         }
+       } catch (err) {
+@@ -3714,8 +3709,11 @@
+         await pullServerSyncState();
+         const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+         setLastSyncTime(nowStr);
+-        setHasUnsyncedChanges(false);
+-        setPendingSyncCount(0);
++        // Legacy bootstrap/backup success is not proof that the cloud outbox is empty.
++        void unifiedRepoRef.current?.getLocalDb().pending().then(queue => {
++          setHasUnsyncedChanges(queue.length > 0);
++          setPendingSyncCount(queue.length);
++        }).catch(console.error);
+       } finally {
+         if (isMounted) {
+           isCloudHydratedRef.current = true;
+@@ -3732,7 +3730,8 @@
+     if (isLocalOnlyMode) return;
+     resetQuotaExceeded();
+     fetchCloudData(true);
+-    executeServerFullSync().catch(() => {});
++    // Never upload the full legacy database on every application startup.
++    // Historic cloud records are read for compatibility until migration. 
+ 
+     const unsubs: (() => void)[] = [];
+ 
+@@ -6382,32 +6381,37 @@
+   };
+ 
+   const addJournalEntry = (entry: Omit<JournalEntry, 'id' | 'entryNumber' | 'createdAt'>): JournalEntry => {
+-    // Validate double-entry balance (Debit === Credit)
+-    const totalDebit = Number(entry.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0).toFixed(2));
+-    const totalCredit = Number(entry.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0).toFixed(2));
+-    const diff = Number((totalDebit - totalCredit).toFixed(2));
+-    
+-    let validLines = [...entry.lines];
+-    if (Math.abs(diff) > 0.05) {
+-      console.warn(`[Journal Integrity Notice] Journal entry difference of ${diff} (Debit: ${totalDebit}, Credit: ${totalCredit}). Auto-balancing against line item to guarantee transaction commit.`);
+-      if (validLines.length > 0) {
+-        const lastLine = { ...validLines[validLines.length - 1] };
+-        if (diff > 0) {
+-          lastLine.credit = Number((lastLine.credit + diff).toFixed(2));
+-        } else {
+-          lastLine.debit = Number((lastLine.debit + Math.abs(diff)).toFixed(2));
+-        }
+-        validLines[validLines.length - 1] = lastLine;
+-      }
+-    } else if (Math.abs(diff) > 0 && validLines.length > 0) {
+-      // Micro-rounding adjustment on last line for floating point precision
+-      const lastLine = { ...validLines[validLines.length - 1] };
+-      if (diff > 0) {
+-        lastLine.credit = Number((lastLine.credit + diff).toFixed(2));
+-      } else {
+-        lastLine.debit = Number((lastLine.debit + Math.abs(diff)).toFixed(2));
+-      }
+-      validLines[validLines.length - 1] = lastLine;
++    // NEVER hide posting errors by adjusting the last journal line.
++    if (!Array.isArray(entry.lines) || entry.lines.length < 2) {
++      throw new Error('القيد المحاسبي يجب أن يحتوي على طرفين على الأقل');
++    }
++    const validLines = entry.lines.map(line => ({ ...line }));
++    let debitMinor = 0;
++    let creditMinor = 0;
++    const toMinor = (amount: unknown): number => {
++      const n = Number(amount);
++      if (amount === null || amount === '' || !Number.isFinite(n) || n < 0) {
++        throw new Error('القيد يحتوي على مبلغ غير صالح');
++      }
++      const minor = Math.round(n * 100);
++      if (!Number.isSafeInteger(minor) || Math.abs(minor / 100 - n) > 0.000001) {
++        throw new Error('مبلغ القيد يتطلب دقة أعلى من جزء من مئة');
++      }
++      return minor;
++    };
++    for (const line of validLines) {
++      if (!line.accountCode) throw new Error('يوجد سطر قيد دون حساب');
++      const debit = toMinor(line.debit);
++      const credit = toMinor(line.credit);
++      if ((debit > 0 && credit > 0) || (debit === 0 && credit === 0)) {
++        throw new Error('كل سطر في القيد يجب أن يحمل مبلغاً مديناً أو دائناً فقط');
++      }
++      debitMinor += debit;
++      creditMinor += credit;
++    }
++    if (!Number.isSafeInteger(debitMinor) || !Number.isSafeInteger(creditMinor) ||
++        debitMinor === 0 || debitMinor !== creditMinor) {
++      throw new Error(`قيد غير متوازن: مدين ${debitMinor / 100} ودائن ${creditMinor / 100}`);
+     }
+ 
+     const uniqueSuffix = Math.random().toString(36).substring(2, 8) + '-' + Math.floor(Math.random() * 1000);
+@@ -6431,11 +6435,8 @@
+       return next;
+     });
+ 
+-    // Direct cloud save (unified on journalEntries collection and legacy fallback journals)
+-    setDoc(doc(db, 'journalEntries', newEntry.id), cleanDocForFirestore(newEntry)).catch(err => {
+-      console.warn('Direct cloud save journal notice:', err);
+-    });
+-    setDoc(doc(db, 'journals', newEntry.id), cleanDocForFirestore(newEntry)).catch(() => {});
++    // Cloud write is handled by the outbox through pushToServerSync above.
++    // Do not independently write the same entry into journalEntries and journals.
+ 
+     // Telegram Notification - Do not send daily journal proofs for invoice/POS transactions
+     try {
+@@ -8270,7 +8271,6 @@
+           ? prev.map(inv => inv.id === extraOptions.editingInvoiceId ? newInvoice : inv)
+           : [newInvoice, ...prev];
+         broadcastEntityChange('invoices', next);
+-        pushToServerSync('invoices', newInvoice);
+         return next;
+       });
+     } else {
+@@ -8278,7 +8278,6 @@
+       setInvoices(prev => {
+         const next = [newInvoice, ...prev];
+         broadcastEntityChange('invoices', next);
+-        pushToServerSync('invoices', newInvoice);
+         return next;
+       });
+     }
+@@ -8449,17 +8448,20 @@
+       extraOptions
+     );
+ 
+-    // 2. Asynchronous Non-Blocking Background Cloud Push: Sync to Firestore without keeping cashier waiting
+-    if (!isLocalOnlyMode && onlineInvoicePostingService.checkIsOnline()) {
+-      onlineInvoicePostingService.postInvoiceDirectlyOnline(localInvoice, invoices).catch(cloudErr => {
+-        console.warn('Background cloud posting notice:', cloudErr);
+-      });
++    // The invoice uses one durable offline outbox. Do not call the old
++    // online-only service, which writes duplicate invoices and rewrites numbers.
++    // A successful sale here means local entry; not yet a server-approved number.
++
++    // Do not tell the cashier the operation is saved until IndexedDB commits.
++    try {
++      const repo = unifiedRepoRef.current ?? await unifiedRepoReadyRef.current;
++      if (!repo) throw new Error('قاعدة الحفظ المحلي غير جاهزة');
++      await repo.put('invoices', localInvoice.id, localInvoice as unknown as Record<string, any>);
++      return { success: true, invoice: localInvoice, isOffline: !navigator.onLine };
++    } catch (error) {
++      return { success: false, invoice: localInvoice,
++        error: `لم يتم تأكيد حفظ الفاتورة في قاعدة البيانات المحلية: ${String(error)}` };
+     }
+-
+-    return {
+-      success: true,
+-      invoice: localInvoice
+-    };
+   };
+ 
+   const addPosInvoice = (invoiceData: any): Invoice => {
+@@ -11776,12 +11778,15 @@
+ 
+           const newHashes: Record<string, string> = {};
+           safeSetSyncedHashes(newHashes);
+-          localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
++          // Do not reset durable-outbox status from legacy backup paths.
+           const timeStr = new Date().toLocaleTimeString('en-US');
+           setLastFirebaseSyncTime(timeStr);
+           setLastSyncTime(timeStr);
+-          setHasUnsyncedChanges(false);
+-          setPendingSyncCount(0);
++          // Legacy bootstrap/backup success is not proof that the cloud outbox is empty.
++          void unifiedRepoRef.current?.getLocalDb().pending().then(queue => {
++            setHasUnsyncedChanges(queue.length > 0);
++            setPendingSyncCount(queue.length);
++          }).catch(console.error);
+           localStorage.setItem(`${STORAGE_KEY}_last_sync`, timeStr);
+         } catch (cloudErr) {
+           console.warn('Direct cloud push after import caught notice, marking for sync:', cloudErr);
+@@ -11914,11 +11919,14 @@
+       const timeStr = new Date().toLocaleTimeString('ar-EG');
+       setLastFirebaseSyncTime(timeStr);
+       setLastSyncTime(timeStr);
+-      setHasUnsyncedChanges(false);
+-      setPendingSyncCount(0);
++      // Legacy bootstrap/backup success is not proof that the cloud outbox is empty.
++      void unifiedRepoRef.current?.getLocalDb().pending().then(queue => {
++        setHasUnsyncedChanges(queue.length > 0);
++        setPendingSyncCount(queue.length);
++      }).catch(console.error);
+       safeSetSyncedHashes({});
+-      localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
+-      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
++      // Do not reset durable-outbox status from legacy backup paths.
++      // Pending count comes from IndexedDB, never a hardcoded legacy zero.
+       localStorage.setItem(`${STORAGE_KEY}_last_sync`, timeStr);
+ 
+       if (syncChannelRef.current) {
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/src/firebase.ts /mnt/data/lobnan_work/lobnanprintacc-main/src/firebase.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/src/firebase.ts	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/src/firebase.ts	2026-11-06 14:48:05.098617034 +0000
+@@ -47,14 +47,28 @@
+ 
+ let firestoreInstance;
+ try {
++  // Firestore persistence was previously only logged, not actually enabled.
++  // Multi-tab persistent cache is independent of our durable business outbox.
++  firestoreInstance = initializeFirestore(app, {
++    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
++  }, dbId);
++} catch (error) {
++  console.warn('Persistent Firestore cache unavailable; business outbox remains separate', error);
+   firestoreInstance = getFirestore(app, dbId);
+-} catch {
+-  firestoreInstance = initializeFirestore(app, {}, dbId);
+ }
+-
+ export const db = firestoreInstance;
+ 
+-console.log("Firestore initialized with persistent local cache & database ID:", dbId || '(default)');
++// Installed only after a durable workspace repository is initialized.
++// Returns true if the write has been persisted to the outbox; false to use the
++// legacy Firebase call for unsupported special-purpose collections.
++type DurableWriter = (
++  operation: 'set' | 'delete', reference: any, payload?: any, options?: any
++) => Promise<boolean>;
++let durableWriter: DurableWriter | null = null;
++export function registerDurableWriter(writer: DurableWriter): () => void {
++  durableWriter = writer;
++  return () => { if (durableWriter === writer) durableWriter = null; };
++}
+ 
+ import { firebaseQuotaTracker } from './services/firebaseQuotaTracker';
+ 
+@@ -88,11 +102,25 @@
+ }) as typeof getDocs;
+ 
+ const trackedSetDoc = ((...args: any[]) => {
++  if (durableWriter) {
++    return durableWriter('set', args[0], args[1], args[2]).then(handled => {
++      if (handled) return;
++      firebaseQuotaTracker.trackWrite(1);
++      return (setDoc as any)(...args);
++    });
++  }
+   firebaseQuotaTracker.trackWrite(1);
+   return (setDoc as any)(...args);
+ }) as typeof setDoc;
+ 
+ const trackedDeleteDoc = ((...args: any[]) => {
++  if (durableWriter) {
++    return durableWriter('delete', args[0]).then(handled => {
++      if (handled) return;
++      firebaseQuotaTracker.trackDelete(1);
++      return (deleteDoc as any)(...args);
++    });
++  }
+   firebaseQuotaTracker.trackDelete(1);
+   return (deleteDoc as any)(...args);
+ }) as typeof deleteDoc;
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/boot.ts /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/boot.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/boot.ts	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/boot.ts	2026-11-06 14:48:05.098887612 +0000
+@@ -1,4 +1,5 @@
+-import { db } from '../firebase';
++import { db, registerDurableWriter } from '../firebase';
++import type { EntityName } from './types';
+ 
+ import {
+   FirestoreSyncTransport
+@@ -29,12 +30,44 @@
+     coordinator
+   );
+ 
++  // Funnel ordinary top-level SDK writes from older screens/services through
++  // the SAME IndexedDB repository instead of creating duplicate cloud writers.
++  const supported = new Set<string>([
++    'invoices','parties','inventory','vouchers','purchases','purchaseReturns',
++    'salesReturns','accounts','treasuries','treasuryTransactions','employees',
++    'employeeAdvances','employeeDeductions','employeeIncentives','payrollSheets',
++    'journalEntries','expenses','stockMovements','printOrders','debtClearings',
++    'companies','branches','warehouses','warehouseOperations','roles','users',
++    'dailyEntrySheets','settings'
++  ]);
++  const unregister = registerDurableWriter(async (operation, ref, payload, options) => {
++    const segments = String(ref?.path || '').split('/');
++    if (segments.length !== 2) return false;
++    const entity = segments[0] === 'journals' ? 'journalEntries' : segments[0];
++    if (!supported.has(entity)) return false;
++    const id = segments[1];
++    if (!id) throw new Error('Cannot synchronize a document without a stable ID');
++    if (operation === 'delete') {
++      await repository.tombstone(entity as EntityName, id);
++    } else {
++      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
++        throw new Error('Invalid record payload');
++      }
++      const existing = options?.merge
++        ? (await repository.all(entity as EntityName)).find(r => r.id === id)?.value
++        : null;
++      await repository.put(entity as EntityName, id, {
++        ...(existing || {}), ...payload, id
++      });
++    }
++    return true;
++  });
+   await coordinator.start();
+ 
+   return {
+     repository,
+     coordinator,
+     local,
+-    stop: () => coordinator.stop()
++    stop: () => { unregister(); coordinator.stop(); }
+   };
+ }
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/coordinator.ts /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/coordinator.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/coordinator.ts	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/coordinator.ts	2026-11-06 14:51:52.019314230 +0000
+@@ -2,7 +2,7 @@
+ 
+ import {
+   sleep, PermanentSyncError,
+-  ServerCursor, SyncCommand,
++  AppliedChange, ServerCursor, SyncCommand,
+   VersionConflict
+ } from './types';
+ 
+@@ -46,6 +46,7 @@
+ 
+   private listeners =
+     new Set<(state: SyncState) => void>();
++  private appliedListeners = new Set<(changes: AppliedChange[]) => void>();
+ 
+   private state: SyncState = {
+     running: false,
+@@ -60,6 +61,13 @@
+     typeof navigator === 'undefined' ||
+     navigator.onLine !== false;
+ 
++  private cloudAllowed = () => {
++    try {
++      return typeof localStorage === 'undefined' ||
++        localStorage.getItem('accounting_is_local_only_mode') !== 'true';
++    } catch { return true; }
++  };
++
+   private onlineHandler = () => this.requestSync();
+ 
+   private visibilityHandler = () => {
+@@ -96,6 +104,19 @@
+     return () => this.listeners.delete(fn);
+   }
+ 
++  onApplied(listener: (changes: AppliedChange[]) => void): () => void {
++    this.appliedListeners.add(listener);
++    return () => this.appliedListeners.delete(listener);
++  }
++
++  private emitApplied(changes: AppliedChange[]) {
++    for (const callback of this.appliedListeners) {
++      try { callback(changes); } catch (error) {
++        console.error('Unable to refresh synced UI records', error);
++      }
++    }
++  }
++
+   private report(partial: Partial<SyncState>) {
+     this.state = { ...this.state, ...partial };
+ 
+@@ -204,7 +225,7 @@
+   }
+ 
+   requestSync() {
+-    if (!this.started) return;
++    if (!this.started || !this.cloudAllowed()) return;
+ 
+     if (!this.state.isLeader) {
+       // Non-leader tab requests the active leader tab to drain outbox
+@@ -229,7 +250,7 @@
+   }
+ 
+   private async drain() {
+-    if (this.busy || !this.online()) return;
++    if (this.busy || !this.online() || !this.cloudAllowed()) return;
+ 
+     this.busy = true;
+     this.report({ running: true });
+@@ -238,7 +259,7 @@
+       while (
+         this.requested &&
+         this.started &&
+-        this.online()
++        this.online() && this.cloudAllowed()
+       ) {
+         this.requested = false;
+ 
+@@ -248,7 +269,7 @@
+ 
+       await this.refreshCounts();
+ 
+-      if (this.state.pending === 0) {
++      if (this.state.pending === 0 && this.state.conflict === 0) {
+         this.report({
+           lastSuccessAt: Date.now(),
+           lastError: null
+@@ -282,18 +303,22 @@
+   private async pushPending() {
+     const commands = await this.local.pending();
+ 
++    const blocked = new Set<string>();
+     for (const cmd of commands) {
+       if (!this.started || !this.online()) return;
+-
+-      // Never skip a blocked command silently.
++      const keys = cmd.changes.map(c => `${c.entity}\u001f${c.id}`);
+       if (cmd.status !== 'pending') {
+-        this.report({
+-          lastError: `Blocked by ${cmd.status}: ${cmd.id}`
+-        });
+-        return;
++        if (cmd.error?.startsWith('Superseded by')) continue;
++        keys.forEach(k => blocked.add(k));
++        this.report({ lastError: `Review required: ${cmd.status}: ${cmd.id}` });
++        continue;
++      }
++      // Do not bypass a rejected/conflicting earlier update of the same record.
++      if (keys.some(k => blocked.has(k))) continue;
++      if (cmd.retryAt > Date.now()) {
++        keys.forEach(k => blocked.add(k));
++        continue;
+       }
+-
+-      if (cmd.retryAt > Date.now()) return;
+ 
+       try {
+         const receipt = await this.remote.push(cmd);
+@@ -303,6 +328,7 @@
+           receipt.commandId,
+           receipt.changes
+         );
++        this.emitApplied(receipt.changes);
+       } catch (error) {
+         if (error instanceof VersionConflict) {
+           await this.local.markError(
+@@ -311,10 +337,9 @@
+             error.message
+           );
+ 
+-          this.report({
+-            lastError: error.message
+-          });
+-          return;
++          this.report({ lastError: error.message });
++          keys.forEach(k => blocked.add(k));
++          continue;
+         }
+ 
+         if (
+@@ -327,10 +352,9 @@
+             String(error)
+           );
+ 
+-          this.report({
+-            lastError: String(error)
+-          });
+-          return;
++          this.report({ lastError: String(error) });
++          keys.forEach(k => blocked.add(k));
++          continue;
+         }
+ 
+         const delay = Math.min(
+@@ -350,10 +374,8 @@
+             Math.floor(Math.random() * 500)
+         );
+ 
+-        this.report({
+-          lastError: String(error)
+-        });
+-
++        this.report({ lastError: String(error) });
++        // Transient network failure: do not flood the server with other writes.
+         return;
+       }
+     }
+@@ -373,6 +395,7 @@
+       for (const event of page) {
+         // Local data and cursor advance atomically.
+         await this.local.applyEvent(event);
++        this.emitApplied(event.changes);
+         cursor = event.cursor;
+       }
+ 
+@@ -380,6 +403,24 @@
+     }
+   }
+ 
++  async syncNow(timeoutMs = 30000): Promise<SyncState> {
++    if (!this.started) throw new Error('Synchronizer is not running');
++    this.requestSync();
++    const start = Date.now();
++    // Wait for the actual worker, not a fake UI timer.
++    await sleep(0);
++    while (this.busy || this.requested || !this.state.isLeader) {
++      if (!this.started || Date.now() - start > timeoutMs) break;
++      if (!this.state.isLeader) {
++        // A second tab cannot claim an ACK from the leader for itself.
++        break;
++      }
++      await sleep(35);
++    }
++    await this.refreshCounts();
++    return { ...this.state };
++  }
++
+   async waitUntilIdle(
+     timeoutMs = 10000
+   ): Promise<void> {
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/costModel.ts /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/costModel.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/costModel.ts	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/costModel.ts	2026-11-06 14:53:19.978594007 +0000
+@@ -24,8 +24,8 @@
+   }
+ 
+   return {
+-    minWrites: entityWrites + 1,
+-    minTransactionReads: entityWrites + 1,
++    minWrites: entityWrites + 2, // event receipt + sequential feed counter
++    minTransactionReads: entityWrites + 2, // idempotency receipt + feed counter
+     perReceivingDeviceEventReads: receivingDevices
+   };
+ }
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/firestoreTransport.ts /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/firestoreTransport.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/firestoreTransport.ts	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/firestoreTransport.ts	2026-11-06 14:49:23.560709817 +0000
+@@ -21,6 +21,7 @@
+   private recId(entity: string,id: string): string { return encodeURIComponent(recordKey(entity as any, id)); }
+ 
+   private counters() { return collection(this.db, 'lobnan_sync_workspaces', this.workspaceId, 'counters'); }
++  private sequenceRef() { return doc(this.db, 'lobnan_sync_workspaces', this.workspaceId, 'meta', 'sequence'); }
+ 
+   async push(command: SyncCommand): Promise<CommitReceipt> {
+     if (command.workspaceId !== this.workspaceId) throw new Error('Wrong workspace');
+@@ -65,6 +66,14 @@
+ 
+       // Read all records being modified
+       const existing = await Promise.all(recRefs.map(ref=>tx.get(ref)));
++      // Global transactional commit counter avoids timestamp-pagination gaps.
++      // This extra document write is intentional for accounting correctness.
++      const sequenceRef = this.sequenceRef();
++      const sequenceSnap = await tx.get(sequenceRef);
++      const nextSequence = Number(sequenceSnap.exists() ? sequenceSnap.data()?.value ?? 0 : 0) + 1;
++      if (!Number.isSafeInteger(nextSequence) || nextSequence < 1) {
++        throw new Error('Invalid authoritative event sequence');
++      }
+ 
+       // Read all needed counter documents
+       const counterKeys = Array.from(neededCounters);
+@@ -151,6 +160,7 @@
+       }
+ 
+       // 3. Perform Writes (Counters, Records, Event)
++      tx.set(sequenceRef, { value: nextSequence, updatedAt: serverTimestamp() });
+       for (const [key, seq] of updatedCounters.entries()) {
+         tx.set(doc(this.counters(), key), { seq, updatedAt: serverTimestamp() }, { merge: true });
+       }
+@@ -168,25 +178,36 @@
+       }
+ 
+       // Immutable event also serves as idempotency receipt; replay of same command consumes no writes.
+-      tx.set(eventRef, { commandId: command.id, fingerprint, changes: applied, committedAt: serverTimestamp() });
++      tx.set(eventRef, { commandId: command.id, fingerprint, changes: applied,
++        sequence: nextSequence, committedAt: serverTimestamp() });
+       return { commandId: command.id, changes: applied };
+     }, { maxAttempts: 5 });
+   }
+ 
+   async pull(cursor: ServerCursor|null, pageSize=100): Promise<ServerEvent[]> {
+-    const base = [orderBy('committedAt','asc'),orderBy(documentId(),'asc')];
+-    const clauses = cursor
+-      ? [...base,startAfter(new Timestamp(cursor.seconds,cursor.nanoseconds),cursor.eventId),limit(pageSize)]
+-      : [...base,limit(pageSize)];
++    const bounded = Math.min(100, Math.max(1, Math.trunc(pageSize)));
++    // Once the first sequenced event is applied, queries become gap-free.
++    // For existing databases a legacy migration/backfill is still required.
++    const hasSequence = cursor?.sequence != null;
++    const clauses = hasSequence
++      ? [orderBy('sequence', 'asc'), startAfter(cursor!.sequence), limit(bounded)]
++      : cursor
++        ? [orderBy('committedAt','asc'), orderBy(documentId(),'asc'),
++            startAfter(new Timestamp(cursor.seconds,cursor.nanoseconds),cursor.eventId), limit(bounded)]
++        : [orderBy('committedAt','asc'), orderBy(documentId(),'asc'),limit(bounded)];
+     const snapshot = await getDocsFromServer(query(this.events(),...clauses));
+-    return snapshot.docs.map(s=>{
++    return snapshot.docs.map(s => {
+       const data = s.data();
+-      const committedAt = data.committedAt as Timestamp | undefined;
+-      if (!committedAt || typeof committedAt.seconds !== 'number') throw new Error('Unresolved server timestamp');
++      const at = data.committedAt as Timestamp | undefined;
++      if (!at || typeof at.seconds !== 'number') throw new Error('Invalid server event timestamp');
++      const sequence = Number(data.sequence);
+       return {
+-        commandId:String(data.commandId),
+-        changes:data.changes as AppliedChange[],
+-        cursor:{seconds:committedAt.seconds,nanoseconds:committedAt.nanoseconds,eventId:s.id}
++        commandId: String(data.commandId),
++        changes: data.changes as AppliedChange[],
++        cursor: {
++          seconds: at.seconds, nanoseconds: at.nanoseconds, eventId: s.id,
++          ...(Number.isSafeInteger(sequence) && sequence > 0 ? { sequence } : {})
++        }
+       };
+     });
+   }
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/localDb.ts /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/localDb.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/localDb.ts	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/localDb.ts	2026-11-06 14:49:23.560786102 +0000
+@@ -1,6 +1,6 @@
+ import {
+   AppliedChange, EntityName, LocalView,
+-  ProposedChange, recordKey, ServerCursor,
++  ProposedChange, VersionedChange, recordKey, ServerCursor,
+   ServerEvent, StoredRecord, SyncCommand,
+   toJsonObject, validateChanges
+ } from './types';
+@@ -164,58 +164,49 @@
+         };
+       }
+ 
+-      const records = await request(
+-        tx.objectStore(RECORDS).getAll()
+-      ) as StoredRecord[];
+-
++      // IndexedDB point lookups: do not read the entire accounting database for every save.
+       const outbox = await request(
+         tx.objectStore(OUTBOX).getAll()
+       ) as SyncCommand[];
+ 
+-      const earlier = outbox.find(c => c.id === commandId);
+-
++      const queued = [...outbox].sort(
++        (a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)
++      );
++      const earlier = queued.find(c => c.id === commandId);
+       if (earlier) {
+-        const prior = earlier.changes.map(
+-          ({ expectedVersion, ...rest }) => rest
+-        );
+-
+-        if (
+-          JSON.stringify(prior) !==
+-          JSON.stringify(safeChanges)
+-        ) {
++        const prior = earlier.changes.map(({ expectedVersion, ...rest }) => rest);
++        if (JSON.stringify(prior) !== JSON.stringify(safeChanges)) {
+           throw new Error('Command payload mismatch');
+         }
+-
+         await done;
+         return earlier;
+       }
+ 
+-      const recordMap = new Map(
+-        records.map(r => [r.key, r])
+-      );
+-
+-      const queued = [...outbox].sort(
+-        (a, b) =>
+-          a.createdAt - b.createdAt ||
+-          a.id.localeCompare(b.id)
+-      );
+-
+-      const versioned = safeChanges.map(c => {
++      const versions = new Map<string, number>();
++      for (const c of safeChanges) {
+         const key = recordKey(c.entity, c.id);
+-
+-        const earlierCount = queued.filter(op =>
+-          op.changes.some(
+-            x => recordKey(x.entity, x.id) === key
+-          )
+-        ).length;
+-
+-        return {
+-          ...c,
+-          expectedVersion:
+-            (recordMap.get(key)?.version ?? 0) +
+-            earlierCount
+-        };
+-      });
++        const row = await request(tx.objectStore(RECORDS).get(key)) as StoredRecord | undefined;
++        const matching = queued.filter(
++          op => op.changes.some(change => recordKey(change.entity, change.id) === key)
++        );
++        if (matching.some(op => op.status === 'conflict' ||
++            (op.status === 'rejected' && !op.error?.startsWith('Superseded by')))) {
++          throw new Error(`Resolve previous rejected/conflicting update before editing ${key}`);
++        }
++        const pendingForRecord = matching.filter(op => op.status === 'pending');
++        // Repeated identical updates while still pending should not generate extra cloud writes.
++        const mostRecent = pendingForRecord[pendingForRecord.length - 1];
++        if (mostRecent && safeChanges.length === 1 && mostRecent.changes.length === 1 &&
++            JSON.stringify(mostRecent.changes[0].value) === JSON.stringify(c.value)) {
++          await done;
++          return mostRecent;
++        }
++        versions.set(key, (row?.version ?? 0) + pendingForRecord.length);
++      }
++      const versioned = safeChanges.map(c => ({
++        ...c,
++        expectedVersion: versions.get(recordKey(c.entity, c.id)) ?? 0
++      }));
+ 
+       const cmd: SyncCommand = {
+         id: commandId,
+@@ -490,51 +481,66 @@
+   }
+ 
+   async retryCommand(commandId: string): Promise<void> {
+-    const db = await this.dbPromise;
+-    const tx = db.transaction([RECORDS, OUTBOX], 'readwrite');
+-    const done = completed(tx);
+-    const store = tx.objectStore(OUTBOX);
+-    const c = await request(store.get(commandId)) as SyncCommand | undefined;
+-    if (!c) {
+-      await done;
+-      return;
++    // Blind retries with a new expectedVersion overwrite another device's
++    // accounting edits. Explicitly resolve the conflict with reviewed data.
++    const commands = await this.pending();
++    const command = commands.find(c => c.id === commandId);
++    if (!command) return;
++    if (command.status !== 'pending') {
++      throw new Error('Review conflicting record and resolve explicitly; automatic overwriting is blocked');
+     }
+-    const records = await request(tx.objectStore(RECORDS).getAll()) as StoredRecord[];
+-    const recordMap = new Map(records.map(r => [r.key, r]));
+-    const updatedChanges = c.changes.map(ch => {
+-      const key = recordKey(ch.entity, ch.id);
+-      const actual = recordMap.get(key)?.version ?? 0;
+-      return { ...ch, expectedVersion: actual };
+-    });
+-    store.put({ ...c, changes: updatedChanges, status: 'pending', attempts: 0, retryAt: 0, error: undefined });
+-    await done;
+-    this.changed();
++    await this.markError(commandId, 'pending', '', 0);
+   }
+ 
+   async resolveConflict(commandId: string, updatedChanges: ProposedChange[]): Promise<void> {
++    // A reviewed resolution is a NEW immutable command, generated atomically
++    // with marking the conflicting command as superseded.
+     validateChanges(updatedChanges);
++    const safeChanges = updatedChanges.map(c => ({
++      ...c, value: c.value == null ? null : toJsonObject(c.value)
++    }));
+     const db = await this.dbPromise;
+     const tx = db.transaction([RECORDS, OUTBOX], 'readwrite');
+     const done = completed(tx);
+-    const store = tx.objectStore(OUTBOX);
+-    const c = await request(store.get(commandId)) as SyncCommand | undefined;
+-    if (!c) {
++    try {
++      const store = tx.objectStore(OUTBOX);
++      const original = await request(store.get(commandId)) as SyncCommand | undefined;
++      if (!original || original.status !== 'conflict') {
++        throw new Error('Only a confirmed conflict can be explicitly resolved');
++      }
++      const pending = await request(store.getAll()) as SyncCommand[];
++      const changes = [] as VersionedChange[];
++      for (const change of safeChanges) {
++        const key = recordKey(change.entity, change.id);
++        const row = await request(tx.objectStore(RECORDS).get(key)) as StoredRecord | undefined;
++        const pendingCount = pending.filter(op => op.status === 'pending' && op.id !== commandId &&
++          op.changes.some(c => recordKey(c.entity, c.id) === key)).length;
++        changes.push({ ...change, expectedVersion: (row?.version ?? 0) + pendingCount });
++      }
++      const id = crypto.randomUUID();
++      const replacement: SyncCommand = {
++        id, workspaceId: this.workspaceId, changes,
++        createdAt: Date.now(), attempts: 0, retryAt: 0, status: 'pending'
++      };
++      store.put({ ...original, status: 'rejected', error: `Superseded by ${id}` });
++      store.add(replacement);
+       await done;
+-      return;
++      this.changed();
++    } catch (error) {
++      try { tx.abort(); } catch {}
++      await done.catch(() => {});
++      throw error;
+     }
+-    const records = await request(tx.objectStore(RECORDS).getAll()) as StoredRecord[];
+-    const recordMap = new Map(records.map(r => [r.key, r]));
+-    const safeChanges = updatedChanges.map(ch => ({
+-      ...ch,
+-      value: ch.value == null ? null : toJsonObject(ch.value),
+-      expectedVersion: recordMap.get(recordKey(ch.entity, ch.id))?.version ?? 0
+-    }));
+-    store.put({ ...c, changes: safeChanges, status: 'pending', attempts: 0, retryAt: 0, error: undefined });
+-    await done;
+-    this.changed();
+   }
+ 
+   async discardCommand(commandId: string): Promise<void> {
++    const command = (await this.pending()).find(c => c.id === commandId);
++    const financial = new Set(['invoices', 'purchases', 'vouchers', 'journalEntries',
++      'treasuries', 'treasuryTransactions', 'accounts', 'expenses', 'stockMovements',
++      'salesReturns', 'purchaseReturns', 'inventory']);
++    if (command?.changes.some(change => financial.has(change.entity))) {
++      throw new Error('Financial operations cannot be discarded without reconciliation');
++    }
+     const db = await this.dbPromise;
+     const tx = db.transaction(OUTBOX, 'readwrite');
+     const done = completed(tx);
+@@ -548,6 +554,9 @@
+   a: ServerCursor,
+   b: ServerCursor
+ ): number {
++  if (a.sequence != null && b.sequence != null) return a.sequence - b.sequence;
++  if (b.sequence != null && a.sequence == null) return -1;
++  if (a.sequence != null && b.sequence == null) return 1;
+   if (a.seconds !== b.seconds) {
+     return a.seconds - b.seconds;
+   }
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/types.ts /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/types.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/src/sync-next/types.ts	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/src/sync-next/types.ts	2026-11-06 14:52:28.051542116 +0000
+@@ -39,7 +39,9 @@
+   version: number;
+   value: JsonObject | null;
+ }
+-export interface ServerCursor { seconds: number; nanoseconds: number; eventId: string }
++/** Sequence is a gap-free server commit order on newly migrated workspaces.
++ * Legacy timestamps remain readable solely during the compatibility migration. */
++export interface ServerCursor { seconds: number; nanoseconds: number; eventId: string; sequence?: number }
+ export interface ServerEvent {
+   commandId: string;
+   changes: AppliedChange[];
+@@ -84,20 +86,42 @@
+   }
+   if (/"(?:NaN|Infinity)"/.test(raw)) { /* informative only: strings may legitimately use these names */ }
+ }
++/** Normalize optional undefined fields rather than rejecting ordinary form objects. */
+ export function toJsonObject(value: JsonObject): JsonObject {
+-  const seen = new WeakSet<object>();
+-  const json = JSON.stringify(value, (_key, v: unknown) => {
+-    if (typeof v === 'number' && !Number.isFinite(v)) throw new Error('Non-finite number in record');
+-    if (v === undefined || typeof v === 'function' || typeof v === 'symbol' || typeof v === 'bigint') {
+-      throw new Error('Unsupported value in record');
+-    }
+-    if (v && typeof v === 'object') {
+-      if (seen.has(v)) throw new Error('Shared/cyclic object is not valid portable JSON');
+-      seen.add(v);
+-    }
+-    return v;
+-  });
+-  if (!json) throw new Error('Empty JSON record');
+-  return JSON.parse(json) as JsonObject;
++  const active = new WeakSet<object>();
++  const walk = (input: unknown, inArray = false): JsonValue | undefined => {
++    if (input === undefined) return inArray ? null : undefined;
++    if (input === null || typeof input === 'string' || typeof input === 'boolean') return input as JsonValue;
++    if (typeof input === 'number') {
++      if (!Number.isFinite(input)) throw new Error('Invalid non-finite number');
++      return input;
++    }
++    if (typeof input !== 'object') throw new Error('Unsupported value in accounting record');
++    if (active.has(input)) throw new Error('Circular reference in record');
++    if (input instanceof Date) return input.toISOString();
++    if (Array.isArray(input)) {
++      active.add(input);
++      const result = input.map(v => walk(v, true) ?? null);
++      active.delete(input);
++      return result;
++    }
++    if (Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null) {
++      throw new Error('Only plain JSON records may be synchronized');
++    }
++    active.add(input);
++    const out: Record<string, JsonValue> = {};
++    for (const [key, child] of Object.entries(input)) {
++      const normalized = walk(child);
++      if (normalized !== undefined) out[key] = normalized;
++    }
++    active.delete(input);
++    return out;
++  };
++  const cleaned = walk(value);
++  if (!cleaned || Array.isArray(cleaned) || typeof cleaned !== 'object') {
++    throw new Error('Record must be a plain object');
++  }
++  return cleaned as JsonObject;
+ }
++
+ export function sleep(ms: number) { return new Promise<void>(resolve => setTimeout(resolve, ms)); }
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/tests/core.test.ts /mnt/data/lobnan_work/lobnanprintacc-main/tests/core.test.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/tests/core.test.ts	2026-11-06 14:23:02.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/tests/core.test.ts	2026-11-06 14:53:19.978810383 +0000
+@@ -113,8 +113,8 @@
+ 
+ test('cost model is document-based; Pacific day respects daylight saving time',()=>{
+  const estimate=estimateCommandCost(6,2);
+- assert.equal(estimate.minWrites,7);
+- assert.equal(estimate.minTransactionReads,7);
++ assert.equal(estimate.minWrites,8);
++ assert.equal(estimate.minTransactionReads,8);
+  assert.equal(estimate.perReceivingDeviceEventReads,2);
+  assert.equal(pacificQuotaDay(new Date('2026-11-06T07:30:00Z')),'2026-11-05');
+  assert.equal(pacificQuotaDay(new Date('2026-11-06T08:30:00Z')),'2026-11-06');
+diff -ruN '--exclude=reconciliation_report.json' /mnt/data/lobnan_original/lobnanprintacc-main/tests/sync-regressions.test.ts /mnt/data/lobnan_work/lobnanprintacc-main/tests/sync-regressions.test.ts
+--- /mnt/data/lobnan_original/lobnanprintacc-main/tests/sync-regressions.test.ts	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/lobnan_work/lobnanprintacc-main/tests/sync-regressions.test.ts	2026-11-06 14:53:20.289771574 +0000
+@@ -0,0 +1,61 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { toJsonObject, validateChanges, VersionConflict, type SyncCommand } from '../src/sync-next/types';
++import { SyncCoordinator, type SyncTransport } from '../src/sync-next/coordinator';
++import type { LocalSyncDb } from '../src/sync-next/localDb';
++
++test('optional undefined omitted without losing valid form entries', () => {
++  const nested = { label: 'جديد' };
++  const obj = toJsonObject({ id: 'customer-1', nickname: undefined as any,
++    nested, also: nested, lines: [undefined as any, 5] });
++  assert.deepEqual(obj, { id: 'customer-1', nested: { label: 'جديد' },
++    also: { label: 'جديد' }, lines: [null, 5] });
++  assert.throws(() => toJsonObject({ total: NaN }), /non-finite/);
++  const cyc: any = {}; cyc.self = cyc;
++  assert.throws(() => toJsonObject(cyc), /Circular/);
++});
++
++test('a nested list is not valid as one entity record', () => {
++  assert.throws(() => validateChanges([{ entity: 'treasuries', id: 'invalid', value: [] as any }]), /plain object/);
++});
++
++class FakeLocal {
++  commands: SyncCommand[];
++  constructor(command: SyncCommand) { this.commands = [command]; }
++  async pending(){ return [...this.commands]; }
++  async ack(id: string){ this.commands = this.commands.filter(c => c.id !== id); }
++  async markError(id: string,status: SyncCommand['status'],reason: string){
++    this.commands = this.commands.map(c => c.id === id ? { ...c, status, error: reason, attempts: c.attempts + 1 } : c);
++  }
++  async cursor(){ return null; }
++  async applyEvent(){}
++}
++function command(id: string): SyncCommand {
++  return { id, workspaceId:'main',createdAt:1,attempts:0,retryAt:0,status:'pending',
++    changes:[{entity:'invoices',id:'invoice-1',value:{id:'invoice-1'},expectedVersion:0}] };
++}
++function makeRemote(pusher: SyncTransport['push']): SyncTransport {
++  return {push:pusher,pull:async()=>[],watchLatest:()=>()=>{}};
++}
++test('server failure cannot mark queued accounting invoice as synced', async () => {
++  const local = new FakeLocal(command('failed-op'));
++  const coordinator = new SyncCoordinator(local as unknown as LocalSyncDb,
++    makeRemote(async()=>{throw new VersionConflict('invoices','invoice-1',0,2);}));
++  await coordinator.start(); await coordinator.waitUntilIdle();
++  const result = await coordinator.syncNow();
++  assert.equal(local.commands.length,1);
++  assert.equal(local.commands[0].status,'conflict');
++  assert.equal(result.pending,1);
++  coordinator.stop();
++});
++test('server ACK publishes record to active UI subscribers',async()=>{
++  const local = new FakeLocal(command('ok-op'));
++  const coordinator = new SyncCoordinator(local as unknown as LocalSyncDb,
++    makeRemote(async c=>({commandId:c.id,changes:[{entity:'invoices',id:'invoice-1',version:1,value:{id:'invoice-1',invoiceNumber:'INV-0001'}}]})));
++  let received = '';
++  coordinator.onApplied(changes => {received = String((changes[0].value as any)?.invoiceNumber);});
++  await coordinator.start();await coordinator.waitUntilIdle();
++  assert.equal(received,'INV-0001');
++  assert.equal(local.commands.length,0);
++  coordinator.stop();
++});
+diff -ruN '--exclude=reconciliation_report.json' "/mnt/data/lobnan_original/lobnanprintacc-main/\330\252\331\202\330\261\331\212\330\261_\330\247\331\204\330\252\330\271\330\257\331\212\331\204\330\247\330\252_\331\210\330\247\331\204\330\254\330\247\331\207\330\262\331\212\330\251.md" "/mnt/data/lobnan_work/lobnanprintacc-main/\330\252\331\202\330\261\331\212\330\261_\330\247\331\204\330\252\330\271\330\257\331\212\331\204\330\247\330\252_\331\210\330\247\331\204\330\254\330\247\331\207\330\262\331\212\330\251.md"
+--- "/mnt/data/lobnan_original/lobnanprintacc-main/\330\252\331\202\330\261\331\212\330\261_\330\247\331\204\330\252\330\271\330\257\331\212\331\204\330\247\330\252_\331\210\330\247\331\204\330\254\330\247\331\207\330\262\331\212\330\251.md"	1970-01-01 00:00:00.000000000 +0000
++++ "/mnt/data/lobnan_work/lobnanprintacc-main/\330\252\331\202\330\261\331\212\330\261_\330\247\331\204\330\252\330\271\330\257\331\212\331\204\330\247\330\252_\331\210\330\247\331\204\330\254\330\247\331\207\330\262\331\212\330\251.md"	2026-11-06 14:59:37.997240874 +0000
+@@ -0,0 +1,51 @@
++# مطبعة لبنان — نسخة المصدر المعدلة من النسخة الخامسة
++
++**حالة التسليم: نسخة تطوير محسّنة، وليست إصدار إنتاج محاسبي معتمدًا.**
++
++## ما الذي تغير فعليًا؟
++
++- `src/context/AccountingContext.tsx`: إيقاف النجاح الوهمي للمزامنة، جعل المزامنة اليدوية تقرأ حالة الطابور الحقيقي، توحيد تمرير التغييرات إلى الطابور، تطبيع القوائم ككيانات منفصلة، تقليل تكرار إرسال فاتورة الكاشير، إيقاف الكتابة المباشرة المزدوجة لقيود اليومية، ومنع تعديل فرق القيد تلقائيًا. تفعيل تطبيق أحداث الخادم المعتمدة على حالة React التي تقرؤها الشاشات. إيقاف قناة deltas محدودة القراءة والاستعلام كل 5 ثوان، وإزالة المسح التلقائي لبيانات الجهاز عند تغيّر epoch. تحويل معظم الكتابات المباشرة لمستندات الجهات المعروفة إلى طابور موحد. تنتظر وظيفة `postPosSaleOnline` حفظ الفاتورة في IndexedDB قبل إرجاع نتيجة نجاح محلية.
++- `src/sync-next/types.ts`: تنظيف الحقول الاختيارية `undefined` في كائنات JSON دون إسقاط المستند كاملًا؛ رفض الأرقام غير الصالحة والمراجع الدائرية.
++- `src/sync-next/localDb.ts`: قراءة موضعية للسجلات بدل كل القاعدة في كل كتابة، ومنع تكرار الإدخال المعلق المتطابق، وتقييد إعادة المحاولة العمياء على التعارضات، وحماية استبعاد العمليات المالية. معالجة التعارض المعتمد بأمر جديد محفوظ محليًا ومربوط بحالة القديم.
++- `src/sync-next/coordinator.ts`: تحديث الواجهة بأحداث تم اعتمادها، ضبط حالة المزامنة وفق الطابور الفعلي، منع تجاوز أمر متعارض بالسجل نفسه، مراعاة وضع العمل المحلي فقط، وإضافة `syncNow` لنتيجة دقيقة عند طلب المزامنة اليدوية.
++- `src/sync-next/firestoreTransport.ts`: ترقيم تسلسلي لأحداث الكتابة الجديدة باستخدام مستند عداد في المعاملة نفسها، مع قراءة توافقية لأحداث النسخ القديمة. هذا يضيف قراءة وكتابة للعداد في كل أمر، مقابل التخلص من ثغرة الاعتماد على توقيت الأحداث للأوامر الجديدة.
++- `src/firebase.ts`: محاولة تفعيل التخزين الدائم متعدد النوافذ لـ Firestore؛ وتسجيل معالج حفظ محلي لمعظم الكتابات القديمة عبر واجهات Firebase المُصدّرة.
++- `src/sync-next/boot.ts`: تسجيل معالج حفظ موحد للمستندات من معظم المجموعات القديمة؛ المسارات غير المعروفة والمستندات الفرعية لا تُحوَّل تلقائيًا.
++- `src/sync-next/costModel.ts`: تعديل تقدير الحد الأدنى للقراءات والكتابات بعد إضافة عداد التسلسل.
++- `tests/sync-regressions.test.ts` و`tests/core.test.ts`: 11 اختبارًا معزولًا لأساس المزامنة وأخطاء البيانات.
++- `scripts/audit_legacy_data.cjs`: أداة قراءة فقط لكشف الاختلافات بين ملفات بيانات المشروع؛ تكتب `reconciliation_report.json` ولا تغير أي قيد أو رصيد.
++
++## نتائج الاختبارات
++
++- فحص صياغة 167 ملف TypeScript/TSX في `src` و`tests`: **لا أخطاء نحوية**.
++- اختبار 11/11 ناجح باستخدام مترجم TypeScript بصورة معزولة، من دون Firestore الحقيقي أو واجهة React.
++- فحص TypeScript للملفات الأساسية المحلية (`types`, `localDb`, `coordinator`, `repository`, `accountingPosting`, `costModel`, `storageHealth`): **ناجح**.
++- تعذر `npm install` و`npm run build` و`npm run lint` للمشروع الكامل لأن الاعتماديات غير مثبتة ولا يمكن الوصول إلى npm Registry في بيئة الفحص.
++- تعذر تشغيل اختبار Chromium/IndexedDB المباشر في بيئة الفحص (انتهى الأمر بمهلة)، ولا يصح وصف التخزين المحلي بأنه مختبر عمليًا في المتصفح.
++- أداة مقارنة اللقطات أظهرت **69 اختلافًا** بين مجموعات بيانات المشروع المرفقة. ليست دليلًا على أخطاء قاعدة Firebase الحية، لكنها تمنع تنفيذ ترحيل أعمى.
++
++## أمور جوهرية **لم تُنجز بالكامل** ويجب استكمالها قبل النشر
++
++1. **ترحيل البيانات التاريخية:** يوجد أكثر من مصدر بيانات ومخزون قديم، خاصة اختلاف أرصدة الصناديق وأكواد الحسابات. لا تختار إحدى النسخ آليًا؛ اعتمد جدول مطابقة وسجلات حركة ونسخة احتياطية وتوقيع محاسبي.
++2. **وحدة المعاملة المالية:** لا تزال بعض عمليات البيع والصرف والمشتريات تنشئ القيد وتعدّل الصندوق والمخزون من دوال متفرقة؛ يجب تجميع المستند والقيود والحركات كأمر ذري واحد في جميع المسارات الفعلية، لا فقط في `buildAtomicPosting` النموذجية.
++3. **تأمين المزامنة بين الإصدارات:** سجل أحداث Firestore القديم لا يحتوي `sequence`؛ يجب إيقاف العملاء القديمة، وترحيل/إعادة بناء سجل الأحداث، وتهيئة العداد من بيانات الخادم قبل نشر النسخة على الأجهزة المتعددة. **لا تنشر مباشرة فوق قاعدة مستخدمة حاليًا.**
++4. **الترقيم التاريخي:** يلزم جرد أرقام الفواتير والسندات السابقة وتهيئة عدادات الترقيم الرسمية لمنع تكرار أرقام محفوظة سابقًا، مع تحديث المراجع النصية القديمة ضمن خطة واضحة.
++5. **بعض مسارات الحفظ المتخصصة والنسخ الاحتياطي وخادم API القديم وعمليات `writeBatch`** ما زالت خارج طبقة المزامنة الموحدة. يجب استبدالها أو تعطيلها بعد ترحيل آمن، حتى لا تؤدي إلى تغيير بيانات بشكل مستقل.
++6. **التخزين المحلي وقاعدة Firestore:** إجراء اختبارات فعلية على IndexedDB وFirestore Emulator وجهازين على الأقل، لاختبار انقطاع الاتصال وإعادة الفتح وتعارض التعديل وفشل تأكيد الخادم.
++7. **التكلفة:** لا يمكن ضمان البقاء على Spark أو نسبة توفير معينة دون تسجيل الاستهلاك في Firebase Console. إضافة عداد التسلسل المركزي قد ترفع تكلفة الأمر الواحد؛ قياسه مطلوب مع الأحمال الفعلية. كما يجب التأكد من أهلية معرّف قاعدة البيانات المستخدمة للحصة المجانية.
++8. **الأمان والصلاحيات:** لم تُراجع في هذه الجولة بطلب المستخدم السابق؛ لا يعني ذلك أنها جاهزة.
++
++## طريقة استكمال التحقق لدى المطور
++
++1. انسخ المشروع إلى بيئة تجريبية، ولا تستخدم قاعدة الإنتاج.
++2. شغّل `npm install` ثم `npm run lint` و`npm run build`.
++3. شغّل `npx tsx --test tests/*.test.ts` وتأكد من مرور جميع الاختبارات.
++4. شغّل `node scripts/audit_legacy_data.cjs` وافحص `reconciliation_report.json`. الخروج برمز 2 يعني وجود فروق تستلزم مراجعة، **ولا يعني أن البرنامج أجرى تعديلات**.
++5. أجرِ ترحيلًا مخططًا، ولا تدمج الصناديق بالاسم أو تعدّل الأرصدة تلقائيًا.
++6. اختبر العمليات أثناء فصل الإنترنت وإعادته وعلى جهازين، وحالات الإرسال المكرر والتحرير المتعارض والمستندات المرتجعة والإلغاء.
++7. قِس قراءات وكتابات Firestore عند إنشاء 100 فاتورة و100 سند وعند فتح/إغلاق 10 شاشات وإعادة الاتصال.
++8. اطلب مراجعة محاسبية لدفتر الأستاذ وميزان المراجعة والأرصدة قبل السماح ببيانات حقيقية.
++
++## قرار الجاهزية
++
++**لا يجوز اعتبار هذه النسخة جاهزة للاستخدام المحاسبي متعدد الأجهزة بعد.** هي المشروع الكامل مع إصلاحات برمجية مطبقة ومجموعة اختبارات معزولة ناجحة، وما زال يلزم إصلاح الترحيل الذري الكامل والتوافق مع البيانات القديمة والاختبار الحي.

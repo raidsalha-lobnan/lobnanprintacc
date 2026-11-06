@@ -113,8 +113,8 @@ test('version conflict never silently overwrites confirmed records',async()=>{
 
 test('cost model is document-based; Pacific day respects daylight saving time',()=>{
  const estimate=estimateCommandCost(6,2);
- assert.equal(estimate.minWrites,7);
- assert.equal(estimate.minTransactionReads,7);
+ assert.equal(estimate.minWrites,8);
+ assert.equal(estimate.minTransactionReads,8);
  assert.equal(estimate.perReceivingDeviceEventReads,2);
  assert.equal(pacificQuotaDay(new Date('2026-11-06T07:30:00Z')),'2026-11-05');
  assert.equal(pacificQuotaDay(new Date('2026-11-06T08:30:00Z')),'2026-11-06');

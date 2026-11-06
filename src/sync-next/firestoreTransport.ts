@@ -21,6 +21,7 @@ export class FirestoreSyncTransport {
   private recId(entity: string,id: string): string { return encodeURIComponent(recordKey(entity as any, id)); }
 
   private counters() { return collection(this.db, 'lobnan_sync_workspaces', this.workspaceId, 'counters'); }
+  private sequenceRef() { return doc(this.db, 'lobnan_sync_workspaces', this.workspaceId, 'meta', 'sequence'); }
 
   async push(command: SyncCommand): Promise<CommitReceipt> {
     if (command.workspaceId !== this.workspaceId) throw new Error('Wrong workspace');
@@ -65,6 +66,14 @@ export class FirestoreSyncTransport {
 
       // Read all records being modified
       const existing = await Promise.all(recRefs.map(ref=>tx.get(ref)));
+      // Global transactional commit counter avoids timestamp-pagination gaps.
+      // This extra document write is intentional for accounting correctness.
+      const sequenceRef = this.sequenceRef();
+      const sequenceSnap = await tx.get(sequenceRef);
+      const nextSequence = Number(sequenceSnap.exists() ? sequenceSnap.data()?.value ?? 0 : 0) + 1;
+      if (!Number.isSafeInteger(nextSequence) || nextSequence < 1) {
+        throw new Error('Invalid authoritative event sequence');
+      }
 
       // Read all needed counter documents
       const counterKeys = Array.from(neededCounters);
@@ -151,6 +160,7 @@ export class FirestoreSyncTransport {
       }
 
       // 3. Perform Writes (Counters, Records, Event)
+      tx.set(sequenceRef, { value: nextSequence, updatedAt: serverTimestamp() });
       for (const [key, seq] of updatedCounters.entries()) {
         tx.set(doc(this.counters(), key), { seq, updatedAt: serverTimestamp() }, { merge: true });
       }
@@ -168,25 +178,36 @@ export class FirestoreSyncTransport {
       }
 
       // Immutable event also serves as idempotency receipt; replay of same command consumes no writes.
-      tx.set(eventRef, { commandId: command.id, fingerprint, changes: applied, committedAt: serverTimestamp() });
+      tx.set(eventRef, { commandId: command.id, fingerprint, changes: applied,
+        sequence: nextSequence, committedAt: serverTimestamp() });
       return { commandId: command.id, changes: applied };
     }, { maxAttempts: 5 });
   }
 
   async pull(cursor: ServerCursor|null, pageSize=100): Promise<ServerEvent[]> {
-    const base = [orderBy('committedAt','asc'),orderBy(documentId(),'asc')];
-    const clauses = cursor
-      ? [...base,startAfter(new Timestamp(cursor.seconds,cursor.nanoseconds),cursor.eventId),limit(pageSize)]
-      : [...base,limit(pageSize)];
+    const bounded = Math.min(100, Math.max(1, Math.trunc(pageSize)));
+    // Once the first sequenced event is applied, queries become gap-free.
+    // For existing databases a legacy migration/backfill is still required.
+    const hasSequence = cursor?.sequence != null;
+    const clauses = hasSequence
+      ? [orderBy('sequence', 'asc'), startAfter(cursor!.sequence), limit(bounded)]
+      : cursor
+        ? [orderBy('committedAt','asc'), orderBy(documentId(),'asc'),
+            startAfter(new Timestamp(cursor.seconds,cursor.nanoseconds),cursor.eventId), limit(bounded)]
+        : [orderBy('committedAt','asc'), orderBy(documentId(),'asc'),limit(bounded)];
     const snapshot = await getDocsFromServer(query(this.events(),...clauses));
-    return snapshot.docs.map(s=>{
+    return snapshot.docs.map(s => {
       const data = s.data();
-      const committedAt = data.committedAt as Timestamp | undefined;
-      if (!committedAt || typeof committedAt.seconds !== 'number') throw new Error('Unresolved server timestamp');
+      const at = data.committedAt as Timestamp | undefined;
+      if (!at || typeof at.seconds !== 'number') throw new Error('Invalid server event timestamp');
+      const sequence = Number(data.sequence);
       return {
-        commandId:String(data.commandId),
-        changes:data.changes as AppliedChange[],
-        cursor:{seconds:committedAt.seconds,nanoseconds:committedAt.nanoseconds,eventId:s.id}
+        commandId: String(data.commandId),
+        changes: data.changes as AppliedChange[],
+        cursor: {
+          seconds: at.seconds, nanoseconds: at.nanoseconds, eventId: s.id,
+          ...(Number.isSafeInteger(sequence) && sequence > 0 ? { sequence } : {})
+        }
       };
     });
   }

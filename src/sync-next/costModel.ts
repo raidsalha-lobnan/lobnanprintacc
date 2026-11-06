@@ -24,8 +24,8 @@ export function estimateCommandCost(
   }
 
   return {
-    minWrites: entityWrites + 1,
-    minTransactionReads: entityWrites + 1,
+    minWrites: entityWrites + 2, // event receipt + sequential feed counter
+    minTransactionReads: entityWrites + 2, // idempotency receipt + feed counter
     perReceivingDeviceEventReads: receivingDevices
   };
 }

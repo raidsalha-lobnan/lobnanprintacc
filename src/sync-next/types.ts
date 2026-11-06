@@ -39,7 +39,9 @@ export interface StoredRecord {
   version: number;
   value: JsonObject | null;
 }
-export interface ServerCursor { seconds: number; nanoseconds: number; eventId: string }
+/** Sequence is a gap-free server commit order on newly migrated workspaces.
+ * Legacy timestamps remain readable solely during the compatibility migration. */
+export interface ServerCursor { seconds: number; nanoseconds: number; eventId: string; sequence?: number }
 export interface ServerEvent {
   commandId: string;
   changes: AppliedChange[];
@@ -84,20 +86,42 @@ export function validateChanges(changes: ProposedChange[]): void {
   }
   if (/"(?:NaN|Infinity)"/.test(raw)) { /* informative only: strings may legitimately use these names */ }
 }
+/** Normalize optional undefined fields rather than rejecting ordinary form objects. */
 export function toJsonObject(value: JsonObject): JsonObject {
-  const seen = new WeakSet<object>();
-  const json = JSON.stringify(value, (_key, v: unknown) => {
-    if (typeof v === 'number' && !Number.isFinite(v)) throw new Error('Non-finite number in record');
-    if (v === undefined || typeof v === 'function' || typeof v === 'symbol' || typeof v === 'bigint') {
-      throw new Error('Unsupported value in record');
+  const active = new WeakSet<object>();
+  const walk = (input: unknown, inArray = false): JsonValue | undefined => {
+    if (input === undefined) return inArray ? null : undefined;
+    if (input === null || typeof input === 'string' || typeof input === 'boolean') return input as JsonValue;
+    if (typeof input === 'number') {
+      if (!Number.isFinite(input)) throw new Error('Invalid non-finite number');
+      return input;
     }
-    if (v && typeof v === 'object') {
-      if (seen.has(v)) throw new Error('Shared/cyclic object is not valid portable JSON');
-      seen.add(v);
+    if (typeof input !== 'object') throw new Error('Unsupported value in accounting record');
+    if (active.has(input)) throw new Error('Circular reference in record');
+    if (input instanceof Date) return input.toISOString();
+    if (Array.isArray(input)) {
+      active.add(input);
+      const result = input.map(v => walk(v, true) ?? null);
+      active.delete(input);
+      return result;
     }
-    return v;
-  });
-  if (!json) throw new Error('Empty JSON record');
-  return JSON.parse(json) as JsonObject;
+    if (Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null) {
+      throw new Error('Only plain JSON records may be synchronized');
+    }
+    active.add(input);
+    const out: Record<string, JsonValue> = {};
+    for (const [key, child] of Object.entries(input)) {
+      const normalized = walk(child);
+      if (normalized !== undefined) out[key] = normalized;
+    }
+    active.delete(input);
+    return out;
+  };
+  const cleaned = walk(value);
+  if (!cleaned || Array.isArray(cleaned) || typeof cleaned !== 'object') {
+    throw new Error('Record must be a plain object');
+  }
+  return cleaned as JsonObject;
 }
+
 export function sleep(ms: number) { return new Promise<void>(resolve => setTimeout(resolve, ms)); }

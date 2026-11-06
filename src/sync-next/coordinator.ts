@@ -2,7 +2,7 @@ import { LocalSyncDb } from './localDb';
 
 import {
   sleep, PermanentSyncError,
-  ServerCursor, SyncCommand,
+  AppliedChange, ServerCursor, SyncCommand,
   VersionConflict
 } from './types';
 
@@ -46,6 +46,7 @@ export class SyncCoordinator {
 
   private listeners =
     new Set<(state: SyncState) => void>();
+  private appliedListeners = new Set<(changes: AppliedChange[]) => void>();
 
   private state: SyncState = {
     running: false,
@@ -59,6 +60,13 @@ export class SyncCoordinator {
   private online = () =>
     typeof navigator === 'undefined' ||
     navigator.onLine !== false;
+
+  private cloudAllowed = () => {
+    try {
+      return typeof localStorage === 'undefined' ||
+        localStorage.getItem('accounting_is_local_only_mode') !== 'true';
+    } catch { return true; }
+  };
 
   private onlineHandler = () => this.requestSync();
 
@@ -94,6 +102,19 @@ export class SyncCoordinator {
     fn({ ...this.state });
 
     return () => this.listeners.delete(fn);
+  }
+
+  onApplied(listener: (changes: AppliedChange[]) => void): () => void {
+    this.appliedListeners.add(listener);
+    return () => this.appliedListeners.delete(listener);
+  }
+
+  private emitApplied(changes: AppliedChange[]) {
+    for (const callback of this.appliedListeners) {
+      try { callback(changes); } catch (error) {
+        console.error('Unable to refresh synced UI records', error);
+      }
+    }
   }
 
   private report(partial: Partial<SyncState>) {
@@ -204,7 +225,7 @@ export class SyncCoordinator {
   }
 
   requestSync() {
-    if (!this.started) return;
+    if (!this.started || !this.cloudAllowed()) return;
 
     if (!this.state.isLeader) {
       // Non-leader tab requests the active leader tab to drain outbox
@@ -229,7 +250,7 @@ export class SyncCoordinator {
   }
 
   private async drain() {
-    if (this.busy || !this.online()) return;
+    if (this.busy || !this.online() || !this.cloudAllowed()) return;
 
     this.busy = true;
     this.report({ running: true });
@@ -238,7 +259,7 @@ export class SyncCoordinator {
       while (
         this.requested &&
         this.started &&
-        this.online()
+        this.online() && this.cloudAllowed()
       ) {
         this.requested = false;
 
@@ -248,7 +269,7 @@ export class SyncCoordinator {
 
       await this.refreshCounts();
 
-      if (this.state.pending === 0) {
+      if (this.state.pending === 0 && this.state.conflict === 0) {
         this.report({
           lastSuccessAt: Date.now(),
           lastError: null
@@ -282,22 +303,21 @@ export class SyncCoordinator {
   private async pushPending() {
     const commands = await this.local.pending();
 
+    const blocked = new Set<string>();
     for (const cmd of commands) {
       if (!this.started || !this.online()) return;
-
+      const keys = cmd.changes.map(c => `${c.entity}\u001f${c.id}`);
       if (cmd.status !== 'pending') {
-        if (cmd.status === 'rejected' && cmd.error?.includes('permission-denied')) {
-          await this.local.retryCommand(cmd.id);
-        } else {
-          this.report({
-            lastError: `Blocked by ${cmd.status}: ${cmd.id}`
-          });
-          return;
-        }
+        if (cmd.error?.startsWith('Superseded by')) continue;
+        keys.forEach(k => blocked.add(k));
+        this.report({ lastError: `Review required: ${cmd.status}: ${cmd.id}` });
+        continue;
       }
-
-
-      if (cmd.retryAt > Date.now()) return;
+      if (keys.some(k => blocked.has(k))) continue;
+      if (cmd.retryAt > Date.now()) {
+        keys.forEach(k => blocked.add(k));
+        continue;
+      }
 
       try {
         const receipt = await this.remote.push(cmd);
@@ -307,6 +327,7 @@ export class SyncCoordinator {
           receipt.commandId,
           receipt.changes
         );
+        this.emitApplied(receipt.changes);
       } catch (error) {
         if (error instanceof VersionConflict) {
           await this.local.markError(
@@ -315,10 +336,9 @@ export class SyncCoordinator {
             error.message
           );
 
-          this.report({
-            lastError: error.message
-          });
-          return;
+          this.report({ lastError: error.message });
+          keys.forEach(k => blocked.add(k));
+          continue;
         }
 
         if (
@@ -331,10 +351,9 @@ export class SyncCoordinator {
             String(error)
           );
 
-          this.report({
-            lastError: String(error)
-          });
-          return;
+          this.report({ lastError: String(error) });
+          keys.forEach(k => blocked.add(k));
+          continue;
         }
 
         const delay = Math.min(
@@ -354,10 +373,7 @@ export class SyncCoordinator {
             Math.floor(Math.random() * 500)
         );
 
-        this.report({
-          lastError: String(error)
-        });
-
+        this.report({ lastError: String(error) });
         return;
       }
     }
@@ -377,11 +393,26 @@ export class SyncCoordinator {
       for (const event of page) {
         // Local data and cursor advance atomically.
         await this.local.applyEvent(event);
+        this.emitApplied(event.changes);
         cursor = event.cursor;
       }
 
       if (page.length < 100) break;
     }
+  }
+
+  async syncNow(timeoutMs = 30000): Promise<SyncState> {
+    if (!this.started) throw new Error('Synchronizer is not running');
+    this.requestSync();
+    const start = Date.now();
+    await sleep(0);
+    while (this.busy || this.requested || !this.state.isLeader) {
+      if (!this.started || Date.now() - start > timeoutMs) break;
+      if (!this.state.isLeader) break;
+      await sleep(35);
+    }
+    await this.refreshCounts();
+    return { ...this.state };
   }
 
   async waitUntilIdle(

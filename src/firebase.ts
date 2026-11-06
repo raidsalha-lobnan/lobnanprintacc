@@ -47,14 +47,31 @@ const dbId = (firebaseConfig as any).firestoreDatabaseId;
 
 let firestoreInstance;
 try {
+  // Firestore persistence was previously only logged, not actually enabled.
+  // Multi-tab persistent cache is independent of our durable business outbox.
+  firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  }, dbId);
+} catch (error) {
+  console.warn('Persistent Firestore cache unavailable; business outbox remains separate', error);
   firestoreInstance = getFirestore(app, dbId);
-} catch {
-  firestoreInstance = initializeFirestore(app, {}, dbId);
 }
 
 export const db = firestoreInstance;
 
 console.log("Firestore initialized with persistent local cache & database ID:", dbId || '(default)');
+
+// Installed only after a durable workspace repository is initialized.
+// Returns true if the write has been persisted to the outbox; false to use the
+// legacy Firebase call for unsupported special-purpose collections.
+type DurableWriter = (
+  operation: 'set' | 'delete', reference: any, payload?: any, options?: any
+) => Promise<boolean>;
+let durableWriter: DurableWriter | null = null;
+export function registerDurableWriter(writer: DurableWriter): () => void {
+  durableWriter = writer;
+  return () => { if (durableWriter === writer) durableWriter = null; };
+}
 
 import { firebaseQuotaTracker } from './services/firebaseQuotaTracker';
 
@@ -88,11 +105,25 @@ const trackedGetDocs = (async (...args: any[]) => {
 }) as typeof getDocs;
 
 const trackedSetDoc = ((...args: any[]) => {
+  if (durableWriter) {
+    return durableWriter('set', args[0], args[1], args[2]).then(handled => {
+      if (handled) return;
+      firebaseQuotaTracker.trackWrite(1);
+      return (setDoc as any)(...args);
+    });
+  }
   firebaseQuotaTracker.trackWrite(1);
   return (setDoc as any)(...args);
 }) as typeof setDoc;
 
 const trackedDeleteDoc = ((...args: any[]) => {
+  if (durableWriter) {
+    return durableWriter('delete', args[0]).then(handled => {
+      if (handled) return;
+      firebaseQuotaTracker.trackDelete(1);
+      return (deleteDoc as any)(...args);
+    });
+  }
   firebaseQuotaTracker.trackDelete(1);
   return (deleteDoc as any)(...args);
 }) as typeof deleteDoc;

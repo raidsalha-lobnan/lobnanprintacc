@@ -1,6 +1,6 @@
 import {
   AppliedChange, EntityName, LocalView,
-  ProposedChange, recordKey, ServerCursor,
+  ProposedChange, VersionedChange, recordKey, ServerCursor,
   ServerEvent, StoredRecord, SyncCommand,
   toJsonObject, validateChanges
 } from './types';
@@ -164,58 +164,49 @@ export class LocalSyncDb {
         };
       }
 
-      const records = await request(
-        tx.objectStore(RECORDS).getAll()
-      ) as StoredRecord[];
-
+      // IndexedDB point lookups: do not read the entire accounting database for every save.
       const outbox = await request(
         tx.objectStore(OUTBOX).getAll()
       ) as SyncCommand[];
 
-      const earlier = outbox.find(c => c.id === commandId);
-
+      const queued = [...outbox].sort(
+        (a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)
+      );
+      const earlier = queued.find(c => c.id === commandId);
       if (earlier) {
-        const prior = earlier.changes.map(
-          ({ expectedVersion, ...rest }) => rest
-        );
-
-        if (
-          JSON.stringify(prior) !==
-          JSON.stringify(safeChanges)
-        ) {
+        const prior = earlier.changes.map(({ expectedVersion, ...rest }) => rest);
+        if (JSON.stringify(prior) !== JSON.stringify(safeChanges)) {
           throw new Error('Command payload mismatch');
         }
-
         await done;
         return earlier;
       }
 
-      const recordMap = new Map(
-        records.map(r => [r.key, r])
-      );
-
-      const queued = [...outbox].sort(
-        (a, b) =>
-          a.createdAt - b.createdAt ||
-          a.id.localeCompare(b.id)
-      );
-
-      const versioned = safeChanges.map(c => {
+      const versions = new Map<string, number>();
+      for (const c of safeChanges) {
         const key = recordKey(c.entity, c.id);
-
-        const earlierCount = queued.filter(op =>
-          op.changes.some(
-            x => recordKey(x.entity, x.id) === key
-          )
-        ).length;
-
-        return {
-          ...c,
-          expectedVersion:
-            (recordMap.get(key)?.version ?? 0) +
-            earlierCount
-        };
-      });
+        const row = await request(tx.objectStore(RECORDS).get(key)) as StoredRecord | undefined;
+        const matching = queued.filter(
+          op => op.changes.some(change => recordKey(change.entity, change.id) === key)
+        );
+        if (matching.some(op => op.status === 'conflict' ||
+            (op.status === 'rejected' && !op.error?.startsWith('Superseded by')))) {
+          throw new Error(`Resolve previous rejected/conflicting update before editing ${key}`);
+        }
+        const pendingForRecord = matching.filter(op => op.status === 'pending');
+        // Repeated identical updates while still pending should not generate extra cloud writes.
+        const mostRecent = pendingForRecord[pendingForRecord.length - 1];
+        if (mostRecent && safeChanges.length === 1 && mostRecent.changes.length === 1 &&
+            JSON.stringify(mostRecent.changes[0].value) === JSON.stringify(c.value)) {
+          await done;
+          return mostRecent;
+        }
+        versions.set(key, (row?.version ?? 0) + pendingForRecord.length);
+      }
+      const versioned = safeChanges.map(c => ({
+        ...c,
+        expectedVersion: versions.get(recordKey(c.entity, c.id)) ?? 0
+      }));
 
       const cmd: SyncCommand = {
         id: commandId,
@@ -490,51 +481,66 @@ export class LocalSyncDb {
   }
 
   async retryCommand(commandId: string): Promise<void> {
-    const db = await this.dbPromise;
-    const tx = db.transaction([RECORDS, OUTBOX], 'readwrite');
-    const done = completed(tx);
-    const store = tx.objectStore(OUTBOX);
-    const c = await request(store.get(commandId)) as SyncCommand | undefined;
-    if (!c) {
-      await done;
-      return;
+    // Blind retries with a new expectedVersion overwrite another device's
+    // accounting edits. Explicitly resolve the conflict with reviewed data.
+    const commands = await this.pending();
+    const command = commands.find(c => c.id === commandId);
+    if (!command) return;
+    if (command.status !== 'pending') {
+      throw new Error('Review conflicting record and resolve explicitly; automatic overwriting is blocked');
     }
-    const records = await request(tx.objectStore(RECORDS).getAll()) as StoredRecord[];
-    const recordMap = new Map(records.map(r => [r.key, r]));
-    const updatedChanges = c.changes.map(ch => {
-      const key = recordKey(ch.entity, ch.id);
-      const actual = recordMap.get(key)?.version ?? 0;
-      return { ...ch, expectedVersion: actual };
-    });
-    store.put({ ...c, changes: updatedChanges, status: 'pending', attempts: 0, retryAt: 0, error: undefined });
-    await done;
-    this.changed();
+    await this.markError(commandId, 'pending', '', 0);
   }
 
   async resolveConflict(commandId: string, updatedChanges: ProposedChange[]): Promise<void> {
+    // A reviewed resolution is a NEW immutable command, generated atomically
+    // with marking the conflicting command as superseded.
     validateChanges(updatedChanges);
+    const safeChanges = updatedChanges.map(c => ({
+      ...c, value: c.value == null ? null : toJsonObject(c.value)
+    }));
     const db = await this.dbPromise;
     const tx = db.transaction([RECORDS, OUTBOX], 'readwrite');
     const done = completed(tx);
-    const store = tx.objectStore(OUTBOX);
-    const c = await request(store.get(commandId)) as SyncCommand | undefined;
-    if (!c) {
+    try {
+      const store = tx.objectStore(OUTBOX);
+      const original = await request(store.get(commandId)) as SyncCommand | undefined;
+      if (!original || original.status !== 'conflict') {
+        throw new Error('Only a confirmed conflict can be explicitly resolved');
+      }
+      const pending = await request(store.getAll()) as SyncCommand[];
+      const changes = [] as VersionedChange[];
+      for (const change of safeChanges) {
+        const key = recordKey(change.entity, change.id);
+        const row = await request(tx.objectStore(RECORDS).get(key)) as StoredRecord | undefined;
+        const pendingCount = pending.filter(op => op.status === 'pending' && op.id !== commandId &&
+          op.changes.some(c => recordKey(c.entity, c.id) === key)).length;
+        changes.push({ ...change, expectedVersion: (row?.version ?? 0) + pendingCount });
+      }
+      const id = crypto.randomUUID();
+      const replacement: SyncCommand = {
+        id, workspaceId: this.workspaceId, changes,
+        createdAt: Date.now(), attempts: 0, retryAt: 0, status: 'pending'
+      };
+      store.put({ ...original, status: 'rejected', error: `Superseded by ${id}` });
+      store.add(replacement);
       await done;
-      return;
+      this.changed();
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await done.catch(() => {});
+      throw error;
     }
-    const records = await request(tx.objectStore(RECORDS).getAll()) as StoredRecord[];
-    const recordMap = new Map(records.map(r => [r.key, r]));
-    const safeChanges = updatedChanges.map(ch => ({
-      ...ch,
-      value: ch.value == null ? null : toJsonObject(ch.value),
-      expectedVersion: recordMap.get(recordKey(ch.entity, ch.id))?.version ?? 0
-    }));
-    store.put({ ...c, changes: safeChanges, status: 'pending', attempts: 0, retryAt: 0, error: undefined });
-    await done;
-    this.changed();
   }
 
   async discardCommand(commandId: string): Promise<void> {
+    const command = (await this.pending()).find(c => c.id === commandId);
+    const financial = new Set(['invoices', 'purchases', 'vouchers', 'journalEntries',
+      'treasuries', 'treasuryTransactions', 'accounts', 'expenses', 'stockMovements',
+      'salesReturns', 'purchaseReturns', 'inventory']);
+    if (command?.changes.some(change => financial.has(change.entity))) {
+      throw new Error('Financial operations cannot be discarded without reconciliation');
+    }
     const db = await this.dbPromise;
     const tx = db.transaction(OUTBOX, 'readwrite');
     const done = completed(tx);
@@ -548,6 +554,9 @@ function compareCursor(
   a: ServerCursor,
   b: ServerCursor
 ): number {
+  if (a.sequence != null && b.sequence != null) return a.sequence - b.sequence;
+  if (b.sequence != null && a.sequence == null) return -1;
+  if (a.sequence != null && b.sequence == null) return 1;
   if (a.seconds !== b.seconds) {
     return a.seconds - b.seconds;
   }
