@@ -20,6 +20,8 @@ export interface PostResult {
   error?: string;
   isOffline?: boolean;
   isBusy?: boolean;
+  isSynced?: boolean;
+  savedLocally?: boolean;
 }
 
 function sanitizeForFirestore(data: any): any {
@@ -292,7 +294,13 @@ export const onlineInvoicePostingService = {
 
         return {
           success: true,
-          invoice: finalInvoice
+          isSynced: savedDirectFirestore,
+          savedLocally: true,
+          invoice: {
+            ...(finalInvoice as any),
+            _isSyncedLocally: true,
+            _isSyncedCloud: savedDirectFirestore
+          } as Invoice
         };
       } catch (err: any) {
         console.error('Online direct invoice posting error:', err);

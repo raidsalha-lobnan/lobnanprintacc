@@ -200,16 +200,10 @@ export const LoginView: React.FC<{ onLocalLogin?: (id: string) => void }> = ({ o
       }
 
       const userPass = (u.password || '').trim();
-      if (
-        userPass === cleanPassword ||
-        cleanPassword === '123456' ||
-        cleanPassword === 'Aa@12345678' ||
-        (!userPass && (cleanPassword === '123456' || cleanPassword === '')) ||
-        (isOwner && (cleanPassword === '123456' || cleanPassword === 'Aa@12345678' || userPass === cleanPassword || cleanPassword.length >= 4))
-      ) {
-        return true;
+      if (!userPass) {
+        return cleanPassword === '123456' || cleanPassword === 'Aa@12345678';
       }
-      return false;
+      return userPass === cleanPassword;
     };
 
     // 1. Check in loaded users and default system users
