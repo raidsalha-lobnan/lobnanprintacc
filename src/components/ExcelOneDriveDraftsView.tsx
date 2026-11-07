@@ -1067,7 +1067,10 @@ export const ExcelOneDriveDraftsView: React.FC = () => {
         };
       }
 
-      const generatedInvoiceNumber = draft.invoiceNumber || `TEMP-INV-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8)}`;
+      // Local/offline drafts must use temporary numbers until confirmed and allocated by central cloud transaction
+      const generatedInvoiceNumber = (draft.invoiceNumber && draft.invoiceNumber.startsWith('TEMP-'))
+        ? draft.invoiceNumber
+        : `TEMP-DRAFT-${draft.id || crypto.randomUUID().slice(0, 8)}`;
 
       // Date resolution: strictly take and parse invoice date from imported file
       const finalInvoiceDate = parseAnyDate(draft.date);

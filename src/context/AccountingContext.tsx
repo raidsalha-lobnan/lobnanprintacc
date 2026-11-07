@@ -7529,19 +7529,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // 2. Centralized atomic numbering gate:
     // Offline/local entries get a non-colliding temporary number until official cloud confirmation.
-    let invoiceNumber = oldInvoice ? oldInvoice.invoiceNumber : undefined;
-
-    if (!invoiceNumber && extraOptions?.invoiceNumber) {
-      if (!extraOptions.invoiceNumber.startsWith('TEMP-')) {
-        invoiceNumber = extraOptions.invoiceNumber;
-      }
-    }
-
-    if (!invoiceNumber) {
-      const year = new Date().getFullYear();
-      const shortUid = crypto.randomUUID().slice(0, 8);
-      invoiceNumber = `TEMP-INV-${year}-${shortUid}`;
-    }
+    const invoiceNumber = oldInvoice
+      ? oldInvoice.invoiceNumber
+      : `TEMP-${invId}`;
     const today = extraOptions?.date || new Date().toISOString().split('T')[0];
     const appliedTaxRate = extraOptions?.taxRate !== undefined ? extraOptions.taxRate : settings.vatRate;
     const additionalFees = extraOptions?.additionalCharges || 0;

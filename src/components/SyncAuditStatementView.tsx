@@ -10,6 +10,7 @@ import {
 } from '../services/firebaseFirestoreSyncService';
 import { FirebaseConnectionDiagnostic } from './FirebaseConnectionDiagnostic';
 import { FirebaseQuotaModal } from './FirebaseQuotaModal';
+import { SyncConflictModal } from './SyncConflictModal';
 import {
   RefreshCw,
   Cloud,
@@ -89,6 +90,7 @@ export const SyncAuditStatementView: React.FC = () => {
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; seq?: number; ms?: number; message: string } | null>(null);
   const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
 
   // Database Preview Modal State
   const [showDatabasePreviewModal, setShowDatabasePreviewModal] = useState(false);
@@ -597,6 +599,16 @@ export const SyncAuditStatementView: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => setIsConflictModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-md transition cursor-pointer"
+                title="كشف العمليات المتعارضة والمعلقة وإدارتها بحرية"
+              >
+                <AlertTriangle className="w-4 h-4 text-amber-200" />
+                <span>كشف المعلقات والتعارضات ({pendingSyncCount}) 📋</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleConnectDrive}
                 disabled={isConnectingDrive}
                 className={`flex items-center gap-1.5 px-3 py-2 font-bold text-xs rounded-lg border transition cursor-pointer ${
@@ -656,18 +668,25 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
         </div>
 
-        <div className={`p-3 rounded-xl border shadow-xs flex items-center justify-between ${
-          pendingSyncCount > 0 ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200'
-        }`}>
+        <div
+          onClick={() => setIsConflictModalOpen(true)}
+          className={`p-3 rounded-xl border shadow-xs flex items-center justify-between cursor-pointer transition hover:shadow-md ${
+            pendingSyncCount > 0 ? 'bg-amber-50 border-amber-300 hover:border-amber-400' : 'bg-white border-slate-200 hover:border-slate-300'
+          }`}
+          title="انقر لفتح كشف العمليات المعلقة والمتعارضة واختيار طريقة معالجتها"
+        >
           <div>
-            <span className="text-[11px] font-bold text-slate-500 block">المعلقات (بانتظار الإرسال):</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500 block">المعلقات (بانتظار الإرسال):</span>
+              <span className="text-[10px] text-amber-700 font-bold bg-amber-100 px-1.5 py-0.5 rounded">كشف وتحكم 🔍</span>
+            </div>
             <span className={`text-xl font-black block mt-0.5 ${
               pendingSyncCount > 0 ? 'text-amber-700' : 'text-slate-800'
             }`}>
               {pendingSyncCount}
             </span>
             <span className="text-[10px] text-slate-500 block mt-0.5">
-              {pendingSyncCount > 0 ? 'تعديلات جاري رفعها للـ Firebase' : 'كافة البيانات متطابقة سحابياً بالكامل 🟢'}
+              {pendingSyncCount > 0 ? 'انقر لعرض الكشف وإعادة الترقيم أو الاستبعاد' : 'كافة البيانات متطابقة سحابياً بالكامل 🟢'}
             </span>
           </div>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
@@ -1101,6 +1120,12 @@ export const SyncAuditStatementView: React.FC = () => {
       <FirebaseQuotaModal
         isOpen={isQuotaModalOpen}
         onClose={() => setIsQuotaModalOpen(false)}
+      />
+
+      {/* Sync Conflict and Outbox Disclosure Modal */}
+      <SyncConflictModal
+        isOpen={isConflictModalOpen}
+        onClose={() => setIsConflictModalOpen(false)}
       />
     </div>
   );

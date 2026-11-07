@@ -6,6 +6,9 @@ import {
   AppliedChange, CommitReceipt, recordKey, ServerCursor,
   ServerEvent, SyncCommand, VersionConflict
 } from './types';
+import {
+  planInvoiceNumbers
+} from './invoiceNumberGuard';
 
 /**
  * NEW namespace, intentionally separate from legacy collections; never mirror legacy writes in parallel.
@@ -32,7 +35,7 @@ export class FirestoreSyncTransport {
     const eventRef = doc(this.events(),command.id);
     const recRefs = command.changes.map(c=>doc(this.records(),this.recId(c.entity,c.id)));
 
-    // Detect which central numbering counters need to be read/allocated
+    // Detect which central numbering counters need to be read/allocated (invoices handled by planInvoiceNumbers)
     const neededCounters = new Set<string>();
     for (const c of command.changes) {
       if (!c.value || typeof c.value !== 'object') continue;
@@ -40,9 +43,7 @@ export class FirestoreSyncTransport {
       const dateStr = String(v.date || v.createdAt || new Date().toISOString());
       const year = dateStr.slice(0, 4) || '2026';
 
-      if (c.entity === 'invoices' && (typeof v.invoiceNumber !== 'string' || v.invoiceNumber.startsWith('TEMP-') || !v.invoiceNumber)) {
-        neededCounters.add(`invoices_${year}`);
-      } else if (c.entity === 'vouchers' && (typeof v.voucherNumber !== 'string' || v.voucherNumber.startsWith('TEMP-') || !v.voucherNumber)) {
+      if (c.entity === 'vouchers' && (typeof v.voucherNumber !== 'string' || v.voucherNumber.startsWith('TEMP-') || !v.voucherNumber)) {
         const prefix = v.type === 'payment' ? 'PV' : 'RC';
         neededCounters.add(`vouchers_${prefix}_${year}`);
       } else if (c.entity === 'purchases' && (typeof v.invoiceNumber !== 'string' || v.invoiceNumber.startsWith('TEMP-') || !v.invoiceNumber)) {
@@ -84,6 +85,14 @@ export class FirestoreSyncTransport {
         counterState.set(counterKeys[i], snap.exists() ? Number(snap.data()?.seq ?? 0) : 0);
       }
 
+      // Plan official invoice numbers centrally and atomically (all transaction reads executed inside)
+      const invoicePlan = await planInvoiceNumbers(
+        this.db,
+        tx,
+        this.workspaceId,
+        command.changes
+      );
+
       // 2. Validate versions and allocate central atomic sequences
       const applied: AppliedChange[] = [];
       const updatedCounters = new Map<string, number>();
@@ -101,15 +110,35 @@ export class FirestoreSyncTransport {
           const dateStr = String(v.date || v.createdAt || new Date().toISOString());
           const year = dateStr.slice(0, 4) || '2026';
 
-          if (proposed.entity === 'invoices' && (typeof v.invoiceNumber !== 'string' || v.invoiceNumber.startsWith('TEMP-') || !v.invoiceNumber)) {
-            const key = `invoices_${year}`;
-            const seq = (counterState.get(key) ?? 0) + 1;
-            counterState.set(key, seq);
-            updatedCounters.set(key, seq);
-            v.tempInvoiceNumber = v.invoiceNumber || `TEMP-${proposed.id}`;
-            v.invoiceNumber = `INV-${year}-${String(seq).padStart(5, '0')}`;
-            v.isOfficial = true;
-            v.officialAllocatedAt = Date.now();
+          if (proposed.entity === 'invoices') {
+            if (proposed.expectedVersion === 0) {
+              const assigned = invoicePlan.numbers.get(
+                proposed.id
+              );
+
+              if (!assigned) {
+                throw new Error('INVOICE_NUMBER_NOT_ALLOCATED');
+              }
+
+              v.tempInvoiceNumber =
+                v.invoiceNumber || `TEMP-${proposed.id}`;
+
+              v.invoiceNumber = assigned;
+              v.isOfficial = true;
+
+            } else {
+              const originalNumber =
+                existing[i].data()?.value?.invoiceNumber;
+
+              if (
+                originalNumber &&
+                v.invoiceNumber !== originalNumber
+              ) {
+                throw new Error(
+                  'OFFICIAL_INVOICE_NUMBER_IS_IMMUTABLE'
+                );
+              }
+            }
           } else if (proposed.entity === 'vouchers' && (typeof v.voucherNumber !== 'string' || v.voucherNumber.startsWith('TEMP-') || !v.voucherNumber)) {
             const prefix = v.type === 'payment' ? 'PV' : 'RC';
             const key = `vouchers_${prefix}_${year}`;
@@ -159,7 +188,8 @@ export class FirestoreSyncTransport {
         });
       }
 
-      // 3. Perform Writes (Counters, Records, Event)
+      // 3. Perform Writes (Invoice Claims & Counter, Sequence, Other Counters, Records, Event)
+      invoicePlan.write();
       tx.set(sequenceRef, { value: nextSequence, updatedAt: serverTimestamp() });
       for (const [key, seq] of updatedCounters.entries()) {
         tx.set(doc(this.counters(), key), { seq, updatedAt: serverTimestamp() }, { merge: true });
