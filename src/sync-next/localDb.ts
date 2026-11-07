@@ -477,6 +477,39 @@ export class LocalSyncDb {
     );
   }
 
+  /**
+   * Seeds cloud snapshot records directly into local IndexedDB records store
+   * with exact cloud versions and zero pending outbox write commands.
+   */
+  async seedFromCloud(cloudSnap: Record<string, any[]>): Promise<number> {
+    const db = await this.dbPromise;
+    const tx = db.transaction([RECORDS], 'readwrite');
+    const done = completed(tx);
+    const store = tx.objectStore(RECORDS);
+    let count = 0;
+
+    for (const [entity, items] of Object.entries(cloudSnap)) {
+      if (!Array.isArray(items)) continue;
+      for (const item of items) {
+        if (!item || !item.id) continue;
+        const cleanId = String(item.id);
+        const key = recordKey(entity as EntityName, cleanId);
+        store.put({
+          key,
+          entity: entity as EntityName,
+          id: cleanId,
+          version: typeof item.version === 'number' ? item.version : 1,
+          value: item
+        });
+        count++;
+      }
+    }
+
+    await done;
+    this.changed();
+    return count;
+  }
+
   async getConflicts(): Promise<SyncCommand[]> {
     const db = await this.dbPromise;
     const tx = db.transaction(OUTBOX, 'readonly');

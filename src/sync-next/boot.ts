@@ -74,14 +74,7 @@ export async function createUnifiedDataLayer(
       if (typeof navigator === 'undefined' || navigator.onLine) {
         const cloudSnap = await remote.fetchCloudSnapshot().catch(() => ({}));
         if (cloudSnap && Object.keys(cloudSnap).length > 0) {
-          for (const [entity, items] of Object.entries(cloudSnap)) {
-            if (!Array.isArray(items)) continue;
-            for (const item of items) {
-              if (item?.id) {
-                await repository.put(entity as EntityName, item.id, item).catch(() => {});
-              }
-            }
-          }
+          await local.seedFromCloud(cloudSnap);
         }
       }
     }

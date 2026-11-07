@@ -1265,6 +1265,32 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         unifiedRepoRef.current = layer.repository;
         setUnifiedRepository(layer.repository);
         stopFn = layer.stop;
+
+        const syncStateWithRepository = async (repo: UnifiedRepository) => {
+          try {
+            const grouped = await repo.getAllVisibleGrouped();
+            if (unmounted) return;
+            if (Array.isArray(grouped.invoices) && grouped.invoices.length > 0) setInvoices(grouped.invoices);
+            if (Array.isArray(grouped.parties) && grouped.parties.length > 0) setParties(grouped.parties);
+            if (Array.isArray(grouped.inventory) && grouped.inventory.length > 0) setInventory(grouped.inventory);
+            if (Array.isArray(grouped.accounts) && grouped.accounts.length > 0) setAccounts(grouped.accounts);
+            if (Array.isArray(grouped.treasuries) && grouped.treasuries.length > 0) setTreasuries(grouped.treasuries);
+            if (Array.isArray(grouped.journalEntries) && grouped.journalEntries.length > 0) setJournalEntries(grouped.journalEntries);
+            if (Array.isArray(grouped.stockMovements) && grouped.stockMovements.length > 0) setStockMovements(grouped.stockMovements);
+            if (Array.isArray(grouped.printOrders) && grouped.printOrders.length > 0) setPrintOrders(grouped.printOrders);
+            if (Array.isArray(grouped.vouchers) && grouped.vouchers.length > 0) setVouchers(grouped.vouchers);
+            if (Array.isArray(grouped.purchases) && grouped.purchases.length > 0) setPurchases(grouped.purchases);
+            if (Array.isArray(grouped.employees) && grouped.employees.length > 0) setEmployees(grouped.employees);
+          } catch (e) {
+            console.warn('Repository sync to React state notice:', e);
+          }
+        };
+
+        await syncStateWithRepository(layer.repository);
+        const unsubscribeRepo = layer.repository.subscribe(() => {
+          syncStateWithRepository(layer.repository);
+        });
+
         unsubscribeState = layer.coordinator.onState(st => {
           if (!unmounted) {
             setSyncCoordinatorState(st);
@@ -2553,12 +2579,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Route legacy screen mutations through the ONE durable local outbox.
   // No success is claimed until enqueue resolves. Old network writers are retired.
-  const pushDeltaToServer = (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]) => {
-    void (async () => {
+  const pushDeltaToServer = async (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]): Promise<string | undefined> => {
+    try {
       const repo = unifiedRepoRef.current;
       if (!repo) throw new Error('LOCAL_REPOSITORY_NOT_INITIALIZED');
       const input = items || (Array.isArray(item) ? item : item ? [item] : []);
-      if (!input.length) return;
+      if (!input.length) return undefined;
       const operations: ProposedChange[] = input.map((value: any) => {
         const id = String(value?.id || '').trim();
         if (!id) throw new Error(`MISSING_STABLE_ID: ${entity}`);
@@ -2581,14 +2607,16 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       try { window.dispatchEvent(new CustomEvent('accounting_local_saved', {
         detail: { entity, ids: operations.map(x => x.id), commandId }
       })); } catch {}
-    })().catch(error => {
+      return commandId;
+    } catch (error) {
       console.error('LOCAL_SAVE_FAILED — the operation was NOT queued:', error);
       setHasUnsyncedChanges(true);
       lastSyncErrorRef.current = String(error);
       try { window.dispatchEvent(new CustomEvent('accounting_save_error', {
         detail: { entity, error: String(error) }
       })); } catch {}
-    });
+      throw error;
+    }
   };
 
   // Backward-compatible alias for existing entity calls
