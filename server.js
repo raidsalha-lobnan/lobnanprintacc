@@ -13,11 +13,89 @@ if (!fs.existsSync(SYNC_DATA_DIR)) {
   }
 }
 var app = express();
-app.use((_req, res, next) => {
+var API_LOGS_FILE = path.join(SYNC_DATA_DIR, "api_requests_log.json");
+var apiRequestLogs = [];
+try {
+  if (fs.existsSync(API_LOGS_FILE)) {
+    const data = JSON.parse(fs.readFileSync(API_LOGS_FILE, "utf8"));
+    if (Array.isArray(data)) apiRequestLogs = data.slice(-1e3);
+  }
+} catch {
+}
+function saveApiLogs() {
+  try {
+    fs.writeFileSync(API_LOGS_FILE, JSON.stringify(apiRequestLogs.slice(-1e3), null, 2), "utf8");
+  } catch {
+  }
+}
+app.use((req, res, next) => {
+  if (!req.path.startsWith("/api/")) {
+    return next();
+  }
+  const startTime = Date.now();
+  const reqId = Math.random().toString(36).substring(2, 9);
+  const reqBody = req.body;
+  res.on("finish", () => {
+    const duration = Date.now() - startTime;
+    const logEntry = {
+      id: reqId,
+      timestamp: startTime,
+      iso: new Date(startTime).toISOString(),
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      headers: {
+        host: req.headers["host"],
+        "user-agent": req.headers["user-agent"],
+        "content-type": req.headers["content-type"],
+        "authorization": req.headers["authorization"] ? "Bearer [HIDDEN]" : void 0,
+        "x-requested-with": req.headers["x-requested-with"],
+        "origin": req.headers["origin"],
+        "referer": req.headers["referer"]
+      },
+      body: reqBody,
+      statusCode: res.statusCode,
+      durationMs: duration
+    };
+    apiRequestLogs.push(logEntry);
+    if (apiRequestLogs.length > 1e3) apiRequestLogs.shift();
+    saveApiLogs();
+  });
+  next();
+});
+app.get("/api/logs/requests", (req, res) => {
+  const filterMethod = req.query.method ? String(req.query.method).toUpperCase() : "";
+  const filterStatus = req.query.status ? parseInt(String(req.query.status), 10) : NaN;
+  const filterSearch = req.query.search ? String(req.query.search).toLowerCase() : "";
+  let filtered = [...apiRequestLogs];
+  if (filterMethod) filtered = filtered.filter((l) => l.method === filterMethod);
+  if (!isNaN(filterStatus)) filtered = filtered.filter((l) => l.statusCode === filterStatus);
+  if (filterSearch) {
+    filtered = filtered.filter(
+      (l) => l.path.toLowerCase().includes(filterSearch) || JSON.stringify(l.headers).toLowerCase().includes(filterSearch) || JSON.stringify(l.body || "").toLowerCase().includes(filterSearch)
+    );
+  }
+  res.json({
+    success: true,
+    totalCaptured: apiRequestLogs.length,
+    filteredCount: filtered.length,
+    serverTime: Date.now(),
+    logs: filtered.reverse()
+  });
+});
+app.delete("/api/logs/requests", (_req, res) => {
+  apiRequestLogs = [];
+  saveApiLogs();
+  res.json({ success: true, message: "API request logs cleared" });
+});
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    console.log(`[EXPRESS API TRACE] Method: ${req.method} | Path: ${req.path}`);
+  }
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-  if (_req.method === "OPTIONS") {
+  if (req.method === "OPTIONS") {
     return res.sendStatus(204);
   }
   next();
@@ -113,65 +191,50 @@ var ALL_SYNC_ENTITIES = [
 ];
 var syncCache = {};
 var syncTimestamps = {};
-function loadEntityData(entity) {
+function isTestSyncProbeItem(item) {
+  if (!item) return false;
+  const id = String(item.id || "");
+  const code = String(item.code || "");
+  const name = String(item.name || "");
+  return id === "inv-probe-sync-1" || id === "inv-test-full-1" || code === "ITEM-9999" || name === "\u0635\u0646\u0641 \u062A\u062C\u0631\u0628\u0629 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629" || name === "\u0635\u0646\u0641 \u0641\u062D\u0635 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629 \u0627\u0644\u0634\u0627\u0645\u0644\u0629";
+}
+function sanitizeEntityName(entity) {
+  if (!entity || typeof entity !== "string") return "";
+  const cleaned = entity.replace(/[^a-zA-Z0-9_-]/g, "");
+  if (ALL_SYNC_ENTITIES.includes(cleaned)) {
+    return cleaned;
+  }
+  return "";
+}
+function loadEntityData(rawEntity) {
+  const entity = sanitizeEntityName(rawEntity);
+  if (!entity) return [];
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
   let existingData = [];
   if (fs.existsSync(filePath)) {
     try {
       const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
       if (Array.isArray(data)) existingData = data;
-    } catch {
+    } catch (err) {
+      console.warn(`Error reading ${filePath}:`, err);
     }
   }
-  const snapshotPath = path.join(__dirname, "public", "master_drive_database_snapshot.json");
-  if (fs.existsSync(snapshotPath)) {
-    try {
-      const snap = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
-      if (snap && Array.isArray(snap[entity]) && snap[entity].length > 0) {
-        if (existingData.length === 0) {
-          existingData = snap[entity];
-          try {
-            fs.writeFileSync(filePath, JSON.stringify(existingData), "utf8");
-          } catch {
-          }
-        } else {
-          const itemMap = /* @__PURE__ */ new Map();
-          for (const it of snap[entity]) {
-            if (it && it.id) itemMap.set(String(it.id), it);
-          }
-          for (const it of existingData) {
-            if (it && it.id) {
-              const existing = itemMap.get(String(it.id));
-              itemMap.set(String(it.id), existing ? { ...existing, ...it } : it);
-            }
-          }
-          existingData = Array.from(itemMap.values());
-        }
-      }
-    } catch {
-    }
-  }
+  existingData = existingData.filter((it) => !isTestSyncProbeItem(it));
   syncCache[entity] = existingData;
   syncTimestamps[entity] = fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : Date.now();
   return existingData;
 }
-function saveEntityData(entity, data) {
-  syncCache[entity] = data;
+function saveEntityData(rawEntity, data) {
+  const entity = sanitizeEntityName(rawEntity);
+  if (!entity) return;
+  const cleanData = (data || []).filter((it) => !isTestSyncProbeItem(it));
+  syncCache[entity] = cleanData;
   syncTimestamps[entity] = Date.now();
   const filePath = path.join(SYNC_DATA_DIR, `${entity}.json`);
   try {
-    fs.writeFileSync(filePath, JSON.stringify(data), "utf8");
+    fs.writeFileSync(filePath, JSON.stringify(cleanData), "utf8");
   } catch (err) {
     console.error(`Failed to save sync entity ${entity}:`, err);
-  }
-  try {
-    const snapshotPath = path.join(__dirname, "public", "master_drive_database_snapshot.json");
-    if (fs.existsSync(snapshotPath)) {
-      const snap = JSON.parse(fs.readFileSync(snapshotPath, "utf8")) || {};
-      snap[entity] = data;
-      fs.writeFileSync(snapshotPath, JSON.stringify(snap, null, 2), "utf8");
-    }
-  } catch {
   }
 }
 var DELTAS_FILE = path.join(SYNC_DATA_DIR, "deltas.json");
@@ -336,6 +399,44 @@ app.post("/api/sync/push", (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.post("/api/sync/replace-database", (req, res) => {
+  try {
+    const rawData = req.body?.data || req.body;
+    if (!rawData || typeof rawData !== "object") {
+      return res.status(400).json({ error: "Invalid database snapshot" });
+    }
+    for (const ent of ALL_SYNC_ENTITIES) {
+      const items = Array.isArray(rawData[ent]) ? rawData[ent] : [];
+      saveEntityData(ent, items);
+    }
+    if (rawData.dailyEntrySheets && typeof rawData.dailyEntrySheets === "object") {
+      const dailyPath = path.join(SYNC_DATA_DIR, "dailyEntrySheets.json");
+      try {
+        fs.writeFileSync(dailyPath, JSON.stringify(rawData.dailyEntrySheets), "utf8");
+      } catch {
+      }
+    }
+    const newSeq = 1;
+    const initialDelta = { entity: "all", op: "replace_database", seq: newSeq, timestamp: Date.now() };
+    try {
+      fs.writeFileSync(DELTAS_FILE, JSON.stringify({ currentSeq: newSeq, deltas: [initialDelta] }), "utf8");
+    } catch {
+    }
+    try {
+      const snapshotPath = path.join(__dirname, "public", "master_drive_database_snapshot.json");
+      fs.writeFileSync(snapshotPath, JSON.stringify(rawData, null, 2), "utf8");
+    } catch {
+    }
+    res.json({
+      success: true,
+      message: "\u062A\u0645 \u0627\u0633\u062A\u0628\u062F\u0627\u0644 \u0642\u0627\u0639\u062F\u0629 \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u0631\u0643\u0632\u064A\u0629 \u0628\u0627\u0644\u0643\u0627\u0645\u0644 \u0639\u0644\u0649 \u0627\u0644\u0633\u064A\u0631\u0641\u0631 \u0628\u0646\u062C\u0627\u062D",
+      currentSeq: newSeq
+    });
+  } catch (err) {
+    console.error("Failed to replace server database:", err);
+    res.status(500).json({ error: err?.message || "Server database replacement failed" });
+  }
+});
 app.all("/api/sync/full-sync", (req, res) => {
   if (req.method === "OPTIONS") return res.sendStatus(204);
   try {
@@ -434,14 +535,6 @@ app.use(express.static(distPath, {
     res.setHeader("Expires", "0");
   }
 }));
-app.get("*", (_req, res) => {
-  const indexPath = path.join(distPath, "index.html");
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(200).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>\u0628\u0631\u0646\u0627\u0645\u062C \u0627\u0644\u0623\u064A\u0647\u0645</title></head><body>\u062C\u0627\u0631\u064A \u062A\u062D\u0645\u064A\u0644 \u0627\u0644\u062A\u0637\u0628\u064A\u0642...</body></html>');
-  }
-});
 var server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Application server running on http://0.0.0.0:${PORT}`);
 });

@@ -1,8 +1,115 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAccounting } from '../context/AccountingContext';
-import { compareRecordCollections } from '../sync-next/reconcileRecords';
-import { downloadMultiSourceDiagnostic } from '../sync-next/reconciliationExport';
 import { syncAuditService, SyncAuditItem, SyncConnectionIssue, ENTITY_ARABIC_NAMES } from '../services/syncAuditService';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+// Inlined self-contained reconciliation helpers to eliminate external module resolution issues in remote CI/CD builds
+export type ComparisonStatus = 'NOT_CHECKED' | 'MATCH' | 'DIFFERENT';
+export interface ReconciliationDifference {
+  status: ComparisonStatus;
+  missingOnCloud: string[];
+  missingOnDevice: string[];
+  differentContent: string[];
+  duplicateDeviceIds: string[];
+  duplicateCloudIds: string[];
+}
+
+function canonicalRecordJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonicalRecordJson).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).sort().map(k =>
+      JSON.stringify(k) + ':' + canonicalRecordJson((v as Record<string, unknown>)[k])
+    ).join(',')}}`;
+  }
+  return JSON.stringify(v);
+}
+
+export function compareRecordCollections(
+  local: Array<{ id?: string }> | undefined,
+  cloud: Array<{ id?: string }> | undefined
+): ReconciliationDifference {
+  const empty = {
+    missingOnCloud: [] as string[], missingOnDevice: [] as string[],
+    differentContent: [] as string[], duplicateDeviceIds: [] as string[],
+    duplicateCloudIds: [] as string[]
+  };
+  if (!local || !cloud) return { status: 'NOT_CHECKED', ...empty };
+  const index = (list: Array<{ id?: string }>, duplicates: string[]) => {
+    const map = new Map<string, string>();
+    for (const item of list) {
+      if (!item?.id) continue;
+      if (map.has(item.id)) duplicates.push(item.id);
+      map.set(item.id, canonicalRecordJson(item));
+    }
+    return map;
+  };
+  const device = index(local, empty.duplicateDeviceIds);
+  const server = index(cloud, empty.duplicateCloudIds);
+  for (const [id, localJson] of device) {
+    if (!server.has(id)) empty.missingOnCloud.push(id);
+    else if (server.get(id) !== localJson) empty.differentContent.push(id);
+  }
+  for (const id of server.keys()) {
+    if (!device.has(id)) empty.missingOnDevice.push(id);
+  }
+  const status = Object.values(empty).some(items => items.length > 0) ? 'DIFFERENT' : 'MATCH';
+  return { status, ...empty };
+}
+
+async function downloadMultiSourceDiagnostic(repository: any) {
+  const local = await repository.getAllVisibleGrouped();
+  const outbox = await repository.getLocalDb().pending();
+  const cloud = await repository.getCloudSnapshot();
+  const legacy: Record<string, unknown> = {};
+  const suffixes = ['invoices','parties','treasuries','vouchers','journals','inventory',
+    'accounts','purchases','stockMovements','expenses'];
+  for (const suffix of suffixes) {
+    try {
+      const key = `alnoor_press_accounting_v1_${suffix}`;
+      const value = localStorage.getItem(key);
+      if (value) legacy[key] = JSON.parse(value);
+    } catch {}
+  }
+  const comparisons: Record<string, ReturnType<typeof compareRecordCollections>> = {};
+  const names = new Set([...Object.keys(local), ...Object.keys(cloud)]);
+  for (const name of names) {
+    comparisons[name] = compareRecordCollections(local[name] ?? [], cloud[name] ?? []);
+  }
+  const invoiceRows: any[] = [];
+  for (const [source, records] of [['local',local.invoices], ['cloud',cloud.invoices]] as const) {
+    for (const record of records || []) {
+      invoiceRows.push({
+        source, id: String(record.id || ''), invoiceNumber: String(record.invoiceNumber || ''),
+        customerName: String(record.customerName || ''), totalAmount: Number(record.totalAmount || 0),
+        date: String(record.date || '')
+      });
+    }
+  }
+  const report = {
+    format: 'lobnan-reconciliation-export-v1',
+    generatedAt: new Date().toISOString(),
+    workspaceId: 'lobnan_main',
+    projectId: (firebaseConfig as any).projectId,
+    firestoreDatabaseId: (firebaseConfig as any).firestoreDatabaseId,
+    deviceId: localStorage.getItem('lobnan_device_id') || 'not-assigned',
+    local, cloud, legacy, outbox, comparisons,
+    invoiceRows
+  };
+  const json = JSON.stringify(report, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lobnan-reconciliation-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return report;
+}
 import { getCachedSyncToken, requestGoogleDriveToken } from '../services/googleDriveDatabaseSyncService';
 import {
   runLiveFirestorePingTest,
