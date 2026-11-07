@@ -249,4 +249,52 @@ export class FirestoreSyncTransport {
       if (!snapshot.metadata.fromCache) onChanged();
     },onError);
   }
+
+  /**
+   * Fetches the authoritative live records directly from the Firestore sync workspace.
+   * This is the single source of truth for the entire database in the cloud.
+   */
+  async fetchCloudSnapshot(): Promise<Record<string, any[]>> {
+    try {
+      const snap = await getDocsFromServer(this.records());
+      const grouped: Record<string, any[]> = {};
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (data.deleted || !data.value) continue;
+        const ent = data.entity;
+        if (!grouped[ent]) grouped[ent] = [];
+        grouped[ent].push(data.value);
+      }
+      return grouped;
+    } catch (e) {
+      console.warn('Error fetching cloud snapshot from records:', e);
+      return {};
+    }
+  }
 }
+
+/**
+ * Global helper to read the authoritative cloud records collection directly
+ */
+export async function fetchAuthoritativeCloudRecords(
+  db: Firestore,
+  workspaceId: string = 'lobnan_main'
+): Promise<Record<string, any[]>> {
+  try {
+    const recordsCol = collection(db, 'lobnan_sync_workspaces', workspaceId, 'records');
+    const snap = await getDocsFromServer(recordsCol);
+    const grouped: Record<string, any[]> = {};
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (data.deleted || !data.value) continue;
+      const ent = data.entity;
+      if (!grouped[ent]) grouped[ent] = [];
+      grouped[ent].push(data.value);
+    }
+    return grouped;
+  } catch (e) {
+    console.warn('Error fetching authoritative cloud records:', e);
+    return {};
+  }
+}
+

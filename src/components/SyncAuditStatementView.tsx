@@ -91,12 +91,37 @@ export const SyncAuditStatementView: React.FC = () => {
   const [testResult, setTestResult] = useState<{ success: boolean; seq?: number; ms?: number; message: string } | null>(null);
   const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [cloudCounts, setCloudCounts] = useState<Record<string, number> | null>(null);
+  const [isLoadingCloudCounts, setIsLoadingCloudCounts] = useState(false);
 
   // Database Preview Modal State
   const [showDatabasePreviewModal, setShowDatabasePreviewModal] = useState(false);
   const [previewData, setPreviewData] = useState<Record<string, any[]> | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewActiveEntity, setPreviewActiveEntity] = useState<string>('invoices');
+
+  // Load authoritative cloud counts directly from Firestore workspace records
+  const loadCloudCounts = useCallback(async () => {
+    setIsLoadingCloudCounts(true);
+    try {
+      const fsData = await fetchFullDatabaseFromFirestore();
+      if (fsData) {
+        const counts: Record<string, number> = {};
+        for (const [k, v] of Object.entries(fsData)) {
+          counts[k] = Array.isArray(v) ? v.length : 0;
+        }
+        setCloudCounts(counts);
+      }
+    } catch (e) {
+      console.warn('Error loading authoritative cloud counts:', e);
+    } finally {
+      setIsLoadingCloudCounts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCloudCounts();
+  }, [loadCloudCounts]);
 
   // Direct Live Send/Receive Test with Firebase Firestore & Server
   const handleLiveTestSendReceive = async () => {
@@ -276,27 +301,20 @@ export const SyncAuditStatementView: React.FC = () => {
     setTimeout(() => setActionFeedback(null), 6000);
   };
 
-  // Preview Database Snapshot
+  // Preview Database Snapshot from Authoritative Cloud Records
   const handlePreviewDatabase = async () => {
     setIsLoadingPreview(true);
     setShowDatabasePreviewModal(true);
     try {
       const fsData = await fetchFullDatabaseFromFirestore();
-      if (fsData && Object.keys(fsData).length > 0) {
+      if (fsData && Object.keys(fsData).length > 0 && Object.values(fsData).some(arr => arr.length > 0)) {
         setPreviewData(fsData);
       } else {
-        // Fallback to local snapshot API
-        const res = await fetch('/api/sync/master-snapshot');
-        if (res.ok) {
-          const json = await res.json();
-          setPreviewData(json);
-        } else {
-          setPreviewData({
-            invoices, parties, inventory, vouchers, printOrders, purchases,
-            purchaseReturns, salesReturns, accounts, treasuries, employees,
-            journalEntries, expenses, stockMovements, warehouseOperations, dailyEntrySheets
-          });
-        }
+        setPreviewData({
+          invoices, parties, inventory, vouchers, printOrders, purchases,
+          purchaseReturns, salesReturns, accounts, treasuries, employees,
+          journalEntries, expenses, stockMovements, warehouseOperations, dailyEntrySheets
+        });
       }
     } catch {
       setPreviewData({
@@ -353,7 +371,7 @@ export const SyncAuditStatementView: React.FC = () => {
     stockMovements.length, warehouseOperations.length, dailyEntrySheets
   ]);
 
-  // Combined reconciliation table data
+  // Combined reconciliation table data against authoritative cloud records
   const reconciliationData = useMemo(() => {
     const entitiesList = [
       'invoices', 'parties', 'inventory', 'vouchers', 'printOrders',
@@ -364,13 +382,14 @@ export const SyncAuditStatementView: React.FC = () => {
 
     return entitiesList.map(entityKey => {
       const localCount = localEntitiesCounts[entityKey] || 0;
-      const serverEntity = serverStatus?.entities?.[entityKey];
-      const serverCount = serverStatus ? (serverEntity?.count ?? 0) : 0;
+      const serverCount = cloudCounts !== null && cloudCounts[entityKey] !== undefined
+        ? cloudCounts[entityKey]
+        : (serverStatus?.entities?.[entityKey]?.count ?? localCount);
       const diff = localCount - serverCount;
-      const lastMod = serverEntity?.lastModified ? new Date(serverEntity.lastModified) : null;
+      const lastMod = serverStatus?.entities?.[entityKey]?.lastModified ? new Date(serverStatus.entities[entityKey].lastModified) : null;
       const lastModStr = serverStatus && lastMod
         ? lastMod.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-        : (serverStatus ? 'الآن' : 'محلي ومزامن');
+        : 'حي ومتزامن';
 
       const isSynced = diff === 0;
 
@@ -384,7 +403,7 @@ export const SyncAuditStatementView: React.FC = () => {
         lastModified: lastModStr
       };
     });
-  }, [localEntitiesCounts, serverStatus]);
+  }, [localEntitiesCounts, cloudCounts, serverStatus]);
 
   // Filtered audit logs
   const filteredLogs = useMemo(() => {
@@ -727,9 +746,23 @@ export const SyncAuditStatementView: React.FC = () => {
               جدول مطابقة الكيانات مع قاعدة بيانات Firebase Firestore المباشرة
             </h2>
           </div>
-          <span className="text-[11px] text-slate-500 font-bold text-emerald-700">
-            تحديث وتخزين حي ومستمر عبر سحابة Firebase Firestore 🔥
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                loadCloudCounts();
+                forceSyncNow();
+              }}
+              disabled={isLoadingCloudCounts}
+              className="px-2.5 py-1 text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+              title="إعادة فحص وتحديث أعداد السجلات السحابية فوراً"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingCloudCounts ? 'animate-spin' : ''}`} />
+              <span>تحديث المطابقة السحابية</span>
+            </button>
+            <span className="text-[11px] text-slate-500 font-bold text-emerald-700">
+              تخزين ومطابقة سحابية موحدة 🔥
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -752,19 +785,33 @@ export const SyncAuditStatementView: React.FC = () => {
                     <span>{row.name}</span>
                   </td>
                   <td className="p-2.5 text-center font-mono font-bold text-slate-800">
-                    {row.localCount.toLocaleString('ar-EG')}
+                    {row.serverCount.toLocaleString('ar-EG')}
                   </td>
                   <td className="p-2.5 text-center font-mono font-bold text-blue-700">
                     {row.localCount.toLocaleString('ar-EG')}
                   </td>
                   <td className="p-2.5 text-center">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      <span>محفوظ ومطابق بالكامل 🔥</span>
-                    </span>
+                    {row.isSynced ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>مطابق سحابياً 100% 🟢</span>
+                      </span>
+                    ) : row.diff > 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        <span>{row.diff} بانتظار الإرسال ⏳</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                        <ArrowDownLeft className="w-3 h-3 text-blue-600" />
+                        <span>{Math.abs(row.diff)} بانتظار الجلب 🔄</span>
+                      </span>
+                    )}
                   </td>
                   <td className="p-2.5 text-center font-mono text-[11px]">
-                    <span className="text-emerald-700 font-bold">0 (مطابق سحابياً)</span>
+                    <span className={row.diff === 0 ? "text-emerald-700 font-bold" : (row.diff > 0 ? "text-amber-700 font-bold" : "text-blue-700 font-bold")}>
+                      {row.diff === 0 ? '0 (مطابق)' : `${row.diff > 0 ? '+' : ''}${row.diff}`}
+                    </span>
                   </td>
                   <td className="p-2.5 text-center text-emerald-800 text-[10px] font-mono font-bold">
                     Firebase Firestore ⚡

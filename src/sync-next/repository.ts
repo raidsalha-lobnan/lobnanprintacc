@@ -110,4 +110,28 @@ export class UnifiedRepository {
   getLocalDb() {
     return this.local;
   }
+
+  async getCloudSnapshot(): Promise<Record<string, any[]>> {
+    const remote = (this.sync as any).remote;
+    if (remote && typeof remote.fetchCloudSnapshot === 'function') {
+      return remote.fetchCloudSnapshot();
+    }
+    return {};
+  }
+
+  async getAllVisibleGrouped(): Promise<Record<string, any[]>> {
+    const supported: EntityName[] = [
+      'invoices', 'parties', 'inventory', 'vouchers', 'printOrders',
+      'purchases', 'purchaseReturns', 'salesReturns', 'accounts',
+      'treasuries', 'employees', 'journalEntries', 'expenses',
+      'stockMovements', 'warehouseOperations', 'dailyEntrySheets',
+      'companies', 'branches', 'warehouses', 'settings'
+    ];
+    const result: Record<string, any[]> = {};
+    for (const ent of supported) {
+      const list = await this.local.listVisible(ent);
+      result[ent] = list.map(r => r.value).filter(Boolean);
+    }
+    return result;
+  }
 }

@@ -1252,6 +1252,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let unmounted = false;
     let stopFn: (() => void) | null = null;
     let unsubscribeState: (() => void) | null = null;
+    let unsubscribeApplied: (() => void) | null = null;
 
     const initLayer = async () => {
       try {
@@ -1271,6 +1272,219 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setHasUnsyncedChanges(st.pending > 0 || st.conflict > 0);
           }
         });
+
+        // 1. Live bidirectional event listener: applies Cloud changes instantly to React UI state
+        unsubscribeApplied = layer.coordinator.onApplied(changes => {
+          if (unmounted || !changes || changes.length === 0) return;
+
+          for (const c of changes) {
+            const id = c.id;
+            const val = c.value;
+
+            if (c.entity === 'invoices') {
+              setInvoices(prev => {
+                let next: Invoice[];
+                if (val === null) {
+                  next = prev.filter(i => i.id !== id);
+                } else {
+                  const idx = prev.findIndex(i => i.id === id);
+                  if (idx >= 0) {
+                    next = [...prev];
+                    next[idx] = val as unknown as Invoice;
+                  } else {
+                    next = [val as unknown as Invoice, ...prev];
+                  }
+                }
+                try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            } else if (c.entity === 'parties') {
+              setParties(prev => {
+                let next: Party[];
+                if (val === null) {
+                  next = prev.filter(p => p.id !== id);
+                } else {
+                  const idx = prev.findIndex(p => p.id === id);
+                  if (idx >= 0) {
+                    next = [...prev];
+                    next[idx] = val as unknown as Party;
+                  } else {
+                    next = [...prev, val as unknown as Party];
+                  }
+                }
+                try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            } else if (c.entity === 'inventory') {
+              setInventory(prev => {
+                let next: InventoryItem[];
+                if (val === null) {
+                  next = prev.filter(item => item.id !== id);
+                } else {
+                  const idx = prev.findIndex(item => item.id === id);
+                  if (idx >= 0) {
+                    next = [...prev];
+                    next[idx] = val as unknown as InventoryItem;
+                  } else {
+                    next = [...prev, val as unknown as InventoryItem];
+                  }
+                }
+                try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            } else if (c.entity === 'vouchers') {
+              setVouchers(prev => {
+                let next: PaymentVoucher[];
+                if (val === null) {
+                  next = prev.filter(v => v.id !== id);
+                } else {
+                  const idx = prev.findIndex(v => v.id === id);
+                  if (idx >= 0) {
+                    next = [...prev];
+                    next[idx] = val as unknown as PaymentVoucher;
+                  } else {
+                    next = [...prev, val as unknown as PaymentVoucher];
+                  }
+                }
+                try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            } else if (c.entity === 'purchases') {
+              setPurchases(prev => {
+                let next: PurchaseInvoice[];
+                if (val === null) {
+                  next = prev.filter(p => p.id !== id);
+                } else {
+                  const idx = prev.findIndex(p => p.id === id);
+                  if (idx >= 0) {
+                    next = [...prev];
+                    next[idx] = val as unknown as PurchaseInvoice;
+                  } else {
+                    next = [val as unknown as PurchaseInvoice, ...prev];
+                  }
+                }
+                try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            } else if (c.entity === 'journalEntries') {
+              setJournalEntries(prev => {
+                let next: JournalEntry[];
+                if (val === null) {
+                  next = prev.filter(j => j.id !== id);
+                } else {
+                  const idx = prev.findIndex(j => j.id === id);
+                  if (idx >= 0) {
+                    next = [...prev];
+                    next[idx] = val as unknown as JournalEntry;
+                  } else {
+                    next = [val as unknown as JournalEntry, ...prev];
+                  }
+                }
+                try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            } else if (c.entity === 'stockMovements') {
+              setStockMovements(prev => {
+                let next: StockMovement[];
+                if (val === null) {
+                  next = prev.filter(sm => sm.id !== id);
+                } else {
+                  const idx = prev.findIndex(sm => sm.id === id);
+                  if (idx >= 0) {
+                    next = [...prev];
+                    next[idx] = val as unknown as StockMovement;
+                  } else {
+                    next = [...prev, val as unknown as StockMovement];
+                  }
+                }
+                try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            } else if (c.entity === 'treasuries') {
+              setTreasuries(prev => {
+                let next: Treasury[];
+                if (val === null) {
+                  next = prev.filter(t => t.id !== id);
+                } else {
+                  const idx = prev.findIndex(t => t.id === id);
+                  if (idx >= 0) {
+                    next = [...prev];
+                    next[idx] = val as unknown as Treasury;
+                  } else {
+                    next = [...prev, val as unknown as Treasury];
+                  }
+                }
+                try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(next)); } catch {}
+                return next;
+              });
+            }
+          }
+        });
+
+        // 2. Initial hydration from local IndexedDB repository
+        const hydrateFromRepo = async () => {
+          try {
+            const repoInvoices = await layer.repository.all('invoices');
+            if (repoInvoices.length > 0) {
+              const items = repoInvoices.map(r => r.value as unknown as Invoice).filter(Boolean);
+              setInvoices(items);
+              try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(items)); } catch {}
+            } else {
+              const localInv = safeLoadArray(`${STORAGE_KEY}_invoices`, []);
+              for (const inv of localInv) {
+                if (inv && inv.id) {
+                  await layer.repository.put('invoices', inv.id, inv as any);
+                }
+              }
+            }
+
+            const repoParties = await layer.repository.all('parties');
+            if (repoParties.length > 0) {
+              const items = repoParties.map(r => r.value as unknown as Party).filter(Boolean);
+              setParties(items);
+              try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(items)); } catch {}
+            } else {
+              const localP = safeLoadArray(`${STORAGE_KEY}_parties`, initialParties);
+              for (const p of localP) {
+                if (p && p.id) {
+                  await layer.repository.put('parties', p.id, p as any);
+                }
+              }
+            }
+
+            const repoInventory = await layer.repository.all('inventory');
+            if (repoInventory.length > 0) {
+              const items = repoInventory.map(r => r.value as unknown as InventoryItem).filter(Boolean);
+              setInventory(items);
+              try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(items)); } catch {}
+            } else {
+              const localInv = safeLoadArray(`${STORAGE_KEY}_inventory`, initialInventory);
+              for (const it of localInv) {
+                if (it && it.id) {
+                  await layer.repository.put('inventory', it.id, it as any);
+                }
+              }
+            }
+
+            const repoVouchers = await layer.repository.all('vouchers');
+            if (repoVouchers.length > 0) {
+              const items = repoVouchers.map(r => r.value as unknown as PaymentVoucher).filter(Boolean);
+              setVouchers(items);
+              try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(items)); } catch {}
+            }
+
+            const repoJournals = await layer.repository.all('journalEntries');
+            if (repoJournals.length > 0) {
+              const items = repoJournals.map(r => r.value as unknown as JournalEntry).filter(Boolean);
+              setJournalEntries(items);
+              try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(items)); } catch {}
+            }
+          } catch (err) {
+            console.warn('Initial hydration from repository notice:', err);
+          }
+        };
+
+        hydrateFromRepo().catch(() => {});
       } catch (e) {
         console.warn('Unified data layer init notice:', e);
       }
@@ -1280,6 +1494,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     return () => {
       unmounted = true;
+      if (unsubscribeApplied) unsubscribeApplied();
       if (unsubscribeState) unsubscribeState();
       if (stopFn) stopFn();
     };

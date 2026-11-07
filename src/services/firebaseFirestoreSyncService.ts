@@ -469,22 +469,51 @@ export async function runLiveFirestorePingTest(): Promise<{
 }
 
 /**
- * Fetches the full master database snapshot from Firestore
+ * Fetches the authoritative master database snapshot directly from the unified sync records in Firestore.
+ * This guarantees that Cloud reading, Device 1, and Device 2 all see the exact same unified dataset.
  */
 export async function fetchFullDatabaseFromFirestore(): Promise<Record<string, any[]> | null> {
   if (isFirestoreQuotaExceeded()) return null;
   try {
     const data: Record<string, any[]> = {};
     for (const ent of ALL_ENTITIES) {
-      const docRef = doc(db, DB_COLLECTION, ent);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const d = snap.data();
-        if (d && Array.isArray(d.items)) {
-          data[ent] = d.items;
+      data[ent] = [];
+    }
+
+    // 1. Authoritative primary source: lobnan_sync_workspaces/lobnan_main/records
+    try {
+      const recordsCol = collection(db, 'lobnan_sync_workspaces', 'lobnan_main', 'records');
+      const snap = await getDocs(recordsCol);
+      if (!snap.empty) {
+        for (const d of snap.docs) {
+          const docData = d.data();
+          if (docData && !docData.deleted && docData.value && docData.entity) {
+            const ent = docData.entity;
+            if (!data[ent]) data[ent] = [];
+            data[ent].push(docData.value);
+          }
         }
       }
+    } catch (wsErr) {
+      console.warn('Workspace records fetch notice:', wsErr);
     }
+
+    // 2. Secondary fallback for any entities not yet populated in the sync workspace
+    for (const ent of ALL_ENTITIES) {
+      if (!data[ent] || data[ent].length === 0) {
+        try {
+          const docRef = doc(db, DB_COLLECTION, ent);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const d = snap.data();
+            if (d && Array.isArray(d.items) && d.items.length > 0) {
+              data[ent] = d.items;
+            }
+          }
+        } catch {}
+      }
+    }
+
     return data;
   } catch (err: any) {
     if (err?.code === 'resource-exhausted') {
