@@ -374,6 +374,96 @@ export const SyncConflictModal: React.FC<SyncConflictModalProps> = ({ isOpen, on
                   </div>
                 )}
               </div>
+
+              {/* Pending Outbox Queue List */}
+              <div className="space-y-3 mt-6 pt-6 border-t border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-400" />
+                    كشف العمليات المعلقة في طابور الانتظار بانتظار الإرسال ({pendingCommands.filter(c => c.status === 'pending').length})
+                  </h3>
+                  <button
+                    onClick={() => {
+                      if (unifiedRepository) {
+                        unifiedRepository.requestSync();
+                        setFeedback('تم إرسال طلب مزامنة فورية لطابور الانتظار 🔄');
+                        loadData();
+                      }
+                    }}
+                    disabled={isLoading}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs text-white font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>مزامنة طابور الانتظار الآن</span>
+                  </button>
+                </div>
+
+                {pendingCommands.filter(c => c.status === 'pending').length === 0 ? (
+                  <div className="p-6 text-center rounded-xl bg-slate-950/40 border border-slate-800/80">
+                    <CheckCircle2 className="w-8 h-8 text-blue-400 mx-auto mb-2 opacity-80" />
+                    <h4 className="text-xs font-bold text-slate-200">طابور الانتظار فارغ تماماً</h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      لا توجد أي حركات معلقة بانتظار الإرسال؛ جميع البيانات منسقة ومزامنة بنجاح.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {pendingCommands.filter(c => c.status === 'pending').map(cmd => (
+                      <div
+                        key={cmd.id}
+                        className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 hover:border-slate-600 transition"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                معلق (Pending)
+                              </span>
+                              <span className="text-xs font-mono text-slate-400">ID: {cmd.id}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                ({new Date(cmd.createdAt).toLocaleTimeString('ar-EG')})
+                              </span>
+                            </div>
+                            <div className="text-xs font-bold text-white mt-1">
+                              الكيانات المتأثرة:{' '}
+                              {cmd.changes.map(c => `${getEntityLabel(c.entity)} (${c.id})`).join('، ')}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 ml-auto">
+                            <button
+                              onClick={() => setSelectedCommand(selectedCommand?.id === cmd.id ? null : cmd)}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-slate-200 font-medium transition flex items-center gap-1.5"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>معاينة</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDiscard(cmd.id)}
+                              disabled={isLoading}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-xs text-rose-200 font-medium transition flex items-center gap-1.5 disabled:opacity-50"
+                              title="حذف أو استبعاد الحركة المعلقة"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>استبعاد</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {selectedCommand?.id === cmd.id && (
+                          <div className="mt-3 pt-3 border-t border-slate-700/60 space-y-2">
+                            <div className="text-[11px] font-bold text-slate-300">تفاصيل التغييرات في طابور الانتظار:</div>
+                            <pre className="p-3 rounded-lg bg-slate-950 font-mono text-[10px] text-slate-300 overflow-x-auto max-h-48 border border-slate-800">
+                              {JSON.stringify(cmd.changes, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </>
           )}
 
