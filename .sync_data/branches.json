@@ -1,1 +1,31 @@
-[]
+[
+  {
+    "payments": [],
+    "bankAccountIds": [
+      "1102",
+      "1103"
+    ],
+    "address": "غزة - الشيخ رضوان - مفترق الغزالي",
+    "branchNumber": "1",
+    "isMain": true,
+    "id": "br-1",
+    "phone": "0592840352",
+    "updatedAt": "2026-11-04T09:39:29.800Z",
+    "branchCode": "BR-01",
+    "notes": "الإدارة المركزية، معرض البيع الرئيسي، ونقطة خدمة كبار العملاء",
+    "createdAt": "2024-01-01",
+    "items": [],
+    "treasuryIds": [
+      "1102",
+      "1105",
+      "1101"
+    ],
+    "companyId": "comp-1",
+    "warehouseIds": [
+      "wh-1"
+    ],
+    "manager": "م. رائد صالحة",
+    "status": "active",
+    "name": "الفرع الرئيسي  Main Branch"
+  }
+]

@@ -63,14 +63,7 @@ export async function createUnifiedDataLayer(
     return true;
   });
   await local.reconcileTestProbeConflicts().catch(() => {});
-  // Safely ensure historical invoices registry is reconciled and ready without blocking offline boots
-  if (typeof navigator === 'undefined' || navigator.onLine) {
-    import('./invoiceRegistryBootstrap').then(({ initializeInvoiceNumberingRegistry }) => {
-      initializeInvoiceNumberingRegistry(db, workspaceId).catch(err => {
-        console.warn('Invoice registry bootstrap notice:', err);
-      });
-    }).catch(() => {});
-  }
+  // Historical invoice registry is initialized explicitly after data reconciliation, not blindly on boot.
   await coordinator.start();
 
   return {

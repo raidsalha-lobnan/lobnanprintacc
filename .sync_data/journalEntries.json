@@ -1,1 +1,2887 @@
-[]
+[
+  {
+    "id": "je-1791147132629-sqmnq4-432",
+    "referenceId": "job-1791147132628",
+    "referenceType": "print_order",
+    "createdAt": "2026-10-04T20:52:12.629Z",
+    "date": "2026-10-04",
+    "description": "عربون أمر طباعة JOB-2026-0015 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0140",
+    "lines": [
+      {
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0015",
+        "debit": 10,
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "description": "إيراد طباعة مقدم",
+        "credit": 10,
+        "accountCode": "4102",
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791150615271-hmn1dl-702",
+    "createdAt": "2026-10-04T21:50:15.271Z",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0021",
+        "debit": 3
+      },
+      {
+        "credit": 3,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "date": "2026-10-04",
+    "referenceId": "job-1791150615270",
+    "entryNumber": "JE-2026-0156",
+    "description": "عربون أمر طباعة JOB-2026-0021 - العميل: زبون نقدي",
+    "referenceType": "print_order",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791150636177-8ymb4x-773",
+    "date": "2026-10-04",
+    "lines": [
+      {
+        "debit": 10,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0022",
+        "accountCode": "1101",
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "credit": 10,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "referenceType": "print_order",
+    "entryNumber": "JE-2026-0158",
+    "description": "عربون أمر طباعة JOB-2026-0022 - العميل: زبون نقدي",
+    "referenceId": "job-1791150636177",
+    "createdAt": "2026-10-04T21:50:36.177Z",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791152031074-9xao68-225",
+    "referenceType": "print_order",
+    "entryNumber": "JE-2026-0166",
+    "description": "عربون أمر طباعة JOB-2026-0026 - العميل: زبون نقدي",
+    "date": "2026-10-04",
+    "referenceId": "job-1791152031073",
+    "createdAt": "2026-10-04T22:13:51.074Z",
+    "lines": [
+      {
+        "debit": 10,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0026",
+        "accountCode": "1101",
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0
+      },
+      {
+        "credit": 10,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791154347969-xcgr58-545",
+    "date": "2026-10-04",
+    "lines": [
+      {
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0028",
+        "credit": 0,
+        "debit": 10,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "credit": 10,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0
+      }
+    ],
+    "referenceId": "job-1791154347969",
+    "createdAt": "2026-10-04T22:52:27.969Z",
+    "description": "عربون أمر طباعة JOB-2026-0028 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0176",
+    "referenceType": "print_order",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791154373569-kq5iuc-717",
+    "referenceType": "print_order",
+    "referenceId": "job-1791154373568",
+    "description": "عربون أمر طباعة JOB-2026-0029 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0179",
+    "createdAt": "2026-10-04T22:52:53.569Z",
+    "lines": [
+      {
+        "debit": 10,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0029"
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 10,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0
+      }
+    ],
+    "date": "2026-10-04",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791154406124-komlo6-978",
+    "referenceId": "job-1791154406124",
+    "createdAt": "2026-10-04T22:53:26.124Z",
+    "date": "2026-10-04",
+    "lines": [
+      {
+        "debit": 3,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0030",
+        "accountCode": "1101",
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0
+      },
+      {
+        "credit": 3,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم"
+      }
+    ],
+    "referenceType": "print_order",
+    "description": "عربون أمر طباعة JOB-2026-0030 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0182",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791224382841-lmlbrk-551",
+    "lines": [
+      {
+        "credit": 0,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0033",
+        "accountCode": "1101",
+        "debit": 2,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0,
+        "credit": 2,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "date": "2026-10-05",
+    "referenceType": "print_order",
+    "referenceId": "job-1791224382841",
+    "createdAt": "2026-10-05T18:19:42.841Z",
+    "description": "عربون أمر طباعة JOB-2026-0033 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0192",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791227355742-y0yn30-681",
+    "referenceId": "job-1791227355741",
+    "referenceType": "print_order",
+    "date": "2026-10-05",
+    "description": "عربون أمر طباعة JOB-2026-0040 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0213",
+    "createdAt": "2026-10-05T19:09:15.742Z",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 52,
+        "credit": 0,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0040",
+        "accountCode": "1101"
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 52,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "debit": 0
+      }
+    ],
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791227366330-tmz8r3-81",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 5,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0041",
+        "accountCode": "1101",
+        "credit": 0
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "credit": 5
+      }
+    ],
+    "description": "عربون أمر طباعة JOB-2026-0041 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0216",
+    "date": "2026-10-05",
+    "createdAt": "2026-10-05T19:09:26.330Z",
+    "referenceId": "job-1791227366330",
+    "referenceType": "print_order",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791227408570-mm0csd-54",
+    "date": "2026-10-05",
+    "createdAt": "2026-10-05T19:10:08.570Z",
+    "entryNumber": "JE-2026-0219",
+    "description": "عربون أمر طباعة JOB-2026-0042 - العميل: زبون نقدي",
+    "referenceId": "job-1791227408570",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0042",
+        "debit": 5
+      },
+      {
+        "credit": 5,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "referenceType": "print_order",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791227700315-75h7so-209",
+    "description": "عربون أمر طباعة JOB-2026-0043 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0224",
+    "date": "2026-10-05",
+    "lines": [
+      {
+        "debit": 30,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0043",
+        "accountCode": "1101",
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 30,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0
+      }
+    ],
+    "createdAt": "2026-10-05T19:15:00.315Z",
+    "referenceType": "print_order",
+    "referenceId": "job-1791227700314",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791230944337-o3lhju-786",
+    "date": "2026-10-05",
+    "referenceId": "job-1791230944336",
+    "description": "عربون أمر طباعة JOB-2026-0051 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0243",
+    "referenceType": "print_order",
+    "lines": [
+      {
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0051",
+        "accountCode": "1101",
+        "credit": 0,
+        "debit": 10,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 10,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0
+      }
+    ],
+    "createdAt": "2026-10-05T20:09:04.337Z",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791231564863-ck93rc-324",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "accountCode": "1101",
+        "credit": 0,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0054",
+        "debit": 6
+      },
+      {
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "credit": 6,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0
+      }
+    ],
+    "referenceId": "job-1791231564863",
+    "date": "2026-10-05",
+    "createdAt": "2026-10-05T20:19:24.863Z",
+    "referenceType": "print_order",
+    "entryNumber": "JE-2026-0259",
+    "description": "عربون أمر طباعة JOB-2026-0054 - العميل: زبون نقدي",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791235135431-gtu8m3-26",
+    "referenceId": "job-1791235135431",
+    "date": "2026-10-05",
+    "createdAt": "2026-10-05T21:18:55.431Z",
+    "lines": [
+      {
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 28,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0055"
+      },
+      {
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0,
+        "credit": 28,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "referenceType": "print_order",
+    "entryNumber": "JE-2026-0262",
+    "description": "عربون أمر طباعة JOB-2026-0055 - العميل: زبون نقدي",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791235620853-csoskz-359",
+    "referenceType": "print_order",
+    "lines": [
+      {
+        "debit": 6,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0056",
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "accountCode": "4102",
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "credit": 6
+      }
+    ],
+    "referenceId": "job-1791235620853",
+    "entryNumber": "JE-2026-0265",
+    "description": "عربون أمر طباعة JOB-2026-0056 - العميل: زبون نقدي",
+    "date": "2026-10-05",
+    "createdAt": "2026-10-05T21:27:00.853Z",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791235630515-eva1op-776",
+    "description": "عربون أمر طباعة JOB-2026-0057 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0268",
+    "date": "2026-10-05",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 6,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0057",
+        "credit": 0
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "credit": 6
+      }
+    ],
+    "createdAt": "2026-10-05T21:27:10.515Z",
+    "referenceType": "print_order",
+    "referenceId": "job-1791235630515",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791235757739-k7v7np-441",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "debit": 6,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0058",
+        "accountCode": "1101"
+      },
+      {
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 6
+      }
+    ],
+    "referenceType": "print_order",
+    "description": "عربون أمر طباعة JOB-2026-0058 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0271",
+    "date": "2026-10-05",
+    "createdAt": "2026-10-05T21:29:17.739Z",
+    "referenceId": "job-1791235757739",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791235800260-u0pvt6-678",
+    "referenceType": "print_order",
+    "lines": [
+      {
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0059",
+        "accountCode": "1101",
+        "credit": 0,
+        "debit": 70,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "accountCode": "4102",
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 70
+      }
+    ],
+    "description": "عربون أمر طباعة JOB-2026-0059 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0274",
+    "referenceId": "job-1791235800260",
+    "createdAt": "2026-10-05T21:30:00.260Z",
+    "date": "2026-10-05",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791323668083-5pe679-587",
+    "date": "2026-10-06",
+    "description": "عربون أمر طباعة JOB-2026-0061 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0279",
+    "referenceType": "print_order",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "accountCode": "1101",
+        "debit": 1,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0061",
+        "credit": 0
+      },
+      {
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "credit": 1
+      }
+    ],
+    "referenceId": "job-1791323668083",
+    "createdAt": "2026-10-06T21:54:28.083Z",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791323735310-0wjikq-416",
+    "createdAt": "2026-10-06T21:55:35.310Z",
+    "referenceId": "job-1791323735310",
+    "lines": [
+      {
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0062",
+        "accountCode": "1101",
+        "credit": 0,
+        "debit": 6,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "credit": 6
+      }
+    ],
+    "date": "2026-10-06",
+    "referenceType": "print_order",
+    "entryNumber": "JE-2026-0282",
+    "description": "عربون أمر طباعة JOB-2026-0062 - العميل: زبون نقدي",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324060526-tuwdln-720",
+    "description": "عربون أمر طباعة JOB-2026-0064 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0287",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 200,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0064",
+        "credit": 0
+      },
+      {
+        "credit": 200,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "debit": 0
+      }
+    ],
+    "date": "2026-10-06",
+    "referenceType": "print_order",
+    "createdAt": "2026-10-06T22:01:00.526Z",
+    "referenceId": "job-1791324060526",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324141652-xc46z5-402",
+    "referenceId": "job-1791324141652",
+    "referenceType": "print_order",
+    "createdAt": "2026-10-06T22:02:21.652Z",
+    "date": "2026-10-06",
+    "description": "عربون أمر طباعة JOB-2026-0065 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0290",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0065",
+        "accountCode": "1101",
+        "debit": 29
+      },
+      {
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "credit": 29,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324368590-gf01v3-216",
+    "description": "عربون أمر طباعة JOB-2026-0069 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0299",
+    "referenceType": "print_order",
+    "createdAt": "2026-10-06T22:06:08.590Z",
+    "date": "2026-10-06",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "debit": 15,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0069",
+        "accountCode": "1101"
+      },
+      {
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0,
+        "credit": 15,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "referenceId": "job-1791324368589",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324388415-9pafop-936",
+    "createdAt": "2026-10-06T22:06:28.415Z",
+    "referenceType": "print_order",
+    "referenceId": "job-1791324388415",
+    "description": "عربون أمر طباعة JOB-2026-0070 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0302",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0070",
+        "credit": 0,
+        "debit": 7
+      },
+      {
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 7
+      }
+    ],
+    "date": "2026-10-06",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324628179-v5exjg-922",
+    "date": "2026-10-06",
+    "referenceId": "job-1791324628179",
+    "createdAt": "2026-10-06T22:10:28.179Z",
+    "description": "عربون أمر طباعة JOB-2026-0071 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0305",
+    "lines": [
+      {
+        "debit": 110,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0071"
+      },
+      {
+        "credit": 110,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0
+      }
+    ],
+    "referenceType": "print_order",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324707259-kl0bga-514",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "debit": 57,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0072",
+        "accountCode": "1101"
+      },
+      {
+        "credit": 57,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0
+      }
+    ],
+    "referenceId": "job-1791324707259",
+    "referenceType": "print_order",
+    "createdAt": "2026-10-06T22:11:47.259Z",
+    "entryNumber": "JE-2026-0308",
+    "description": "عربون أمر طباعة JOB-2026-0072 - العميل: زبون نقدي",
+    "date": "2026-10-06",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324755507-l1bdi2-425",
+    "referenceId": "job-1791324755507",
+    "date": "2026-10-06",
+    "referenceType": "print_order",
+    "description": "عربون أمر طباعة JOB-2026-0073 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0311",
+    "lines": [
+      {
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0073",
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 26
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "accountCode": "4102",
+        "credit": 26,
+        "description": "إيراد طباعة مقدم"
+      }
+    ],
+    "createdAt": "2026-10-06T22:12:35.507Z",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324774790-fp4oqu-198",
+    "createdAt": "2026-10-06T22:12:54.790Z",
+    "date": "2026-10-06",
+    "entryNumber": "JE-2026-0314",
+    "description": "عربون أمر طباعة JOB-2026-0074 - العميل: زبون نقدي",
+    "lines": [
+      {
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 31,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0074",
+        "accountCode": "1101"
+      },
+      {
+        "credit": 31,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102"
+      }
+    ],
+    "referenceType": "print_order",
+    "referenceId": "job-1791324774790",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324795510-k2vby2-458",
+    "referenceId": "job-1791324795510",
+    "lines": [
+      {
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0075",
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 16
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 16,
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102"
+      }
+    ],
+    "date": "2026-10-06",
+    "referenceType": "print_order",
+    "description": "عربون أمر طباعة JOB-2026-0075 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0317",
+    "createdAt": "2026-10-06T22:13:15.510Z",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791324972718-tjonxt-124",
+    "description": "عربون أمر طباعة JOB-2026-0077 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0322",
+    "date": "2026-10-06",
+    "lines": [
+      {
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0077",
+        "debit": 40,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 40,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم"
+      }
+    ],
+    "referenceType": "print_order",
+    "createdAt": "2026-10-06T22:16:12.718Z",
+    "referenceId": "job-1791324972718",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325025099-4qz88d-570",
+    "description": "عربون أمر طباعة JOB-2026-0078 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0325",
+    "referenceType": "print_order",
+    "lines": [
+      {
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0078",
+        "debit": 20,
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "credit": 20,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "debit": 0
+      }
+    ],
+    "createdAt": "2026-10-06T22:17:05.099Z",
+    "date": "2026-10-06",
+    "referenceId": "job-1791325025098",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325075233-brtezj-318",
+    "entryNumber": "JE-2026-0328",
+    "description": "عربون أمر طباعة JOB-2026-0079 - العميل: زبون نقدي",
+    "lines": [
+      {
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0079",
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 20
+      },
+      {
+        "credit": 20,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0
+      }
+    ],
+    "date": "2026-10-06",
+    "createdAt": "2026-10-06T22:17:55.233Z",
+    "referenceId": "job-1791325075233",
+    "referenceType": "print_order",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325110574-5p500v-583",
+    "createdAt": "2026-10-06T22:18:30.574Z",
+    "date": "2026-10-06",
+    "referenceType": "print_order",
+    "description": "عربون أمر طباعة JOB-2026-0080 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0331",
+    "lines": [
+      {
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0080",
+        "debit": 52
+      },
+      {
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 52,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم"
+      }
+    ],
+    "referenceId": "job-1791325110574",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325136012-h9xtsn-360",
+    "referenceType": "print_order",
+    "description": "عربون أمر طباعة JOB-2026-0081 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0334",
+    "date": "2026-10-06",
+    "createdAt": "2026-10-06T22:18:56.012Z",
+    "lines": [
+      {
+        "debit": 55,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0081",
+        "accountCode": "1101",
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "credit": 55
+      }
+    ],
+    "referenceId": "job-1791325136011",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325154069-vo78wq-548",
+    "description": "عربون أمر طباعة JOB-2026-0082 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0337",
+    "createdAt": "2026-10-06T22:19:14.069Z",
+    "date": "2026-10-06",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (ا��كاشير)",
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0082",
+        "debit": 6
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 6,
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102"
+      }
+    ],
+    "referenceId": "job-1791325154069",
+    "referenceType": "print_order",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325178074-6nrvqq-146",
+    "entryNumber": "JE-2026-0340",
+    "description": "عربون أمر طباعة JOB-2026-0083 - العميل: زبون نقدي",
+    "lines": [
+      {
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 2,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0083"
+      },
+      {
+        "credit": 2,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "debit": 0
+      }
+    ],
+    "createdAt": "2026-10-06T22:19:38.074Z",
+    "referenceType": "print_order",
+    "referenceId": "job-1791325178074",
+    "date": "2026-10-06",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325195401-9em2in-991",
+    "entryNumber": "JE-2026-0343",
+    "description": "عربون أمر طباعة JOB-2026-0084 - العميل: زبون نقدي",
+    "date": "2026-10-06",
+    "createdAt": "2026-10-06T22:19:55.401Z",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "debit": 4,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0084",
+        "accountCode": "1101"
+      },
+      {
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "credit": 4,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "referenceType": "print_order",
+    "referenceId": "job-1791325195401",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325210861-1bwyk9-506",
+    "entryNumber": "JE-2026-0346",
+    "description": "عربون أمر طباعة JOB-2026-0085 - العميل: زبون نقدي",
+    "createdAt": "2026-10-06T22:20:10.861Z",
+    "referenceType": "print_order",
+    "date": "2026-10-06",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 9,
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0085"
+      },
+      {
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "credit": 9,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0
+      }
+    ],
+    "referenceId": "job-1791325210861",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325229086-aej0jj-609",
+    "entryNumber": "JE-2026-0349",
+    "description": "عربون أمر طباعة JOB-2026-0086 - العميل: زبون نقدي",
+    "lines": [
+      {
+        "debit": 3,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0086",
+        "credit": 0
+      },
+      {
+        "debit": 0,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "credit": 3,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "referenceType": "print_order",
+    "createdAt": "2026-10-06T22:20:29.086Z",
+    "date": "2026-10-06",
+    "referenceId": "job-1791325229086",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325261569-ao9o9n-705",
+    "date": "2026-10-06",
+    "referenceId": "job-1791325261568",
+    "lines": [
+      {
+        "credit": 0,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0087",
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "debit": 60
+      },
+      {
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 60,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم"
+      }
+    ],
+    "referenceType": "print_order",
+    "createdAt": "2026-10-06T22:21:01.569Z",
+    "entryNumber": "JE-2026-0352",
+    "description": "عربون أمر طباعة JOB-2026-0087 - العميل: زبون نقدي",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325312073-io2vkm-110",
+    "referenceId": "job-1791325312072",
+    "lines": [
+      {
+        "debit": 7,
+        "credit": 0,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0088",
+        "accountCode": "1101",
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "credit": 7
+      }
+    ],
+    "entryNumber": "JE-2026-0355",
+    "description": "عربون أمر طباعة JOB-2026-0088 - العميل: زبون نقدي",
+    "date": "2026-10-06",
+    "referenceType": "print_order",
+    "createdAt": "2026-10-06T22:21:52.073Z",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791325330844-mncu21-446",
+    "lines": [
+      {
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0089",
+        "debit": 1
+      },
+      {
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 1,
+        "debit": 0
+      }
+    ],
+    "description": "عربون أمر طباعة JOB-2026-0089 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0358",
+    "date": "2026-10-06",
+    "createdAt": "2026-10-06T22:22:10.844Z",
+    "referenceType": "print_order",
+    "referenceId": "job-1791325330844",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791327535918-pstw5f-122",
+    "description": "عربون أمر طباعة JOB-2026-0096 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0373",
+    "createdAt": "2026-10-06T22:58:55.918Z",
+    "date": "2026-10-06",
+    "lines": [
+      {
+        "debit": 84,
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0096",
+        "accountCode": "1101",
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0
+      },
+      {
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "debit": 0,
+        "credit": 84,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة"
+      }
+    ],
+    "referenceType": "print_order",
+    "referenceId": "job-1791327535918",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791327552466-ftayw9-12",
+    "entryNumber": "JE-2026-0376",
+    "description": "عربون أمر طباعة JOB-2026-0097 - العميل: زبون نقدي",
+    "createdAt": "2026-10-06T22:59:12.466Z",
+    "lines": [
+      {
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0097",
+        "credit": 0,
+        "debit": 18,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0,
+        "credit": 18,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم"
+      }
+    ],
+    "referenceType": "print_order",
+    "date": "2026-10-06",
+    "referenceId": "job-1791327552466",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791327570336-k6ai4b-588",
+    "lines": [
+      {
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0098",
+        "debit": 8,
+        "credit": 0,
+        "accountName": "الصندوق النقدي (الكاشير)"
+      },
+      {
+        "debit": 0,
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102",
+        "credit": 8
+      }
+    ],
+    "referenceType": "print_order",
+    "date": "2026-10-06",
+    "description": "عربون أمر طباعة JOB-2026-0098 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0379",
+    "referenceId": "job-1791327570336",
+    "createdAt": "2026-10-06T22:59:30.336Z",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791327589501-ib9kgv-639",
+    "referenceType": "print_order",
+    "date": "2026-10-06",
+    "createdAt": "2026-10-06T22:59:49.501Z",
+    "description": "عربون أمر طباعة JOB-2026-0099 - العميل: زبون نقدي",
+    "entryNumber": "JE-2026-0382",
+    "referenceId": "job-1791327589501",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "debit": 80,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0099"
+      },
+      {
+        "credit": 80,
+        "accountCode": "4102",
+        "description": "إيراد طباعة مقدم",
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "debit": 0
+      }
+    ],
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791327611154-zoql5h-644",
+    "entryNumber": "JE-2026-0385",
+    "description": "عربون أمر طباعة JOB-2026-0100 - العميل: زبون نقدي",
+    "lines": [
+      {
+        "accountName": "الصندوق النقدي (الكاشير)",
+        "credit": 0,
+        "debit": 62,
+        "accountCode": "1101",
+        "description": "استلام عربون نقدي لأمر شغل JOB-2026-0100"
+      },
+      {
+        "accountName": "إيرادات أعمال ومطبوعات المطبعة",
+        "credit": 62,
+        "debit": 0,
+        "description": "إيراد طباعة مقدم",
+        "accountCode": "4102"
+      }
+    ],
+    "referenceType": "print_order",
+    "date": "2026-10-06",
+    "createdAt": "2026-10-06T23:00:11.154Z",
+    "referenceId": "job-1791327611154",
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.616Z"
+  },
+  {
+    "id": "je-1791820352019-cyrk0w-872",
+    "lines": [
+      {
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-10001",
+        "debit": 4,
+        "accountCode": "5101"
+      },
+      {
+        "accountCode": "1301",
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-10001",
+        "debit": 0,
+        "accountName": "مخزون الكتب والقرطاسية",
+        "credit": 4
+      }
+    ],
+    "referenceId": "inv-pos-1791820352014-pqyox",
+    "date": "2026-10-12",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-10001 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "entryNumber": "JE-2026-0557",
+    "createdAt": "2026-10-12T15:52:32.019Z",
+    "payments": [],
+    "items": [],
+    "updatedAt": "2026-10-24T13:55:42.008Z"
+  },
+  {
+    "id": "je-1791820352019-l7yvo8-85",
+    "payments": [],
+    "date": "2026-10-12",
+    "description": "فاتورة مبيعات رقم INV-10001 - زبون نقدي",
+    "items": [],
+    "entryNumber": "JE-2026-0557",
+    "referenceType": "pos_invoice",
+    "lines": [
+      {
+        "description": "تحصيل نقدي لفاتورة INV-10001",
+        "credit": 0,
+        "debit": 20,
+        "accountCode": "1101",
+        "accountName": "الصندوق النقدي (الكاشير الرئيسي)"
+      },
+      {
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)",
+        "accountCode": "4101",
+        "credit": 20,
+        "debit": 0,
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية"
+      }
+    ],
+    "updatedAt": "2026-10-24T13:55:42.008Z",
+    "createdAt": "2026-10-12T15:52:32.019Z",
+    "referenceId": "inv-pos-1791820352014-pqyox"
+  },
+  {
+    "id": "je-1792073272796-xdshvv-764",
+    "createdAt": "2026-10-15T14:07:52.796Z",
+    "referenceId": "vch-1792073272792",
+    "description": "سند قبض RCT-2026-0001 من زبون نقدي (1,000 ₪ معادل 1,000 ₪)",
+    "entryNumber": "JE-2026-0574",
+    "date": "2026-10-15",
+    "referenceType": "receipt",
+    "lines": [
+      {
+        "accountCode": "1101",
+        "credit": 0,
+        "description": "دفعة سداد حساب من العميل",
+        "accountName": "الصندوق النقدي (الخزينة الرئيسية)",
+        "debit": 1000
+      },
+      {
+        "accountCode": "1101",
+        "accountName": "العملاء والذمم المدينة",
+        "description": "تسديد من العميل زبون نقدي",
+        "credit": 1000,
+        "debit": 0
+      }
+    ],
+    "items": [],
+    "payments": [],
+    "updatedAt": "2026-11-02T13:01:29.617Z"
+  },
+  {
+    "id": "je-1793638508691-fj4jyi-669",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0030 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793638507993-x1mlv",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 1,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0030"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 1,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0030"
+      }
+    ],
+    "entryNumber": "JE-2026-0050",
+    "createdAt": "2026-11-02T16:55:08.691Z"
+  },
+  {
+    "id": "je-1793638508691-ib5c8y-705",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0030 - جمعية قوافل الخير - غزة",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793638507993-x1mlv",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 800,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0030"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 800,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0050",
+    "createdAt": "2026-11-02T16:55:08.691Z"
+  },
+  {
+    "id": "je-1793639083001-bae650-149",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0001 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793638507993-x1mlv",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 1,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0001"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 1,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0001"
+      }
+    ],
+    "entryNumber": "JE-2026-0052",
+    "createdAt": "2026-11-02T17:04:43.001Z"
+  },
+  {
+    "id": "je-1793639083001-pc8vs9-159",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0001 - جمعية قوافل الخير - غزة",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793638507993-x1mlv",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 800,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0001"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 800,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0052",
+    "createdAt": "2026-11-02T17:04:43.001Z"
+  },
+  {
+    "id": "je-1793639694505-2e3bwa-586",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0001 - جمعية قوافل الخير - غزة",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793638507993-x1mlv",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 800,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0001"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 800,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0054",
+    "createdAt": "2026-11-02T17:14:54.505Z"
+  },
+  {
+    "id": "je-1793639694505-tezlgu-844",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0001 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793638507993-x1mlv",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 1,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0001"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 1,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0001"
+      }
+    ],
+    "entryNumber": "JE-2026-0054",
+    "createdAt": "2026-11-02T17:14:54.505Z"
+  },
+  {
+    "id": "je-1793639760728-7xt5to-608",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0030 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793639759909-1p7w3",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 15,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0030"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 15,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0030"
+      }
+    ],
+    "entryNumber": "JE-2026-0056",
+    "createdAt": "2026-11-02T17:16:00.728Z"
+  },
+  {
+    "id": "je-1793639760728-lewn6h-449",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0030 - جمعية قوافل الخير - غزة",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793639759909-1p7w3",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 25,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0030"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 25,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0056",
+    "createdAt": "2026-11-02T17:16:00.728Z"
+  },
+  {
+    "id": "je-1793639793511-h15et9-858",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0031 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793639792586-dhymw",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 75,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0031"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 75,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0031"
+      }
+    ],
+    "entryNumber": "JE-2026-0058",
+    "createdAt": "2026-11-02T17:16:33.511Z"
+  },
+  {
+    "id": "je-1793639793511-ke7d28-438",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0031 - جمعية قوافل الخير - غزة",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793639792586-dhymw",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 90,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0031"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 90,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0058",
+    "createdAt": "2026-11-02T17:16:33.511Z"
+  },
+  {
+    "id": "je-1793639807716-bhkewt-23",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0032 - جمعية قوافل الخير - غزة",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793639806677-yl0jh",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 25,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0032"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 25,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0060",
+    "createdAt": "2026-11-02T17:16:47.716Z"
+  },
+  {
+    "id": "je-1793639807717-4a0yna-241",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0032 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793639806677-yl0jh",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 15,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0032"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 15,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0032"
+      }
+    ],
+    "entryNumber": "JE-2026-0060",
+    "createdAt": "2026-11-02T17:16:47.717Z"
+  },
+  {
+    "id": "je-1793639851059-8kl9wr-733",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0033 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793639850375-pgjk8",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 367.5,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0033"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 367.5,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0033"
+      }
+    ],
+    "entryNumber": "JE-2026-0062",
+    "createdAt": "2026-11-02T17:17:31.059Z"
+  },
+  {
+    "id": "je-1793639851059-qz0p3k-348",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0033 - زبون نقدي",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793639850375-pgjk8",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 510,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0033"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 510,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0062",
+    "createdAt": "2026-11-02T17:17:31.059Z"
+  },
+  {
+    "id": "je-1793642050473-r0ho1d-959",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0030 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793642049626-bw2ml",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 232.5,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0030"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 232.5,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0030"
+      }
+    ],
+    "entryNumber": "JE-2026-0064",
+    "createdAt": "2026-11-02T17:54:10.473Z"
+  },
+  {
+    "id": "je-1793642050473-s3ayqd-945",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0030 - جمعية قوافل الخير - غزة",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793642049626-bw2ml",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 305,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0030"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 305,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0064",
+    "createdAt": "2026-11-02T17:54:10.473Z"
+  },
+  {
+    "id": "je-1793642064422-ejmdoz-650",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0031 - زبون نقدي",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793642063746-l6x79",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 5,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0031"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 5,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0066",
+    "createdAt": "2026-11-02T17:54:24.422Z"
+  },
+  {
+    "id": "je-1793642064422-r6k1ny-586",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0031 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793642063746-l6x79",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 1,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0031"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 1,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0031"
+      }
+    ],
+    "entryNumber": "JE-2026-0066",
+    "createdAt": "2026-11-02T17:54:24.422Z"
+  },
+  {
+    "id": "je-1793649022260-7fqzge-345",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0007 - زبون نقدي",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793639850375-pgjk8",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 510,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0007"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 510,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0068",
+    "createdAt": "2026-11-02T19:50:22.260Z"
+  },
+  {
+    "id": "je-1793649022261-16vi0t-4",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0007 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793639850375-pgjk8",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 367.5,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0007"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 367.5,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0007"
+      }
+    ],
+    "entryNumber": "JE-2026-0068",
+    "createdAt": "2026-11-02T19:50:22.261Z"
+  },
+  {
+    "id": "je-1793649143385-w42fm9-38",
+    "date": "2026-11-02",
+    "description": "فاتورة مبيعات رقم INV-0030 - إسماعيل أبو زياد",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649143148-qredh",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 139,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0030"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 139,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0070",
+    "createdAt": "2026-11-02T19:52:23.385Z"
+  },
+  {
+    "id": "je-1793649143386-bksx3t-754",
+    "date": "2026-11-02",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0030 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649143148-qredh",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 87,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0030"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 87,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0030"
+      }
+    ],
+    "entryNumber": "JE-2026-0070",
+    "createdAt": "2026-11-02T19:52:23.386Z"
+  },
+  {
+    "id": "je-1793649157442-grpw7l-662",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0030 - إسماعيل أبو زياد",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649143148-qredh",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 139,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0030"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 139,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0072",
+    "createdAt": "2026-11-02T19:52:37.442Z"
+  },
+  {
+    "id": "je-1793649157442-vx13gh-349",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0030 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649143148-qredh",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 87,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0030"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 87,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0030"
+      }
+    ],
+    "entryNumber": "JE-2026-0072",
+    "createdAt": "2026-11-02T19:52:37.442Z"
+  },
+  {
+    "id": "je-1793649204159-adi2rn-538",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0031 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649203955-08tpz",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 37.5,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0031"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 37.5,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0031"
+      }
+    ],
+    "entryNumber": "JE-2026-0074",
+    "createdAt": "2026-11-02T19:53:24.159Z"
+  },
+  {
+    "id": "je-1793649204159-ajakgy-309",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0031 - جمعية قوافل الخير الوسطى",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649203955-08tpz",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 45,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0031"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 45,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0074",
+    "createdAt": "2026-11-02T19:53:24.159Z"
+  },
+  {
+    "id": "je-1793649245088-zkxiox-797",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0032 - مطبعة السراج - أبو مؤمن هاشم",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649244448-ww060",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 76,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0032"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 76,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0076",
+    "createdAt": "2026-11-02T19:54:05.088Z"
+  },
+  {
+    "id": "je-1793649245089-pre062-761",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0032 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649244448-ww060",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 38,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0032"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 38,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0032"
+      }
+    ],
+    "entryNumber": "JE-2026-0076",
+    "createdAt": "2026-11-02T19:54:05.089Z"
+  },
+  {
+    "id": "je-1793649262590-3kwni1-319",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0033 - أبو البهاء المصري",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649262383-0h1ki",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 6,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0033"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 6,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0078",
+    "createdAt": "2026-11-02T19:54:22.590Z"
+  },
+  {
+    "id": "je-1793649262590-c10mge-914",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0033 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649262383-0h1ki",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 2,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0033"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 2,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0033"
+      }
+    ],
+    "entryNumber": "JE-2026-0078",
+    "createdAt": "2026-11-02T19:54:22.590Z"
+  },
+  {
+    "id": "je-1793649355560-dp3b2f-852",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0034 - سوبر ماركت عبود",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649354764-0xro9",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 7,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0034"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 7,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0080",
+    "createdAt": "2026-11-02T19:55:55.560Z"
+  },
+  {
+    "id": "je-1793649355560-ytolm8-280",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0034 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649354764-0xro9",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 1,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0034"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 1,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0034"
+      }
+    ],
+    "entryNumber": "JE-2026-0080",
+    "createdAt": "2026-11-02T19:55:55.560Z"
+  },
+  {
+    "id": "je-1793649387538-b4rqld-893",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0035 - ياسر حمدان",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649386912-zxdpu",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 130,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0035"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 130,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0082",
+    "createdAt": "2026-11-02T19:56:27.538Z"
+  },
+  {
+    "id": "je-1793649387538-gf64po-121",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0035 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649386912-zxdpu",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 90,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0035"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 90,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0035"
+      }
+    ],
+    "entryNumber": "JE-2026-0082",
+    "createdAt": "2026-11-02T19:56:27.538Z"
+  },
+  {
+    "id": "je-1793649548805-2cou8j-609",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0036 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649547336-hifi5",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 34,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0036"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 34,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0036"
+      }
+    ],
+    "entryNumber": "JE-2026-0084",
+    "createdAt": "2026-11-02T19:59:08.805Z"
+  },
+  {
+    "id": "je-1793649548805-8gudhr-841",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0036 - الجمعية الإسلامية - معسكر جباليا",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649547336-hifi5",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 62,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0036"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 62,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0084",
+    "createdAt": "2026-11-02T19:59:08.805Z"
+  },
+  {
+    "id": "je-1793649608246-fgyyl3-948",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0037 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649607520-7panf",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 9000,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0037"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 9000,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0037"
+      }
+    ],
+    "entryNumber": "JE-2026-0086",
+    "createdAt": "2026-11-02T20:00:08.246Z"
+  },
+  {
+    "id": "je-1793649608246-oq9gf2-633",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0037 - برنت ميديا - زياد اليازجي",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649607520-7panf",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 10000,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0037"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 10000,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0086",
+    "createdAt": "2026-11-02T20:00:08.246Z"
+  },
+  {
+    "id": "je-1793649634195-2iuymg-832",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0038 - رامز عبد النبي - أبو جمال",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649633385-la9ey",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 20,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0038"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 20,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0088",
+    "createdAt": "2026-11-02T20:00:34.195Z"
+  },
+  {
+    "id": "je-1793649634195-tfizdz-278",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0038 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649633385-la9ey",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 4,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0038"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 4,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0038"
+      }
+    ],
+    "entryNumber": "JE-2026-0088",
+    "createdAt": "2026-11-02T20:00:34.195Z"
+  },
+  {
+    "id": "je-1793649662150-13zy3r-339",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0039 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649661417-yuqva",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 7,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0039"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 7,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0039"
+      }
+    ],
+    "entryNumber": "JE-2026-0090",
+    "createdAt": "2026-11-02T20:01:02.150Z"
+  },
+  {
+    "id": "je-1793649662150-4acmnf-178",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0039 - سامي الحلو",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649661417-yuqva",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 3.5,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0039"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 3.5,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0090",
+    "createdAt": "2026-11-02T20:01:02.150Z"
+  },
+  {
+    "id": "je-1793649683317-nr65rw-172",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0040 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649682323-r8kpk",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 4,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0040"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 4,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0040"
+      }
+    ],
+    "entryNumber": "JE-2026-0092",
+    "createdAt": "2026-11-02T20:01:23.317Z"
+  },
+  {
+    "id": "je-1793649683317-xeaftg-615",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0040 - محمود أبو حمد",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649682323-r8kpk",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 12,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0040"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 12,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0092",
+    "createdAt": "2026-11-02T20:01:23.317Z"
+  },
+  {
+    "id": "je-1793649703993-b2ets7-854",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0041 - أنس مهدى",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649696404-arhkl",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 15,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0041"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 15,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0094",
+    "createdAt": "2026-11-02T20:01:43.993Z"
+  },
+  {
+    "id": "je-1793649703993-hmeccr-523",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0041 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649696404-arhkl",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 3,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0041"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 3,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0041"
+      }
+    ],
+    "entryNumber": "JE-2026-0094",
+    "createdAt": "2026-11-02T20:01:43.993Z"
+  },
+  {
+    "id": "je-1793649768138-j13qgd-445",
+    "date": "2026-11-02",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0042 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793649743856-hycod",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 20,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0042"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 20,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0042"
+      }
+    ],
+    "entryNumber": "JE-2026-0096",
+    "createdAt": "2026-11-02T20:02:48.138Z"
+  },
+  {
+    "id": "je-1793649768138-s31w9l-897",
+    "date": "2026-11-02",
+    "description": "فاتورة مبيعات رقم INV-0042 - محمود أبو حمد",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793649743856-hycod",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 30,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0042"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 30,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0096",
+    "createdAt": "2026-11-02T20:02:48.138Z"
+  },
+  {
+    "id": "je-1793697347697-8w8x0n-298",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0043 - مؤسسة وصال - أبو يوسف الوالي",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793697346754-p9of7",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 50,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0043"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 50,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0098",
+    "createdAt": "2026-11-03T09:15:47.697Z"
+  },
+  {
+    "id": "je-1793697347697-j98mxh-835",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0043 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793697346754-p9of7",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 26,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0043"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 26,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0043"
+      }
+    ],
+    "entryNumber": "JE-2026-0098",
+    "createdAt": "2026-11-03T09:15:47.697Z"
+  },
+  {
+    "id": "je-1793697390151-ki4y4i-569",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0044 - العائلة ماركت",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793697387976-8384z",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 8,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0044"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 8,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0100",
+    "createdAt": "2026-11-03T09:16:30.151Z"
+  },
+  {
+    "id": "je-1793697390152-sn7dwu-864",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0044 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793697387976-8384z",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 1,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0044"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 1,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0044"
+      }
+    ],
+    "entryNumber": "JE-2026-0100",
+    "createdAt": "2026-11-03T09:16:30.152Z"
+  },
+  {
+    "id": "je-1793697469971-htu2o7-215",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0045 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793697467212-r85k5",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 1,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0045"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 1,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0045"
+      }
+    ],
+    "entryNumber": "JE-2026-0102",
+    "createdAt": "2026-11-03T09:17:49.971Z"
+  },
+  {
+    "id": "je-1793697469971-ysrogf-201",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0045 - أمير حميد - صالح",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793697467212-r85k5",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 6,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0045"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 6,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "entryNumber": "JE-2026-0102",
+    "createdAt": "2026-11-03T09:17:49.971Z"
+  },
+  {
+    "id": "je-1793697584059-axenk5-227",
+    "date": "2026-11-01",
+    "description": "فاتورة مبيعات رقم INV-0046 - مؤسسة 4TDK",
+    "referenceType": "pos_invoice",
+    "referenceId": "inv-pos-1793697583189-ze09k",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 1180,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0046"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 1165,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      },
+      {
+        "accountCode": "2104",
+        "accountName": "أمانات ومستحقات خدمة التوصيل (عمال وشركات التوصيل)",
+        "debit": 0,
+        "credit": 15,
+        "description": "أمانات ومستحقات خدمة توصيل لعامل التوصيل (خالية المرابح تماماً - ₪ 15)"
+      }
+    ],
+    "entryNumber": "JE-2026-0104",
+    "createdAt": "2026-11-03T09:19:44.059Z"
+  },
+  {
+    "id": "je-1793697584059-gfprz2-317",
+    "date": "2026-11-01",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0046 وتخفيض المخزون",
+    "referenceType": "cogs",
+    "referenceId": "inv-pos-1793697583189-ze09k",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 767,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0046"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 767,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0046"
+      }
+    ],
+    "entryNumber": "JE-2026-0104",
+    "createdAt": "2026-11-03T09:19:44.059Z"
+  },
+  {
+    "id": "je-1793887516727-t9alcd-69",
+    "createdAt": "2026-11-05T14:05:16.727Z",
+    "date": "2026-11-05",
+    "description": "قيد إثبات تكلفة البضاعة المباعة لفاتورة مبيعات رقم INV-0061 وتخفيض المخزون",
+    "entryNumber": "JE-2026-0108",
+    "lines": [
+      {
+        "accountCode": "5101",
+        "accountName": "تكلفة مبيعات القرطاسية والكتب",
+        "debit": 30,
+        "credit": 0,
+        "description": "تكلفة مبيعات أصناف فاتورة INV-0061"
+      },
+      {
+        "accountCode": "1301",
+        "accountName": "مخزون الكتب والقرطاسية",
+        "debit": 0,
+        "credit": 30,
+        "description": "صرف مخزني لقيمة البضاعة المباعة بفاتورة INV-0061"
+      }
+    ],
+    "referenceId": "inv-pos-1793887516717-zic2v",
+    "referenceType": "cogs"
+  },
+  {
+    "id": "je-1793887516727-zh4wew-733",
+    "createdAt": "2026-11-05T14:05:16.727Z",
+    "date": "2026-11-05",
+    "description": "فاتورة مبيعات رقم INV-0061 - برنت ميديا - زياد اليازجي",
+    "entryNumber": "JE-2026-0108",
+    "lines": [
+      {
+        "accountCode": "1201",
+        "accountName": "العملاء والذمم المدينة",
+        "debit": 40,
+        "credit": 0,
+        "description": "المتبقي آجل / ذمم لفاتورة INV-0061"
+      },
+      {
+        "accountCode": "4101",
+        "accountName": "إيرادات مبيعات المكتبة والقرطاسية",
+        "debit": 0,
+        "credit": 40,
+        "description": "صافي مبيعات البضاعة والمطبوعات (محول للشيكل)"
+      }
+    ],
+    "referenceId": "inv-pos-1793887516717-zic2v",
+    "referenceType": "pos_invoice"
+  }
+]

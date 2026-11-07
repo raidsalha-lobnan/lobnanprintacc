@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "manager": "",
+    "location": "",
+    "id": "wh-1",
+    "status": "active",
+    "updatedAt": "2026-11-04T09:39:29.801Z",
+    "code": "WH-01",
+    "phone": "",
+    "isDefault": true,
+    "notes": "يحتوي على كافة المطبوعات النهائية والكتب الجاهزة للتسليم للعملاء",
+    "items": [],
+    "branchName": "الفرع الرئيسي",
+    "branchId": "br-1",
+    "capacity": "1,500 م³",
+    "companyId": "comp-1",
+    "name": "المستودع الرئيسي",
+    "payments": [],
+    "warehouseType": "finished_goods",
+    "createdAt": "2026-11-04T09:39:29.801Z"
+  }
+]

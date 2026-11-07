@@ -223,17 +223,17 @@ export const LocalDatabaseModal: React.FC<LocalDatabaseModalProps> = ({ isOpen, 
   };
 
   const handleRestoreMasterSnapshot = async () => {
-    if (!window.confirm('هل تريد استعادة النسخة الاحتياطية الرسمية السابقة (تتضمن 116 فاتورة والصناديق 1103 و 1107 بدقة قبل ساعتين)؟')) return;
+    if (!window.confirm('هل تريد استعادة النسخة الاحتياطية الرسمية السحابية المعتمدة (تتضمن 66 فاتورة مطابقة والصناديق وكافة السجلات)؟')) return;
     setIsImporting(true);
     try {
       const response = await fetch('/master_drive_database_snapshot.json');
       if (!response.ok) throw new Error('تعذر تحميل ملف النسخة الاحتياطية من السيرفر');
       const text = await response.text();
       const parsedData = JSON.parse(text);
-      const invCount = parsedData.invoices?.length || 116;
+      const invCount = parsedData.invoices?.length || 66;
       const success = await importDataJSON(text, true, true, true);
       if (success) {
-        setFeedback({ message: `تم استعادة النسخة الاحتياطية السابقة بدقة تامة (${invCount} فاتورة والصناديق 1103 و 1107) بنجاح!`, success: true });
+        setFeedback({ message: `تم استعادة النسخة الاحتياطية الرسمية بدقة تامة (${invCount} فاتورة والصناديق وكافة السجلات المعتمدة) بنجاح!`, success: true });
       } else {
         setFeedback({ message: 'فشل تطبيق النسخة الاحتياطية', success: false });
       }

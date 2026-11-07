@@ -1,88 +1,104 @@
 [
   {
     "id": "treasury-cash-main",
+    "transactions": [],
+    "createdAt": "2026-01-01",
     "name": "الصندوق النقدي الرئيسي (الكاشير)",
-    "type": "cash_box",
-    "accountCode": "CASH-1101",
-    "balance": 0,
-    "currency": "ILS",
-    "currencySymbol": "₪",
     "isDefault": true,
-    "status": "active",
-    "createdAt": "2024-01-01",
+    "currency": "ILS",
     "notes": "الخزينة النقدية الرئيسية لمكتب المبيعات والكاشير والسيولة متعددة العملات (شيكل، دولار، دينار)",
+    "accountCode": "CASH-1101",
+    "items": [],
+    "balance": 0,
+    "updatedAt": "2026-11-03T10:10:26.317Z",
+    "type": "cash_box",
+    "currencySymbol": "₪",
+    "status": "active",
+    "payments": [],
     "currencyBalances": {
       "ILS": 0
     }
   },
   {
     "id": "treasury-1793633324279",
-    "name": "البنك الإسلامي الفلسطيني - إيهاب",
-    "type": "bank_account",
+    "notes": null,
+    "currencyBalances": {
+      "ILS": 0
+    },
     "accountCode": "CASH-1102",
+    "accountNumber": null,
+    "bankName": "الحساب البنكي",
+    "createdAt": "2026-11-02",
+    "updatedAt": "2026-11-02T15:28:58.554Z",
+    "isDefault": false,
     "balance": 0,
-    "currency": "ILS",
-    "currencySymbol": "₪",
+    "type": "bank_app",
+    "name": "البنك الإسلامي الفلسطيني - إيهاب",
     "status": "active",
-    "createdAt": "2024-01-01",
-    "currencyBalances": {
-      "ILS": 0
-    }
+    "transactions": []
   },
   {
-    "id": "treasury-1791395958513",
-    "name": "طلة لبنان - محفظة جوال باي",
+    "id": "treasury-1793633357618",
+    "name": "طلة لبنان - جوال باي",
     "type": "digital_wallet",
+    "currencyBalances": {
+      "ILS": 0
+    },
+    "updatedAt": "2026-11-02T15:29:28.149Z",
+    "isDefault": false,
     "accountCode": "CASH-1103",
+    "createdAt": "2026-11-02",
+    "transactions": [],
+    "bankName": "الحساب البنكي",
     "balance": 0,
-    "currency": "ILS",
-    "currencySymbol": "₪",
-    "status": "active",
-    "createdAt": "2024-01-01",
-    "currencyBalances": {
-      "ILS": 0
-    }
+    "status": "active"
   },
   {
-    "id": "treasury-1790639512764",
-    "name": "بنك فلسطين - ماهر 0599992615",
-    "type": "bank_account",
+    "id": "treasury-1793633396655",
+    "status": "active",
+    "createdAt": "2026-11-02",
+    "bankName": "الحساب البنكي",
     "accountCode": "CASH-1104",
+    "transactions": [],
     "balance": 0,
-    "currency": "ILS",
-    "currencySymbol": "₪",
-    "status": "active",
-    "createdAt": "2024-01-01",
     "currencyBalances": {
       "ILS": 0
-    }
+    },
+    "type": "bank_account",
+    "name": "بنك فلسطين - ماهر 0599992615",
+    "isDefault": false,
+    "updatedAt": "2026-11-02T15:30:07.758Z"
   },
   {
-    "id": "treasury-1791324119020",
-    "name": "محفظة بال باي - PalPay / ماهر صالحة",
-    "type": "digital_wallet",
+    "id": "treasury-1793633436733",
+    "status": "active",
+    "isDefault": false,
+    "updatedAt": "2026-11-02",
+    "createdAt": "2026-11-02",
+    "balance": 0,
+    "currencyBalances": {
+      "ILS": 0
+    },
+    "transactions": [],
+    "bankName": "الحساب البنكي",
     "accountCode": "CASH-1105",
-    "balance": 0,
-    "currency": "ILS",
-    "currencySymbol": "₪",
-    "status": "active",
-    "createdAt": "2024-01-01",
-    "currencyBalances": {
-      "ILS": 0
-    }
+    "type": "bank_account",
+    "name": "ماهر صالحة - محافظ"
   },
   {
-    "id": "treasury-1791395958599-1107",
+    "id": "treasury-1793633486929",
+    "createdAt": "2026-11-02",
     "name": "رائد صالحة - بال بي - جوال باي - مال شات",
-    "type": "digital_wallet",
-    "accountCode": "CASH-1106",
-    "balance": 0,
-    "currency": "ILS",
-    "currencySymbol": "₪",
     "status": "active",
-    "createdAt": "2024-01-01",
+    "type": "digital_wallet",
+    "bankName": "الحساب البنكي",
+    "isDefault": false,
+    "updatedAt": "2026-11-02",
+    "balance": 0,
+    "accountCode": "CASH-1106",
     "currencyBalances": {
       "ILS": 0
-    }
+    },
+    "transactions": []
   }
 ]

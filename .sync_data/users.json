@@ -1,1 +1,142 @@
-[]
+[
+  {
+    "fullName": "مطبعة لبنان",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "shareDriveAttachments": true,
+    "createdAt": "2026-09-11T23:54:43.526Z",
+    "driveSharedAt": "2026-09-27T21:20:15.238Z",
+    "status": "active",
+    "roleId": "role-admin",
+    "phone": "0592840352",
+    "companyId": "comp-1",
+    "lastLogin": "2026-09-10 09:15",
+    "customPermissions": {
+      "edit_prices": true
+    },
+    "username": "lobnanprint@gmail.com",
+    "id": "user-1789170883526",
+    "items": [],
+    "roleName": "مدير النظام",
+    "allowedPriceTier": "all",
+    "email": "lobnanprint@gmail.com",
+    "password": "Aa@12345678",
+    "updatedAt": "2026-11-04T09:39:29.802Z",
+    "avatarColor": "bg-indigo-600",
+    "defaultBranchId": "br-1",
+    "payments": []
+  },
+  {
+    "updatedAt": "2026-11-04T09:39:29.802Z",
+    "defaultBranchId": "br-1",
+    "fullName": "محمد صالحة",
+    "shareDriveAttachments": true,
+    "phone": "",
+    "username": "imohsa.salha10@gmail.com",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "items": [],
+    "driveSharedAt": "2026-09-28T18:47:50.053Z",
+    "allowedPriceTier": "all",
+    "lastLogin": "2026-09-10 09:00",
+    "roleName": "مدير الفرع",
+    "companyId": "comp-1",
+    "email": "imohsa.salha10@gmail.com",
+    "id": "user-1789400830470",
+    "customPermissions": {
+      "edit_prices": true
+    },
+    "createdAt": "2026-09-14T15:47:10.470Z",
+    "payments": [],
+    "password": "Aa@12345678",
+    "roleId": "role-branch-mgr",
+    "status": "active",
+    "avatarColor": "bg-indigo-600"
+  },
+  {
+    "createdAt": "2026-09-27T19:03:51.510Z",
+    "shareDriveAttachments": true,
+    "email": "ana.mostafa.issaissa@gmail.com",
+    "password": "Aa@12345678",
+    "payments": [],
+    "companyId": "comp-1",
+    "id": "user-1790535831510",
+    "roleName": "فني الطباعة",
+    "allowedPriceTier": "all",
+    "items": [],
+    "customPermissions": {
+      "edit_prices": false
+    },
+    "lastLogin": "2026-09-20 08:30",
+    "roleId": "role-print-tech",
+    "status": "active",
+    "driveSharedAt": "2026-09-27T21:20:29.892Z",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "avatarColor": "bg-indigo-600",
+    "username": "مصطفى عيسى",
+    "phone": "0592777307",
+    "fullName": "مصطفى عيسى",
+    "updatedAt": "2026-11-04T09:39:29.802Z",
+    "defaultBranchId": "br-1"
+  },
+  {
+    "items": [],
+    "defaultBranchId": "br-1",
+    "createdAt": "2026-09-27T19:51:40.789Z",
+    "fullName": "إسماعيل عيسى",
+    "customPermissions": {
+      "edit_prices": false
+    },
+    "roleId": "role-designer",
+    "status": "active",
+    "email": "som3a.9.10.2020@gmail.com",
+    "avatarColor": "bg-indigo-600",
+    "lastLogin": "2026-09-20 08:45",
+    "companyId": "comp-1",
+    "username": "سمعة عيسى",
+    "id": "user-1790538700789",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "roleName": "المصمم",
+    "shareDriveAttachments": true,
+    "allowedPriceTier": "all",
+    "password": "Aa@12345678",
+    "driveSharedAt": "2026-09-27T21:11:25.802Z",
+    "payments": [],
+    "phone": "",
+    "updatedAt": "2026-11-04T09:39:29.802Z"
+  },
+  {
+    "items": [],
+    "createdAt": "2024-01-01",
+    "username": "raid.salha@gmail.com",
+    "roleId": "role-admin",
+    "status": "active",
+    "email": "raid.salha@gmail.com",
+    "allowedBranchIds": [
+      "*"
+    ],
+    "fullName": "م. رائد صالحة",
+    "companyId": "comp-1",
+    "lastLogin": "2026-09-10 09:15",
+    "avatarColor": "bg-blue-600",
+    "password": "Aa@12345678",
+    "shareDriveAttachments": true,
+    "payments": [],
+    "allowedPriceTier": "all",
+    "defaultBranchId": "br-1",
+    "driveSharedAt": "2026-09-28T18:47:00.135Z",
+    "updatedAt": "2026-11-04T09:39:29.802Z",
+    "roleName": "مدير النظام",
+    "customPermissions": {
+      "edit_prices": true
+    },
+    "phone": "0592840352",
+    "id": "usr-1"
+  }
+]

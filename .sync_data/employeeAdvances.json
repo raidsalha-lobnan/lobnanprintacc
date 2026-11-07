@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "treasuryName": "الصندوق النقدي (الكاشير)",
+    "voucherNumber": "PV-ADV-2026-0001",
+    "date": "2026-09-01",
+    "amount": 500,
+    "employeeName": "محمد عبد الله الشمري",
+    "reason": "سلفة طارئة لشراء مستلزمات شخصية",
+    "id": "adv-1",
+    "employeeId": "emp-1",
+    "disbursedImmediately": true,
+    "status": "pending",
+    "items": [],
+    "updatedAt": "2026-11-04T09:39:29.796Z",
+    "payments": [],
+    "treasuryAccountCode": "1101",
+    "createdAt": "2026-11-04T09:39:29.796Z"
+  }
+]
