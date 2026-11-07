@@ -1421,70 +1421,34 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         });
 
-        // 2. Initial hydration from local IndexedDB repository
+        // Hydration is read-only: only canonical IndexedDB records may populate
+        // the UI. A different legacy localStorage snapshot is NEVER auto-uploaded.
         const hydrateFromRepo = async () => {
-          try {
-            const repoInvoices = await layer.repository.all('invoices');
-            if (repoInvoices.length > 0) {
-              const items = repoInvoices.map(r => r.value as unknown as Invoice).filter(Boolean);
-              setInvoices(items);
-              try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(items)); } catch {}
-            } else {
-              const localInv = safeLoadArray(`${STORAGE_KEY}_invoices`, []);
-              for (const inv of localInv) {
-                if (inv && inv.id) {
-                  await layer.repository.put('invoices', inv.id, inv as any);
-                }
-              }
+          const definitions: Array<{ entity: EntityName; set: (items: any[]) => void }> = [
+            { entity: 'invoices', set: items => setInvoices(items as Invoice[]) },
+            { entity: 'parties', set: items => setParties(items as Party[]) },
+            { entity: 'inventory', set: items => setInventory(items as InventoryItem[]) },
+            { entity: 'vouchers', set: items => setVouchers(items as PaymentVoucher[]) },
+            { entity: 'purchases', set: items => setPurchases(items as PurchaseInvoice[]) },
+            { entity: 'journalEntries', set: items => setJournalEntries(items as JournalEntry[]) },
+            { entity: 'stockMovements', set: items => setStockMovements(items as StockMovement[]) },
+            { entity: 'treasuries', set: items => setTreasuries(items as Treasury[]) },
+            { entity: 'accounts', set: items => setAccounts(items as Account[]) },
+            { entity: 'expenses', set: items => setExpenses(items as ExpenseItem[]) },
+            { entity: 'salesReturns', set: items => setSalesReturns(items as SalesReturn[]) },
+            { entity: 'purchaseReturns', set: items => setPurchaseReturns(items as PurchaseReturn[]) },
+          ];
+          for (const { entity, set } of definitions) {
+            const rows = await layer.repository.all(entity);
+            // Do not erase old data on an uninitialized device. The reconciliation
+            // workflow must explicitly decide what to do with an empty repository.
+            if (rows.length > 0 && !unmounted) {
+              const items = rows.map(r => r.value).filter(Boolean);
+              set(items);
             }
-
-            const repoParties = await layer.repository.all('parties');
-            if (repoParties.length > 0) {
-              const items = repoParties.map(r => r.value as unknown as Party).filter(Boolean);
-              setParties(items);
-              try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(items)); } catch {}
-            } else {
-              const localP = safeLoadArray(`${STORAGE_KEY}_parties`, initialParties);
-              for (const p of localP) {
-                if (p && p.id) {
-                  await layer.repository.put('parties', p.id, p as any);
-                }
-              }
-            }
-
-            const repoInventory = await layer.repository.all('inventory');
-            if (repoInventory.length > 0) {
-              const items = repoInventory.map(r => r.value as unknown as InventoryItem).filter(Boolean);
-              setInventory(items);
-              try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(items)); } catch {}
-            } else {
-              const localInv = safeLoadArray(`${STORAGE_KEY}_inventory`, initialInventory);
-              for (const it of localInv) {
-                if (it && it.id) {
-                  await layer.repository.put('inventory', it.id, it as any);
-                }
-              }
-            }
-
-            const repoVouchers = await layer.repository.all('vouchers');
-            if (repoVouchers.length > 0) {
-              const items = repoVouchers.map(r => r.value as unknown as PaymentVoucher).filter(Boolean);
-              setVouchers(items);
-              try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(items)); } catch {}
-            }
-
-            const repoJournals = await layer.repository.all('journalEntries');
-            if (repoJournals.length > 0) {
-              const items = repoJournals.map(r => r.value as unknown as JournalEntry).filter(Boolean);
-              setJournalEntries(items);
-              try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(items)); } catch {}
-            }
-          } catch (err) {
-            console.warn('Initial hydration from repository notice:', err);
           }
         };
-
-        hydrateFromRepo().catch(() => {});
+        await hydrateFromRepo();
       } catch (e) {
         console.warn('Unified data layer init notice:', e);
       }
@@ -1866,36 +1830,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
 
 
-  // Sync Integrity Check: Wipe local data if it's from an older reset epoch (Checks every 30 seconds to save quota)
-  useEffect(() => {
-    const verifySyncIntegrity = async () => {
-      try {
-        const res = await fetch('/api/sync/metadata', { cache: 'no-cache' });
-        const { epoch } = await res.json();
-        const localEpoch = localStorage.getItem('accounting_sync_epoch');
-        
-        console.log('Sync Check: Remote Epoch=', epoch, 'Local Epoch=', localEpoch);
-        
-        if (localEpoch !== String(epoch)) {
-          console.log('Sync epoch mismatch! Remote:', epoch, 'Local:', localEpoch, '. Wiping local data...');
-          Object.keys(localStorage).forEach(key => {
-            if (key.startsWith(STORAGE_KEY) || key.includes('accounting_') || key.includes('pos_')) {
-              localStorage.removeItem(key);
-            }
-          });
-          localStorage.setItem('accounting_sync_epoch', String(epoch));
-          window.location.reload();
-        }
-      } catch (err) {
-        console.warn('Sync integrity check failed', err);
-      }
-    };
-    
-    // Check initially, then every 30 seconds
-    verifySyncIntegrity();
-    const interval = setInterval(verifySyncIntegrity, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  // A server epoch mismatch must NEVER delete a device's unsynced accounting
+  // records, localStorage or IndexedDB. Source reconciliation is manual.
 
   // Real-time Firestore Collection Listeners
   // [OPTIMIZED FOR SPARK FREE-TIER]: The legacy full-collection listeners (invoices, inventory, parties, etc.)
@@ -1905,21 +1841,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Single change feed subscription handles incoming live changes without re-reading whole collections.
   }, [isLocalOnlyMode]);
 
-  // Aggressive Master Database Hydration: Transition directly to the unified cloud database on app startup when online
-  useEffect(() => {
-    const aggressiveHydrate = async () => {
-      if (isLocalOnlyMode || !navigator.onLine) return;
-      try {
-        console.log('Aggressive Master Sync Hydration...');
-        // Force sync from server
-        await executeServerFullSync();
-        isCloudHydratedRef.current = true;
-      } catch (err) {
-        console.warn('Aggressive Master Sync hydration note:', err);
-      }
-    };
-    aggressiveHydrate();
-  }, []);
+  // Initial hydration is performed once from the canonical repository.
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   useEffect(() => {
@@ -1939,7 +1861,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     if (!isCloudHydratedRef.current) {
       const loaded = safeLoadArray(`${STORAGE_KEY}_inventory`, initialInventory);
-      const filtered = loaded.filter(it => it && it.id !== 'inv-probe-sync-1' && it.id !== 'inv-test-full-1' && it.name !== 'صنف تجربة المزامنة' && it.name !== 'صنف فحص المزامنة الشاملة');
+      const filtered = loaded.filter(it => Boolean(it));
       setInventory(deduplicateById(filtered, 'inv'));
     }
   }, []);
@@ -2629,64 +2551,44 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch {}
   }, []);
 
-  // Send single operation delta to server (Fire-and-forget + sequence tracking)
+  // Route legacy screen mutations through the ONE durable local outbox.
+  // No success is claimed until enqueue resolves. Old network writers are retired.
   const pushDeltaToServer = (entity: string, op: 'upsert' | 'delete' = 'upsert', item?: any, items?: any[]) => {
-    try {
-      const listToSave: any[] = items || (item ? [item] : []);
-      const effectiveOp = (op === 'delete' || listToSave.some(i => i && typeof i === 'object' && (i._deleted || i.deletedAt))) ? 'delete' : 'upsert';
-
-      // 1. Instant local BroadcastChannel notification for all open tabs in same browser + local DOM CustomEvent
-      try {
-        window.dispatchEvent(new CustomEvent('accounting_state_mutated', { detail: { entity, op: effectiveOp, item, items } }));
-      } catch {}
-
-      if (syncChannelRef.current) {
-        try {
-          syncChannelRef.current.postMessage({
-            type: 'SYNC_DELTA_EVENT',
-            payload: { entity, op: effectiveOp, item, items, clientId: myClientIdRef.current }
-          });
-        } catch {}
-      }
-
-      // Also force immediate state update in the current tab
-      window.dispatchEvent(new CustomEvent('accounting_database_updated', { 
-        detail: { entity, op: effectiveOp, item, items } 
-      }));
-
-      // 2. Route atomically through UnifiedRepository (Offline-First Durable Outbox + Atomic Firestore Transport)
-      if (listToSave.length > 0) {
-        const proposedChanges: ProposedChange[] = listToSave.map(it => {
-          const docId = String(it.id || it.code || crypto.randomUUID());
-          return {
-            entity: entity as EntityName,
-            id: docId,
-            value: (effectiveOp === 'delete' || it._deleted) ? null : it
-          };
-        });
-
-        if (unifiedRepoRef.current) {
-          unifiedRepoRef.current.commit(proposedChanges).catch(err => {
-            console.warn('UnifiedRepository commit warning:', err);
-          });
-        }
-      }
-
-      // 3. Log audit event
-      const targetDocId = item?.id || items?.[0]?.id;
-      if (targetDocId) syncAuditService.markDocumentAsSynced(targetDocId);
-      syncAuditService.logEvent({
-        direction: 'push',
-        entity,
-        op: effectiveOp,
-        status: 'success',
-        documentId: targetDocId,
-        documentNumber: item?.invoiceNumber || item?.code || item?.voucherNumber || item?.itemNumber,
-        details: effectiveOp === 'delete' ? 'تم تسجيل الحذف عبر النواة المحاسبية الآمنة 🔴' : 'تم الحفظ في طابور التزامن الآمن والنواة المحاسبية 🟢'
+    void (async () => {
+      const repo = unifiedRepoRef.current;
+      if (!repo) throw new Error('LOCAL_REPOSITORY_NOT_INITIALIZED');
+      const input = items || (Array.isArray(item) ? item : item ? [item] : []);
+      if (!input.length) return;
+      const operations: ProposedChange[] = input.map((value: any) => {
+        const id = String(value?.id || '').trim();
+        if (!id) throw new Error(`MISSING_STABLE_ID: ${entity}`);
+        return {
+          entity: entity as EntityName, id,
+          value: (op === 'delete' || value?._deleted || value?.deletedAt)
+            ? null : value
+        };
       });
-    } catch (e) {
-      console.warn('pushDeltaToServer notice:', e);
-    }
+      // Avoid pretending independent large batches are an atomic accounting posting.
+      if (operations.length > 80) {
+        throw new Error('Bulk legacy upsert requires explicit migration, not operational sync');
+      }
+      const commandId = await repo.commit(operations);
+      syncAuditService.logEvent({
+        direction: 'push', entity, op, status: 'success',
+        documentId: operations[0]?.id,
+        details: `محفوظ محلياً فقط وبانتظار تأكيد السحابة؛ العملية ${commandId}`
+      });
+      try { window.dispatchEvent(new CustomEvent('accounting_local_saved', {
+        detail: { entity, ids: operations.map(x => x.id), commandId }
+      })); } catch {}
+    })().catch(error => {
+      console.error('LOCAL_SAVE_FAILED — the operation was NOT queued:', error);
+      setHasUnsyncedChanges(true);
+      lastSyncErrorRef.current = String(error);
+      try { window.dispatchEvent(new CustomEvent('accounting_save_error', {
+        detail: { entity, error: String(error) }
+      })); } catch {}
+    });
   };
 
   // Backward-compatible alias for existing entity calls
@@ -2821,186 +2723,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // Poll server for new deltas since lastSeenSeq
-  const pullDeltasFromServer = async () => {
-    if (isLocalOnlyMode || !navigator.onLine) return;
-    try {
-      const baseUrl = getSyncBaseUrl();
-
-      const fetchAndMergeFullServerState = async () => {
-        const stateEndpoint = baseUrl ? `${baseUrl}/api/sync/state` : '/api/sync/state';
-        const sRes = await fetch(stateEndpoint).catch(() => null);
-        if (sRes) {
-          if (sRes.status === 405 || sRes.status === 404) {
-            if (baseUrl) localStorage.removeItem('master_server_host_url');
-            return;
-          }
-        }
-        if (sRes && sRes.ok) {
-          const contentType = sRes.headers.get('content-type') || '';
-          if (!contentType.includes('application/json')) {
-            // HTML fallback detected (e.g. from an invalid baseUrl); clear invalid baseUrl
-            if (baseUrl) localStorage.removeItem('master_server_host_url');
-            return;
-          }
-          const text = await sRes.text().catch(() => '');
-          if (!text || !text.trim().startsWith('{')) return;
-          let sJson: any = null;
-          try {
-            sJson = JSON.parse(text);
-          } catch {
-            return;
-          }
-          if (sJson && sJson.data) {
-            const delSet = new Set<string>();
-            const deletedDocs = (() => {
-              try { return JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]'); } catch { return []; }
-            })();
-            if (Array.isArray(deletedDocs)) {
-              deletedDocs.forEach((d: any) => { if (d && d.col && d.id) delSet.add(`${d.col}_${d.id}`); });
-            }
-
-            const mergeAndSet = <T extends { id?: string }>(
-              entityName: string,
-              setter: React.Dispatch<React.SetStateAction<T[]>>,
-              storageKeySuffix: string
-            ) => {
-              if (sJson.data[entityName]?.items) {
-                setter(prev => {
-                  const { merged } = mergeEntitiesWithDeltaSync(entityName, prev || [], sJson.data[entityName].items, delSet);
-                  try { localStorage.setItem(`${STORAGE_KEY}_${storageKeySuffix}`, JSON.stringify(merged)); } catch {}
-                  return merged;
-                });
-              }
-            };
-
-            if (sJson.data.invoices?.items) {
-              setInvoices(prev => {
-                const merged = mergeInvoicesWithUpsertAndConflictResolution(prev || [], sJson.data.invoices.items);
-                try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(merged)); } catch {}
-                return merged;
-              });
-            } else {
-              mergeAndSet('invoices', setInvoices, 'invoices');
-            }
-            mergeAndSet('parties', setParties, 'parties');
-            mergeAndSet('inventory', setInventory, 'inventory');
-            mergeAndSet('vouchers', setVouchers, 'vouchers');
-            mergeAndSet('printOrders', setPrintOrders, 'printOrders');
-            mergeAndSet('purchases', setPurchases, 'purchases');
-            mergeAndSet('journalEntries', setJournalEntries, 'journals');
-            mergeAndSet('expenses', setExpenses, 'expenses');
-            mergeAndSet('accounts', setAccounts, 'accounts');
-            mergeAndSet('treasuries', setTreasuries, 'treasuries');
-            mergeAndSet('stockMovements', setStockMovements, 'stockMovements');
-            mergeAndSet('employees', setEmployees, 'employees');
-            mergeAndSet('employeeAdvances', setEmployeeAdvances, 'advances');
-            mergeAndSet('employeeDeductions', setEmployeeDeductions, 'deductions');
-            mergeAndSet('employeeIncentives', setEmployeeIncentives, 'incentives');
-            mergeAndSet('payrollSheets', setPayrollSheets, 'payrollSheets');
-            mergeAndSet('companies', setCompanies, 'companies');
-            mergeAndSet('branches', setBranches, 'branches');
-            mergeAndSet('warehouses', setWarehouses, 'warehouses');
-            mergeAndSet('warehouseOperations', setWarehouseOperations, 'warehouse_operations');
-            mergeAndSet('roles', setRoles, 'roles');
-            mergeAndSet('users', setUsers, 'users');
-            mergeAndSet('debtClearings', setDebtClearings, 'debt_clearings');
-            if (sJson.data.settings?.items?.[0] || sJson.data.settings?.global) {
-              const cloudSet = sJson.data.settings.global || sJson.data.settings.items[0];
-              if (cloudSet) {
-                setSettings(prev => ({ ...prev, ...cloudSet }));
-                try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(cloudSet)); } catch {}
-              }
-            }
-          }
-        }
-      };
-
-      // First boot: fetch state once to establish lastSeenSeq
-      if (lastSeenSeqRef.current === 0) {
-        await fetchAndMergeFullServerState();
-      }
-
-      let deltasEndpoint = `/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`;
-      if (baseUrl) {
-        deltasEndpoint = `${baseUrl}/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`;
-      }
-
-      let res = await fetch(deltasEndpoint).catch(() => null);
-      if ((!res || !res.ok) && baseUrl) {
-        res = await fetch(`/api/sync/deltas-since?sinceSeq=${lastSeenSeqRef.current}`).catch(() => null);
-      }
-      if (!res || !res.ok) {
-        return;
-      }
-      const cType = res.headers.get('content-type') || '';
-      if (!cType.includes('application/json')) {
-        if (baseUrl) localStorage.removeItem('master_server_host_url');
-        return;
-      }
-      const rawText = await res.text().catch(() => '');
-      if (!rawText || !rawText.trim().startsWith('{')) {
-        return;
-      }
-      let json: any = null;
-      try {
-        json = JSON.parse(rawText);
-      } catch {
-        return;
-      }
-      if (!json || !json.success) {
-        return;
-      }
-
-      const { deltas, currentSeq } = json;
-
-      // Handle server sequence reset (server currentSeq < client lastSeenSeqRef)
-      if (typeof currentSeq === 'number' && currentSeq < lastSeenSeqRef.current) {
-        lastSeenSeqRef.current = currentSeq;
-        localStorage.setItem('accounting_last_seen_seq', String(currentSeq));
-        await fetchAndMergeFullServerState();
-        return;
-      }
-
-      if (Array.isArray(deltas) && deltas.length > 0) {
-        for (const delta of deltas) {
-          if (!delta || !delta.entity) continue;
-          if (delta.clientId && delta.clientId === myClientIdRef.current) continue;
-          applyDeltaToState(delta.entity, delta.op || 'upsert', delta.item, delta.items);
-          syncAuditService.logEvent({
-            direction: 'pull',
-            entity: delta.entity,
-            op: delta.op || 'upsert',
-            status: 'success',
-            seq: delta.seq,
-            documentId: delta.item?.id || delta.items?.[0]?.id,
-            documentNumber: delta.item?.invoiceNumber || delta.item?.code || delta.item?.voucherNumber,
-            details: `تم جلب واستيعاب حركة جديدة من السيرفر (تسلسل #${delta.seq})`
-          });
-        }
-      }
-
-      if (typeof currentSeq === 'number' && currentSeq > lastSeenSeqRef.current) {
-        lastSeenSeqRef.current = currentSeq;
-        localStorage.setItem('accounting_last_seen_seq', String(currentSeq));
-      }
-    } catch {}
-  };
-
+  // Retired: the local server is not a second operational source of truth.
+  // The only live source is UnifiedRepository / SyncCoordinator.
+  const pullDeltasFromServer = async (): Promise<void> => {};
   const pullServerSyncState = pullDeltasFromServer;
-
-      // Lightweight delta polling loop for instant cross-device sync
-  // Ensures all devices reflect invoices and changes in real-time even if Firestore quota is paused
-  useEffect(() => {
-    pullDeltasFromServer();
-    const interval = setInterval(() => {
-      if (navigator.onLine) {
-        console.log('Polling server for deltas...');
-        pullDeltasFromServer();
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   // One-time startup purge: ensure cash customer parties ("زبون نقدي") never carry accidental special prices from past auto-save bugs
   useEffect(() => {
@@ -3042,79 +2768,9 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   }, []);
 
-  // Live Firebase Firestore Real-Time Delta Listener across all devices
-  // SMART DELTA: Listens ONLY to newly created/updated transactions via Firestore delta stream
-  // Zero full-database reads and zero periodic listener churn!
-  useEffect(() => {
-    if (isLocalOnlyMode) return;
-
-    let unsubDeltas = () => {};
-    const storedLastSync = parseInt(localStorage.getItem('accounting_last_firestore_delta_time') || '0', 10);
-    // If we have a recent stored sync timestamp (within last 48 hours), use it to catch up missed deltas;
-    // Otherwise fallback to 10 minutes lookback to prevent burning queries on historical deltas.
-    const lookbackFallback = Date.now() - (10 * 60 * 1000);
-    const startTime = (storedLastSync > 0 && storedLastSync > Date.now() - (48 * 60 * 60 * 1000))
-      ? storedLastSync
-      : lookbackFallback;
-
-    try {
-      unsubDeltas = subscribeToFirestoreLiveDeltas(startTime, (delta) => {
-        if (!delta || !delta.entity) return;
-        if (delta.timestamp) {
-          localStorage.setItem('accounting_last_firestore_delta_time', String(delta.timestamp));
-        }
-        // Skip deltas emitted by this local client to prevent duplicate application
-        if (delta.clientId && delta.clientId === myClientIdRef.current) return;
-
-        applyDeltaToState(delta.entity, delta.op || 'upsert', delta.item, delta.items);
-        syncAuditService.logEvent({
-          direction: 'pull',
-          entity: delta.entity,
-          op: delta.op || 'upsert',
-          status: 'success',
-          documentId: delta.item?.id || delta.items?.[0]?.id,
-          documentNumber: delta.item?.invoiceNumber || delta.item?.code || delta.item?.voucherNumber,
-          details: `تم استلام حركة جديدة فقط (${delta.entity}) من سحابة Firestore مباشرة ⚡ (جلب ذكي وخفيف)`
-        });
-      });
-    } catch (e) {
-      console.warn('Firestore live deltas listener init notice:', e);
-    }
-
-    return () => {
-      try { unsubDeltas(); } catch {}
-    };
-  }, [isLocalOnlyMode]);
-
-  // Active deletion & permanent filtering of test sync items from Firestore cloud database
-  useEffect(() => {
-    try {
-      if (db && !isLocalOnlyMode) {
-        deleteDoc(doc(db, 'inventory', 'inv-probe-sync-1')).catch(() => {});
-        deleteDoc(doc(db, 'inventory', 'inv-test-full-1')).catch(() => {});
-        deleteDoc(doc(db, 'lobnan_accounting_db', 'inv-probe-sync-1')).catch(() => {});
-        deleteDoc(doc(db, 'lobnan_accounting_db', 'inv-test-full-1')).catch(() => {});
-      }
-      // Ensure local deletedDocs tombstone registry registers them so sync engines ignore them
-      const deletedDocs = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
-      let updated = false;
-      if (Array.isArray(deletedDocs)) {
-        if (!deletedDocs.some((d: any) => d && d.id === 'inv-probe-sync-1')) {
-          deletedDocs.push({ col: 'inventory', id: 'inv-probe-sync-1' });
-          updated = true;
-        }
-        if (!deletedDocs.some((d: any) => d && d.id === 'inv-test-full-1')) {
-          deletedDocs.push({ col: 'inventory', id: 'inv-test-full-1' });
-          updated = true;
-        }
-        if (updated) {
-          localStorage.setItem('accounting_deleted_docs', JSON.stringify(deletedDocs));
-        }
-      }
-    } catch {}
-  }, [isLocalOnlyMode]);
-
-
+  // Retired: this old Firestore change feed and recurring deletion of test IDs
+  // used a DIFFERENT namespace from the canonical event stream.
+  // SyncCoordinator is now the only active incoming operational change listener.
 
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<Invoice | null>(null);
   const [directPrintOptions, setDirectPrintOptions] = useState<{ format: 'thermal' | 'a4' | 'a4-custom', autoPrint: boolean } | null>(null);
@@ -3126,6 +2782,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [selectedEmployeeForStatement, setSelectedEmployeeForStatement] = useState<Employee | null>(null);
 
   const recoverInvoicesFromAllBackups = async (): Promise<{ success: boolean; message: string; recoveredCount: number }> => {
+    return { success: false, message: 'تم إيقاف دمج فواتير النسخ القديمة تلقائياً؛ راجع تقرير المطابقة أولاً.', recoveredCount: 0 };
     const snapshotInvoices = Array.isArray(initialInvoices) ? initialInvoices : [];
     const localPrimary = safeLoadArray<Invoice>(`${STORAGE_KEY}_invoices`, []);
     const deletedList = safeLoadArray<Invoice>(`${STORAGE_KEY}_deleted_invoices`, []);
@@ -3288,526 +2945,61 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // Real Firebase Firestore Cloud Synchronization Engine (Strict Incremental Delta Mode Only)
-  const syncToFirebase = async (force: boolean = false): Promise<boolean> => {
-    if (!navigator.onLine || isFirestoreQuotaExceeded() || isLocalOnlyMode) return false;
-
-    // STRICT DELTA SYNC ENFORCEMENT:
-    // Never re-upload all 25 collections! Individual operations already stream as single-item deltas via pushDeltaToServer.
-    const nowStr = new Date().toLocaleTimeString('ar-EG', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-    setLastSyncTime(nowStr);
-    setLastFirebaseSyncTime(nowStr);
-    setHasUnsyncedChanges(false);
-    setPendingSyncCount(0);
-    localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
-    localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
-    localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
-    return true;
+  const syncToFirebase = async (_force = false): Promise<boolean> => {
+    const coordinator = unifiedRepoRef.current?.getCoordinator();
+    if (!coordinator || !navigator.onLine || isLocalOnlyMode) return false;
+    const status = await coordinator.syncNow(30000);
+    const success = status.pending === 0 && status.conflict === 0 && !status.lastError && !!status.lastSuccessAt;
+    setPendingSyncCount(status.pending);
+    setHasUnsyncedChanges(!success);
+    if (success) setLastFirebaseSyncTime(new Date(status.lastSuccessAt!).toLocaleTimeString('ar-EG'));
+    return success;
   };
   syncToFirebaseRef.current = syncToFirebase;
 
-  const executeServerFullSync = async () => {
-    // STRICT DELTA SYNC ENFORCEMENT: Never re-upload the entire database!
-    // Routine synchronization relies entirely on UnifiedRepository / pushDeltaToServer delta streaming.
-    return { success: true, deltaMode: true, counts: { invoices: invoices.length } };
-  };
+  const executeServerFullSync = async () => ({
+    success: false, deltaMode: true,
+    message: 'Full database sync retired: use the canonical outbox and event stream.'
+  });
 
-  // Manual immediate sync trigger with user feedback
   const forceSyncNow = async (): Promise<{ success: boolean; message: string }> => {
     setIsFirebaseSyncing(true);
-    if (navigator.onLine) {
-      resetQuotaExceeded();
-      setIsLocalOnlyMode(false);
-      try {
-        localStorage.setItem('accounting_is_local_only_mode', 'false');
-      } catch {}
-    }
     try {
-      console.log('🚀 Executing Forced Master Sync with Central Server & Google Drive...');
-
-      // 1. Central Server Sync Hub (First & Instant Real-Time authorizer)
-      let serverJson: any = null;
-      try {
-        serverJson = await executeServerFullSync();
-      } catch (sErr: any) {
-        console.warn('Server sync notice during forceSyncNow:', sErr);
+      if (!navigator.onLine || isLocalOnlyMode) {
+        return { success: false, message: 'لا يوجد اتصال؛ الإدخالات المحلية تنتظر المزامنة.' };
       }
-
-      // 2. Google Drive Cloud Sync
-      let driveOk = false;
-      try {
-        driveOk = await syncToGoogleDrive(false);
-      } catch (dErr) {
-        console.warn('Drive sync error during forceSyncNow:', dErr);
+      if (localStorage.getItem('lobnan_sync_reconciliation_required') === 'true') {
+        return { success: false, message: 'المزامنة موقوفة لحماية الفواتير: يلزم مطابقة البيانات القديمة على الجهاز مع السحابة قبل استئناف الرفع.' };
       }
-
-      // 3. Free Firebase Firestore Real-Time Cloud Sync (Incremental Delta Mode Only)
-      const firestoreOk = true;
-      syncAuditService.logEvent({
-        direction: 'push',
-        entity: 'all_tables',
-        op: 'sync',
-        status: 'success',
-        details: 'مزامنة ذكية خفيفة: تم التراسل وتأكيد الإدخالات والتعديلات الجديدة فقط دون أي إعادات رفع كاملة لبيانات السحابة ⚡'
-      });
-
-      const nowStr = new Date().toLocaleTimeString('ar-EG', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-
-      setLastSyncTime(nowStr);
-      setLastFirebaseSyncTime(nowStr);
-      setHasUnsyncedChanges(false);
-      setPendingSyncCount(0);
-      localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
-      localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
-      localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
-      lastSyncErrorRef.current = null;
-
-      if (syncChannelRef.current) {
-        try {
-          syncChannelRef.current.postMessage({
-            type: 'SYNC_ENTITY_UPDATE',
-            payload: { entity: 'all_synced', time: nowStr }
-          });
-        } catch {}
+      const coordinator = unifiedRepoRef.current?.getCoordinator();
+      if (!coordinator) return { success: false, message: 'لم يكتمل تشغيل مستودع المزامنة الموحد.' };
+      const status = await coordinator.syncNow(30000);
+      setPendingSyncCount(status.pending);
+      setHasUnsyncedChanges(status.pending > 0 || status.conflict > 0);
+      if (status.pending || status.conflict || status.lastError || !status.lastSuccessAt) {
+        return { success: false, message:
+          `لم تكتمل المزامنة. عمليات معلقة: ${status.pending}، تعارضات: ${status.conflict}. ${status.lastError || ''}` };
       }
-
-      const invCount = serverJson?.counts?.invoices ?? invoices.length;
-      const partCount = serverJson?.counts?.parties ?? parties.length;
-      const itemCount = serverJson?.counts?.inventory ?? inventory.length;
-
-      const driveStatusText = firestoreOk || driveOk
-        ? 'تمت المزامنة وحفظ قاعدة البيانات سحابياً في Firebase Firestore وسيرفر المحل بنجاح! ⚡'
-        : 'تمت المزامنة الفورية مع السيرفر المركزي والذاكرة المحلية بنجاح!';
-
-      return {
-        success: true,
-        message: `${driveStatusText} (${nowStr}) - البيانات الحالية: ${invCount} فاتورة، ${partCount} عميل، ${itemCount} صنف.`
-      };
-    } catch (err: any) {
-      console.error('Sync execution note:', err);
-      const nowStr = new Date().toLocaleTimeString('ar-EG', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-      setLastSyncTime(nowStr);
-      setHasUnsyncedChanges(false);
-      setPendingSyncCount(0);
-      return {
-        success: true,
-        message: `تمت المزامنة وتحديث الشاشة بنجاح (${nowStr}).`
-      };
+      const time = new Date(status.lastSuccessAt).toLocaleTimeString('ar-EG');
+      setLastSyncTime(time);
+      setLastFirebaseSyncTime(time);
+      return { success: true, message: `اكتملت المزامنة المؤكدة مع Firebase عند ${time}.` };
+    } catch (error) {
+      return { success: false, message: `فشلت المزامنة: ${String(error)}` };
     } finally {
       setIsFirebaseSyncing(false);
     }
   };
 
-  // Initial load from Firebase if available, or sync offline changes to cloud
-  
-
-  const fetchCloudData = async (isInitial = false) => {
-    let isMounted = true;
-    
-      if (!navigator.onLine || isLocalOnlyMode) {
-        setIsOnline(false);
-        isInitialMount.current = false;
-        isCloudHydratedRef.current = true;
-        return;
-      }
-      try {
-        // Optimization: On initial load, the real-time onSnapshot listeners mounted immediately below
-        // automatically receive and stream the authoritative documents from Firestore.
-        // Skipping redundant upfront mass getDocs across 25 collections saves thousands of Firestore read units per session!
-        if (isInitial) {
-          try {
-            const settingsSnap = await getDoc(doc(db, 'settings', 'global'));
-            if (settingsSnap.exists()) {
-              setSettings(prev => ({ ...prev, ...(settingsSnap.data() as any) }));
-            }
-          } catch (e: any) {
-            console.debug('Global settings initial sync notice:', e?.message || e);
-          }
-          isInitialMount.current = false;
-          isCloudHydratedRef.current = true;
-          return;
-        }
-
-        const collectionsToFetch = [
-          'accounts', 'treasuries', 'parties', 'employees', 'invoices',
-          'purchases', 'purchaseReturns', 'salesReturns', 'vouchers', 'printOrders',
-          'journalEntries', 'employeeAdvances', 'employeeDeductions', 'employeeIncentives',
-          'payrollSheets', 'inventory', 'stockMovements', 'companies', 'branches',
-          'warehouses', 'warehouseOperations', 'roles', 'users', 'debtClearings', 'expenses'
-        ];
-        
-        let hasCloudData = false;
-        const data: any = {};
-        
-        // Load set of persistently deleted documents & zeroing cutoffs
-        const deletedDocsSet = new Set<string>();
-        try {
-          const delList = JSON.parse(localStorage.getItem('accounting_deleted_docs') || '[]');
-          if (Array.isArray(delList)) {
-            delList.forEach((d: any) => {
-              if (d && d.col && d.id) deletedDocsSet.add(`${d.col}_${d.id}`);
-            });
-          }
-        } catch (e) {}
-        const zeroedCutoffs = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_zeroed_cutoffs`) || '{}');
-
-        // Fetch collections in small batches to prevent socket contention on initial load
-        const chunkSize = 4;
-        for (let i = 0; i < collectionsToFetch.length; i += chunkSize) {
-          const chunk = collectionsToFetch.slice(i, i + chunkSize);
-          await Promise.all(
-            chunk.map(async (colName) => {
-              try {
-                const querySnapshot = await getDocs(collection(db, colName));
-                const filteredDocs: any[] = [];
-                if (!querySnapshot.empty) {
-                  for (const d of querySnapshot.docs) {
-                    const docData = d.data();
-                    if (!docData || !docData.id) continue;
-                    const docKey = `${colName}_${docData.id}`;
-                    
-                    // If document was registered as deleted, purge from cloud and do not resurrect
-                    if (deletedDocsSet.has(docKey)) {
-                      deleteDoc(d.ref).catch(() => {});
-                      continue;
-                    }
-
-                    // If collection was zeroed, purge documents matching zeroing criteria
-                    const cutoff = zeroedCutoffs[colName];
-                    if (cutoff) {
-                      const docDate = (docData.date || docData.createdAt || docData.openingBalanceDate || '').split('T')[0];
-                      if (cutoff.scope === 'all') {
-                        deleteDoc(d.ref).catch(() => {});
-                        continue;
-                      } else if (docDate && docDate <= cutoff.cutoffDate) {
-                        deleteDoc(d.ref).catch(() => {});
-                        continue;
-                      }
-                    }
-
-                    filteredDocs.push(docData);
-                  }
-
-                  if (filteredDocs.length > 0) {
-                    hasCloudData = true;
-                  }
-                }
-                data[colName] = filteredDocs;
-              } catch (e: any) {
-                // Silently fallback to local state if offline or unavailable
-                if (e?.code !== 'unavailable') {
-                  console.debug(`Sync notice for ${colName}:`, e?.message || e);
-                }
-              }
-            })
-          );
-        }
-        
-        try {
-          const settingsSnap = await getDoc(doc(db, 'settings', 'global'));
-          if (settingsSnap.exists()) {
-            hasCloudData = true;
-            data.settings = settingsSnap.data();
-          }
-        } catch (e: any) {
-          if (e?.code !== 'unavailable') {
-            console.debug('Settings sync notice:', e?.message || e);
-          }
-        }
-        
-        if (isMounted && hasCloudData) {
-            if (Array.isArray(data.parties)) {
-              setParties(prev => {
-                const next = mergeEntityLists(prev || [], data.parties);
-                try { localStorage.setItem(`${STORAGE_KEY}_parties`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.invoices)) {
-              setInvoices(prev => {
-                const next = mergeInvoicesWithUpsertAndConflictResolution(prev || [], data.invoices);
-                try { localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.employees)) {
-              setEmployees(prev => {
-                const next = mergeEntityLists(prev || [], data.employees);
-                try { localStorage.setItem(`${STORAGE_KEY}_employees`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.vouchers)) {
-              setVouchers(prev => {
-                const next = mergeEntityLists(prev || [], data.vouchers);
-                try { localStorage.setItem(`${STORAGE_KEY}_vouchers`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.printOrders)) {
-              setPrintOrders(prev => {
-                const next = mergeEntityLists(prev || [], data.printOrders);
-                try { localStorage.setItem(`${STORAGE_KEY}_printOrders`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.inventory)) {
-              setInventory(prev => {
-                const next = mergeEntityLists(prev || [], data.inventory);
-                try { localStorage.setItem(`${STORAGE_KEY}_inventory`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.accounts)) {
-              setAccounts(prev => {
-                const next = mergeEntityLists(prev || [], data.accounts);
-                try { localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.treasuries)) {
-              setTreasuries(prev => {
-                const next = mergeEntityLists(prev || [], data.treasuries);
-                try { localStorage.setItem(`${STORAGE_KEY}_treasuries`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.purchases)) {
-              setPurchases(prev => {
-                const next = mergeEntityLists(prev || [], data.purchases);
-                try { localStorage.setItem(`${STORAGE_KEY}_purchases`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.purchaseReturns)) {
-              setPurchaseReturns(prev => {
-                const next = mergeEntityLists(prev || [], data.purchaseReturns);
-                try { localStorage.setItem(`${STORAGE_KEY}_purchaseReturns`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.salesReturns)) {
-              setSalesReturns(prev => {
-                const next = mergeEntityLists(prev || [], data.salesReturns);
-                try { localStorage.setItem(`${STORAGE_KEY}_salesReturns`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.journalEntries)) {
-              setJournalEntries(prev => {
-                const next = mergeEntityLists(prev || [], data.journalEntries);
-                try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.employeeAdvances)) {
-              setEmployeeAdvances(prev => {
-                const next = mergeEntityLists(prev || [], data.employeeAdvances);
-                try { localStorage.setItem(`${STORAGE_KEY}_advances`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.employeeDeductions)) {
-              setEmployeeDeductions(prev => {
-                const next = mergeEntityLists(prev || [], data.employeeDeductions);
-                try { localStorage.setItem(`${STORAGE_KEY}_deductions`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.employeeIncentives)) {
-              setEmployeeIncentives(prev => {
-                const next = mergeEntityLists(prev || [], data.employeeIncentives);
-                try { localStorage.setItem(`${STORAGE_KEY}_incentives`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.payrollSheets)) {
-              setPayrollSheets(prev => {
-                const next = mergeEntityLists(prev || [], data.payrollSheets);
-                try { localStorage.setItem(`${STORAGE_KEY}_payrollSheets`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.stockMovements)) {
-              setStockMovements(prev => {
-                const next = mergeEntityLists(prev || [], data.stockMovements);
-                try { localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.companies)) {
-              setCompanies(prev => {
-                const next = mergeEntityLists(prev || [], data.companies);
-                try { localStorage.setItem(`${STORAGE_KEY}_companies`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.branches)) {
-              setBranches(prev => {
-                const next = mergeEntityLists(prev || [], data.branches);
-                try { localStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.warehouses)) {
-              setWarehouses(prev => {
-                const next = mergeEntityLists(prev || [], data.warehouses);
-                try { localStorage.setItem(`${STORAGE_KEY}_warehouses`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.warehouseOperations)) {
-              setWarehouseOperations(prev => {
-                const next = mergeEntityLists(prev || [], data.warehouseOperations);
-                try { localStorage.setItem(`${STORAGE_KEY}_warehouse_operations`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.roles)) {
-              setRoles(prev => {
-                const next = mergeEntityLists(prev || [], data.roles);
-                try { localStorage.setItem(`${STORAGE_KEY}_roles`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.users) && data.users.length > 0) {
-              const cleanCloudUsers = data.users.filter((u: any) => u && u.id && !deletedDocsSet.has(`users_${u.id}`));
-              if (cleanCloudUsers.length > 0) {
-                setUsers(prev => {
-                  const next = mergeEntityLists(prev || [], cleanCloudUsers);
-                  try { localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(next)); } catch {}
-                  return next;
-                });
-              }
-            }
-            if (Array.isArray(data.debtClearings)) {
-              setDebtClearings(prev => {
-                const next = mergeEntityLists(prev || [], data.debtClearings);
-                try { localStorage.setItem(`${STORAGE_KEY}_debt_clearings`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            if (Array.isArray(data.expenses)) {
-              setExpenses(prev => {
-                const next = mergeEntityLists(prev || [], data.expenses);
-                try { localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(next)); } catch {}
-                return next;
-              });
-            }
-            
-            if (data.settings && typeof data.settings === 'object') {
-              setSettings(prev => {
-                const merged = {
-                  ...prev,
-                  ...data.settings,
-                  currency: data.settings.currency || prev.currency || '₪',
-                  baseCurrencyCode: data.settings.baseCurrencyCode || prev.baseCurrencyCode || 'ILS',
-                  currencies: (data.settings.currencies && data.settings.currencies.length > 0) ? data.settings.currencies : prev.currencies
-                };
-                try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(merged)); } catch {}
-                return merged;
-              });
-            }
-
-            // Build accurate local hashes from cloud content so we don't treat fresh deployment as unsynced
-            const newHashes: Record<string, string> = {};
-            for (const [colName, items] of Object.entries(data)) {
-                if (Array.isArray(items)) {
-                    for (const item of items) {
-                        if (item && item.id) {
-                            newHashes[`${colName}_${item.id}`] = JSON.stringify(item);
-                        }
-                    }
-                }
-            }
-            if (data.settings) {
-                newHashes['settings_global'] = JSON.stringify(data.settings);
-            }
-            safeSetSyncedHashes(newHashes);
-
-            const timeStr = new Date().toLocaleTimeString('en-US');
-            setLastFirebaseSyncTime(timeStr);
-            setLastSyncTime(timeStr);
-            setHasUnsyncedChanges(false);
-            setPendingSyncCount(0);
-            localStorage.setItem(`${STORAGE_KEY}_last_sync`, timeStr);
-            localStorage.setItem(`${STORAGE_KEY}_has_unsynced`, 'false');
-            localStorage.setItem(`${STORAGE_KEY}_pending_sync_count`, '0');
-        } else if (isMounted && !hasCloudData) {
-          await pullServerSyncState();
-          const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          setLastSyncTime(nowStr);
-          setHasUnsyncedChanges(false);
-          setPendingSyncCount(0);
-          localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
-        }
-      } catch (err) {
-        console.log('Central sync hub fallback:', err);
-        await pullServerSyncState();
-        const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setLastSyncTime(nowStr);
-        setHasUnsyncedChanges(false);
-        setPendingSyncCount(0);
-      } finally {
-        if (isMounted) {
-          isCloudHydratedRef.current = true;
-          setTimeout(() => {
-            isInitialMount.current = false;
-          }, 400);
-        }
-      }
-    
+  // Retired: historical 25-collection reads would mix unrelated sources.
+  const fetchCloudData = async (_isInitial = false): Promise<void> => {
+    isCloudHydratedRef.current = true;
+    isInitialMount.current = false;
   };
   fetchFromFirebaseRef.current = fetchCloudData;
 
-  useEffect(() => {
-    if (isLocalOnlyMode) return;
-    resetQuotaExceeded();
-    fetchCloudData(true);
-    executeServerFullSync().catch(() => {});
-
-    const unsubs: (() => void)[] = [];
-
-    try {
-      // SMART DELTA ARCHITECTURE:
-      // Heavy unbounded onSnapshot listeners across all 23 individual collections (invoices, inventory, etc.)
-      // are purposely retired to protect the Firebase free tier and prevent burning thousands of reads on every page refresh!
-      // All real-time multi-device sync is now powered exclusively by the lightweight subscribeToFirestoreLiveDeltas stream
-      // and IndexedDB persistent cache.
-      
-      // Live Global Settings Sync (Single document listener = 1 read only when settings change)
-      const unsubSettings = onSnapshot(doc(db, "settings", "global"), (snapshot) => {
-        if (snapshot.exists()) {
-          const cloudSettings = snapshot.data();
-          if (cloudSettings) {
-            setSettings(prev => ({ ...prev, ...(cloudSettings as any) }));
-            try { localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(cloudSettings)); } catch {}
-          }
-        }
-      }, (e) => console.debug("Live settings sync notice:", e));
-      unsubs.push(unsubSettings);
-    } catch (listenerErr) {
-      console.warn("Realtime listeners initialization notice:", listenerErr);
-    }
-
-    return () => {
-      unsubs.forEach(unsub => {
-        try { unsub(); } catch {}
-      });
-    };
-  }, []);
+  // No additional Firebase settings listener or full legacy fetch at startup.
+  // Settings are read from the canonical repository like other entities.
 
   const [selectedPurchaseForPrint, setSelectedPurchaseForPrint] = useState<PurchaseInvoice | null>(null);
   const [selectedReturnForPrint, setSelectedReturnForPrint] = useState<PurchaseReturn | null>(null);
@@ -5058,7 +4250,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setLastFirebaseSyncTime(nowStr);
       localStorage.setItem(`${STORAGE_KEY}_last_sync`, nowStr);
       updateSqlServerConfig({ ...sqlServerConfig, lastSyncTime: nowStr });
-      const invCount = fullRes?.counts?.invoices ?? invoices.length;
+      const invCount = (fullRes as any)?.counts?.invoices ?? invoices.length;
       return {
         success: true,
         message: `تمت المزامنة بنجاح مع السيرفر المركزي وحفظ البيانات بالكامل (${nowStr}) - الفواتير: ${invCount}`
@@ -5089,6 +4281,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const importMasterDatabaseSnapshot = async (): Promise<{ success: boolean; message: string }> => {
+    // Old server snapshots may belong to another device/version; never merge live.
+    return { success: false, message: 'استيراد الخادم القديم متوقف؛ يجب مطابقة البيانات في أداة الترحيل أولاً.' };
     try {
       // Fetch live server database state directly from the authoritative server sync store
       const sRes = await fetch('/api/sync/state');
@@ -6426,33 +5620,37 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const addJournalEntry = (entry: Omit<JournalEntry, 'id' | 'entryNumber' | 'createdAt'>): JournalEntry => {
-    // Validate double-entry balance (Debit === Credit)
-    const totalDebit = Number(entry.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0).toFixed(2));
-    const totalCredit = Number(entry.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0).toFixed(2));
-    const diff = Number((totalDebit - totalCredit).toFixed(2));
-    
-    let validLines = [...entry.lines];
-    if (Math.abs(diff) > 0.05) {
-      console.warn(`[Journal Integrity Notice] Journal entry difference of ${diff} (Debit: ${totalDebit}, Credit: ${totalCredit}). Auto-balancing against line item to guarantee transaction commit.`);
-      if (validLines.length > 0) {
-        const lastLine = { ...validLines[validLines.length - 1] };
-        if (diff > 0) {
-          lastLine.credit = Number((lastLine.credit + diff).toFixed(2));
-        } else {
-          lastLine.debit = Number((lastLine.debit + Math.abs(diff)).toFixed(2));
-        }
-        validLines[validLines.length - 1] = lastLine;
-      }
-    } else if (Math.abs(diff) > 0 && validLines.length > 0) {
-      // Micro-rounding adjustment on last line for floating point precision
-      const lastLine = { ...validLines[validLines.length - 1] };
-      if (diff > 0) {
-        lastLine.credit = Number((lastLine.credit + diff).toFixed(2));
-      } else {
-        lastLine.debit = Number((lastLine.debit + Math.abs(diff)).toFixed(2));
-      }
-      validLines[validLines.length - 1] = lastLine;
+    // Exact minor-unit validation; NEVER change an accounting amount silently.
+    if (!entry.lines || entry.lines.length < 2) {
+      throw new Error('القيد غير صالح: يجب إدخال طرف مدين وطرف دائن على الأقل.');
     }
+    const cents = (value: number): number => {
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+        throw new Error('مبلغ القيد غير صالح.');
+      }
+      const minor = Math.round(value * 100);
+      if (!Number.isSafeInteger(minor) || Math.abs(value * 100 - minor) > 1e-6) {
+        throw new Error('المبالغ يجب ألا تتجاوز منزلتين عشريتين.');
+      }
+      return minor;
+    };
+    let debitMinor = 0;
+    let creditMinor = 0;
+    for (const line of entry.lines) {
+      if (!line.accountCode) throw new Error('رقم حساب القيد مفقود.');
+      const debit = cents(line.debit);
+      const credit = cents(line.credit);
+      if ((debit > 0 && credit > 0) || (debit === 0 && credit === 0)) {
+        throw new Error('كل سطر يجب أن يحتوي مبلغًا مدينًا أو دائنًا فقط.');
+      }
+      debitMinor += debit;
+      creditMinor += credit;
+    }
+    if (debitMinor <= 0 || debitMinor !== creditMinor ||
+        !Number.isSafeInteger(debitMinor) || !Number.isSafeInteger(creditMinor)) {
+      throw new Error(`قيد غير متوازن: المدين ${debitMinor / 100}، الدائن ${creditMinor / 100}.`);
+    }
+    const validLines = entry.lines.map(line => ({ ...line }));
 
     const uniqueSuffix = Math.random().toString(36).substring(2, 8) + '-' + Math.floor(Math.random() * 1000);
     const id = 'je-' + Date.now() + '-' + uniqueSuffix;
@@ -6471,15 +5669,13 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = [newEntry, ...prev];
       try { localStorage.setItem(`${STORAGE_KEY}_journals`, JSON.stringify(next)); } catch {}
       broadcastEntityChange('journalEntries', next);
-      pushToServerSync('journalEntries', newEntry);
       return next;
     });
 
-    // Direct cloud save (unified on journalEntries collection and legacy fallback journals)
-    setDoc(doc(db, 'journalEntries', newEntry.id), cleanDocForFirestore(newEntry)).catch(err => {
-      console.warn('Direct cloud save journal notice:', err);
-    });
-    setDoc(doc(db, 'journals', newEntry.id), cleanDocForFirestore(newEntry)).catch(() => {});
+    // No direct writes to the old 'journals' or 'journalEntries' collections.
+    // Only the canonical outbox may send the journal to Firestore.
+
+    pushToServerSync('journalEntries', newEntry);
 
     // Telegram Notification - Do not send daily journal proofs for invoice/POS transactions
     try {
@@ -8281,7 +7477,6 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ? prev.map(inv => inv.id === extraOptions.editingInvoiceId ? newInvoice : inv)
           : [newInvoice, ...prev];
         broadcastEntityChange('invoices', next);
-        pushToServerSync('invoices', newInvoice);
         return next;
       });
     } else {
@@ -8289,7 +7484,6 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setInvoices(prev => {
         const next = [newInvoice, ...prev];
         broadcastEntityChange('invoices', next);
-        pushToServerSync('invoices', newInvoice);
         return next;
       });
     }
@@ -8460,12 +7654,8 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       extraOptions
     );
 
-    // 2. Asynchronous Non-Blocking Background Cloud Push: Sync to Firestore without keeping cashier waiting
-    if (!isLocalOnlyMode && onlineInvoicePostingService.checkIsOnline()) {
-      onlineInvoicePostingService.postInvoiceDirectlyOnline(localInvoice, invoices).catch(cloudErr => {
-        console.warn('Background cloud posting notice:', cloudErr);
-      });
-    }
+    // The normal invoice save is routed to the durable outbox; never perform
+    // a second direct Firestore write here (or allocate a second number).
 
     return {
       success: true,
@@ -9394,27 +8584,10 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   };
 
-  const renumberInvoicesToOne = (): { success: boolean; message: string } => {
-    setInvoices(prev => {
-      const updated = prev.map((inv, idx) => {
-        const newNum = `INV-${String(idx + 1).padStart(4, '0')}`;
-        const updatedInv = { ...inv, invoiceNumber: newNum };
-        setDoc(doc(db, 'invoices', updatedInv.id), cleanDocForFirestore(updatedInv)).catch(() => {});
-        return updatedInv;
-      });
-      try {
-        localStorage.setItem(`${STORAGE_KEY}_invoices`, JSON.stringify(updated));
-      } catch {}
-      pushToServerSync('invoices', updated);
-      broadcastEntityChange('invoices', updated);
-      return updated;
-    });
-
-    return {
-      success: true,
-      message: 'تم إعادة ترقيم كافة الفواتير تدريجياً لتبدأ من الرقم 1 (أصبحت الفاتورة الحالية برقم INV-0001) بنجاح!'
-    };
-  };
+  const renumberInvoicesToOne = (): { success: boolean; message: string } => ({
+    success: false,
+    message: 'تم تعطيل إعادة الترقيم الجماعي لحماية هوية الفواتير؛ التصحيح يتطلب جرد الفواتير وحجز الأرقام مركزياً.'
+  });
 
   const restoreDeletedInvoice = async (id: string): Promise<Invoice | null> => {
     const target = deletedInvoices.find(inv => inv.id === id);
@@ -10711,7 +9884,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 4. Direct push to Firestore cloud database with 5s safety timeout
       await Promise.race([
-        pushFullDatabaseToFirestore(fullSnapshot),
+        Promise.resolve({ success: false, reason: 'Legacy full-database push disabled; reconcile sources instead.' }),
         new Promise(resolve => setTimeout(resolve, 5000))
       ]).catch(err => {
         console.warn('Push full DB notice:', err);

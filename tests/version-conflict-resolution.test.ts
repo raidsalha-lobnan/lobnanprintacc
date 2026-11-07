@@ -50,11 +50,14 @@ test('Reconcile test probe conflicts archives inv-probe-sync-1 and inv-test-full
   const beforeConflicts = await local.getConflicts();
   assert.equal(beforeConflicts.length, 2);
 
-  // Run one-time archival cleanup
-  await local.reconcileTestProbeConflicts();
+  // Verify automatic conflict archiving is safely disabled
+  await assert.rejects(
+    async () => await local.reconcileTestProbeConflicts(),
+    /Automatic conflict archiving is disabled/
+  );
 
   const afterConflicts = await local.getConflicts();
-  assert.equal(afterConflicts.length, 0);
+  assert.equal(afterConflicts.length, 2);
 
   // Real invoice operation remains intact in pending outbox
   const pending = await local.pending();

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAccounting } from '../context/AccountingContext';
+import { compareRecordCollections } from '../sync-next/reconcileRecords';
+import { downloadMultiSourceDiagnostic } from '../sync-next/reconciliationExport';
 import { syncAuditService, SyncAuditItem, SyncConnectionIssue, ENTITY_ARABIC_NAMES } from '../services/syncAuditService';
 import { getCachedSyncToken, requestGoogleDriveToken } from '../services/googleDriveDatabaseSyncService';
 import {
@@ -73,7 +75,8 @@ export const SyncAuditStatementView: React.FC = () => {
     expenses,
     stockMovements,
     warehouseOperations,
-    dailyEntrySheets
+    dailyEntrySheets,
+    unifiedRepository
   } = useAccounting();
 
   const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'pushed' | 'pulled' | 'pending' | 'issues'>('all');
@@ -92,6 +95,7 @@ export const SyncAuditStatementView: React.FC = () => {
   const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [cloudCounts, setCloudCounts] = useState<Record<string, number> | null>(null);
+  const [auditedCloudRecords, setAuditedCloudRecords] = useState<Record<string, any[]> | null>(null);
   const [isLoadingCloudCounts, setIsLoadingCloudCounts] = useState(false);
 
   // Database Preview Modal State
@@ -104,8 +108,10 @@ export const SyncAuditStatementView: React.FC = () => {
   const loadCloudCounts = useCallback(async () => {
     setIsLoadingCloudCounts(true);
     try {
-      const fsData = await fetchFullDatabaseFromFirestore();
+      if (!unifiedRepository) throw new Error('المستودع الموحد غير جاهز');
+      const fsData = await unifiedRepository.getCloudSnapshot();
       if (fsData) {
+        setAuditedCloudRecords(fsData);
         const counts: Record<string, number> = {};
         for (const [k, v] of Object.entries(fsData)) {
           counts[k] = Array.isArray(v) ? v.length : 0;
@@ -117,74 +123,23 @@ export const SyncAuditStatementView: React.FC = () => {
     } finally {
       setIsLoadingCloudCounts(false);
     }
-  }, []);
+  }, [unifiedRepository]);
 
-  useEffect(() => {
-    loadCloudCounts();
-  }, [loadCloudCounts]);
+  // Explicit-only cloud audit; never scan all records automatically on opening this screen.
 
-  // Direct Live Send/Receive Test with Firebase Firestore & Server
+  // Non-destructive verification: never send test accounting documents to
+  // a legacy API endpoint or claim success based on a simulated server response.
   const handleLiveTestSendReceive = async () => {
     setIsTestingPing(true);
     setTestResult(null);
     try {
-      // 1. Direct Real-Time Firebase Firestore Ping Test
-      const fsPing = await runLiveFirestorePingTest();
-
-      // 2. Server Delta Endpoint Ping (skipped on Vercel static hosting)
-      const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
-      const pingId = 'ping-' + Date.now();
-      let serverMs = 0;
-      let serverSeq = 1;
-      let serverOk = false;
-      if (!isVercel) {
-        try {
-          const start = performance.now();
-          const res = await fetch('/api/sync/delta', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              entity: 'settings',
-              op: 'upsert',
-              item: { id: pingId, pingTest: true, createdAt: new Date().toISOString() }
-            })
-          });
-          serverMs = Math.round(performance.now() - start);
-          if (res.ok) {
-            const json = await res.json();
-            serverSeq = json.seq || json.currentSeq || 1;
-            serverOk = true;
-          }
-        } catch {}
-      } else {
-        serverOk = true;
-        serverMs = 15;
-      }
-
-      if (fsPing.success || serverOk) {
-        setTestResult({
-          success: true,
-          seq: serverSeq,
-          ms: fsPing.ms || serverMs,
-          message: `تم إرسال الحركة واستقبال تأكيد التسجيل بنجاح في قاعدة بيانات Firebase Firestore السحابية (${fsPing.ms}ms) والسيرفر المحلي 🟢⚡`
-        });
-        syncAuditService.logEvent({
-          direction: 'push',
-          entity: 'settings',
-          op: 'ping',
-          status: 'success',
-          seq: serverSeq,
-          details: `اختبار ربط وإرسال مباشر ناجح في Firebase Firestore (${fsPing.ms}ms)`
-        });
-        await forceSyncNow();
-      } else {
-        throw new Error(fsPing.message);
-      }
-    } catch (err: any) {
+      const outcome = await forceSyncNow();
       setTestResult({
-        success: false,
-        message: `فشل اختبار المزامنة: ${err?.message || err}`
+        success: outcome.success,
+        message: outcome.message
       });
+    } catch (error) {
+      setTestResult({ success: false, message: String(error) });
     } finally {
       setIsTestingPing(false);
     }
@@ -251,8 +206,8 @@ export const SyncAuditStatementView: React.FC = () => {
     const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
     if (isVercel) {
       setServerPingMs(25);
-      setConnectionState('connected');
-      setServerStatus({ status: 'online', mode: 'Firebase Cloud Direct (Vercel)' });
+      setConnectionState('checking');
+      setServerStatus(null); // Vercel hostname is NOT proof of a healthy Firestore connection.
       setIsLoadingServerStatus(false);
       loadLocalLogs();
       return;
@@ -285,7 +240,7 @@ export const SyncAuditStatementView: React.FC = () => {
 
   useEffect(() => {
     checkServerHealth();
-    const interval = setInterval(checkServerHealth, 10000);
+    const interval = setInterval(checkServerHealth, 120000);
     return () => clearInterval(interval);
   }, [checkServerHealth]);
 
@@ -306,22 +261,15 @@ export const SyncAuditStatementView: React.FC = () => {
     setIsLoadingPreview(true);
     setShowDatabasePreviewModal(true);
     try {
-      const fsData = await fetchFullDatabaseFromFirestore();
-      if (fsData && Object.keys(fsData).length > 0 && Object.values(fsData).some(arr => arr.length > 0)) {
+      if (!unifiedRepository) throw new Error('المستودع الموحد غير جاهز');
+      const fsData = await unifiedRepository.getCloudSnapshot();
+      if (fsData && Object.keys(fsData).length > 0 && Object.values(fsData).some((arr: any) => Array.isArray(arr) && arr.length > 0)) {
         setPreviewData(fsData);
       } else {
-        setPreviewData({
-          invoices, parties, inventory, vouchers, printOrders, purchases,
-          purchaseReturns, salesReturns, accounts, treasuries, employees,
-          journalEntries, expenses, stockMovements, warehouseOperations, dailyEntrySheets
-        });
+        throw new Error('المصدر السحابي فارغ أو تعذرت قراءته؛ لن نستبدله ببيانات الشاشة المحلية.');
       }
     } catch {
-      setPreviewData({
-        invoices, parties, inventory, vouchers, printOrders, purchases,
-        purchaseReturns, salesReturns, accounts, treasuries, employees,
-        journalEntries, expenses, stockMovements, warehouseOperations, dailyEntrySheets
-      });
+      setPreviewData(null);
     } finally {
       setIsLoadingPreview(false);
     }
@@ -371,6 +319,13 @@ export const SyncAuditStatementView: React.FC = () => {
     stockMovements.length, warehouseOperations.length, dailyEntrySheets
   ]);
 
+  const localRecordCollections: Record<string, any[]> = {
+    invoices, parties, inventory, vouchers, printOrders, purchases,
+    purchaseReturns, salesReturns, accounts, treasuries, employees,
+    journalEntries, expenses, stockMovements, warehouseOperations,
+    dailyEntrySheets: dailyEntrySheets || []
+  };
+
   // Combined reconciliation table data against authoritative cloud records
   const reconciliationData = useMemo(() => {
     const entitiesList = [
@@ -384,14 +339,17 @@ export const SyncAuditStatementView: React.FC = () => {
       const localCount = localEntitiesCounts[entityKey] || 0;
       const serverCount = cloudCounts !== null && cloudCounts[entityKey] !== undefined
         ? cloudCounts[entityKey]
-        : (serverStatus?.entities?.[entityKey]?.count ?? localCount);
-      const diff = localCount - serverCount;
+        : -1;
+      const diff = serverCount < 0 ? 0 : localCount - serverCount;
       const lastMod = serverStatus?.entities?.[entityKey]?.lastModified ? new Date(serverStatus.entities[entityKey].lastModified) : null;
       const lastModStr = serverStatus && lastMod
         ? lastMod.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
         : 'حي ومتزامن';
 
-      const isSynced = diff === 0;
+      const comparison = compareRecordCollections(
+        localRecordCollections[entityKey], auditedCloudRecords?.[entityKey] ?? (auditedCloudRecords ? [] : undefined)
+      );
+      const isSynced = comparison.status === 'MATCH';
 
       return {
         key: entityKey,
@@ -400,10 +358,14 @@ export const SyncAuditStatementView: React.FC = () => {
         serverCount,
         diff,
         isSynced,
+        comparison,
         lastModified: lastModStr
       };
     });
-  }, [localEntitiesCounts, cloudCounts, serverStatus]);
+  }, [localEntitiesCounts, cloudCounts, serverStatus, auditedCloudRecords, invoices,
+      parties, inventory, vouchers, printOrders, purchases, purchaseReturns, salesReturns,
+      accounts, treasuries, employees, journalEntries, expenses, stockMovements,
+      warehouseOperations, dailyEntrySheets]);
 
   // Filtered audit logs
   const filteredLogs = useMemo(() => {
@@ -467,7 +429,7 @@ export const SyncAuditStatementView: React.FC = () => {
               title="انقر لعرض حاسبة حصة فايربيس السحابية"
             >
               <Cloud className="w-4 h-4 text-emerald-600 animate-pulse" />
-              <span>مزامنة Firebase Firestore سحابية حية 100% ✅</span>
+              <span>الحالة تحتاج تدقيقًا من قاعدة السحابة</span>
             </div>
 
             <button
@@ -748,6 +710,21 @@ export const SyncAuditStatementView: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
+              disabled={!unifiedRepository || isLoadingCloudCounts}
+              onClick={async () => {
+                if (!unifiedRepository) return;
+                if (!window.confirm('سيتم قراءة السجلات السحابية مرة واحدة وتصدير بيانات مالية كاملة للمطابقة. هل تريد المتابعة؟')) return;
+                try {
+                  await downloadMultiSourceDiagnostic(unifiedRepository);
+                  setActionFeedback({ success: true, message: 'تم تنزيل ملف المقارنة دون تعديل السجلات.' });
+                } catch (error) {
+                  setActionFeedback({ success: false, message: `فشل استخراج تقرير المصادر: ${String(error)}` });
+                }
+              }}
+              className="px-2.5 py-1 text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg font-bold"
+            >تصدير مصادر البيانات الثلاث للمراجعة</button>
+            <button
               onClick={() => {
                 loadCloudCounts();
                 forceSyncNow();
@@ -785,7 +762,7 @@ export const SyncAuditStatementView: React.FC = () => {
                     <span>{row.name}</span>
                   </td>
                   <td className="p-2.5 text-center font-mono font-bold text-slate-800">
-                    {row.serverCount.toLocaleString('ar-EG')}
+                    {row.serverCount < 0 ? 'لم تُفحص' : row.serverCount.toLocaleString('ar-EG')}
                   </td>
                   <td className="p-2.5 text-center font-mono font-bold text-blue-700">
                     {row.localCount.toLocaleString('ar-EG')}
@@ -794,8 +771,12 @@ export const SyncAuditStatementView: React.FC = () => {
                     {row.isSynced ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>مطابق سحابياً 100% 🟢</span>
+                        <span>تطابق الهوية والمحتوى بعد الفحص</span>
                       </span>
+                    ) : row.comparison.status === 'NOT_CHECKED' ? (
+                      <span className="text-slate-600 text-[10px]">لم يتم فحص المحتوى السحابي بعد</span>
+                    ) : row.comparison.differentContent.length > 0 ? (
+                      <span className="text-rose-700 text-[10px] font-bold">تعارض محتوى: {row.comparison.differentContent.length} سجل</span>
                     ) : row.diff > 0 ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                         <Clock className="w-3 h-3 text-amber-600" />
@@ -810,11 +791,11 @@ export const SyncAuditStatementView: React.FC = () => {
                   </td>
                   <td className="p-2.5 text-center font-mono text-[11px]">
                     <span className={row.diff === 0 ? "text-emerald-700 font-bold" : (row.diff > 0 ? "text-amber-700 font-bold" : "text-blue-700 font-bold")}>
-                      {row.diff === 0 ? '0 (مطابق)' : `${row.diff > 0 ? '+' : ''}${row.diff}`}
+                      {row.serverCount < 0 ? '—' : row.isSynced ? '0 (مطابق)' : row.comparison.differentContent.length ? `تعارض ${row.comparison.differentContent.length}` : `${row.diff > 0 ? '+' : ''}${row.diff}`}
                     </span>
                   </td>
                   <td className="p-2.5 text-center text-emerald-800 text-[10px] font-mono font-bold">
-                    Firebase Firestore ⚡
+                    {row.comparison.status === 'MATCH' ? 'مفحوص' : row.comparison.status === 'DIFFERENT' ? 'غير مطابق' : 'بانتظار الفحص'}
                   </td>
                 </tr>
               ))}
