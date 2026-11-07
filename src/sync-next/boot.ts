@@ -62,7 +62,33 @@ export async function createUnifiedDataLayer(
     }
     return true;
   });
-  await local.reconcileTestProbeConflicts().catch(() => {});
+
+  // One-time initial safe hydration for a brand-new device with an empty IndexedDB
+  try {
+    const existingInvoices = await local.listVisible('invoices');
+    const pendingOutbox = await local.pending();
+    const needsReconciliation = typeof localStorage !== 'undefined' &&
+      localStorage.getItem('lobnan_sync_reconciliation_required') === 'true';
+
+    if (existingInvoices.length === 0 && pendingOutbox.length === 0 && !needsReconciliation) {
+      if (typeof navigator === 'undefined' || navigator.onLine) {
+        const cloudSnap = await remote.fetchCloudSnapshot().catch(() => ({}));
+        if (cloudSnap && Object.keys(cloudSnap).length > 0) {
+          for (const [entity, items] of Object.entries(cloudSnap)) {
+            if (!Array.isArray(items)) continue;
+            for (const item of items) {
+              if (item?.id) {
+                await repository.put(entity as EntityName, item.id, item).catch(() => {});
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Initial safe hydration notice:', err);
+  }
+
   // Historical invoice registry is initialized explicitly after data reconciliation, not blindly on boot.
   await coordinator.start();
 

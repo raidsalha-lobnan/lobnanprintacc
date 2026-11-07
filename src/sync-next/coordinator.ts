@@ -63,6 +63,9 @@ export class SyncCoordinator {
 
   private cloudAllowed = () => {
     try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('lobnan_sync_reconciliation_required') === 'true') {
+        return false;
+      }
       return typeof localStorage === 'undefined' ||
         localStorage.getItem('accounting_is_local_only_mode') !== 'true';
     } catch { return true; }

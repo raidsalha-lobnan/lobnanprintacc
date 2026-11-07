@@ -266,9 +266,9 @@ export class FirestoreSyncTransport {
         grouped[ent].push(data.value);
       }
       return grouped;
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Error fetching cloud snapshot from records:', e);
-      return {};
+      throw new Error(`تعذرت قراءة السجلات السحابية: ${e?.message || e}`);
     }
   }
 }
@@ -292,9 +292,9 @@ export async function fetchAuthoritativeCloudRecords(
       grouped[ent].push(data.value);
     }
     return grouped;
-  } catch (e) {
+  } catch (e: any) {
     console.warn('Error fetching authoritative cloud records:', e);
-    return {};
+    throw new Error(`تعذر قراءة السجلات السحابية المعتمدة: ${e?.message || e}`);
   }
 }
 

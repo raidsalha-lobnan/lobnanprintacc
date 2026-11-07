@@ -190,7 +190,8 @@ export class LocalSyncDb {
           op => op.changes.some(change => recordKey(change.entity, change.id) === key)
         );
         for (const op of matching) {
-          if (op.status === 'conflict' || (op.status === 'rejected' && !op.error?.startsWith('Superseded by'))) {
+          // Conflicts must never be silently superseded or dropped; they remain frozen for user review.
+          if (op.status === 'rejected' && !op.error?.startsWith('Superseded by')) {
             tx.objectStore(OUTBOX).put({
               ...op,
               status: 'rejected',

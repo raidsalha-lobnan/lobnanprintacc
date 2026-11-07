@@ -4245,6 +4245,12 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const syncToServer = async (): Promise<{ success: boolean; message: string }> => {
     try {
       const fullRes = await executeServerFullSync();
+      if (!fullRes?.success) {
+        return {
+          success: false,
+          message: fullRes?.message || 'تم إيقاف المزامنة الشاملة القديمة؛ النظام يعتمد على تدفق أحداث الدلتا الموثق.'
+        };
+      }
       const nowStr = new Date().toLocaleTimeString('ar-EG');
       setLastSyncTime(nowStr);
       setLastFirebaseSyncTime(nowStr);
@@ -8487,12 +8493,7 @@ export const AccountingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // 10. إرسال الحذف إلى السحابة وقاعدة بيانات Firestore
     (async () => {
       try {
-        // تحديث وثيقة الفواتير المجمعة
-        setDoc(doc(db, 'lobnan_accounting_db_v4', 'invoices'), {
-          items: [],
-          updatedAt: new Date().toISOString(),
-          count: 0
-        }).catch(() => {});
+        // حذف كل وثيقة فردية عبر القنوات المعتمدة
 
         // حذف كل وثيقة فردية
         const idList = Array.from(invoiceIds);

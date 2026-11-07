@@ -2,9 +2,15 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import * as fs from 'fs';
 import * as path from 'path';
+import { recordKey } from '../src/sync-next/types';
 
+/**
+ * تحذير تشغيلي وأمني:
+ * أداة ترحيل بيانات معزولة ومحمية.
+ * لا تُشغل على بيئة إنتاج حية دون تدقيق مسبق واعتماد الفواتير التاريخية.
+ */
 async function main() {
-  console.log('=== أداة رفع قاعدة البيانات المعتمدة إلى فيربيس (Firebase Upload Tool) ===');
+  console.log('=== أداة ترحيل السجلات إلى فيربيس (Firebase Migration Tool) ===');
 
   const configPath = path.resolve('firebase-applet-config.json');
   if (!fs.existsSync(configPath)) {
@@ -45,7 +51,7 @@ async function main() {
     }
   }
 
-  // 1. Upload each entity to lobnan_sync_workspaces/{workspaceId}/records and root collection
+  // 1. Upload each entity to lobnan_sync_workspaces/{workspaceId}/records using canonical recordKey
   for (const entity of entities) {
     const items = Array.isArray(data[entity]) ? data[entity] : [];
     if (items.length === 0) continue;
@@ -55,8 +61,9 @@ async function main() {
       if (!item || !item.id) continue;
       const cleanId = String(item.id).replace(/\//g, '_');
 
-      // 1. Unified Sync Workspace Record
-      const recordRef = doc(db, 'lobnan_sync_workspaces', workspaceId, 'records', `${entity}_${cleanId}`);
+      // 1. Unified Sync Workspace Record using canonical encoded key
+      const docKey = encodeURIComponent(recordKey(entity as any, cleanId));
+      const recordRef = doc(db, 'lobnan_sync_workspaces', workspaceId, 'records', docKey);
       batch.set(recordRef, {
         entity,
         id: cleanId,
