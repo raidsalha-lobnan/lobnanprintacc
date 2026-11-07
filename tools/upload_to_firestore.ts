@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 async function main() {
   console.log('=== أداة رفع قاعدة البيانات المعتمدة إلى فيربيس (Firebase Upload Tool) ===');
